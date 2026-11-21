@@ -1,0 +1,197 @@
+215:                 { valid=false; break; }
+216:                 if (*std::min_element(next.constraints.begin(),next.constraints.end())>=-2e-9
+217:                  && next.objective<current.objective-1e-8)
+218:                 {
+219:                     q=trial; current=next; accepted=true;
+220:                     out.parameters=q; out.improved=true;
+221:                     // Reuse the already-evaluated accepted feasible iterate.
+222:                     // Soft trajectory and request accounting stay unchanged.
+223:                     if (objectiveKind==ObjectiveKind::DWeightCount
+224:                      && validHardDW(initialHardDW) && validHardDW(current.hardDW)
+225:                      && current.hardDW<initialHardDW
+226:                      && (!out.bestHardImproved || current.hardDW<out.bestHardDW))
+227:                     {
+228:                         out.bestHardParameters=q;out.bestHardDW=current.hardDW;
+229:                         out.bestHardImproved=true;
+230:                     }
+231:                     break;
+232:                 }
+233:             }
+234:             if (!valid || accepted) break;
+235:         }
+236:         ++out.iterations;
+237:         if (!valid || !accepted
+238:          || (objectiveKind==ObjectiveKind::Ratio && -current.objective*.01>=.0105)) break;
+239:     }
+240:     return out;
+241: }
+242: 
+243: using XYZ = std::array<double,3>;
+244: inline bool same(double a,double b) { return std::memcmp(&a,&b,sizeof(double))==0; }
+245: struct Face
+246: {
+247:     std::vector<int> points;
+248:     bool protectedFace=false;
+249: };
+250: struct Mode
+251: {
+252:     int pivot=-1, pairA=-1, pairB=-1, axis=-1;
+253:     unsigned dimension=0;
+254: };
+255: 
+256: using Id = std::int64_t;
+257: // A census overrun refuses the whole DW proposal. No partial graph is used.
+258: struct CensusCaps
+259: {
+260:     std::set<Id> seeds,examinedPoints,graphNodes;
+261:     bool blocked=false;
+262:     bool seed(Id id) { return insert(seeds,id,4096); }
+263:     bool point(Id id) { return insert(examinedPoints,id,8192); }
+264:     bool node(Id id) { return insert(graphNodes,id,512); }
+265: private:
+266:     bool insert(std::set<Id>& items,Id id,std::size_t cap)
+267:     {
+268:         if (blocked || id<0) { blocked=true;return false; }
+269:         if (items.count(id)) return true;
+270:         if (items.size()>=cap) { blocked=true;return false; }
+271:         items.insert(id);return true;
+272:     }
+273: };
+274: struct DWPoint
+275: {
+276:     Id id=-1;
+277:     XYZ coordinates{{0,0,0}};
+278:     unsigned valence=0;
+279:     bool eligible=false;
+280: };
+281: inline std::vector<Id> selectInteriorNine
+282: (
+283:     const std::vector<DWPoint>& nodes,
+284:     const std::vector<std::vector<unsigned>>& adjacency
+285: )
+286: {
+287:     const unsigned n=nodes.size();
+288:     if ((n!=3 && n!=4) || adjacency.size()!=n) return {};
+289:     std::set<Id> ids;
+290:     std::vector<std::set<unsigned>> edges(n);
+291:     for (unsigned i=0;i<n;++i)
+292:     {
+293:         if (nodes[i].id<0 || !nodes[i].eligible || !nodes[i].valence
+294:          || !ids.insert(nodes[i].id).second) return {};
+295:         for (double x:nodes[i].coordinates) if (!std::isfinite(x)) return {};
+296:         for (unsigned j=0;j<i;++j)
+297:             if (nodes[i].coordinates==nodes[j].coordinates) return {};
+298:         for (unsigned j:adjacency[i])
+299:             if (j>=n || j==i || !edges[i].insert(j).second) return {};
+300:     }
+301:     for (unsigned i=0;i<n;++i) for (unsigned j:edges[i])
+302:         if (!edges[j].count(i)) return {};
+303:     std::set<unsigned> seen{0};std::vector<unsigned> todo{0};
+304:     while (!todo.empty())
+305:     {
+306:         const unsigned i=todo.back();todo.pop_back();
+307:         for (unsigned j:edges[i]) if (seen.insert(j).second) todo.push_back(j);
+308:     }
+309:     if (seen.size()!=n) return {};
+310:     auto order=[&](unsigned a,unsigned b)
+311:     {
+312:         if (nodes[a].valence!=nodes[b].valence) return nodes[a].valence>nodes[b].valence;
+313:         return nodes[a].coordinates<nodes[b].coordinates;
+314:     };
+315:     if (n==3)
+316:     {
+317:         std::vector<unsigned> sorted{0,1,2};std::sort(sorted.begin(),sorted.end(),order);
+318:         return {nodes[sorted[0]].id,nodes[sorted[1]].id,nodes[sorted[2]].id};
+319:     }
+320:     for (const auto& neighbours:edges) if (neighbours.size()!=2) return {};
+321:     std::vector<unsigned> best;
+322:     std::uint64_t bestValence=0;
+323:     for (unsigned a=0;a<n;++a) for (unsigned b=a+1;b<n;++b)
+324:     {
+325:         if (edges[a].count(b) || edges[a]!=edges[b]) continue;
+326:         std::vector<unsigned> hubs{a,b};std::sort(hubs.begin(),hubs.end(),order);
+327:         const std::uint64_t valence=std::uint64_t(nodes[a].valence)+nodes[b].valence;
+328:         bool choose=best.empty() || valence>bestValence;
+329:         if (!choose && valence==bestValence)
+330:         {
+331:             const std::array<XYZ,2> thisKey{{nodes[hubs[0]].coordinates,nodes[hubs[1]].coordinates}};
+332:             const std::array<XYZ,2> bestKey{{nodes[best[0]].coordinates,nodes[best[1]].coordinates}};
+333:             choose=thisKey<bestKey;
+334:         }
+335:         if (choose) { best=hubs;bestValence=valence; }
+336:     }
+337:     if (best.empty()) return {};
+338:     const auto& neighbours=edges[best[0]];
+339:     const unsigned bridge=*std::min_element(neighbours.begin(),neighbours.end(),
+340:         [&](unsigned a,unsigned b){return nodes[a].coordinates<nodes[b].coordinates;});
+341:     return {nodes[best[0]].id,nodes[best[1]].id,nodes[bridge].id};
+342: }
+343: 
+344: 
+345: // Single-point D/W proposals use the same finite kernel as the nine-coordinate
+346: // modes. Eligibility is supplied by the normal topology/source-role caller.
+347: inline std::vector<Id> selectInteriorDWeight
+348: (
+349:     const std::vector<DWPoint>& nodes,
+350:     const std::vector<std::vector<unsigned>>& adjacency
+351: )
+352: {
+353:     if (nodes.size()!=1) return selectInteriorNine(nodes,adjacency);
+354:     if (adjacency.size()!=1 || !adjacency[0].empty()) return {};
+355:     const DWPoint& p=nodes[0];
+356:     if (p.id<0 || !p.eligible || !p.valence) return {};
+357:     for (double x:p.coordinates) if (!std::isfinite(x)) return {};
+358:     return {p.id};
+359: }
+360: // Visit the supported component mode first, then each independent point of a
+878:             s.faceQuality[i]={{w,r,sk,n}};
+879:             for (scalar value:s.faceQuality[i]) if (!finiteScalar(value)) s.valid=false;
+880:         }
+881:         return s;
+882:     }
+883:     pointField fromGlobal(const pointField& p) const
+884:     {
+885:         pointField out(pointIDs.size());
+886:         for (label i=0;i<label(pointIDs.size());++i) out[i]=p[pointIDs[i]];
+887:         return out;
+888:     }
+889: };
+890: 
+891: inline bool qualityLineage
+892: (
+893:     const Stencil& stencil,const State& before,const State& after,scalar ceiling
+894: )
+895: {
+896:     if (!before.valid || !after.valid || !finiteScalar(ceiling)) return false;
+897:     auto compare=[](const std::vector<scalar>& a,const std::vector<scalar>& b,scalar limit,bool upper)
+898:     {
+899:         return dcCartFiniteRepairKernel::preservesHardRoles(a,b,limit,upper,scalar(VSMALL));
+900:     };
+901:     // Include outside determinants as roles; unchanged geometry is additionally
+902:     // checked bitwise below rather than inferred from the quality verdict.
+903:     if (!compare(before.determinant,after.determinant,.001,false)) return false;
+904:     for (label k=0;k<3;++k)
+905:     {
+906:         std::vector<scalar> a,b;
+907:         for (label f=0;f<label(stencil.faces.size());++f) if (!stencil.faces[f].coupled)
+908:         { a.push_back(before.faceQuality[f][k]);b.push_back(after.faceQuality[f][k]); }
+909:         if (!compare(a,b,k==0 ? .05 : k==1 ? .01 : 4,k==2)) return false;
+910:     }
+911:     label oldN=0,newN=0;
+912:     for (label f=0;f<label(stencil.faces.size());++f) if (!stencil.faces[f].coupled)
+913:     {
+914:         oldN+=before.faceQuality[f][3]>70;newN+=after.faceQuality[f][3]>70;
+915:         if (after.faceQuality[f][3]>ceiling) return false;
+916:     }
+917:     if (newN>oldN) return false;
+918:     for (label c:stencil.outside)
+919:     {
+920:         if (!sameVector(before.cc[c],after.cc[c])
+921:          || !sameScalar(before.volume[c],after.volume[c])) return false;
+922:         for (label f:stencil.cells[c].faces)
+923:             if (!sameVector(before.sf[f],after.sf[f])
+924:              || !sameVector(before.fc[f],after.fc[f])) return false;
+925:     }
+926:     return true;
+927: }
+928: 

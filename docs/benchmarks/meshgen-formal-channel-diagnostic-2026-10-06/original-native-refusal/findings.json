@@ -1,0 +1,32 @@
+[
+  {
+    "id": "R1",
+    "classification": "actual run blocker, confirmed native strict geometry refusal; numerical repair not authorized in this review",
+    "fullLogLine": 173,
+    "directError": "S10 闭合断言失败：单元 457 的 ΣSf=0.003906 > 容差 0.000000（开放单元，拒绝导出）",
+    "reportExactSigmaSf": 0.00390625,
+    "otherReportedOpenCells": [
+      463,
+      469,
+      475
+    ],
+    "coreLocation": "source/core/src/Cartesian.cpp:32679-32693",
+    "cliLocation": "source/cli/main.cpp:1863-1866",
+    "polyMeshWasNotExported": true,
+    "MIN_CELLSWasNotReached": true,
+    "checkMeshWasNotRun": true
+  },
+  {
+    "id": "F1",
+    "priority": "P2",
+    "classification": "normal-path diagnostic report binding mismatch",
+    "actualObservedFullLogLine": 174,
+    "runnerLocation": "src/backend/aircooling/runner/stlgen_runner.py:8217/8239/8248/8271-8293",
+    "nativeIngestReport": "Mesh/.meshgen_scratch/dc_report.json",
+    "actualNativeS7Report": "Mesh/.meshgen_scratch/constant/dc_report.json",
+    "nativeSidecarLocation": "source/cli/main.cpp:558-569",
+    "impact": "ingest mapping lacks expected S7 keys; normal failure log says stage=None/mode=None/problemShells=0 although actual S7 report exists with four kind1 cells and one nonmanifold shell",
+    "narrowSuggestedRepair": "retain --report as ingest mapping; explicitly consume out_poly.parent/dc_report.json for native geometry diagnostics, label both schemas separately and fail diagnostic interpretation closed when actual S7 absent; no native threshold/gate weakening",
+    "sourceEdited": false
+  }
+]

@@ -1,0 +1,90 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/domainProject.test.ts (36 tests | 8 failed | 28 skipped) 60ms
+   × document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'modelUID' as an own dictionary entity through migration/save/reload 33ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'serverUID' as an own dictionary entity through migration/save/reload 6ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'coldPlateUID' as an own dictionary entity through migration/save/reload 4ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'probeUID' as an own dictionary entity through migration/save/reload 2ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'measurementUID' as an own dictionary entity through migration/save/reload 3ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains unknown v3 kind futureSolid and refuses its physical export 5ms
+     → expected undefined to be 'futureSolid' // Object.is equality
+   × document extensions remain separate from strict solver snapshots > retains unknown v3 kind toString and refuses its physical export 3ms
+     → expected [Function] to not throw an error but 'TypeError: Cannot set properties of u…' was thrown
+   × document extensions remain separate from strict solver snapshots > retains unknown v3 kind __proto__ and refuses its physical export 1ms
+     → expected [Function] to not throw an error but 'TypeError: Cannot set properties of u…' was thrown
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 28 skipped (36)
+   Start at  20:21:03
+   Duration  16.78s (transform 2.59s, setup 0ms, collect 4.59s, tests 60ms, environment 11.32s, prepare 413ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'modelUID' as an own dictionary entity through migration/save/reload
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'serverUID' as an own dictionary entity through migration/save/reload
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'coldPlateUID' as an own dictionary entity through migration/save/reload
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'probeUID' as an own dictionary entity through migration/save/reload
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains a literal __proto__ 'measurementUID' as an own dictionary entity through migration/save/reload
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/domainProject.test.ts:442:75
+    440|     if (!loaded.ok) return
+    441|     const dictionary = path.reduce((value, key) => value[key], loaded.…
+    442|     expect(Object.prototype.hasOwnProperty.call(dictionary, '__proto__…
+       |                                                                           ^
+    443|     expect(Object.getPrototypeOf(dictionary)).toBe(Object.prototype)
+    444|     const reopened = readProjectFileText(serializeProjectState(loaded.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains unknown v3 kind futureSolid and refuses its physical export
+AssertionError: expected undefined to be 'futureSolid' // Object.is equality
+
+- Expected: 
+"futureSolid"
+
++ Received: 
+undefined
+
+ ❯ test/domainProject.test.ts:459:74
+    457|     expect(loaded.ok).toBe(true)
+    458|     if (!loaded.ok) return
+    459|     expect(loaded.project.constructions!.boxes!.future!.meta.legacyKin…
+       |                                                                          ^
+    460|     expect(new DomainProject(loaded.project).topLevel(['boxes'])[0]?.s…
+    461|     expect(() => new DomainProject(loaded.project).structuralForAirExp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains unknown v3 kind toString and refuses its physical export
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > retains unknown v3 kind __proto__ and refuses its physical export
+AssertionError: expected [Function] to not throw an error but 'TypeError: Cannot set properties of u…' was thrown
+
+- Expected: 
+undefined
+
++ Received: 
+"TypeError: Cannot set properties of undefined (setting 'future')"
+
+ ❯ test/domainProject.test.ts:455:49
+    453|   it.each(['futureSolid', 'toString', '__proto__'])('retains unknown v…
+    454|     const raw = { schemaVersion: 3, meta: { projectName: 'Future' }, c…
+    455|     expect(() => checkProjectDocument(raw)).not.toThrow()
+       |                                                 ^
+    456|     const loaded = checkProjectDocument(raw)
+    457|     expect(loaded.ok).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+

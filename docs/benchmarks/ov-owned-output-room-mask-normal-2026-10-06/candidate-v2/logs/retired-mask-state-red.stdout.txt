@@ -1,0 +1,57 @@
+...........F...F                                                         [100%]
+=================================== FAILURES ===================================
+__ test_restore_failure_attempts_other_paths_retains_retry_and_caller_target ___
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-v2-20261006/tmp/pytest-retired-state-red/test_restore_failure_attempts_0')
+
+    def test_restore_failure_attempts_other_paths_retains_retry_and_caller_target(tmp_path):
+        scene, stage, result, packet = authored(tmp_path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        original = root.ExportToString()
+        shell = result["uidPaths"]["shell"][0]
+        hidden = result["uidPaths"]["hidden-shell"][0]
+        stage.SetEditTarget(session)
+        handlers._set_geometry_hidden(scene, stage, True)
+        copy_spec = Sdf.CopySpec
+        attempts = []
+        def fail_one(source, source_path, destination, destination_path, *args):
+            if destination == root and str(destination_path) == shell + ".visibility":
+                attempts.append(shell)
+                raise RuntimeError("controlled restoration failure")
+            return copy_spec(source, source_path, destination, destination_path, *args)
+        with mock.patch.object(Sdf, "CopySpec", fail_one):
+>           with pytest.raises(RuntimeError, match="volume mask restore failed"):
+E           Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:198: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 2 prims)
+______ test_failed_reauthor_mask_does_not_claim_retired_root_mask_active _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-v2-20261006/tmp/pytest-retired-state-red/test_failed_reauthor_mask_does0')
+
+    def test_failed_reauthor_mask_does_not_claim_retired_root_mask_active(tmp_path):
+        scene, stage, result, packet = authored(tmp_path)
+        handlers._set_geometry_hidden(scene, stage, True)
+        path = result["uidPaths"]["shell"][0]
+        stage.SetEditTarget(stage.GetSessionLayer())
+        UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+        new = render_scene.author_scene(stage, packet, tmp_path)
+        root_before = stage.GetRootLayer().ExportToString()
+        session_before = stage.GetSessionLayer().ExportToString()
+        with pytest.raises(RuntimeError, match="stronger visibility"):
+            handlers.install_render_room_shell_paths(scene, stage, new["roomShellPaths"])
+        assert layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer()) == (root_before, session_before)
+        assert not scene._volume_geometry_saved
+>       assert not scene._volume_geometry_hidden
+E       AssertionError: assert not True
+E        +  where True = namespace(geo_groups={}, _render_room_shell_paths=('/World/RenderScene/Geometry/p_ecea042d78537699bd76399a', '/World/R...x56395f9dfe40:tmp.usda'), sessionLayer=Sdf.Find('anon:0x56395f9df7b0:tmp-session.usda')), _volume_geometry_hidden=True)._volume_geometry_hidden
+
+tests/test_layered_mask.py:282: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+=========================== short test summary info ============================
+FAILED tests/test_layered_mask.py::test_restore_failure_attempts_other_paths_retains_retry_and_caller_target
+FAILED tests/test_layered_mask.py::test_failed_reauthor_mask_does_not_claim_retired_root_mask_active
+2 failed, 14 passed in 0.45s

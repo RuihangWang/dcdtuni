@@ -1,0 +1,725 @@
+src/frontend/shared/js/geometry_scene.js:1478-1483
+1478:         function renderBoxModel(model, modelGroup, faceLayouts, facesIslands) {
+1479:             Object.keys(model.geometry.faces).forEach(faceId => {
+1480:                 _buildSingleBoxFace(modelGroup, model, faceLayouts, faceId, facesIslands, 1.0);
+1481:             });
+1482:         }
+1483: 
+
+src/frontend/shared/js/geometry_scene.js:2236-2321
+2236:             function _buildSingleBoxFace(modelGroup, model, faceLayouts, faceId, facesIslands, dimOpacity) {
+2237:             const isACU = model.kind === 'acu';
+2238:             const isCDU = model.kind === 'cdu';
+2239:             const acuPP = isACU ? cfdprojStateV4.patchPhysicsMap(model) : null;
+2240:             const cduFaceColors = { front: '#007a99', back: '#009ab8', left: '#008aaa', right: '#008aaa', top: '#00b4dc', bottom: '#005e77' };
+2241:             const _dim = dimOpacity ?? 1.0;
+2242:             const face = model.geometry.faces[faceId];
+2243:             if (!face) return;
+2244:             const layout = faceLayouts[faceId];
+2245:             if (!layout) return;
+2246:             if (isCDU) layout.color = cduFaceColors[faceId] || '#00b4dc';
+2247:             const faceOpacity = (face.opacity ?? 1) * _dim;
+2248:             let wallPoly = rectToPoly(0, 0, layout.w, layout.h);
+2249:             (facesIslands[faceId] || []).forEach((island, islandIdx) => {
+2250:                 wallPoly = polygonClipping.difference(wallPoly, island.poly);
+2251:                 let islandKind = 'box';
+2252:                 if (isACU && island.refIds?.length) {
+2253:                     const role = acuPP[island.refIds[0]]?.role;
+2254:                     if (role === 'supply') islandKind = 'acu-supply';
+2255:                     else if (role === 'return') islandKind = 'acu-return-photo';
+2256:                     else islandKind = 'box';
+2257:                 }
+2258:                 var _islandImg = patchImageSource(face, island);
+2259:                 if (_islandImg) islandKind = FACE_IMAGE_KIND + _islandImg;
+2260:                 var _isImgIsland = (islandKind === 'acu-return-photo') || !!_islandImg;
+2261:                 island.poly.forEach(polygon => {
+2262:                     const shape = new THREE.Shape();
+2263:                     polygon[0].forEach((pt, i) => i === 0 ? shape.moveTo(pt[0], pt[1]) : shape.lineTo(pt[0], pt[1]));
+2264:                     for (let i = 1; i < polygon.length; i++) {
+2265:                         const hole = new THREE.Path();
+2266:                         polygon[i].forEach((pt, j) => j === 0 ? hole.moveTo(pt[0], pt[1]) : hole.lineTo(pt[0], pt[1]));
+2267:                         shape.holes.push(hole);
+2268:                     }
+2269:                     const geom = new THREE.ShapeGeometry(shape, 32);
+2270:                     geom.applyMatrix4(layout.mat);
+2271:                     var _patchOpts = {
+2272:                         color: _isImgIsland ? '#ffffff' : island.color,
+2273:                         opacity: faceOpacity,
+2274:                         objectKind: islandKind,
+2275:                         renderOrder: 3,
+2276:                         userData: {
+2277:                             modelId: model.uid,
+2278:                             faceId,
+2279:                             refIds: island.refIds,
+2280:                             exportName: composeModelScopedExportName(model, faceId, face, { isPatch: true, patchIndex: islandIdx, patchCount: facesIslands[faceId].length }),
+2281:                             isBaseWall: false
+2282:                         }
+2283:                     };
+2284:                     if (_isImgIsland) _patchOpts.uvNormalize = { type: 'stretch' };
+2285:                     spawnRenderable(modelGroup, geom, _patchOpts);
+2286:                 });
+2287:             });
+2288:         
+2289:             wallPoly.forEach((polygon, wallIndex) => {
+2290:                 const wallOpacity = ensureWallOpacity(face, wallIndex) * _dim;
+2291:                 const shape = new THREE.Shape();
+2292:                 polygon[0].forEach((pt, i) => i === 0 ? shape.moveTo(pt[0], pt[1]) : shape.lineTo(pt[0], pt[1]));
+2293:                 for (let i = 1; i < polygon.length; i++) {
+2294:                     const hole = new THREE.Path();
+2295:                     polygon[i].forEach((pt, j) => j === 0 ? hole.moveTo(pt[0], pt[1]) : hole.lineTo(pt[0], pt[1]));
+2296:                     shape.holes.push(hole);
+2297:                 }
+2298:                 const geom = new THREE.ShapeGeometry(shape, 32);
+2299:                 geom.applyMatrix4(layout.mat);
+2300:                 const _faceImg = faceImageSource(face);
+2301:                 // Liquid equipment bodies get their own physically based
+2302:                 // surfaces (js/pbr_materials.js): a powder-coated CDU cabinet,
+2303:                 // a copper cold plate. Everything else stays a generic 'box'.
+2304:                 const _bodyKind = isCDU ? 'cdu-body' : (model.kind === 'cold_plate' ? 'cold-plate' : 'box');
+2305:                 spawnRenderable(modelGroup, geom, {
+2306:                     color: _faceImg ? '#ffffff' : layout.color,
+2307:                     opacity: wallOpacity,
+2308:                     objectKind: _faceImg ? (FACE_IMAGE_KIND + _faceImg) : _bodyKind,
+2309:                     ...(_faceImg ? { uvNormalize: { type: 'stretch' } } : {}),
+2310:                     userData: {
+2311:                         modelId: model.uid,
+2312:                         faceId,
+2313:                         refIds: null,
+2314:                         wallIndex,
+2315:                         exportName: composeModelScopedExportName(model, faceId, face, { isWallPart: true, partIndex: wallIndex, partCount: wallPoly.length }),
+2316:                         isBaseWall: true
+2317:                     }
+2318:                 });
+2319:             });
+2320:         
+2321:         }
+
+src/frontend/shared/js/geometry_scene.js:2529-2613
+2529:         function spawnRenderable(modelGroup, geom, options) {
+2530:             const baseOpacity = options.opacity ?? 1;
+2531:             const isTransparent = typeof options.transparent === 'boolean' ? options.transparent : baseOpacity < 0.999;
+2532:             // Patches (renderOrder > 0) need polygonOffsetFactor=0 so they render
+2533:             // in front of co-planar base walls (factor=1), and keepUserColor so the
+2534:             // user-defined patch color isn't overridden by the material preset tint.
+2535:             const isPatchOverlay = Number.isFinite(options.renderOrder) && options.renderOrder > 0;
+2536:             if (isPatchOverlay) {
+2537:                 if (options.polygonOffsetFactor === undefined) options.polygonOffsetFactor = 0;
+2538:                 if (options.keepUserColor === undefined) options.keepUserColor = true;
+2539:             }
+2540:             let material;
+2541:             if (ctx.webglAvailable) {
+2542:                 material = options.objectKind
+2543:                     ? getCachedMaterial(options.objectKind, options)
+2544:                     : new THREE.MeshPhongMaterial({
+2545:                         color: options.color,
+2546:                         shininess: 30,
+2547:                         specular: 0x111111,
+2548:                         side: options.doubleSide ? THREE.DoubleSide : THREE.FrontSide,
+2549:                         polygonOffset: true,
+2550:                         polygonOffsetFactor: options.polygonOffsetFactor ?? 1,
+2551:                         transparent: isTransparent,
+2552:                         opacity: baseOpacity,
+2553:                         depthWrite: options.depthWrite ?? !isTransparent
+2554:                     });
+2555:             } else {
+2556:                 material = new THREE.MeshBasicMaterial({ color: options.color || 0xcccccc });
+2557:             }
+2558:             const mesh = new THREE.Mesh(geom, material);
+2559:             mesh.castShadow = false;
+2560:             mesh.receiveShadow = false;
+2561:             if (Number.isFinite(options.renderOrder)) mesh.renderOrder = options.renderOrder;
+2562:             if (options.uvNormalize && geom.attributes && geom.attributes.uv) {
+2563:                 var uvAttr = geom.attributes.uv;
+2564:                 var uvMode = options.uvNormalize;
+2565:                 if (uvMode.type === 'stretch' || uvMode.type === 'tile-per-u') {
+2566:                     var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+2567:                     for (var i = 0; i < uvAttr.count; i++) {
+2568:                         var u = uvAttr.getX(i), v = uvAttr.getY(i);
+2569:                         if (u < minU) minU = u; if (u > maxU) maxU = u;
+2570:                         if (v < minV) minV = v; if (v > maxV) maxV = v;
+2571:                     }
+2572:                     var rangeU = (maxU - minU) || 1, rangeV = (maxV - minV) || 1;
+2573:                     var scaleV = (uvMode.type === 'tile-per-u') ? (uvMode.uCount || 1) : 1;
+2574:                     for (var i = 0; i < uvAttr.count; i++) {
+2575:                         uvAttr.setX(i, (uvAttr.getX(i) - minU) / rangeU);
+2576:                         uvAttr.setY(i, ((uvAttr.getY(i) - minV) / rangeV) * scaleV);
+2577:                     }
+2578:                     uvAttr.needsUpdate = true;
+2579:                 }
+2580:             }
+2581:             // Library (MeshStandardMaterial) kinds: the textures are shared by
+2582:             // every mesh of every kind that uses the set, so tiling goes into
+2583:             // this mesh's own UVs — metres in, tiles out — and the textures'
+2584:             // repeat is never written.
+2585:             const _pbrRole = material.userData && material.userData.pbrRole;
+2586:             if (_pbrRole && geom.attributes && geom.attributes.uv && !options.uvNormalize && !options.pbrUvReady && _pbrLibrary()) {
+2587:                 const _tile = (_pbrLibrary().ROLES[_pbrRole] || {}).tileM || 0.4;
+2588:                 _pbrLibrary().scaleUv(geom, 1 / _tile, 1 / _tile);
+2589:             }
+2590:             // Texture tiling for the preset kinds is decided when the material
+2591:             // is made (createMaterialForType -> _textureRepeatFor), never by
+2592:             // writing a repeat onto a texture other meshes share.
+2593:             // Skip edge wireframes when scene has many models (>100) to reduce draw calls by ~50%.
+2594:             // EdgesGeometry is also expensive to compute (convex hull per mesh).
+2595:             const _skipEdgesForPerf = _allModels().length > 100;
+2596:             const _edgeOpacity = baseOpacity < 0.05 ? 0 : Math.min(0.3, baseOpacity * baseOpacity * 0.4);
+2597:             if (ctx.webglAvailable && !options.skipEdges && !_skipEdgesForPerf && _edgeOpacity > 0.02) {
+2598:                 mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geom), new THREE.LineBasicMaterial({
+2599:                     color: 0x000000,
+2600:                     opacity: _edgeOpacity,
+2601:                     transparent: true,
+2602:                     depthWrite: false
+2603:                 })));
+2604:             }
+2605:             mesh.userData = {
+2606:                 ...options.userData,
+2607:                 origColor: options.color,
+2608:                 baseOpacity,
+2609:                 _materialPreset: options.objectKind || null
+2610:             };
+2611:             modelGroup.add(mesh);
+2612:             ctx.renderMeshes.push(mesh);
+2613:             return mesh;
+
+src/frontend/shared/js/geometry_scene.js:3223-3236
+3223:         function exportBoxModel(model, parts, isMirrored, meshList = ctx.renderMeshes) {
+3224:             const groups = {};
+3225:             meshList.forEach(mesh => {
+3226:                 const data = mesh.userData || {};
+3227:                 if (data.modelId !== model.uid || !data.exportName) return;
+3228:                 if (data.isDoor) return; // doors exported as separate baffle STL files
+3229:                 if (!groups[data.exportName]) groups[data.exportName] = [];
+3230:                 groups[data.exportName].push(mesh);
+3231:             });
+3232:             Object.keys(groups).forEach(name => {
+3233:                 parts.push(`solid ${name}\n`);
+3234:                 groups[name].forEach(mesh => { appendMeshFacets(parts, mesh); });
+3235:                 parts.push(`endsolid ${name}\n\n`);
+3236:             });
+
+src/frontend/shared/js/geometry_pure.js:292-295
+292:     function ensureWallOpacity(face, wallIndex) {
+293:         if (!Array.isArray(face.wallOpacities)) face.wallOpacities = [];
+294:         if (!Number.isFinite(face.wallOpacities[wallIndex])) face.wallOpacities[wallIndex] = Number.isFinite(face.opacity) ? face.opacity : 1;
+295:         return face.wallOpacities[wallIndex];
+
+src/frontend/shared/js/geometry_pure.js:569-599
+569:     function buildFaceIslands(model) {
+570:         const facesIslands = {};
+571:         Object.keys(model.geometry.faces).forEach(faceId => {
+572:             const face = model.geometry.faces[faceId];
+573:             // V4 racks store geometry.faces as an array of door/role entries that carry
+574:             // no `.patches`; those models render via renderRackModel and never consume
+575:             // these islands. Skip any face entry that isn't a patch-bearing face dict.
+576:             if (!face || !Array.isArray(face.patches)) return;
+577:             let islands = [];
+578:             face.patches.forEach(patch => {
+579:                 const poly = patch.type === 'circle' ? circleToPoly(patch.cx, patch.cy, patch.r) : quadToPoly(patch.x, patch.y, patch.w, patch.h, patch.cornerOffsets);
+580:                 let current = { poly, name: getPatchFinalExportName(model, faceId, patch), color: patch.color, refIds: [patch.id] };
+581:                 let nextIslands = [];
+582:                 islands.forEach(island => {
+583:                     let inter = [];
+584:                     try { inter = polygonClipping.intersection(island.poly, current.poly); } catch (e) {}
+585:                     if (inter && inter.length > 0) {
+586:                         current.poly = polygonClipping.union(current.poly, island.poly);
+587:                         current.refIds.push(...island.refIds);
+588:                         current.name = island.name;
+589:                         current.color = island.color;
+590:                     } else {
+591:                         nextIslands.push(island);
+592:                     }
+593:                 });
+594:                 nextIslands.push(current);
+595:                 islands = nextIslands;
+596:             });
+597:             facesIslands[faceId] = islands;
+598:         });
+599:         return facesIslands;
+
+src/frontend/shared/js/geometry_pure.js:956-988
+956:     function getFaceLayouts(model) {
+957:         const _sz = (model.geometry && model.geometry.size) || {};
+958:         const W = _sz.x, H = _sz.y, D = _sz.z;
+959:         const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+960:         const makeMat = (origin, right, up) => new THREE.Matrix4().makeBasis(right, up, new THREE.Vector3().crossVectors(right, up).normalize()).setPosition(origin);
+961:         if (isWallMountedAcu(model)) {
+962:             // four faces; the front's height is the developed profile length
+963:             const pr = wallAcuProfile(model);
+964:             return {
+965:                 front:  { origin: v3(W, 0, 0), right: v3(-1, 0, 0), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, 0), v3(-1, 0, 0), v3(0, 1, 0)), w: W, h: pr.L, color: '#5c6370', extDepth: D, curved: true },
+966:                 left:   { origin: v3(0, 0, 0), right: v3(0, 0, 1), up: v3(0, 1, 0), mat: makeMat(v3(0, 0, 0), v3(0, 0, 1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+967:                 right:  { origin: v3(W, 0, D), right: v3(0, 0, -1), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, D), v3(0, 0, -1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+968:                 top:    { origin: v3(0, H, D), right: v3(1, 0, 0), up: v3(0, 0, -1), mat: makeMat(v3(0, H, D), v3(1, 0, 0), v3(0, 0, -1)), w: W, h: D, color: '#9ba0a9', extDepth: H }
+969:             };
+970:         }
+971:         // 2026-04-18 Y-up: depth is along Z (was Y), height is along Y (was Z).
+972:         // front/back/left/right faces now stand vertically along Y; top/bottom lie on the XZ plane.
+973:         // Basis convention: outward normal = right × up (used by makeBasis and STL export).
+974:         // front (Z=0): right×up = (-1,0,0)×(0,1,0) = (0,0,-1) ✓
+975:         // back  (Z=D): right×up = (+1,0,0)×(0,1,0) = (0,0,+1) ✓
+976:         // left  (X=0): right×up = (0,0,+1)×(0,1,0) = (-1,0,0) ✓
+977:         // right (X=W): right×up = (0,0,-1)×(0,1,0) = (+1,0,0) ✓
+978:         // top   (Y=H): right×up = (+1,0,0)×(0,0,-1) = (0,+1,0) ✓
+979:         // bottom(Y=0): right×up = (+1,0,0)×(0,0,+1) = (0,-1,0) ✓
+980:         return {
+981:             front:  { origin: v3(W, 0, 0), right: v3(-1, 0, 0), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, 0), v3(-1, 0, 0), v3(0, 1, 0)), w: W, h: H, color: '#5c6370', extDepth: D },
+982:             back:   { origin: v3(0, 0, D), right: v3(1, 0, 0), up: v3(0, 1, 0), mat: makeMat(v3(0, 0, D), v3(1, 0, 0), v3(0, 1, 0)), w: W, h: H, color: '#7f848e', extDepth: D },
+983:             left:   { origin: v3(0, 0, 0), right: v3(0, 0, 1), up: v3(0, 1, 0), mat: makeMat(v3(0, 0, 0), v3(0, 0, 1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+984:             right:  { origin: v3(W, 0, D), right: v3(0, 0, -1), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, D), v3(0, 0, -1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+985:             top:    { origin: v3(0, H, D), right: v3(1, 0, 0), up: v3(0, 0, -1), mat: makeMat(v3(0, H, D), v3(1, 0, 0), v3(0, 0, -1)), w: W, h: D, color: '#9ba0a9', extDepth: H },
+986:             bottom: { origin: v3(0, 0, 0), right: v3(1, 0, 0), up: v3(0, 0, 1), mat: makeMat(v3(0, 0, 0), v3(1, 0, 0), v3(0, 0, 1)), w: W, h: D, color: '#4b5263', extDepth: H }
+987:         };
+988:     }
+
+src/frontend/shared/js/stl_writer.js:37-63
+37:     function triangleHasCoincidentVertices(a, b, c, epsSq) {
+38:         if (epsSq === undefined) epsSq = 1e-18;
+39:         return a.distanceToSquared(b) <= epsSq
+40:             || b.distanceToSquared(c) <= epsSq
+41:             || c.distanceToSquared(a) <= epsSq;
+42:     }
+43: 
+44:     /**
+45:      * The unit normal of a triangle, or null when the triangle is degenerate.
+46:      *
+47:      * Degenerate triangles are DROPPED, not emitted with a zero normal: a facet
+48:      * with a zero-length normal makes surfaceFeatureExtract and snappyHexMesh
+49:      * disagree about the surface, and the mesh then fails somewhere far from
+50:      * the cause.
+51:      */
+52:     function getTriangleFacetData(vA, vB, vC, areaEps) {
+53:         if (areaEps === undefined) areaEps = 1e-12;
+54:         var THREE = _three();
+55:         if (triangleHasCoincidentVertices(vA, vB, vC)) return null;
+56:         var cross = new THREE.Vector3().crossVectors(
+57:             new THREE.Vector3().subVectors(vB, vA),
+58:             new THREE.Vector3().subVectors(vC, vA)
+59:         );
+60:         var area2 = cross.length();
+61:         if (!Number.isFinite(area2) || area2 <= areaEps) return null;
+62:         var normal = cross.multiplyScalar(1 / area2);
+63:         return { normal: normal, vA: vA, vB: vB, vC: vC };
+
+src/frontend/shared/js/stl_writer.js:78-116
+78:     function appendMeshFacets(parts, mesh, targetParent) {
+79:         var THREE = _three();
+80:         if (mesh.userData && mesh.userData.isLiquidManifold) return;
+81:         var pos = mesh.geometry.attributes.position;
+82:         var index = mesh.geometry.index;
+83:         var count = index ? index.count : pos.count;
+84:         if (count === 0) return;
+85: 
+86:         var originalParent = mesh.parent;
+87:         var parent = originalParent || targetParent;
+88:         if (!originalParent) {
+89:             if (!parent) throw new Error('appendMeshFacets: orphan mesh needs a targetParent');
+90:             parent.add(mesh);
+91:         }
+92:         mesh.updateMatrixWorld(true);
+93:         var mirrored = mesh.matrixWorld.determinant() < 0;
+94: 
+95:         for (var i = 0; i < count; i += 3) {
+96:             var a = index ? index.getX(i) : i;
+97:             var b = index ? index.getX(i + 1) : i + 1;
+98:             var c = index ? index.getX(i + 2) : i + 2;
+99:             if (mirrored) { var tmp = b; b = c; c = tmp; }
+100: 
+101:             var vA = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(mesh.matrixWorld);
+102:             var vB = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(mesh.matrixWorld);
+103:             var vC = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(mesh.matrixWorld);
+104:             var tri = getTriangleFacetData(vA, vB, vC);
+105:             if (!tri) continue;
+106:             // Six decimals, exactly as before. The digit count is part of the
+107:             // output contract: stl_oracle.py compares exports byte for byte, and
+108:             // watertightness depends on adjacent solids rounding a shared vertex
+109:             // to the same string.
+110:             parts.push('  facet normal ' + tri.normal.x.toFixed(6) + ' ' + tri.normal.y.toFixed(6) + ' ' + tri.normal.z.toFixed(6) +
+111:                 '\n    outer loop\n      vertex ' + tri.vA.x.toFixed(6) + ' ' + tri.vA.y.toFixed(6) + ' ' + tri.vA.z.toFixed(6) +
+112:                 '\n      vertex ' + tri.vB.x.toFixed(6) + ' ' + tri.vB.y.toFixed(6) + ' ' + tri.vB.z.toFixed(6) +
+113:                 '\n      vertex ' + tri.vC.x.toFixed(6) + ' ' + tri.vC.y.toFixed(6) + ' ' + tri.vC.z.toFixed(6) +
+114:                 '\n    endloop\n  endfacet\n');
+115:         }
+116: 
+
+src/frontend/react/src/interaction/sceneBuilder.ts:335-384
+335:     r.renderRootMap.clear()
+336:   }
+337: 
+338:   /** Dispatch one model into the group prepared for it. */
+339:   function renderInto(model: Construction, group: THREE.Group) {
+340:       const faceLayouts = pure.getFaceLayouts(model)
+341:       const islands = pure.buildFaceIslands(model)
+342:       const kind = model.kind
+343: 
+344:       // Same dispatch as buildGeometryData. `custom` needs a parsed STL in the
+345:       // geometry cache; without one the legacy builder falls through to the box
+346:       // renderer rather than throwing, and so does this.
+347:       if (kind === 'custom' && r.geometryCache.has(model.uid)) {
+348:         api.renderCustomModel(model, group, faceLayouts)
+349:       } else if (kind === 'rack') {
+350:         api.renderRackModel(model, group, faceLayouts)
+351:       } else if (kind === 'wall') {
+352:         api.renderWallModel(model, group, faceLayouts)
+353:       } else if (kind === 'baffle') {
+354:         api.renderBaffleModel(model, group, faceLayouts)
+355:       } else if (kind === 'floor') {
+356:         api.renderFloorModel(model, group, faceLayouts)
+357:       } else if (kind === 'partitionWall') {
+358:         api.renderPartitionWallModel(model, group, faceLayouts)
+359:       } else if (kind === 'pipe') {
+360:         api.renderPipeModel(model, group)
+361:       } else if (kind === 'acu' && (model as { cooling?: { unitType?: unknown } }).cooling?.unitType === 'wallMounted') {
+362:         api.renderWallAcuModel(model, group, faceLayouts, islands)
+363:       } else {
+364:         api.renderBoxModel(model, group, faceLayouts, islands)
+365:       }
+366: 
+367:       // Explicit PDU names get display-only detail in either cooling mode.
+368:       // The physical kind remains BOX and the original export registry is
+369:       // untouched. The role only makes whole-cabinet selection readable.
+370:       const pduVisual = buildPduEquipmentVisual(model)
+371:       if (pduVisual) {
+372:         group.userData.equipmentVisualRole = 'pdu'
+373:         group.add(pduVisual)
+374:       }
+375: 
+376:       // React liquid mode adds engineering detail as a non-exported child of
+377:       // the structural root. The root owns its GPU resources, while the shared
+378:       // renderMeshes registry continues to contain only CFD/STL geometry.
+379:       if (isLiquidModeActive()) {
+380:         const visual = buildLiquidEquipmentVisual(model)
+381:         if (visual) group.add(visual)
+382:       }
+383:   }
+384: 
+
+src/frontend/react/src/interaction/sceneBuilder.ts:535-546
+535:     for (const model of models) {
+536:       if (!api.isModelEnabled(model)) continue
+537: 
+538:       const group = new THREE.Group()
+539:       const loc = model.geometry?.location
+540:       group.position.set(loc?.x ?? 0, loc?.y ?? 0, loc?.z ?? 0)
+541:       group.userData = { modelId: model.uid }
+542:       pure.applyModelTransformToObject(group, model)
+543:       host.globalGroup.add(group)
+544:       r.renderRoots.push(group)
+545:       r.renderRootMap.set(model.uid, group)
+546:       renderInto(model, group)
+
+src/frontend/react/src/interaction/sceneBuilder.ts:575-582
+575:    * rack costs.
+576:    *
+577:    * ## Order is preserved
+578:    *
+579:    * The shared builder APPENDS to `renderMeshes` / `renderRoots`, and
+580:    * `io/stlExport` walks `renderMeshes` in that order to group solids. Splicing
+581:    * the new meshes back into the slot the old ones held keeps a targeted rebuild
+582:    * byte-equivalent, for the exporter, to the full rebuild it replaces.
+
+src/frontend/react/src/interaction/sceneBuilder.ts:635-647
+635:       pure.applyModelTransformToObject(group, model)
+636:       host.globalGroup.add(group)
+637:       r.renderRoots.push(group)
+638:       r.renderRootMap.set(model.uid, group)
+639:       renderInto(model, group)
+640: 
+641:       if (meshAt >= 0 && r.renderMeshes.length > meshFrom) {
+642:         r.renderMeshes.splice(meshAt, 0, ...r.renderMeshes.splice(meshFrom))
+643:       }
+644:       if (rootAt >= 0 && rootAt < r.renderRoots.length - 1) {
+645:         r.renderRoots.splice(rootAt, 0, r.renderRoots.pop()!)
+646:       }
+647:       rebuilt.push(group)
+
+src/frontend/react/src/renderer/sceneSnapshot.ts:431-455
+431:   function visit(o: THREE.Object3D, parentUid: string, path: string, parentVisible: boolean, parentEquipmentUid = '') {
+432:     if (helpers.has(o) || /Helper$/.test(o.type) || HELPER_TAGS.some(k => !!o.userData[k])) return
+433:     const d = o.userData
+434:     let uid = String(d.modelId ?? d.pipeModelId ?? d.pipeId ?? d.junctionId ?? parentUid ?? '')
+435:     const equipmentUid = String(d.equipmentId ?? d.valveId ?? parentEquipmentUid)
+436:     // Rack manifolds and their stubs (geometry_pure isLiquidManifold) carry the
+437:     // side as pipeType/stubType; an explicit userData.liquidPart wins.
+438:     const side = d.isLiquidManifold ? (d.pipeType ?? d.stubType) : undefined
+439:     const liquidPart = d.liquidPart === 'supply-manifold' || d.liquidPart === 'return-manifold' ? d.liquidPart as RenderPrimitive['liquidPart']
+440:       : side === 'supply' ? 'supply-manifold' as const : side === 'return' ? 'return-manifold' as const : undefined
+441:     if (d.valveId) {
+442:       const owner = fittingOwners.get(String(d.valveId))
+443:       if (!owner) throw new Error(`Unresolved authored valve ${String(d.valveId)}: ${identityEvidence(o, path)}`)
+444:       if (uid && uid !== owner) throw new Error(`Valve owner mismatch ${String(d.valveId)}: render=${uid}, project=${owner}`)
+445:       uid = owner
+446:     }
+447:     const visible = parentVisible && o.visible
+448:     const renderable = o as THREE.Mesh
+449:     if (renderable.isMesh || (o as THREE.Line).isLine || (o as THREE.Points).isPoints) {
+450:       if (!uid) throw new Error(`Renderable has no project identity: ${identityEvidence(o, path)}`)
+451:       if ((o as THREE.SkinnedMesh).isSkinnedMesh || Object.keys(renderable.geometry.morphAttributes).length) throw new Error(`Unsupported deformed geometry: ${o.type}`)
+452:       const g = renderable.geometry
+453:       const pos = g.getAttribute('position')
+454:       if (!pos || pos.itemSize !== 3) throw new Error(`Missing vec3 positions: ${uid}`)
+455:       const kind = renderable.isMesh ? 'triangles' : (o as THREE.Line).isLine ? 'lines' : 'points'
+
+src/frontend/react/src/renderer/sceneSnapshot.ts:464-466
+464:         const matrix = inverse.clone().multiply(o.matrixWorld)
+465:         if (instanced.isInstancedMesh) {
+466:           const im = new THREE.Matrix4()
+
+src/frontend/react/src/renderer/sceneSnapshot.ts:493-524
+493:           if (mat.side === THREE.BackSide && kind === 'triangles') {
+494:             for (let i = 0; i < indices.length; i += 3) [indices[i + 1], indices[i + 2]] = [indices[i + 2]!, indices[i + 1]!]
+495:           }
+496:           const item: RenderPrimitive = {
+497:             id: `${uid}/${path}/${instance}/${gi}`, modelUid: uid,
+498:             ...(equipmentUid ? { equipmentUid } : {}),
+499:             ...(liquidPart ? { liquidPart } : {}),
+500:             name: o.name || String(d.exportName ?? ''), kind,
+501:             positions: attribute(pos, 3), indices,
+502:             matrix: finite(matrix.toArray(), 'world transform'), visible: visible && mat.visible, material,
+503:           }
+504:           if (kind !== 'triangles') {
+505:             item.width = (mat as THREE.PointsMaterial).size ?? .001
+506:             if (kind === 'lines') warnings.add('Screen-space line width is rendered as a 1 mm USD curve; surface geometry and pipe diameters are unchanged.')
+507:           }
+508:           const n = g.getAttribute('normal')
+509:           if (n) item.normals = attribute(n, 3)
+510:           const uv = g.getAttribute('uv')
+511:           if (uv) {
+512:             item.uvs = attribute(uv, 2)
+513:             const textureMaterial = mat as SupportedMaterial
+514:             const tex = textureMaterial.map ?? textureMaterial.normalMap ?? textureMaterial.roughnessMap ?? textureMaterial.metalnessMap
+515:             if (tex) {
+516:               if (tex.matrixAutoUpdate) tex.updateMatrix()
+517:               for (let i = 0; i < item.uvs.length; i += 2) {
+518:                 const v = new THREE.Vector2(item.uvs[i], item.uvs[i + 1])
+519:                 v.applyMatrix3(tex.matrix)
+520:                 item.uvs[i] = v.x
+521:                 item.uvs[i + 1] = tex.flipY ? v.y : 1 - v.y
+522:               }
+523:             }
+524:           } else if (material.map || material.normalMap || material.roughnessMap || material.metalnessMap) throw new Error(`Textured mesh lacks UVs: ${uid}`)
+
+src/frontend/react/node_modules/three/src/geometries/ShapeGeometry.js:83-89
+83: 		// build geometry
+84: 
+85: 		this.setIndex( indices );
+86: 		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+87: 		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+88: 		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+89: 
+
+src/frontend/react/node_modules/three/src/geometries/ShapeGeometry.js:93-160
+93: 		function addShape( shape ) {
+94: 
+95: 			const indexOffset = vertices.length / 3;
+96: 			const points = shape.extractPoints( curveSegments );
+97: 
+98: 			let shapeVertices = points.shape;
+99: 			const shapeHoles = points.holes;
+100: 
+101: 			// check direction of vertices
+102: 
+103: 			if ( ShapeUtils.isClockWise( shapeVertices ) === false ) {
+104: 
+105: 				shapeVertices = shapeVertices.reverse();
+106: 
+107: 			}
+108: 
+109: 			for ( let i = 0, l = shapeHoles.length; i < l; i ++ ) {
+110: 
+111: 				const shapeHole = shapeHoles[ i ];
+112: 
+113: 				if ( ShapeUtils.isClockWise( shapeHole ) === true ) {
+114: 
+115: 					shapeHoles[ i ] = shapeHole.reverse();
+116: 
+117: 				}
+118: 
+119: 			}
+120: 
+121: 			const faces = ShapeUtils.triangulateShape( shapeVertices, shapeHoles );
+122: 
+123: 			// join vertices of inner and outer paths to a single array
+124: 
+125: 			for ( let i = 0, l = shapeHoles.length; i < l; i ++ ) {
+126: 
+127: 				const shapeHole = shapeHoles[ i ];
+128: 				shapeVertices = shapeVertices.concat( shapeHole );
+129: 
+130: 			}
+131: 
+132: 			// vertices, normals, uvs
+133: 
+134: 			for ( let i = 0, l = shapeVertices.length; i < l; i ++ ) {
+135: 
+136: 				const vertex = shapeVertices[ i ];
+137: 
+138: 				vertices.push( vertex.x, vertex.y, 0 );
+139: 				normals.push( 0, 0, 1 );
+140: 				uvs.push( vertex.x, vertex.y ); // world uvs
+141: 
+142: 			}
+143: 
+144: 			// indices
+145: 
+146: 			for ( let i = 0, l = faces.length; i < l; i ++ ) {
+147: 
+148: 				const face = faces[ i ];
+149: 
+150: 				const a = face[ 0 ] + indexOffset;
+151: 				const b = face[ 1 ] + indexOffset;
+152: 				const c = face[ 2 ] + indexOffset;
+153: 
+154: 				indices.push( a, b, c );
+155: 				groupCount += 3;
+156: 
+157: 			}
+158: 
+159: 		}
+160: 
+
+src/frontend/react/node_modules/three/src/extras/ShapeUtils.js:16-30
+16: 	static area( contour ) {
+17: 
+18: 		const n = contour.length;
+19: 		let a = 0.0;
+20: 
+21: 		for ( let p = n - 1, q = 0; q < n; p = q ++ ) {
+22: 
+23: 			a += contour[ p ].x * contour[ q ].y - contour[ q ].x * contour[ p ].y;
+24: 
+25: 		}
+26: 
+27: 		return a * 0.5;
+28: 
+29: 	}
+30: 
+
+src/frontend/react/node_modules/three/src/extras/ShapeUtils.js:48-101
+48: 	 * @return {Array<Array<number>>} An array that holds for each face definition an array with three indices.
+49: 	 */
+50: 	static triangulateShape( contour, holes ) {
+51: 
+52: 		const vertices = []; // flat array of vertices like [ x0,y0, x1,y1, x2,y2, ... ]
+53: 		const holeIndices = []; // array of hole indices
+54: 		const faces = []; // final array of vertex indices like [ [ a,b,d ], [ b,c,d ] ]
+55: 
+56: 		removeDupEndPts( contour );
+57: 		addContour( vertices, contour );
+58: 
+59: 		//
+60: 
+61: 		let holeIndex = contour.length;
+62: 
+63: 		holes.forEach( removeDupEndPts );
+64: 
+65: 		for ( let i = 0; i < holes.length; i ++ ) {
+66: 
+67: 			holeIndices.push( holeIndex );
+68: 			holeIndex += holes[ i ].length;
+69: 			addContour( vertices, holes[ i ] );
+70: 
+71: 		}
+72: 
+73: 		//
+74: 
+75: 		const triangles = Earcut.triangulate( vertices, holeIndices );
+76: 
+77: 		//
+78: 
+79: 		for ( let i = 0; i < triangles.length; i += 3 ) {
+80: 
+81: 			faces.push( triangles.slice( i, i + 3 ) );
+82: 
+83: 		}
+84: 
+85: 		return faces;
+86: 
+87: 	}
+88: 
+89: }
+90: 
+91: function removeDupEndPts( points ) {
+92: 
+93: 	const l = points.length;
+94: 
+95: 	if ( l > 2 && points[ l - 1 ].equals( points[ 0 ] ) ) {
+96: 
+97: 		points.pop();
+98: 
+99: 	}
+100: 
+101: }
+
+src/frontend/react/node_modules/three/src/core/BufferGeometry.js:217-233
+217: 	setIndex( index ) {
+218: 
+219: 		if ( Array.isArray( index ) ) {
+220: 
+221: 			this.index = new ( arrayNeedsUint32( index ) ? Uint32BufferAttribute : Uint16BufferAttribute )( index, 1 );
+222: 
+223: 		} else {
+224: 
+225: 			this.index = index;
+226: 
+227: 		}
+228: 
+229: 		return this;
+230: 
+231: 	}
+232: 
+233: 	/**
+
+src/frontend/react/node_modules/three/src/core/BufferGeometry.js:363-386
+363: 	applyMatrix4( matrix ) {
+364: 
+365: 		const position = this.attributes.position;
+366: 
+367: 		if ( position !== undefined ) {
+368: 
+369: 			position.applyMatrix4( matrix );
+370: 
+371: 			position.needsUpdate = true;
+372: 
+373: 		}
+374: 
+375: 		const normal = this.attributes.normal;
+376: 
+377: 		if ( normal !== undefined ) {
+378: 
+379: 			const normalMatrix = new Matrix3().getNormalMatrix( matrix );
+380: 
+381: 			normal.applyNormalMatrix( normalMatrix );
+382: 
+383: 			normal.needsUpdate = true;
+384: 
+385: 		}
+386: 
+
+src/frontend/react/node_modules/three/src/core/BufferAttribute.js:300-310
+300: 	applyMatrix4( m ) {
+301: 
+302: 		for ( let i = 0, l = this.count; i < l; i ++ ) {
+303: 
+304: 			_vector.fromBufferAttribute( this, i );
+305: 
+306: 			_vector.applyMatrix4( m );
+307: 
+308: 			this.setXYZ( i, _vector.x, _vector.y, _vector.z );
+309: 
+310: 		}
+
+src/frontend/react/node_modules/three/src/math/Vector3.js:450-463
+450: 	applyMatrix4( m ) {
+451: 
+452: 		const x = this.x, y = this.y, z = this.z;
+453: 		const e = m.elements;
+454: 
+455: 		const w = 1 / ( e[ 3 ] * x + e[ 7 ] * y + e[ 11 ] * z + e[ 15 ] );
+456: 
+457: 		this.x = ( e[ 0 ] * x + e[ 4 ] * y + e[ 8 ] * z + e[ 12 ] ) * w;
+458: 		this.y = ( e[ 1 ] * x + e[ 5 ] * y + e[ 9 ] * z + e[ 13 ] ) * w;
+459: 		this.z = ( e[ 2 ] * x + e[ 6 ] * y + e[ 10 ] * z + e[ 14 ] ) * w;
+460: 
+461: 		return this;
+462: 
+463: 	}

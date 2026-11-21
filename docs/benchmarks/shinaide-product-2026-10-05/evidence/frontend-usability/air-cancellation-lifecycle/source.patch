@@ -1,0 +1,457 @@
+diff --git a/src/frontend/react/src/components/MeshPanel.tsx b/src/frontend/react/src/components/MeshPanel.tsx
+index e8ea86ae..0a5e089d 100644
+--- a/src/frontend/react/src/components/MeshPanel.tsx
++++ b/src/frontend/react/src/components/MeshPanel.tsx
+@@ -818,15 +818,17 @@ function MeshRunBlock() {
+         <button
+           className={`btn danger ${LIVE_CLASS}`}
+           id="mesh-abort-btn"
++          disabled={!!(job.abortPending || job.abortRequested)}
+           onClick={() => {
+             store.logOperation('mesh', t('btn.abort_mesh'))
+             void session.abortJob()
+           }}
+         >
+-          {t('btn.abort_mesh')}
++          {job.abortPending || job.abortRequested ? t('status.stopping') : t('btn.abort_mesh')}
+         </button>
+       )}
+       {error && <div className="error">{error}</div>}
++      {job?.kind === 'mesh' && job.error && <div className={`error ${LIVE_CLASS}`} role="alert">{job.error}</div>}
+       {/* The same mesh preview the right column's sub-tab shows. The legacy
+           puts this shortcut at the bottom of the run block, where a user lands
+           the moment a mesh finishes (STL_generate.html:268). */}
+@@ -841,12 +843,12 @@ function MeshRunBlock() {
+         {t('mp.show_mesh')}
+       </button>
+       <div id="mesh-run-status">
+-      {job?.kind === 'mesh' && !job.running && job.returncode !== null && (
++      {job?.kind === 'mesh' && !job.running && (job.returncode !== null || job.aborted) && (
+         <div className="prop-hint" style={{ color: job.aborted ? 'var(--hint-color)' : job.returncode !== 0 ? '#ff5c72' : job.checkMeshOk === false ? '#ffb800' : 'var(--highlight)' }}>
+           {job.aborted
+             ? t('status.aborted')
+             : job.returncode !== 0
+-              ? t('status.mesh_failed', { code: job.returncode })
++              ? t('status.mesh_failed', { code: job.returncode ?? '?' })
+               : job.checkMeshOk === false
+                 ? t('status.checkmesh_failed')
+                 : t('status.mesh_ok')}
+diff --git a/src/frontend/react/src/components/SolverPanel.tsx b/src/frontend/react/src/components/SolverPanel.tsx
+index 6b770f25..d34b5df8 100644
+--- a/src/frontend/react/src/components/SolverPanel.tsx
++++ b/src/frontend/react/src/components/SolverPanel.tsx
+@@ -852,15 +852,17 @@ function SolveRunBlock() {
+         <button
+           className={`btn danger ${LIVE_CLASS}`}
+           id="solve-abort-btn"
++          disabled={!!(job.abortPending || job.abortRequested)}
+           onClick={() => {
+             store.logOperation('solve', t('btn.abort_solve'))
+             void session.abortJob()
+           }}
+         >
+-          {t('btn.abort_solve')}
++          {job.abortPending || job.abortRequested ? t('status.stopping') : t('btn.abort_solve')}
+         </button>
+       )}
+       {launcher.error && <div className="error">{launcher.error}</div>}
++      {job?.error && <div className={`error ${LIVE_CLASS}`} role="alert">{job.error}</div>}
+       {job?.kind === 'solve' && !job.running && job.checkMeshOk === false && (
+         <div className="error" id="solve-mesh-rejection" role="status">
+           {t('status.checkmesh_rejected')}
+@@ -948,7 +950,7 @@ function SolveRunBlock() {
+           {job.lines.slice(-200).join('\n')}
+         </pre>
+       )}
+-      {job?.kind === 'solve' && !job.running && job.returncode !== null && (
++      {job?.kind === 'solve' && !job.running && (job.returncode !== null || job.aborted) && (
+         <div
+           className="prop-hint"
+           style={{
+@@ -963,7 +965,7 @@ function SolveRunBlock() {
+             ? t('status.aborted')
+             : job.returncode === 0
+               ? t('status.solve_ok')
+-              : t('status.solve_failed', { code: job.returncode })}
++              : t('status.solve_failed', { code: job.returncode ?? '?' })}
+         </div>
+       )}
+       {job?.kind === 'solve' && job.lines.length > 0 && (
+diff --git a/src/frontend/react/src/run/session.ts b/src/frontend/react/src/run/session.ts
+index 1029efe9..47cbb400 100644
+--- a/src/frontend/react/src/run/session.ts
++++ b/src/frontend/react/src/run/session.ts
+@@ -22,7 +22,7 @@ import {
+ } from './serverDiagnosis'
+ import { setUiFrozen } from './uiFreeze'
+ import { logAction, logOperation } from '../projectStore'
+-import { jobLogAbort, jobLogFinish, jobLogLine, jobLogStart } from './jobLogMirror'
++import { jobLogFinish, jobLogLine, jobLogStart } from './jobLogMirror'
+ import { t } from '../i18n'
+ 
+ export interface ServerInfo {
+@@ -50,8 +50,12 @@ export interface JobState {
+   kind: JobKind
+   caseContext: number
+   running: boolean
+-  /** The user pressed stop. A SIGTERM is then the expected outcome, not a failure. */
++  /** True only for a confirmed cancelled terminal job, not a stop request. */
+   aborted: boolean
++  /** A stop request is in flight; separate from backend completion. */
++  abortPending?: boolean
++  /** The backend accepted a stop request, but may still hold the case lock. */
++  abortRequested?: boolean
+   returncode: number | null
+   checkMeshOk: boolean | null
+   failedChecks: number | null
+@@ -179,7 +183,7 @@ export function isMeshReady(): boolean {
+   // The latest mesh attempt supersedes any earlier disk scan. A failed mesh
+   // can leave a partial or stale polyMesh on disk, which must not unlock solve.
+   const job = getCurrentCaseJob()
+-  if (job?.kind === 'mesh') return !job.running && job.returncode === 0
++  if (job?.kind === 'mesh') return !job.running && !job.aborted && job.returncode === 0
+   return state.meshReady || !!state.status?.meshReady
+ }
+ 
+@@ -484,13 +488,71 @@ export async function runCheckMesh(): Promise<void> {
+   streamLog(body.jobId, context)
+ }
+ 
++interface JobStatus {
++  done?: boolean
++  returncode?: number | null
++  checkMeshOk?: boolean | null
++  failedChecks?: number | null
++  meshWarnings?: unknown[]
++  cancelRequested?: boolean
++  cancelled?: boolean
++}
++
++/** One terminal transition for SSE and polling, including current-case refresh. */
++function finishJob(jobId: string, context: number, final: JobStatus): void {
++  const job = state.job
++  if (!job || job.id !== jobId || !job.running || final.done !== true) return
++  const currentCase = isCasePathContextCurrent(context)
++  const aborted = final.cancelled === true || final.cancelRequested === true ||
++    (job.abortRequested === true && final.returncode !== 0)
++  const ok = final.returncode === 0 && !aborted
++  state = {
++    ...state,
++    meshReady: !currentCase ? state.meshReady
++      : job.kind === 'mesh' ? ok
++      : job.kind === 'checkMesh' ? true
++      : state.meshReady,
++    job: {
++      ...job, running: false, aborted, abortPending: false,
++      returncode: final.returncode ?? null,
++      checkMeshOk: final.checkMeshOk ?? null,
++      failedChecks: final.failedChecks ?? null,
++      meshWarnings: currentCase ? (Array.isArray(final.meshWarnings) ? final.meshWarnings : []) : null,
++      error: null,
++    },
++  }
++  jobSources.get(jobId)?.close()
++  jobSources.delete(jobId)
++  emit()
++  // A background job can end after a project switch; its files and logs belong
++  // to the old case and cannot establish readiness for the new one.
++  if (!currentCase) return
++  jobLogFinish(job.kind, t('log.job_finished', {
++    kind: job.kind, code: String(final.returncode ?? '?'),
++  }))
++  if (ok && job.kind === 'mesh') {
++    const casePath = state.info?.caseDir ?? ''
++    logAction('dctwin', t('log.mesh_complete', { path: casePath }))
++    logAction('dctwin', t('log.paraview_hint', { path: casePath }))
++  }
++  if (ok && job.kind === 'solve') {
++    logAction('dctwin', t('log.solve_complete'))
++    logAction('dctwin', t('log.switch_to_postprocess'))
++  }
++  void scanCaseStatus()
++  // An interrupted solve can still have valid earlier probe rows.
++  if (job.kind === 'solve') void onSolveFinished()
++}
++
++const jobSources = new Map<string, EventSource>()
++const pollingJobs = new Set<string>()
++
+ function streamLog(jobId: string, context: number) {
+   const source = new EventSource(`/api/log-stream?job_id=${encodeURIComponent(jobId)}`)
++  jobSources.set(jobId, source)
+ 
+   source.onmessage = (event) => {
+-    if (!state.job || state.job.id !== jobId) return
+-    // Read once: the handler reassigns `state` below, which costs TS's
+-    // narrowing of `state.job` for the rest of the body.
++    if (!state.job || state.job.id !== jobId || !state.job.running) return
+     const jobKind = state.job.kind
+     let payload: unknown
+     try {
+@@ -503,160 +565,113 @@ function streamLog(jobId: string, context: number) {
+       if (lines.length > MAX_LINES) lines.splice(0, lines.length - MAX_LINES)
+       state = { ...state, job: { ...state.job, lines } }
+       emit()
+-      // The dock's batched copy of the same stream — see jobLogMirror.
+       jobLogLine(jobKind, payload)
+       return
+     }
+-    const final = payload as {
+-      done?: boolean
+-      returncode?: number
+-      checkMeshOk?: boolean | null
+-      failedChecks?: number | null
+-      meshWarnings?: unknown[]
+-    }
+-    if (final?.done) {
+-      source.close()
+-      const ok = final.returncode === 0
+-      const kindFinished = state.job.kind
+-      const currentCase = isCasePathContextCurrent(context)
+-      state = {
+-        ...state,
+-        // A solve does not re-establish mesh readiness, and a failed mesh
+-        // revokes it: leaving it true after a failure would let a user solve on
+-        // a mesh that was never produced.
+-        // A failed mesh RUN revokes readiness — solving on a mesh that was
+-        // never produced is the failure this guards. A checkMesh run does the
+-        // opposite: it only runs once the mesh is known to exist, so it GRANTS
+-        // readiness whatever its verdict. checkMesh reporting warnings does not
+-        // unmake the mesh, and the legacy sets meshReady unconditionally there
+-        // (STL_generate.html:25711); revoking it would lock the solve button on
+-        // a mesh that is merely imperfect.
+-        meshReady:
+-          !currentCase
+-            ? state.meshReady
+-            : state.job.kind === 'mesh'
+-              ? ok
+-              : state.job.kind === 'checkMesh'
+-                ? true
+-                : state.meshReady,
+-        job: {
+-          ...state.job,
+-          running: false,
+-          returncode: final.returncode ?? null,
+-          checkMeshOk: final.checkMeshOk ?? null,
+-          failedChecks: final.failedChecks ?? null,
+-          meshWarnings: currentCase ? (Array.isArray(final.meshWarnings) ? final.meshWarnings : []) : null,
+-        },
+-      }
+-      emit()
+-      // Keep tracking a background job's completion after a project switch,
+-      // but its result cannot establish readiness or export sensors for the
+-      // project that is now open.
+-      if (!isCasePathContextCurrent(context)) return
+-      // Same rule for the dock line: a run that finished against the case being
+-      // closed has nothing to say to the project now open, and the completion
+-      // messages below are gated on exactly this for exactly this reason.
+-      jobLogFinish(
+-        kindFinished,
+-        t('log.job_finished', {
+-          kind: kindFinished,
+-          code: String(final.returncode ?? '?'),
+-        }),
+-      )
+-      // Where the result landed and what to do next. `Mesh/` is a reset working
+-      // directory and a solve writes under `log/<timestamp>/`, so the path is
+-      // not something a user can reconstruct — and nothing else points at the
+-      // post-processing tab. The same four lines as STL_generate.html:28510.
+-      if (ok && kindFinished === 'mesh') {
+-        const casePath = state.info?.caseDir ?? ''
+-        logAction('dctwin', t('log.mesh_complete', { path: casePath }))
+-        logAction('dctwin', t('log.paraview_hint', { path: casePath }))
+-      }
+-      if (ok && kindFinished === 'solve') {
+-        logAction('dctwin', t('log.solve_complete'))
+-        logAction('dctwin', t('log.switch_to_postprocess'))
+-      }
+-      // The run changed what is on disk — a solve in particular is what unlocks
+-      // post-processing.
+-      void scanCaseStatus()
+-      // A finished solve leaves one probe row per sensor in the case, and
+-      // nothing else will ever turn it into a file: the server needs the probe
+-      // NAMES to do that, and only the browser has them. Fired on the done
+-      // event whatever the return code, as the legacy does
+-      // (STL_generate.html:28530) — a solve that stopped early still wrote
+-      // every step before it stopped.
+-      if (kindFinished === 'solve') void onSolveFinished()
++    if (payload && typeof payload === 'object' && (payload as JobStatus).done === true) {
++      finishJob(jobId, context, payload as JobStatus)
+     }
+   }
+ 
+   source.onerror = () => {
+-    source.close()
++    // Polling may already have closed this stream on terminal completion.
++    if (jobSources.get(jobId) === source) {
++      source.close()
++      jobSources.delete(jobId)
++    }
+     if (!state.job || state.job.id !== jobId || !state.job.running) return
+-    // The stream dropped but the job may well still be running on the server.
+-    // Fall back to polling rather than reporting a failure that did not happen.
+     void pollUntilDone(jobId, context)
+   }
+ }
+ 
+-async function pollUntilDone(jobId: string, context: number): Promise<void> {
+-  for (;;) {
+-    await new Promise((r) => setTimeout(r, 5000))
+-    if (!state.job || state.job.id !== jobId) return
+-    try {
+-      const resp = await fetch(`/api/job-status?job_id=${encodeURIComponent(jobId)}`)
+-      const status = (await resp.json()) as {
+-        done?: boolean; returncode?: number; checkMeshOk?: boolean | null
+-        failedChecks?: number | null; meshWarnings?: unknown[]
+-      }
+-      if (!state.job || state.job.id !== jobId) return
+-      if (!status.done) continue
+-      const ok = status.returncode === 0
+-      const currentCase = isCasePathContextCurrent(context)
+-      state = {
+-        ...state,
+-        meshReady: currentCase && state.job.kind === 'mesh' ? ok : state.meshReady,
+-        job: {
+-          ...state.job, running: false, returncode: status.returncode ?? null,
+-          checkMeshOk: status.checkMeshOk ?? null, failedChecks: status.failedChecks ?? null,
+-          meshWarnings: currentCase ? (Array.isArray(status.meshWarnings) ? status.meshWarnings : []) : null,
+-        },
+-      }
+-      emit()
+-      return
+-    } catch (err) {
+-      const job = state.job
+-      if (!job || job.id !== jobId) return
+-      state = {
+-        ...state,
+-        job: { ...job, running: false, error: err instanceof Error ? err.message : String(err) },
++/** HTTP failure cannot prove the process ended; retain the lock and retry. */
++function jobRequestError(jobId: string, error: unknown): void {
++  const job = state.job
++  if (!job || job.id !== jobId || !job.running) return
++  state = { ...state, job: {
++    ...job, error: error instanceof Error ? error.message : String(error),
++  } }
++  emit()
++}
++
++async function responseBody(resp: Response): Promise<Record<string, unknown>> {
++  const body: unknown = await resp.json()
++  if (!resp.ok) {
++    throw new Error(body && typeof body === 'object' && 'error' in body
++      ? String(body.error) : `server returned ${resp.status}`)
++  }
++  if (!body || typeof body !== 'object' || Array.isArray(body)) {
++    throw new Error('server returned an invalid job response')
++  }
++  return body as Record<string, unknown>
++}
++
++async function pollUntilDone(jobId: string, context: number, immediate = false): Promise<void> {
++  // SSE error callbacks and the stop reply can race; one monitor owns each job.
++  if (pollingJobs.has(jobId)) return
++  pollingJobs.add(jobId)
++  try {
++    let wait = !immediate
++    while (state.job?.id === jobId && state.job.running) {
++      if (wait) await new Promise((resolve) => setTimeout(resolve, 5000))
++      if (!state.job || state.job.id !== jobId || !state.job.running) return
++      wait = true
++      try {
++        const resp = await fetch(`/api/job-status?job_id=${encodeURIComponent(jobId)}`, { cache: 'no-store' })
++        const body = await responseBody(resp)
++        if (typeof body.done !== 'boolean') throw new Error('server returned an invalid job status')
++        if (!state.job || state.job.id !== jobId || !state.job.running) return
++        if (body.done === true) {
++          finishJob(jobId, context, body as JobStatus)
++          return
++        }
++        if (state.job.error) {
++          state = { ...state, job: { ...state.job, error: null } }
++          emit()
++        }
++      } catch (error) {
++        jobRequestError(jobId, error)
+       }
+-      emit()
+-      return
+     }
++  } finally {
++    pollingJobs.delete(jobId)
+   }
+ }
+ 
+ export async function abortJob(): Promise<void> {
+   const job = state.job
+-  if (!job || !job.running) return
+-  jobLogAbort(job.kind)
++  if (!job || !job.running || job.abortPending || job.abortRequested) return
++  state = { ...state, job: { ...job, abortPending: true, error: null } }
++  emit()
+   try {
+-    await fetch('/api/abort-job', {
++    const resp = await fetch('/api/abort-job', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ jobId: job.id }),
+     })
+-  } finally {
+-    // running stays true until the stream reports done: the process takes a
+-    // moment to die, and flipping the button back early would let a second run
+-    // start against a job that is still shutting down. Mark the job as it is
+-    // NOW, not the copy read before the request: the server holds this request
+-    // until the process tree is gone and marks the job done, so the stream's
+-    // done event usually lands first — restoring that copy set running back to
+-    // true and left the buttons stuck on "meshing" for good.
++    const body = await responseBody(resp)
++    if (!['aborted', 'aborting', 'already_done'].includes(String(body.status))) {
++      throw new Error('server did not acknowledge the stop request')
++    }
++    const current = state.job
++    if (!current || current.id !== job.id) return
++    const accepted = body.status === 'aborted' || body.status === 'aborting'
++    // A final SSE can arrive first. Never restore the snapshot taken before the
++    // request, and never relabel an already successful completion as cancelled.
++    state = { ...state, job: {
++      ...current, abortPending: false,
++      abortRequested: current.abortRequested || accepted,
++      aborted: current.aborted || (accepted && !current.running && current.returncode !== 0),
++    } }
++    emit()
++    // Even a healthy EventSource can miss its terminal message. The abort ACK
++    // itself is not evidence that stdout drained or the case lock was released.
++    if (current.running) void pollUntilDone(job.id, job.caseContext, true)
++  } catch (error) {
++    jobRequestError(job.id, error)
+     const current = state.job
+-    if (current && current.id === job.id) {
+-      state = { ...state, job: { ...current, aborted: true } }
++    if (current?.id === job.id) {
++      state = { ...state, job: { ...current, abortPending: false } }
+       emit()
+     }
+   }
+diff --git a/src/frontend/shared/i18n/en-US.json b/src/frontend/shared/i18n/en-US.json
+index 6124e306..f2efcd75 100644
+--- a/src/frontend/shared/i18n/en-US.json
++++ b/src/frontend/shared/i18n/en-US.json
+@@ -2226,5 +2226,6 @@
+   "layout.resize_log": "Resize log panel",
+   "layout.resize_width_help": "Drag, or use Left/Right arrows to move this edge by 10 px. Shift: 40 px.",
+   "layout.resize_height_help": "Drag, or use Up/Down arrows to move this edge by 10 px. Shift: 40 px.",
+-  "layout.resize_pixels": "{size} px"
++  "layout.resize_pixels": "{size} px",
++  "status.stopping": "Stopping…"
+ }
+diff --git a/src/frontend/shared/i18n/zh-CN.json b/src/frontend/shared/i18n/zh-CN.json
+index 67233dfa..9c32ab01 100644
+--- a/src/frontend/shared/i18n/zh-CN.json
++++ b/src/frontend/shared/i18n/zh-CN.json
+@@ -2226,5 +2226,6 @@
+   "layout.resize_log": "调整日志栏高度",
+   "layout.resize_width_help": "拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。",
+   "layout.resize_height_help": "拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。",
+-  "layout.resize_pixels": "{size} 像素"
++  "layout.resize_pixels": "{size} 像素",
++  "status.stopping": "正在停止…"
+ }

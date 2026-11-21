@@ -1,0 +1,75 @@
+--- original-reviewed-runner.py
++++ PROPOSED_RUN_ONE_WHOLE.py
+@@ -41,6 +41,10 @@
+  for want in G['main8390Kit8301Roles']:
+   have=role(want['pid']);small={k:have[k] for k in ['pid','start','cwd','argv']};roles.append(small)
+   if small!=want:errors.append('role:'+str(want['pid']))
++ if git_head_sha(G['normalIntegrationSource']['root'])!=G['normalIntegrationSource']['requiredIntegrationHead']:errors.append('I-reviewed-checkpoint-HEAD-not-held')
++ for rel,want in G['normalIntegrationSource']['plannedAfterSha256'].items():
++  q=Path(G['normalIntegrationSource']['root'])/rel
++  if not q.is_file() or info(q)['sha256']!=want:errors.append('I-reviewed-source-not-held:'+rel)
+  for row in B['actualSource41']:
+   if not exact(row['actualBuildInput'],row):errors.append('source41:'+row['relativePath'])
+  for name in ['APP','LIB']:
+@@ -65,12 +69,59 @@
+  for table in [B['compilerDependencies'],B['toolchain'],B['pair']['APP']['resolvedLddDependencies'],B['pair']['LIB']['resolvedLddDependencies']]:
+   for path,v in table.items():assert exact(path,v),path
+  assert (OF/'src').is_symlink() and (OF/'src').resolve()==(OF/'include/OpenFOAM-2412/src').resolve() and (OF/'src/meshTools/lnInclude').is_dir()
+- inputs=json.loads(Path(B['inputBindingsSource']).read_text());assert len(inputs)==25
++ inputs=json.loads(Path(B['inputBindingsSource']).read_text());assert len(inputs)==P['inputCount']==55
+  for rel,v in inputs.items():assert exact(Path(B['inputFrozenRoot'])/rel,v)
+  flags=json.loads((F/'exact-flags34.json').read_text());assert flags==json.loads(Path(B['flagsSource']).read_text());assert len(flags['combinedExact'])==34 and flags['combinedExact']==dict(flags['previous33Exact'],DCCART_FINITE_CLOSED_COMPONENT_PREFIX='1') and flags['previous33Exact']==dict(flags['baselineExact'],DCCART_FINITE_ADMISSION_OBSERVE='1') and flags['combinedExact']['DCCART_POINT_STAR_FULL_CAPTURE']=='0'
+  assert not R.exists() and not R.is_symlink() and C.resolve().is_relative_to(R.resolve()) and R.resolve().is_relative_to(OWNER.resolve())
++ artifact=verify_actual_input_artifact()
+  before=guards();assert before['held'],before
+- return {'manifestPayloadCount':count,'source41':41,'input25':25,'guards':before,'readOnlyPreflight':True,'nativeExecuted':False}
++ return {'manifestPayloadCount':count,'source41':41,'inputFiles':len(inputs),'inputArtifact':artifact,'guards':before,'readOnlyPreflight':True,'nativeExecuted':False}
++def git_head_sha(repo):
++ repo=Path(repo).resolve();base=Path(G['mainRoot']).resolve();assert repo.is_relative_to(base)
++ dot=repo/'.git';git_dir=Path(dot.read_text().split(':',1)[1].strip()) if dot.is_file() else dot
++ git_dir=git_dir.resolve();assert git_dir.is_relative_to(base)
++ head=(git_dir/'HEAD').read_text().strip()
++ if not head.startswith('ref: '):assert re.fullmatch(r'[0-9a-f]{40}',head);return head
++ ref=head[5:];common=(git_dir/(git_dir/'commondir').read_text().strip()).resolve() if (git_dir/'commondir').is_file() else git_dir
++ assert common.is_relative_to(base);loose=(common/ref).resolve();assert loose.is_relative_to(common)
++ if loose.is_file():value=loose.read_text().strip()
++ else:
++  rows=[line.split() for line in (common/'packed-refs').read_text().splitlines() if line and not line.startswith(('#','^'))]
++  matches=[row[0] for row in rows if len(row)==2 and row[1]==ref];assert len(matches)==1;value=matches[0]
++ assert re.fullmatch(r'[0-9a-f]{40}',value);return value
++def verify_actual_input_artifact():
++ x=B['actualInputArtifact'];path=Path(x['manifestPath'])
++ assert info(path)['sha256']==x['manifestSha256']==P['actualInputArtifactManifestSha']
++ j=json.loads(path.read_text());assert len(j['files'])==87
++ for name,v in j['files'].items():
++  rel=Path(name);assert not rel.is_absolute() and '..' not in rel.parts
++  q=path.parent/rel;assert q.is_file() and not q.is_symlink() and exact(q,v),name
++ assert exact(x['stageArchivePath'],x['stageArchive']) and exact(x['membersPath'],x['members']) and exact(x['originalInputArchivePath'],x['originalInputArchive'])
++ members=json.loads(Path(x['membersPath']).read_text());rows=json.loads(Path(B['inputBindingsSource']).read_text())
++ assert len(members)==len(rows)==P['inputCount']==x['stageFileCount']==55
++ assert rows=={r['path']:{k:r[k] for k in ['bytes','sha256']} for r in members}
++ assert len([r for r in members if r['path'].endswith('.stl')])==x['stageStlCount']==44
++ assert len([r for r in members if r['path'].startswith('Mesh/system/')])==x['systemDictionaryCount']==8
++ root=Path(B['inputFrozenRoot']);raw=(root/'model/transport.cfdrun').read_bytes()
++ assert hashlib.sha256(raw).hexdigest()==x['rawManifestSha256']==P['actualInputRawManifestSha']
++ whole=json.loads(Path(x['wholeReceiptPath']).read_text());stage=json.loads(Path(x['stageReceiptPath']).read_text());contracts=json.loads(Path(x['authoritiesPath']).read_text());inventory=json.loads(Path(x['inventoryPath']).read_text())
++ assert whole['ok'] and whole['exportCalls']==1 and whole['all13PhysicalStlBytesUnchanged'] and whole['projectUnchanged'] and whole['liquidGraphUnchanged'] and whole['sourceCaseUnchanged'] and len(whole['files'])==x['originalStlCount']==13
++ assert stage['ok'] and stage['sourceAdmission']['inventoryOk'] and stage['sourceAdmission']['eligible'] and stage['actualCaseLockReleased'] and stage['actualExecutionIdentityDuringStage']==x['rawManifestSha256']
++ assert stage['sourceAdmission']['contracts']==contracts and set(contracts)=={'singleton','weight'}
++ assert all(v['eligible'] is True and v['reasons']==[] and v['rawSha256']==x['rawManifestSha256'] for v in contracts.values())
++ assert inventory['verifiedOriginal']['rawSha256']==x['rawManifestSha256'] and inventory['dictionarySHA256']==info(root/'Mesh/system/snappyHexMeshDict')['sha256']
++ assert info(x['sourceCasePath'])['sha256']==x['sourceCaseSha256']
++ project=json.loads(Path(x['sourceCasePath']).read_text());run=json.loads(raw)
++ patches=project['constructions']['floors']['m_52']['geometry']['faces']['top']['patches'];uids=[project['uid']+'/m_52/top/remainder-sheet']+[project['uid']+'/m_52/top/patch/'+v['id'] for v in patches]
++ floor=[v for v in run['geometryExport']['sourceSurfaces'].values() if v['sourceObjectUid']=='m_52']
++ assert len(patches)==30 and len(floor)==len(set(uids))==31 and sorted(v['sourceFaceUid'] for v in floor)==sorted(uids) and all(v['representation']=='zeroThicknessSheet' for v in floor)
++ assert info(root/'Mesh/constant/triSurface/merged_liquid_transport.stl')['sha256']=='c20977276c98e70e64e3636f6e668738316e9c01d1b0aaeed901c0c70088354e'
++ assert stage['carrierFacetCount']==248540 and len(stage['actualLoadedCarrierSolids'])==6 and stage['wholeCarrierUnchanged'] and len(inventory['files'])==44
++ text=(root/'Mesh/system/dcCartMeshDict').read_text()
++ for section,v in [('dcdtuniPointRepairSourceRoleContract',contracts['singleton']),('dcdtuniWeightUnionSourceContract',contracts['weight'])]:
++  match=re.search(r'\b'+section+r'\s*\{([^}]+)\}',text);assert match
++  body=match.group(1);assert re.search(r'\beligible\s+true\s*;',body) and ('rawSha256 "'+x['rawManifestSha256']+'";') in body and ('rolesDigest "'+v['rolesDigest']+'";') in body and re.search(r'\breasons\s*\(\s*\)\s*;',body)
++ return {'artifactSHA':x['manifestSha256'],'rawManifestSHA':x['rawManifestSha256'],'originalSTLs':13,'stageFiles':55,'stageSTLs':44,'systemDictionaries':8,'actualInventoryEligible':True,'floorSourceBytesAppliedAtPreparation':G['normalIntegrationSource']['promotionConfirmedAtPreparation'],'floorGitCheckpoint':G['normalIntegrationSource']['requiredIntegrationHead']}
+ def environment():
+  e={k:v for k,v in os.environ.items() if not k.startswith(('DCCART_','CART_')) and k not in ['LD_LIBRARY_PATH','LD_PRELOAD','LD_AUDIT','LD_DEBUG','LD_DEBUG_OUTPUT','PYTHONPATH','BASH_ENV','ENV']}
+  e.update(PATH=str(OF/'bin')+':/usr/bin:/bin',LD_LIBRARY_PATH=str(LIB.parent)+':'+str(OF/'lib/sys-mpich')+':'+str(OF/'lib'),WM_PROJECT_DIR=str(OF),FOAM_LIBBIN=str(OF/'lib'),FOAM_APPBIN=str(OF/'bin'),FOAM_ETC=str(OF/'etc'),FOAM_MPI='sys-mpich',FOAM_SIGFPE='false',CUDA_VISIBLE_DEVICES='',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1',PYTHONDONTWRITEBYTECODE='1',TMPDIR=str(R/'tmp'),TMP=str(R/'tmp'),TEMP=str(R/'tmp'),XDG_CACHE_HOME=str(R/'cache'))

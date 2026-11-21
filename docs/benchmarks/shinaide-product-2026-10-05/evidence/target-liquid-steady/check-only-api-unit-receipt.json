@@ -1,0 +1,22 @@
+{
+  "scope": "check-only HTTP route uses actual authoritative mesh layout and full OpenFOAM topology/geometry checks; no solver rerun",
+  "baseline": "check-only-api-before-pytest-output.txt:4failed1passed",
+  "accepted": "check-only-api-final-pytest-output.txt:45passed0.97s",
+  "guards": [
+    "global nonempty mesh",
+    "contiguous actual MPI ranks not input meshProcess",
+    "case execution lock",
+    "300second whole-job timer kills MPI processgroup",
+    "exact input and mesh hash before and after",
+    "exit-zero FailedN becomes job error and rejected receipt",
+    "optional no-input checker cannot authorize input-bound render receipt"
+  ],
+  "sourceSha256": {
+    "src/server/server.py": "23a300c49cc60bfc27cfda939c599d6bbce9c45c32a1d6e089f837e0e0c8bd7a",
+    "src/server/tests/test_check_mesh_quality.py": "4223f7145b6cf41df94652a86459cbeafea4c77b5540958bb432c3e8534833d0",
+    "src/backend/tests/test_partitioned_mesh_status.py": "eea81d36e665e39c8f5d56e96aafd4f72deb3254a1ae988f6cda11959ddc1aa5",
+    "tools/audit_air_written_fields.py": "f2eac5619e28b87addbd227846a07cd0c72d02bfbb4f9780bf5d8db6ab7aadd3"
+  },
+  "fieldAuditScope": "ASCII physical fields, ASCII/binary mesh labels including compact uniform and empty label lists; if region labels absent omit regional aggregation/report unavailable and retain whole-mesh ranges, physical patch flows, cell conservation",
+  "fieldAuditNoLabelsRaw": "audit-tool-no-region-labels.json actual owned MPI2 PIMPLE0.02s, regionLabelsAvailable false, regions empty, wholeMesh2cells"
+}

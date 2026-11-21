@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+: "${DCDT_IDENTITY_PROBE:?Set the native probe path}"
+root=${1:?Pass a new scratch output directory}
+mkdir -p "$root"
+passed=0
+case_input() {
+    local name=$1 metadata=$2
+    mkdir -p "$root/$name/system" "$root/$name/constant/triSurface"
+    cat > "$root/$name/system/controlDict" <<'EOF'
+FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }
+application sourceIdentityProbe; startFrom startTime; startTime 0; stopAt endTime; endTime 0;
+deltaT 1; writeControl timeStep; writeInterval 1;
+EOF
+    cat > "$root/$name/constant/triSurface/panels.stl" <<'EOF'
+solid front_a
+facet normal 0 0 1
+outer loop
+vertex 0 0 0
+vertex 1 0 0
+vertex 0 1 0
+endloop
+endfacet
+endsolid front_a
+solid front_b
+facet normal 0 0 1
+outer loop
+vertex 2 0 0
+vertex 3 0 0
+vertex 2 1 0
+endloop
+endfacet
+endsolid front_b
+EOF
+    cat > "$root/$name/system/snappyHexMeshDict" <<EOF
+FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
+geometry { panels.stl { type triSurfaceMesh; name aliasedPanels; } }
+castellatedMeshControls { refinementSurfaces { aliasedPanels { level (0 0); faceType internal; faceZone panelZone; } } }
+$metadata
+EOF
+}
+accept() {
+    local name=$1 pattern=$2
+    "$DCDT_IDENTITY_PROBE" -case "$root/$name" > "$root/$name/probe.log" 2>&1
+    grep -Fq "$pattern" "$root/$name/probe.log"
+    grep -Fq 'GEOMETRY_UNCHANGED' "$root/$name/probe.log"
+    passed=$((passed+1)); echo "PASS $name"
+}
+reject() {
+    local name=$1 pattern=$2
+    set +e
+    "$DCDT_IDENTITY_PROBE" -case "$root/$name" > "$root/$name/probe.log" 2>&1
+    local status=$?
+    set -e
+    if [ "$status" -eq 0 ] || ! grep -Fq "$pattern" "$root/$name/probe.log"; then
+        echo "FAIL $name"; tail -20 "$root/$name/probe.log"; exit 1
+    fi
+    passed=$((passed+1)); echo "PASS $name"
+}
+case_input legacy ''
+accept legacy 'IDENTITIES 0'
+grep -Fq 'IDENTITY 0 1 missing' "$root/legacy/probe.log"
+case_input empty 'dcdtuniSourceSurfaces {}'
+accept empty 'IDENTITIES 0'
+case_input valid 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "m_1"; sourceFaceUid "project/m_1/face-a"; representation zeroThicknessSheet; } front_b { sourceObjectUid "m_1"; sourceFaceUid "project/m_1/face-b"; representation surfaceFace; } } }'
+accept valid 'IDENTITIES 2'
+grep -Fq 'IDENTITY 0 0 "m_1" "project/m_1/face-a" zeroThicknessSheet' "$root/valid/probe.log"
+grep -Fq 'IDENTITY 0 1 "m_1" "project/m_1/face-b" surfaceFace' "$root/valid/probe.log"
+case_input partial 'dcdtuniSourceSurfaces { panels.stl { front_b { sourceObjectUid "m_1"; sourceFaceUid "project/m_1/face-b"; representation surfaceFace; } } }'
+accept partial 'IDENTITIES 1'
+grep -Fq 'IDENTITY 0 0 missing' "$root/partial/probe.log"
+case_input file 'dcdtuniSourceSurfaces { ghost.stl {} }'
+reject file 'unknown STL file ghost.stl'
+case_input region 'dcdtuniSourceSurfaces { panels.stl { ghost { sourceObjectUid "o"; sourceFaceUid "f"; representation surfaceFace; } } }'
+reject region 'unknown STL region panels.stl/ghost'
+case_input duplicate 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "o"; sourceFaceUid "same"; representation surfaceFace; } front_b { sourceObjectUid "o"; sourceFaceUid "same"; representation surfaceFace; } } }'
+reject duplicate 'duplicate sourceFaceUid'
+case_input object_empty 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid ""; sourceFaceUid "f"; representation surfaceFace; } } }'
+reject object_empty 'empty sourceObjectUid'
+case_input face_empty 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "o"; sourceFaceUid "   "; representation surfaceFace; } } }'
+reject face_empty 'empty sourceFaceUid'
+case_input missing 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceFaceUid "f"; representation surfaceFace; } } }'
+reject missing 'missing sourceObjectUid'
+case_input representation 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "o"; sourceFaceUid "f"; representation guessedPair; } } }'
+reject representation 'unsupported representation guessedPair'
+case_input extra 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "o"; sourceFaceUid "f"; representation surfaceFace; pairUid "not-supported"; } } }'
+reject extra 'unknown or invalid field pairUid'
+case_input ambiguous 'dcdtuniSourceSurfaces { panels.stl { front_a { sourceObjectUid "o"; sourceFaceUid "f"; representation surfaceFace; } } }'
+echo 'duplicateGeometryEntry true;' >> "$root/ambiguous/system/snappyHexMeshDict"
+reject ambiguous 'ambiguous STL file panels.stl'
+echo "Native source identity tests: $passed passed"

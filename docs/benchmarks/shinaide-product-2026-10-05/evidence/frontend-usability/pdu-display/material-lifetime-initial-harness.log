@@ -1,0 +1,54 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/pduSceneDisplay.test.ts -t PDU local material lifetime --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/pduSceneDisplay.test.ts (23 tests | 3 failed | 20 skipped) 135ms
+   × PDU local material lifetime > keeps local powder-coat normal strength when actual pending PBR maps bind later 87ms
+     → expected null to be truthy
+   × PDU local material lifetime > clears selected PDU private original, retained fade and highlight materials once; faded=false 24ms
+     → expected "dispose" to be called once, but got 0 times
+   × PDU local material lifetime > clears selected PDU private original, retained fade and highlight materials once; faded=true 21ms
+     → expected "dispose" to be called once, but got 0 times
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > PDU local material lifetime > keeps local powder-coat normal strength when actual pending PBR maps bind later
+AssertionError: expected null to be truthy
+
+- Expected: 
+true
+
++ Received: 
+null
+
+ ❯ test/pduSceneDisplay.test.ts:225:26
+    223|   for(const map of ['diffuse','normal','roughness'] as const)lib.regis…
+    224|   for(const mat of painted.map(m=>m.material as THREE.MeshStandardMate…
+    225|    expect(mat.normalMap).toBeTruthy();expect(mat.normalScale.toArray()…
+       |                          ^
+    226|   }
+    227|  })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > PDU local material lifetime > clears selected PDU private original, retained fade and highlight materials once; faded=false
+ FAIL  test/pduSceneDisplay.test.ts > PDU local material lifetime > clears selected PDU private original, retained fade and highlight materials once; faded=true
+AssertionError: expected "dispose" to be called once, but got 0 times
+ ❯ test/pduSceneDisplay.test.ts:238:77
+    236|   const current=detail.map(m=>m.material as THREE.Material),last=curre…
+    237|   b.clear()
+    238|   for(const calls of [first,middle,last])for(const spy of calls)expect…
+       |                                                                             ^
+    239|  })
+    240| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 20 skipped (23)
+   Start at  06:48:35
+   Duration  16.40s (transform 2.00s, setup 0ms, collect 4.24s, tests 135ms, environment 11.22s, prepare 361ms)
+

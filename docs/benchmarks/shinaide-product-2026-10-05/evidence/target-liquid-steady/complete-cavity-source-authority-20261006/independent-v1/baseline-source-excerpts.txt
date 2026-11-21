@@ -1,0 +1,1010 @@
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C ORIGINAL_SHA256 1535a48da8b5febc9128503100bffe45ebb3c0b7d3de3f2e84d749116e494e2c
+
+RANGE 12906-12955
+12906:     // Exact flag, inside the existing all-rank literal experiment only.
+12907:     // Missing/mismatched authority refuses W while retaining the old D path.
+12908:     bool weightUnions=false;
+12909:     if (literalUnions)
+12910:     {
+12911:         const char* flag=getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
+12912:         const label requested=flag && std::string(flag)=="1";
+12913:         // Unconditional agreement at the same all-rank setup as W.
+12914:         const char* dflag=getenv("DCCART_CROSS_PARENT_D_UNIONS");
+12915:         const label drequested=dflag && std::string(dflag)=="1";
+12916:         const label dlo=returnReduce(drequested,minOp<label>());
+12917:         const label dhi=returnReduce(drequested,maxOp<label>());
+12918:         if(dlo!=dhi)
+12919:         { FatalErrorInFunction<<"D-seed flag differs across ranks; no mesh written"<<exit(FatalError); }
+12920:         const label lo=returnReduce(requested,minOp<label>());
+12921:         const label hi=returnReduce(requested,maxOp<label>());
+12922:         if (lo!=hi)
+12923:         { FatalErrorInFunction<<"W-only flag differs across ranks; no mesh written"<<exit(FatalError); }
+12924:         if (lo)
+12925:         {
+12926:             m.weightUnionState=std::make_shared<writerWeightUnionState>();
+12927:             auto& state=*m.weightUnionState;state.authority=weightAuthority;
+12928:             const bool local=weightAuthority.globallyNoMaterialNoBulk
+12929:                 && dcCartWeightUnionPreview::sha(weightAuthority.rawSha256)
+12930:                 && dcCartWeightUnionPreview::sha(weightAuthority.rolesDigest)
+12931:                 && !weightAuthority.homogeneousFluidKey.empty()
+12932:                 && bool(weightAuthority.homogeneousOrigins)
+12933:                 && bool(weightAuthority.remainingSeconds);
+12934:             List<string> roles(Pstream::nProcs());
+12935:             roles[Pstream::myProcNo()]=weightAuthority.rawSha256+"|"
+12936:                 +weightAuthority.rolesDigest+"|"+weightAuthority.homogeneousFluidKey;
+12937:             Pstream::gatherList(roles);Pstream::scatterList(roles);
+12938:             bool agree=true;for (const auto& row:roles) { agree=agree&&row==roles[0]; }
+12939:             state.enabled=returnReduce(label(local&&agree),minOp<label>())==1;
+12940:             state.dEnabled=dcCartWeightUnionPreview::dAuthority(dlo,state.enabled);
+12941:             weightUnions=state.enabled;
+12942:             if (!weightUnions && Pstream::master())
+12943:             { WarningInFunction<<"W-only homogeneous source authority absent/unknown; old literal path retained"<<nl; }
+12944:         }
+12945:     }
+12946:     // Algorithm ancestry is local and independent of optional evidence output.
+12947:     // No allocation or iteration is added when this experiment is off.
+12948:     std::vector<label> unionParent;
+12949:     if (literalUnions)
+12950:     {
+12951:         unionParent.resize(oldCells);
+12952:         std::iota(unionParent.begin(),unionParent.end(),label(0));
+12953:     }
+12954:     // Source-facet lineage is algorithm state, never optional trace state.
+12955:     std::vector<label> unionBase;
+
+RANGE 14140-14288
+14140:     for (label c=0;c<oldCells;++c)
+14141:     {
+14142:         if (!marked[c]) { continue; }
+14143:         const label ap=insertPoint(apex[c],false);if (ap<0) { ++closePoints;continue; }
+14144:         struct edgeUse { label child,a,b; };
+14145:         std::map<std::pair<label,label>,std::vector<edgeUse>> edges;
+14146:         const bool orig=m.cellOrigAlive[c];const scalar refV=m.cellRefVol[c];const point refC=m.cellRefCentre[c];
+14147:         const label level=m.cellLevel[c],rank=m.cellRank[c];const uint64_t leaf=m.cellLeaf[c],piece=m.cellPiece[c];
+14148:         scalar childVolume=0;bool first=true;
+14149:         for (label f:bases[c])
+14150:         {
+14151:             const bool own=m.owner[f]==c;
+14152:             if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<"conforming base lost parent incidence"<<exit(FatalError); }
+14153:             vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);
+14154:             const scalar v=((own ? area : -area)&(centre-apex[c]))/3;
+14155:             if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;
+14156:             const label child=first ? c : m.nCells++;
+14157:             if (!first)
+14158:             {
+14159:                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
+14160:                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+14161:                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
+14162:                 if (literalUnions) { unionParent.push_back(c); }
+14163:             }
+14164:             first=false;
+14165:             const auto& poly=m.faces[f];
+14166:             for (size_t j=0;j<poly.size();++j)
+14167:             {
+14168:                 label a=poly[j],b=poly[(j+1)%poly.size()];if (!own) { std::swap(a,b); }
+14169:                 edges[std::minmax(a,b)].push_back(edgeUse{child,a,b});
+14170:             }
+14171:             if (own) { m.owner[f]=child; }else { m.neighbour[f]=child; }
+14172:         }
+14173:         if (!std::isfinite(childVolume) || mag(childVolume-parentVolume[c])/parentVolume[c]>1e-10) { ++volumeFailures; }
+14174:         for (const auto& row:edges)
+14175:         {
+14176:             const auto& e=row.second;
+14177:             if (e.size()!=2 || e[0].a!=e[1].b || e[0].b!=e[1].a || e[0].child==e[1].child)
+14178:             { ++edgeFailures;continue; }
+14179:             const std::vector<label> side{e[0].b,e[0].a,ap};
+14180:             if (!writablePolygon(side)) { ++edgeFailures;continue; }
+14181:             m.faces.push_back(side);m.owner.push_back(e[0].child);m.neighbour.push_back(e[1].child);
+14182:             m.patch.push_back(-1);m.zone.push_back(-1);m.faceAlive.push_back(true);
+14183:             if (traceCones) { m.coneEvidenceBase.push_back(-1); }
+14184:             if (samePhysicalRole) { unionBase.push_back(-1); }
+14185:         }
+14186:         ++decomposed;
+14187:     }
+14188:     closePoints=returnReduce(closePoints,sumOp<label>());volumeFailures=returnReduce(volumeFailures,sumOp<label>());
+14189:     edgeFailures=returnReduce(edgeFailures,sumOp<label>());
+14190:     if (closePoints || volumeFailures || edgeFailures)
+14191:     { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
+14192:     if (literalUnions)
+14193:     {
+14194:         // One all-rank, no-write installed oracle before ANY literal union.
+14195:         // The immutable raw checkpoint survives all candidates until the final
+14196:         // writer certificate. Its baseline is never refreshed after mutation.
+14197:         clockTime oracleClock;
+14198:         if (m.writerBaseline)
+14199:         { FatalErrorInFunction<<"preoperator writer baseline must be captured once"<<exit(FatalError); }
+14200:         auto baseline=std::make_shared<writerCoupledBaseline>();
+14201:         baseline->cutPayloadBytes=writerCutPayloadBytes(m);
+14202:         auto checkpoint=std::make_shared<cutMesh>(m);
+14203:         checkpoint->writerBaseline.reset();
+14204:         checkpoint->weightUnionState.reset(); // never alias mutable operator state into earliest input
+14205:         baseline->checkpoint=checkpoint;
+14206:         cutMesh working(*checkpoint);
+14207:         baseline->copySeconds=oracleClock.timeIncrement();
+14208:         writerBindings oracleBindings;
+14209:         label baselineFailures=0;
+14210:         {
+14211:             autoPtr<polyMesh> oracle=toPolyMesh
+14212:             (
+14213:                 working,runTime,polyMesh::defaultRegion,patchNames,patchTypes,
+14214:                 faceZoneNames,patchNeighbours,patchGroups,true,&oracleBindings
+14215:             );
+14216:             // Demand-driven installed geometry is materialized before the
+14217:             // construct clock stops; no quality checker/remote metric is run.
+14218:             oracle->cellCentres();oracle->cellVolumes();oracle->faceAreas();oracle->faceCentres();
+14219:             baseline->constructSeconds=oracleClock.timeIncrement();
+14220:             baselineFailures=snapshotWriterCoupled(*checkpoint,*oracle,oracleBindings,*baseline);
+14221: 
+14222:             if (weightUnions)
+14223:             {
+14224:                 // cf still holds the pre-cone source-facet IDs; patch/zone
+14225:                 // properties of retained source slots are unchanged by partition.
+14226:                 // This normal ancestry does not infer a fluid/material role.
+14227:                 auto sourceOrigin=[&](label parent) -> weightUnionOrigin
+14228:                 {
+14229:                     // Normal immutable APP snapshot supplies the complete
+14230:                     // pre-cone shape/roles/identity; never TRACE or current
+14231:                     // partitioned m.faces standing in for the old outline.
+14232:                     return weightAuthority.normalOriginFromSnapshot
+14233:                         ? weightAuthority.normalOriginFromSnapshot(parent)
+14234:                         : weightUnionOrigin();
+14235:                 };
+14236:                 // The real oracle, not cut arithmetic, selects actual W-bad.
+14237:                 // Every value and native binding is copied before oracle destruction.
+14238:                 m.weightUnionState->clock=clockTime();
+14239:                 dcCartWeightUnionPreview::capture
+14240:                     (*m.weightUnionState,*checkpoint,*oracle,oracleBindings,unionParent,sourceOrigin);
+14241:             }
+14242:         }
+14243:         // Working data and actual oracle must not remain aliases/references
+14244:         // in the stored certificate. Every recorded value is an owned copy.
+14245:         working=cutMesh();oracleBindings=writerBindings();
+14246:         baseline->snapshotSeconds=oracleClock.timeIncrement();
+14247:         if (getenv("DCCART_CONE_EVIDENCE"))
+14248:         {
+14249:             const fileName output=runTime.path()/("conforming-writer-baseline-rank"+std::to_string(Pstream::myProcNo())+".json");
+14250:             if (!writeWriterCertificate(*baseline,output,"earliest-baseline",baselineFailures,0))
+14251:             { ++baselineFailures; }
+14252:         }
+14253:         const label globalBaselineFailures=returnReduce(baselineFailures,sumOp<label>());
+14254:         if (globalBaselineFailures)
+14255:         {
+14256:             const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
+14257:             writeWriterCheckpoint(*checkpoint,prefix);
+14258:             FatalErrorInFunction<<"preoperator installed writer baseline refused: "
+14259:                 <<globalBaselineFailures<<"; no mesh authorization"<<exit(FatalError);
+14260:         }
+14261:         m.writerBaseline=std::move(baseline);
+14262:         Info<<"Conforming preoperator installed writer oracle: coupled faces "<<m.writerBaseline->faces.size()
+14263:             <<", local copy/construct/snapshot "<<m.writerBaseline->copySeconds<<'/'
+14264:             <<m.writerBaseline->constructSeconds<<'/'<<m.writerBaseline->snapshotSeconds
+14265:             <<" s; cut payload "<<m.writerBaseline->cutPayloadBytes<<" bytes, DP geometry "
+14266:             <<m.writerBaseline->writerGeometryBytes
+14267:             <<" bytes; estimate excludes allocator headers/canon caches; full API deadline unchanged"<<endl;
+14268:         std::unordered_set<label> writerCertifiedFaces;
+14269:         for (const auto& record:m.writerBaseline->faces) { writerCertifiedFaces.insert(record.nativeFace); }
+14270:         // Literal mode only deletes one unzoned internal face. A separate
+14271:         // opt-in may synchronously join two physical triangles of the SAME
+14272:         // source facet/patch/zone; all their outline nodes and inherited roles
+14273:         // remain mandatory. Coupled/zone cavities are unsupported.
+14274:         clockTime unionClock;
+14275:         std::vector<std::vector<label>> unionCF;
+14276:         buildCellFaces(m,unionCF);
+14277:         struct unionFace { label owner,neighbour;std::vector<label> polygon;vector area;point centre; };
+14278:         std::vector<vector> unionArea(m.faces.size());
+14279:         std::vector<point> unionCentre(m.faces.size());
+14280:         for (label f=0;f<label(m.faces.size());++f) if (m.faceAlive[f])
+14281:         { faceAreaCentreOF(m.points,m.faces[f],unionArea[f],unionCentre[f]); }
+14282:         auto coupledType=[&](label f)
+14283:         {
+14284:             const label p=m.patch[f];if (p<0) { return false; }
+14285:             if (p>=patchTypes.size()) { return true; }
+14286:             const word& type=patchTypes[p];
+14287:             return type.find("cyclic")==0 || type.find("processor")==0
+14288:                 || type.find("mapped")==0 || type.find("AMI")!=std::string::npos;
+
+RANGE 14767-14796
+14767:                     // No mutation precedes complete geometry/role preflight.
+14768:                     if (weightPacket)
+14769:                     {
+14770:                         if (shared[0]!=weightPacket->nativeFace || !joinedPhysical.empty())
+14771:                         { ++cavityQuality;return false; }
+14772:                         auto record=*weightPacket;record.keep=keep;record.drop=drop;
+14773:                         m.weightUnionState->committed.push_back(std::move(record));
+14774:                         m.weightUnionState->survivorOrigins[keep]=weightPacket->origins;
+14775:                         // Optional evidence must not pretend a multi-origin survivor is one cone parent.
+14776:                         if (traceCones) { m.coneEvidenceParent[keep]=-1; }
+14777:                         ++m.weightUnionState->accepted;
+14778:                     }
+14779:                     m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;
+14780:                     if (!joinedPhysical.empty())
+14781:                     {
+14782:                         m.faceAlive[joinedPhysical[1]]=false;++roleAccepted;
+14783:                         if (m.weightUnionState)
+14784:                         { ++m.weightUnionState->authorizedPhysicalPruned[m.patch[joinedPhysical[1]]]; }
+14785:                     }
+14786:                     for (auto& row:changed)
+14787:                     {
+14788:                         const label f=row.first;auto& value=row.second;
+14789:                         m.owner[f]=value.owner;m.neighbour[f]=value.neighbour;m.faces[f].swap(value.polygon);
+14790:                         unionArea[f]=value.area;unionCentre[f]=value.centre;
+14791:                     }
+14792:                     for (const auto& row:next)
+14793:                     { const label c=row.first;unionCC[c]=row.second.centre;unionVolume[c]=row.second.volume;unionDet[c]=row.second.determinant;unionValid[c]=1; }
+14794:                     unionValid[drop]=2;if (!weightPacket) { ++accepted; }++acceptedRound;
+14795:                     if (!certifiedCoupled.empty()) { ++unchangedCoupledAccepted; }
+14796:                     if (unionEvidence.is_open())
+
+RANGE 14896-14909
+14896:             // No extra physical-facet coalescence and no trial MPI.
+14897:             for (const auto& packet:state.pool)
+14898:             {
+14899:                 if (!state.available() || state.examined>=256) { break; }
+14900:                 ++state.examined;
+14901:                 if (!dcCartWeightUnionPreview::dependency(packet,m,unionCF))
+14902:                 { ++state.dependencyRefused;continue; }
+14903:                 if (!m.cellAlive[packet.a] || !m.cellAlive[packet.b]
+14904:                  || m.cellRank[packet.a]!=myRank || m.cellRank[packet.b]!=myRank
+14905:                  || !trueUnionTet(packet.a) || !trueUnionTet(packet.b)
+14906:                  || !state.authority.homogeneousOrigins(packet.origins))
+14907:                 { ++state.guardRefused;continue; }
+14908:                 // Stable body-world order, never min(label) or a fixture keeper.
+14909:                 const bool firstA=packet.keeperKeys[0]<packet.keeperKeys[1];
+
+RANGE 15808-15855
+15808: Foam::autoPtr<Foam::polyMesh> Foam::dcCartCutCells::toPolyMesh
+15809: (
+15810:     cutMesh& m,
+15811:     const Time& runTime,
+15812:     const word& regionName,
+15813:     const wordList& patchNames,
+15814:     const wordList& patchTypes,
+15815:     const wordList& faceZoneNames,
+15816:     const wordList& patchNeighbours,
+15817:     const wordList& patchGroups,
+15818:     const bool baselineOnly,
+15819:     writerBindings* requestedBindings,
+15820:     const std::function<scalar()>& remainingPointRepairSeconds,
+15821:     const bool singletonSourceRoleEligible
+15822: )
+15823: {
+15824:     if (!baselineOnly && remainingPointRepairSeconds)
+15825:     {
+15826:         // This first prototype requires the immutable earliest installed
+15827:         // coupled certificate captured by the literal-union path. All ranks
+15828:         // refuse together before normalizing or changing any point.
+15829:         const label missingBaseline=returnReduce(label(!m.writerBaseline),sumOp<label>());
+15830:         if (missingBaseline)
+15831:         {
+15832:             FatalErrorInFunction
+15833:                 << "Shared-point repair requires the earliest literal-union writer baseline on every rank; no mesh written"
+15834:                 << exit(FatalError);
+15835:         }
+15836:     }
+15837:     // The oracle executes this exact normalizer on a separate deep copy.
+15838:     // It is unregistered/NO_WRITE and explicitly bypasses TRACE file output.
+15839:     writerBindings finalBindings;
+15840:     writerBindings* bindings=requestedBindings;
+15841:     if (!baselineOnly && m.writerBaseline && !bindings) { bindings=&finalBindings; }
+15842:     // ---- cells: compact ---------------------------------------------------
+15843:     std::vector<label> newCell(m.nCells, -1);
+15844:     label nC = 0;
+15845:     for (label c = 0; c < m.nCells; ++c)
+15846:     {
+15847:         if (m.cellAlive[c]) { newCell[c] = nC++; }
+15848:     }
+15849: 
+15850:     if (bindings) { mergeCoincidentPoints(m,nullptr,&bindings->alias); }
+15851:     else { mergeCoincidentPoints(m); }
+15852: 
+15853:     // ---- faces: orient owner < neighbour, order --------------------------
+15854:     std::vector<label> internalIds, boundaryIds;
+15855:     for (label f = 0; f < label(m.faces.size()); ++f)
+
+RANGE 16423-16479
+16423:         // Missing authority or an empty bounded pool retains the old path,
+16424:         // including callers that do not request typed final bindings.
+16425:         const label localWeightFailures=m.weightUnionState->committed.empty() ? 0
+16426:             : (bindings
+16427:                 ? dcCartWeightUnionPreview::verify
+16428:                     (*m.weightUnionState,m,mesh,*bindings,literalShell,capturePrefix):1);
+16429:         label weightEvidenceFailures=0;
+16430:         if (getenv("DCCART_CONE_EVIDENCE") || localWeightFailures)
+16431:         {
+16432:             const fileName file=runTime.path()/("conforming-weight-unions-"
+16433:                 +std::string(literalShell ? "installed-prefix":"installed-final")
+16434:                 +"-rank"+std::to_string(Pstream::myProcNo())+".json");
+16435:             std::ofstream out(file.c_str());
+16436:             if (out)
+16437:             {
+16438:                 const auto& state=*m.weightUnionState;
+16439:                 out<<std::setprecision(17)<<"{\"format\":\"normal-W-union-lineage/v1\",\"failures\":"
+16440:                     <<localWeightFailures<<",\"rawSha256\":"<<writerJsonQuote(state.authority.rawSha256)
+16441:                     <<",\"rolesDigest\":"<<writerJsonQuote(state.authority.rolesDigest)
+16442:                     <<",\"homogeneousFluidKey\":"<<writerJsonQuote(state.authority.homogeneousFluidKey)
+16443:                     <<",\"ordinaryCCVExactRequired\":false,\"coupledEarliestCertificateUnchanged\":true,\"records\":[";
+16444:                 for (size_t i=0;i<state.committed.size();++i)
+16445:                 {
+16446:                     if (i) { out<<','; }const auto& p=state.committed[i];
+16447:                     const label compact=bindings ? dcCartWeightUnionPreview::mappedCell(*bindings,p.keep):-1;
+16448:                     out<<"{\"keep\":"<<p.keep<<",\"drop\":"<<p.drop<<",\"compactSurvivor\":"<<compact
+16449:                        <<",\"deletedInternalFace\":"<<p.nativeFace<<",\"installedSeedW\":"<<p.weight
+16450:                        <<",\"normalOrigins\":[";
+16451:                     for (size_t j=0;j<p.origins.size();++j)
+16452:                     {
+16453:                         if (j) { out<<','; }const auto& o=p.origins[j];
+16454:                         out<<"{\"parentHandle\":"<<o.nativeParent<<",\"rank\":"<<o.rank
+16455:                            <<",\"level\":"<<o.level<<",\"leaf\":"<<o.leaf<<",\"piece\":"<<o.piece
+16456:                            <<",\"region\":"<<writerJsonQuote(o.region)<<",\"sourceFacetPatchZone\":[";
+16457:                         for (size_t k=0;k<o.sourceFacets.size();++k)
+16458:                         { if (k) { out<<','; }out<<'['<<o.sourceFacets[k][0]<<','<<o.sourceFacets[k][1]<<','<<o.sourceFacets[k][2]<<']'; }
+16459:                         out<<"]}";
+16460:                     }
+16461:                     out<<"],\"literalExteriorNativeFaces\":[";
+16462:                     for (size_t j=0;j<p.outer.size();++j) { if (j) { out<<','; }out<<p.outer[j]; }
+16463:                     out<<"]}";
+16464:                 }
+16465:                 out<<"]}\n";
+16466:             }
+16467:             if (!out) { ++weightEvidenceFailures; }
+16468:         }
+16469:         const label globalWeightFailures=returnReduce(localWeightFailures+weightEvidenceFailures,sumOp<label>());
+16470:         Pout<<"Conforming W-only installed verification: rank "<<Pstream::myProcNo()
+16471:             <<", captured "<<m.weightUnionState->pool.size()
+16472:             <<", examined/tried/accepted "<<m.weightUnionState->examined<<'/'
+16473:             <<m.weightUnionState->tried<<'/'<<m.weightUnionState->accepted
+16474:             <<", dependency/guard refused "<<m.weightUnionState->dependencyRefused<<'/'
+16475:             <<m.weightUnionState->guardRefused<<", protected/geometry/quality refused "
+16476:             <<m.weightUnionState->protectedRefused<<'/'
+16477:             <<m.weightUnionState->geometryRefused<<'/'
+16478:             <<m.weightUnionState->qualityRefused<<", failures "<<localWeightFailures
+16479:             <<", D discovery/capture seconds "<<m.weightUnionState->discoveryCaptureSeconds
+
+RANGE 16537-16587
+16537:         // Empty callback preserves all previous non-singleton behavior.
+16538:         dcCartFinitePointRepair::apply
+16539:             (mesh,remainingPointRepairSeconds,singletonSourceRoleContract);
+16540:     }
+16541:     // The ACTUAL final installed state, after any point-repair refresh.
+16542:     verifyWeightStage(false,false);
+16543:     if (!baselineOnly && m.writerBaseline)
+16544:     {
+16545:         clockTime verifyClock;
+16546:         // This is the REAL final polyMesh after point aliasing, compact
+16547:         // owner/face ordering, patch normalization and zone construction.
+16548:         // Every rank enters the same reduction, including empty/cert-zero ranks.
+16549:         label localFailures=bindings
+16550:             ? verifyWriterCoupled(m,mesh,*bindings,*m.writerBaseline) : 1;
+16551:         writerCoupledBaseline actual;
+16552:         actual.checkpoint=m.writerBaseline->checkpoint;
+16553:         actual.copySeconds=m.writerBaseline->copySeconds;
+16554:         actual.constructSeconds=m.writerBaseline->constructSeconds;
+16555:         actual.snapshotSeconds=m.writerBaseline->snapshotSeconds;
+16556:         actual.cutPayloadBytes=m.writerBaseline->cutPayloadBytes;
+16557:         // Evidence carries the REAL final compact bindings and installed
+16558:         // bytes, not a second serialization of expected baseline values.
+16559:         if (bindings) { localFailures+=snapshotWriterCoupled
+16560:             (*actual.checkpoint,mesh,*bindings,actual); }
+16561:         const scalar verifySeconds=verifyClock.elapsedTime();
+16562:         label ioFailures=0;
+16563:         if (getenv("DCCART_CONE_EVIDENCE") || localFailures)
+16564:         {
+16565:             const fileName output=runTime.path()/("conforming-writer-final-rank"+std::to_string(Pstream::myProcNo())+".json");
+16566:             if (!writeWriterCertificate(actual,output,
+16567:                 localFailures?"local-rejected":"local-pass-awaiting-global",localFailures,verifySeconds)) { ++ioFailures; }
+16568:         }
+16569:         const label globalFailures=returnReduce(localFailures+ioFailures,sumOp<label>());
+16570:         if (globalFailures)
+16571:         {
+16572:             // Preserve the raw PREOPERATOR input, never the altered candidate
+16573:             // polyMesh. APP has not called write() and obtains no result.
+16574:             const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
+16575:             const bool preserved=writeWriterCheckpoint(*m.writerBaseline->checkpoint,prefix);
+16576:             Pout<<"Conforming installed writer rejected: local "<<localFailures
+16577:                 <<", preoperator checkpoint preserved "<<preserved<<endl;
+16578:             FatalErrorInFunction<<"coupled postwriter DP/ring/alias/role invariance failed on "
+16579:                 <<globalFailures<<" face/metadata record(s); no mesh written"<<exit(FatalError);
+16580:         }
+16581:         Pout<<"Conforming installed postwriter coupled certificate: rank "<<Pstream::myProcNo()
+16582:             <<", faces "<<m.writerBaseline->faces.size()<<", failures "<<localFailures
+16583:             <<", verify "<<verifySeconds<<" s; earliest installed baseline and real final DP bytes; full checkMesh required"<<endl;
+16584:         m.writerBaseline.reset();
+16585:     }
+16586:     return meshPtr;
+16587: }
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H ORIGINAL_SHA256 a53aa78a4580865133af23bb63232a3832b81a2bdfd48238e45f6e0bc2aa3d1b
+
+RANGE 52-154
+52: {
+53: public:
+54: 
+55:     struct writerCoupledBaseline;
+56: 
+57:     // Default-empty authority: the singleton/global absence bool is NOT enough.
+58:     // Normal native provenance, not TRACE; parent labels are handles only.
+59:     struct weightUnionOrigin
+60:     {
+61:         label nativeParent=-1,rank=-1,level=-1;
+62:         uint64_t leaf=0,piece=0;
+63:         std::string region;
+64:         // Original source-facet ID + physical patch + face-zone identity.
+65:         std::vector<std::array<label,3>> sourceFacets;
+66:     };
+67:     struct weightUnionAuthority
+68:     {
+69:         bool globallyNoMaterialNoBulk;
+70:         weightUnionAuthority() : globallyNoMaterialNoBulk(false) {}
+71:         std::string rawSha256,rolesDigest,homogeneousFluidKey;
+72:         std::function<bool(const std::vector<weightUnionOrigin>&)> homogeneousOrigins;
+73:         std::function<scalar()> remainingSeconds;
+74:         // Immutable normal post-carve origin producer; absence refuses W.
+75:         std::function<weightUnionOrigin(label)> normalOriginFromSnapshot;
+76:     };
+77:     struct writerWeightUnionState;
+78: 
+79:     struct writerBindings
+80:     {
+81:         // Native input slot -> the actual compact polyMesh slot.
+82:         std::vector<label> cell, face, point, alias;
+83:     };
+84: 
+85:     //- The mutable mesh the passes work on
+86:     struct cutMesh
+87:     {
+88:         std::vector<point> points;
+89:         std::vector<std::vector<label>> faces;
+90:         std::vector<label> owner;       // always >= 0 for a live face
+91:         std::vector<label> neighbour;   // -1 on a boundary face
+92:         std::vector<label> patch;       // boundary patch id, -1 internal
+93:         std::vector<label> zone;        // faceZone id, -1 none
+94:         std::vector<bool> faceAlive;
+95:         label nCells = 0;
+96:         std::vector<bool> cellAlive;
+97:         //- Assembled from the ORIGINAL carve (true) or added as a cut
+98:         //  candidate (false). Only original cells anchor the fluid side.
+99:         std::vector<bool> cellOrigAlive;
+100:         //- Hex volume and centre of the cell each mesh cell descends from
+101:         std::vector<scalar> cellRefVol;
+102:         std::vector<point> cellRefCentre;
+103:         //- Refinement level, kept for the merge heuristics
+104:         std::vector<label> cellLevel;
+105:         //- Rank that owns the cell; a cell of another rank in this rank's
+106:         //  halo is cut like any other and dropped at the end. One rank (a
+107:         //  run without -parallel) owns everything.
+108:         std::vector<label> cellRank;
+109:         //- Packed (i,j,k) of the octree leaf the cell descends from; with
+110:         //  cellLevel it names the leaf identically on every rank
+111:         std::vector<uint64_t> cellLeaf;
+112:         //- Which piece of that leaf: a hash of the split history (A half
+113:         //  and B half of every split). Splits are a pure function of the
+114:         //  cell and the surfaces, so every rank that holds the piece gives
+115:         //  it the same value; (level, leaf, piece) is the cell's global id.
+116:         std::vector<uint64_t> cellPiece;
+117:         //- Optional cone evidence only: input-stage parent/base labels.
+118:         //  Empty in the ordinary path; never used by geometry or ownership.
+119:         std::vector<label> coneEvidenceParent;
+120:         std::vector<label> coneEvidenceBase;
+121:         //- Points [0, nGridPoints) are octree grid corners, all further
+122:         //  apart than the coincident-point tolerance (0: not known)
+123:         label nGridPoints = 0;
+124:         // Empty unless the default-OFF literal experiment builds its one
+125:         // preoperator installed-writer oracle. Normal authorization never
+126:         // depends on optional TRACE files.
+127:         std::shared_ptr<writerCoupledBaseline> writerBaseline;
+128:         // Sparse normal W lineage. Independent of TRACE and the coupled baseline.
+129:         std::shared_ptr<writerWeightUnionState> weightUnionState;
+130:     };
+131: 
+132:     struct writerCoupledFace
+133:     {
+134:         label nativeFace=-1, nativeOwner=-1, nativeNeighbour=-1;
+135:         label rawPatch=-1, rawZone=-1, relativeFace=-1, compactFace=-1, compactOwner=-1;
+136:         std::string patchName, patchType, patchRole;
+137:         std::vector<label> nativePoints, pointAliases, ringAliases, compactPoints;
+138:         std::vector<point> coordinates;
+139:         vector area=vector::zero;
+140:         point faceCentre=point::zero, cellCentre=point::zero;
+141:         scalar volume=0;
+142:         std::vector<std::pair<std::string,bool>> zoneRoles;
+143:     };
+144: 
+145:     struct writerCoupledBaseline
+146:     {
+147:         // Earliest immutable preoperator inputs; never updated after a union.
+148:         std::shared_ptr<const cutMesh> checkpoint;
+149:         std::vector<writerCoupledFace> faces;
+150:         std::map<std::string,std::string> patchRoles;
+151:         std::map<std::string,label> patchSizes;
+152:         scalar copySeconds=0, constructSeconds=0, snapshotSeconds=0;
+153:         std::size_t cutPayloadBytes=0, writerGeometryBytes=0;
+154:     };
+
+RANGE 768-780
+768:         //- Parallel: drop the halo cells of other ranks; a face between an
+769:         //  owned cell and a halo cell becomes a processor-patch face
+770:         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
+771:         //- Opt-in exact-outline cleanup with all-incidence and coupled veto.
+772:         //- Read-only, opt-in regular transition candidate audit.
+773:         static label decomposeConformingCones
+774:         (
+775:             cutMesh& m, const wordList& patchNames, const wordList& patchTypes,
+776:             const wordList& patchNeighbours, label myRank,
+777:             const Time& runTime, const wordList& faceZoneNames,
+778:             const wordList& patchGroups,
+779:             const weightUnionAuthority& weightAuthority = weightUnionAuthority()
+780:         );
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFluidOriginSnapshotCore.H ORIGINAL_SHA256 129e7071d63a6f656da132adfa4d4c1aeaaa9e7e4271f183e3533e42f6408375
+
+RANGE 1-91
+1: #ifndef dcCartFluidOriginSnapshotCore_H
+2: #define dcCartFluidOriginSnapshotCore_H
+3: #include <algorithm>
+4: #include <array>
+5: #include <cmath>
+6: #include <cstdint>
+7: #include <map>
+8: #include <memory>
+9: #include <set>
+10: #include <string>
+11: #include <tuple>
+12: #include <vector>
+13: namespace dcCartFluidOriginSnapshotCore {
+14: using Coord=std::array<double,3>;
+15: using Identity=std::tuple<int,int,int,std::uint64_t,std::uint64_t>; // rank,parent,level,leaf,piece
+16: struct Facet {
+17:     int handle=-1,owner=-1,neighbour=-1,patch=-1,zone=-1;
+18:     std::vector<int> ring;
+19: };
+20: struct Parent {
+21:     Identity identity;
+22:     std::vector<int> facets;
+23: };
+24: struct Snapshot {
+25:     bool completedFluidOnlyPath=false,complete=false;
+26:     std::string rawSha256,rolesDigest,materialKey,materialDigest,producerDigest;
+27:     std::vector<Coord> points;
+28:     std::vector<Facet> faces;
+29:     std::vector<Parent> parents;
+30:     std::vector<unsigned char> valid;
+31: };
+32: inline Coord cross(const Coord& a,const Coord& b) {
+33:     return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}};
+34: }
+35: inline double dot(const Coord& a,const Coord& b) {
+36:     return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+37: }
+38: // Structural ownership screen only; actual installed tet/geometry/quality
+39: // and unchanged-coupled certificates are independent mandatory guards.
+40: inline bool validShape(const Snapshot& s,const Parent& p) {
+41:     const int parent=std::get<1>(p.identity);
+42:     if (parent<0 || std::get<0>(p.identity)<0 || std::get<2>(p.identity)<0
+43:      || p.facets.size()<4 || p.facets.size()>512) return false;
+44:     std::map<std::pair<int,int>,int> edges;
+45:     std::set<int> uniqueFaces;
+46:     double volume6=0;
+47:     for (int f:p.facets) {
+48:         if (f<0 || f>=int(s.faces.size()) || !uniqueFaces.insert(f).second) return false;
+49:         const Facet& face=s.faces[f];
+50:         if (face.handle!=f || face.ring.size()<3 || face.ring.size()>512
+51:          || face.patch<-1 || face.zone<-1
+52:          || (face.owner!=parent && face.neighbour!=parent)) return false;
+53:         std::vector<int> ring(face.ring);
+54:         if (face.neighbour==parent) std::reverse(ring.begin()+1,ring.end());
+55:         std::set<int> ids;
+56:         for (int id:ring) {
+57:             if (id<0 || id>=int(s.points.size()) || !ids.insert(id).second) return false;
+58:             for(double x:s.points[id]) if(!std::isfinite(x)) return false;
+59:         }
+60:         for(std::size_t i=0;i<ring.size();++i) ++edges[{ring[i],ring[(i+1)%ring.size()]}];
+61:         const Coord& a=s.points[ring[0]];
+62:         for (std::size_t i=1;i+1<ring.size();++i)
+63:             volume6+=dot(a,cross(s.points[ring[i]],s.points[ring[i+1]]));
+64:     }
+65:     if (!std::isfinite(volume6) || volume6<=0) return false;
+66:     for (const auto& row:edges)
+67:         if(row.second!=1 || edges[{row.first.second,row.first.first}]!=1) return false;
+68:     return true;
+69: }
+70: inline bool verify(const Snapshot& s,const Identity& id,
+71:                    const std::vector<std::array<int,3>>& facets,
+72:                    const std::string& raw,const std::string& roles,
+73:                    const std::string& materialKey,const std::string& material,
+74:                    const std::string& producer)
+75: {
+76:     const int p=std::get<1>(id);
+77:     if (!s.complete || !s.completedFluidOnlyPath || p<0 || p>=int(s.parents.size())
+78:      || p>=int(s.valid.size()) || !s.valid[p]
+79:      || s.parents[p].identity!=id || s.rawSha256!=raw || s.rolesDigest!=roles
+80:      || s.materialKey!=materialKey || s.materialDigest!=material || s.producerDigest!=producer
+81:      || facets.size()!=s.parents[p].facets.size() || !validShape(s,s.parents[p])) return false;
+82:     for(std::size_t i=0;i<facets.size();++i) {
+83:         const int f=s.parents[p].facets[i];
+84:         if(f<0 || f>=int(s.faces.size()))return false;
+85:         const auto& face=s.faces[f];
+86:         if(facets[i]!=std::array<int,3>{{face.handle,face.patch,face.zone}})return false;
+87:     }
+88:     return true;
+89: }
+90: } // namespace
+91: #endif
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartPostCarveFluidOwnershipPreview.H ORIGINAL_SHA256 650e2153f40f44747b36a8384bccba19c39b276d4bd459c4dd86be88e2d3c802
+
+RANGE 1-139
+1: #ifndef dcCartPostCarveFluidOwnershipPreview_H
+2: #define dcCartPostCarveFluidOwnershipPreview_H
+3: #include "dcCartWeightUnionSourceContract.H"
+4: #include "dcCartFluidOriginSnapshotCore.H"
+5: #include <functional>
+6: #include <memory>
+7: namespace Foam { namespace dcCartPostCarveFluidOwnershipPreview {
+8: using Snapshot=dcCartFluidOriginSnapshotCore::Snapshot;
+9: using Identity=dcCartFluidOriginSnapshotCore::Identity;
+10: inline bool available(const std::function<scalar()>& remaining)
+11: {
+12:     if(!remaining)return false;
+13:     const scalar seconds=remaining();
+14:     return std::isfinite(seconds) && seconds>0;
+15: }
+16: inline std::shared_ptr<const Snapshot> capture
+17: (
+18:     const dcCartCutCells::cutMesh& m,const dictionary& meshDict,
+19:     const wordList& patchNames,const wordList& patchTypes,const wordList& faceZoneNames,
+20:     label myRank,bool completedNormalFluidOnlyPath,
+21:     const std::function<scalar()>& remaining
+22: )
+23: {
+24:     // This boolean is set only by successful APP cutCarving + completed normal
+25:     // post-carve path, not an environment 'permission' or cellOrigAlive flag.
+26:     auto s=std::make_shared<Snapshot>();
+27:     const auto material=dcCartWeightUnionSourceContract::readLocal(meshDict);
+28:     const auto necessary=dcCartPointRepairSourceContract::readLocal(meshDict);
+29:     if (!completedNormalFluidOnlyPath || !necessary.valid || !necessary.eligible
+30:      || !material.valid || !material.eligible || !available(remaining)) return s;
+31:     if(patchNames.size()!=patchTypes.size())return s;
+32:     std::set<std::string> names;
+33:     forAll(patchNames,pi) {
+34:         const std::string name=patchNames[pi],type=patchTypes[pi];
+35:         if(name.empty() || !names.insert(name).second
+36:          || !(type=="wall" || type=="patch" || type=="processor"
+37:            || type=="cyclic" || type=="processorCyclic" || type=="cyclicAMI"))return s;
+38:     }
+39:     s->completedFluidOnlyPath=true;s->rawSha256=material.rawSha256;
+40:     s->rolesDigest=material.rolesDigest;s->materialKey=material.materialKey;
+41:     s->materialDigest=material.materialDigest;s->producerDigest=material.producerDigest;
+42:     const label nc=m.nCells,nf=m.faces.size(),np=m.points.size();
+43:     if(nc<0 || m.cellAlive.size()!=std::size_t(nc) || m.cellRank.size()!=std::size_t(nc)
+44:      || m.cellLevel.size()!=std::size_t(nc) || m.cellLeaf.size()!=std::size_t(nc)
+45:      || m.cellPiece.size()!=std::size_t(nc) || m.owner.size()!=std::size_t(nf)
+46:      || m.neighbour.size()!=std::size_t(nf) || m.patch.size()!=std::size_t(nf)
+47:      || m.zone.size()!=std::size_t(nf) || m.faceAlive.size()!=std::size_t(nf)
+48:      || patchNames.size()!=patchTypes.size())return s;
+49:     // Shared coordinates/rings are copied once, not once per parent. This
+50:     // declared payload cap excludes allocator headers; no wall-time promise.
+51:     std::size_t estimate=np*sizeof(dcCartFluidOriginSnapshotCore::Coord)
+52:         +nf*sizeof(dcCartFluidOriginSnapshotCore::Facet)
+53:         +nc*(sizeof(dcCartFluidOriginSnapshotCore::Parent)+1);
+54:     for(label f=0;f<nf;++f) {
+55:         if((f&1023)==0 && !available(remaining))return s;
+56:         if(m.faceAlive[f]) {
+57:             if(m.faces[f].size()>512)return s;
+58:             estimate+=(m.faces[f].size()+4)*sizeof(int);
+59:         }
+60:         if(estimate>std::size_t(256)*1024*1024)return s;
+61:     }
+62:     s->points.resize(np);s->faces.resize(nf);s->parents.resize(nc);s->valid.assign(nc,0);
+63:     for(label p=0;p<np;++p) {
+64:         if((p&1023)==0 && !available(remaining))return std::make_shared<Snapshot>();
+65:         const point& x=m.points[p];
+66:         s->points[p]={{x.x(),x.y(),x.z()}};
+67:         if(!std::isfinite(x.x()) || !std::isfinite(x.y()) || !std::isfinite(x.z()))
+68:             return std::make_shared<Snapshot>();
+69:     }
+70:     for(label c=0;c<nc;++c) {
+71:         if((c&1023)==0 && !available(remaining))return std::make_shared<Snapshot>();
+72:         s->parents[c].identity=Identity(myRank,c,m.cellLevel[c],m.cellLeaf[c],m.cellPiece[c]);
+73:         s->valid[c]=m.cellAlive[c] && m.cellRank[c]==myRank && m.cellLevel[c]>=0;
+74:     }
+75:     for(label f=0;f<nf;++f) {
+76:         if((f&1023)==0 && !available(remaining))return std::make_shared<Snapshot>();
+77:         if(!m.faceAlive[f])continue;
+78:         const label own=m.owner[f],nei=m.neighbour[f],patch=m.patch[f],zone=m.zone[f];
+79:         if(own<0 || own>=nc || !m.cellAlive[own] || nei>=nc || nei<-1
+80:          || (nei>=0 && (nei==own || !m.cellAlive[nei])) || patch<-1 || zone<-1
+81:          || (nei>=0 && patch!=-1) || (nei<0 && (patch<0 || patch>=patchNames.size()))
+82:          || (zone>=0 && zone>=label(faceZoneNames.size())))return std::make_shared<Snapshot>();
+83:         auto& face=s->faces[f];face.handle=f;face.owner=own;face.neighbour=nei;
+84:         face.patch=patch;face.zone=zone;
+85:         face.ring.assign(m.faces[f].begin(),m.faces[f].end());
+86:         for(label id:m.faces[f])if(id<0 || id>=np)return std::make_shared<Snapshot>();
+87:         s->parents[own].facets.push_back(f);
+88:         if(nei>=0)s->parents[nei].facets.push_back(f);
+89:     }
+90:     // Full oriented shape is checked lazily only for bounded W candidate
+91:     // origins, using this immutable pre-cone copy; no whole-parent quality scan.
+92:     if(!available(remaining))return std::make_shared<Snapshot>();
+93:     s->complete=true;
+94:     return s;
+95: }
+96: inline dcCartCutCells::weightUnionOrigin origin
+97: (
+98:     const std::shared_ptr<const Snapshot>& s,label parent
+99: )
+100: {
+101:     dcCartCutCells::weightUnionOrigin out;
+102:     if(!s || !s->complete || parent<0 || parent>=label(s->parents.size())
+103:      || !s->valid[parent] || !dcCartFluidOriginSnapshotCore::validShape(*s,s->parents[parent]))return out;
+104:     const auto& record=s->parents[parent];
+105:     out.rank=std::get<0>(record.identity);out.nativeParent=parent;
+106:     out.level=std::get<2>(record.identity);out.leaf=std::get<3>(record.identity);
+107:     out.piece=std::get<4>(record.identity);
+108:     out.region=std::string(polyMesh::defaultRegion); // IO label only, not authority
+109:     for(int f:record.facets) {
+110:         const auto& face=s->faces[f];
+111:         out.sourceFacets.push_back({{face.handle,face.patch,face.zone}});
+112:     }
+113:     return out;
+114: }
+115: inline dcCartWeightUnionSourceContract::NormalOriginVerifier verifier
+116: (
+117:     const std::shared_ptr<const Snapshot>& s
+118: )
+119: {
+120:     return [s](const std::vector<dcCartCutCells::weightUnionOrigin>& origins,
+121:                const dcCartWeightUnionSourceContract::GlobalMaterialContract& material)
+122:     {
+123:         if(!s || origins.size()!=2 || origins[0].nativeParent==origins[1].nativeParent)return false;
+124:         for(const auto& o:origins) {
+125:             if(o.region!=std::string(polyMesh::defaultRegion))return false;
+126:             // Both original identities/complete cut facet roles and full
+127:             // immutable oriented shape must match the current run's proof.
+128:             Identity id(o.rank,o.nativeParent,o.level,o.leaf,o.piece);
+129:             std::vector<std::array<int,3>> facets;
+130:             for(const auto& f:o.sourceFacets)facets.push_back({{f[0],f[1],f[2]}});
+131:             if(!dcCartFluidOriginSnapshotCore::verify(*s,id,facets,
+132:                 material.rawSha256,material.rolesDigest,material.materialKey,
+133:                 material.materialDigest,material.producerDigest))return false;
+134:         }
+135:         return true;
+136:     };
+137: }
+138: } }
+139: #endif
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartWeightUnionSourceContract.H ORIGINAL_SHA256 4e0e0828dba378a5e0b26aae11e2e518b894638f3022c878392fe82518cdca99
+
+RANGE 1-135
+1: #ifndef dcCartWeightUnionSourceContract_H
+2: #define dcCartWeightUnionSourceContract_H
+3: #include "dcCartCutCells.H"
+4: #include "dcCartPointRepairSourceContract.H"
+5: #include <functional>
+6: namespace Foam { namespace dcCartWeightUnionSourceContract {
+7: // Cut-face handles / IO region are provenance, not STL triangle / domain IDs.
+8: struct GlobalMaterialContract
+9: {
+10:     bool valid=false,eligible=false;
+11:     string canonical,refusal;
+12:     std::string rawSha256,rolesDigest,materialKey,materialDigest;
+13:     std::string producerDigest,boundaryMembershipDigest;
+14: };
+15: using NormalOriginVerifier=std::function<bool
+16: (
+17:     const std::vector<dcCartCutCells::weightUnionOrigin>&,
+18:     const GlobalMaterialContract&
+19: )>;
+20: inline GlobalMaterialContract readLocal(const dictionary& meshDict)
+21: {
+22:     using dcCartPointRepairSourceContract::primitive;
+23:     using dcCartPointRepairSourceContract::lowerSha256;
+24:     GlobalMaterialContract out;
+25:     const entry* e=meshDict.findEntry("dcdtuniWeightUnionSourceContract",keyType::LITERAL);
+26:     if (!e) { out.canonical="<missing>";out.refusal="missing global fluid material";return out; }
+27:     OStringStream normalized;e->write(normalized);out.canonical=normalized.str();
+28:     if (!e->isDict()) { out.refusal="fluid domain contract is not a dictionary";return out; }
+29:     const dictionary& d=e->dict();
+30:     for (const entry& field:d)
+31:     {
+32:         const keyType& key=field.keyword();
+33:         if (!key.isLiteral() || !(key=="version" || key=="eligible" || key=="scope"
+34:           || key=="rawSha256" || key=="rolesDigest" || key=="materialKey"
+35:           || key=="materialDigest" || key=="producerDigest"
+36:           || key=="boundaryMembershipDigest" || key=="ownershipPolicy" || key=="reasons"))
+37:         { out.refusal="unknown fluid domain contract field";return out; }
+38:     }
+39:     const ITstream* version=primitive(d,"version");
+40:     const ITstream* eligible=primitive(d,"eligible");
+41:     const ITstream* scope=primitive(d,"scope");
+42:     const ITstream* reasons=primitive(d,"reasons");
+43:     if (!version || version->size()!=1 || !(*version)[0].isLabel() || (*version)[0].labelToken()!=1
+44:      || !eligible || eligible->size()!=1 || !(*eligible)[0].isWord()
+45:      || !((*eligible)[0].wordToken()=="true" || (*eligible)[0].wordToken()=="false")
+46:      || !scope || scope->size()!=1 || !(*scope)[0].isWord()
+47:      || (*scope)[0].wordToken()!="globalSinglePhaseAirMaterial")
+48:     { out.refusal="unsupported fluid domain contract schema";return out; }
+49:     auto quotedSha=[&](const word& key,std::string& value)
+50:     {
+51:         const ITstream* row=primitive(d,key);
+52:         if (!row || row->size()!=1 || !(*row)[0].isString()
+53:          || !lowerSha256((*row)[0].stringToken())) return false;
+54:         value=(*row)[0].stringToken();return true;
+55:     };
+56:     if (!quotedSha("rawSha256",out.rawSha256) || !quotedSha("rolesDigest",out.rolesDigest)
+57:      || !quotedSha("materialDigest",out.materialDigest)
+58:      || !quotedSha("producerDigest",out.producerDigest)
+59:      || !quotedSha("boundaryMembershipDigest",out.boundaryMembershipDigest))
+60:     { out.refusal="invalid fluid domain digest";return out; }
+61:     const ITstream* uid=primitive(d,"materialKey");
+62:     if (!uid || uid->size()!=1 || !(*uid)[0].isString())
+63:     { out.refusal="material key must be quoted";return out; }
+64:     out.materialKey=(*uid)[0].stringToken();
+65:     for (const char c:out.materialKey)
+66:         if (!((c>='a'&&c<='z') || (c>='A'&&c<='Z') || (c>='0'&&c<='9')
+67:           || c=='_' || c=='.' || c==':' || c=='/' || c=='-'))
+68:         { out.refusal="invalid explicit material key";return out; }
+69:     if (!reasons || reasons->size()<2
+70:      || !(*reasons)[0].isPunctuation(token::BEGIN_LIST)
+71:      || !(*reasons)[reasons->size()-1].isPunctuation(token::END_LIST))
+72:     { out.refusal="domain reasons must be a text list";return out; }
+73:     for (label i=1;i+1<reasons->size();++i)
+74:         if (!(*reasons)[i].isWord() && !(*reasons)[i].isString())
+75:         { out.refusal="invalid domain reason token";return out; }
+76:     const ITstream* policy=primitive(d,"ownershipPolicy");
+77:     if (!policy || policy->size()!=1 || !(*policy)[0].isWord()
+78:      || (*policy)[0].wordToken()!="adjacentFinalCarvedFluidCells")
+79:     { out.refusal="unsupported native fluid ownership policy";return out; }
+80:     out.eligible=((*eligible)[0].wordToken()=="true");
+81:     if (out.eligible && (out.materialKey.empty() || out.materialKey.size()>200 || reasons->size()!=2))
+82:     { out.eligible=false;out.refusal="eligible domain requires material key and empty refusal list";return out; }
+83:     out.valid=true;
+84:     if (!out.eligible) out.refusal="runner material proof is ineligible";
+85:     return out;
+86: }
+87: // No candidate MPI. Default-empty native verifier refuses even an eligible
+88: // declaration. Both complete dictionaries participate in one fixed collective.
+89: inline dcCartCutCells::weightUnionAuthority readAuthority
+90: (
+91:     const dictionary& meshDict,
+92:     const NormalOriginVerifier& nativeOwnershipVerifier,
+93:     const std::function<scalar()>& actualRemainingSeconds,
+94:     const std::function<dcCartCutCells::weightUnionOrigin(label)>& normalOriginProducer
+95: )
+96: {
+97:     using namespace dcCartPointRepairSourceContract;
+98:     dcCartCutCells::weightUnionAuthority authority;
+99:     const LocalContract necessary=dcCartPointRepairSourceContract::readLocal(meshDict);
+100:     const GlobalMaterialContract domain=dcCartWeightUnionSourceContract::readLocal(meshDict);
+101:     List<string> rows(Pstream::nProcs());
+102:     rows[Pstream::myProcNo()]=necessary.canonical+"\n"+domain.canonical;
+103:     if (Pstream::parRun()) { Pstream::gatherList(rows);Pstream::scatterList(rows); }
+104:     bool approved=exactRowsAgree(rows) && necessary.valid && necessary.eligible
+105:         && domain.valid && domain.eligible && bool(nativeOwnershipVerifier) && bool(actualRemainingSeconds) && bool(normalOriginProducer);
+106:     if (approved)
+107:     {
+108:         const dictionary& absence=meshDict.subDict("dcdtuniPointRepairSourceRoleContract");
+109:         const ITstream* raw=primitive(absence,"rawSha256");
+110:         const ITstream* roles=primitive(absence,"rolesDigest");
+111:         approved=raw && roles
+112:             && std::string((*raw)[0].stringToken())==domain.rawSha256
+113:             && std::string((*roles)[0].stringToken())==domain.rolesDigest;
+114:     }
+115:     if (!approved)
+116:     {
+117:         if (Pstream::master())
+118:             WarningInFunction << "cross-parent W union refused: missing/stale material or normal parent ownership; old path retained" << nl;
+119:         return authority;
+120:     }
+121:     authority.globallyNoMaterialNoBulk=true;
+122:     authority.rawSha256=domain.rawSha256;authority.rolesDigest=domain.rolesDigest;
+123:     authority.homogeneousFluidKey=domain.materialKey;
+124:     authority.remainingSeconds=actualRemainingSeconds;
+125:     authority.normalOriginFromSnapshot=normalOriginProducer;
+126:     authority.homogeneousOrigins=[nativeOwnershipVerifier,domain]
+127:         (const std::vector<dcCartCutCells::weightUnionOrigin>& origins)
+128:     {
+129:         if (origins.size()!=2 || origins[0].nativeParent==origins[1].nativeParent) return false;
+130:         return nativeOwnershipVerifier(origins,domain);
+131:     };
+132:     return authority;
+133: }
+134: } }
+135: #endif
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C ORIGINAL_SHA256 cba89268e48a6d05ad76f06da85cbe8ff4c85a5d49aaf9f5cfd9bf284bdb21fb
+
+RANGE 2249-2260
+2249:         dcCartCutCells::cutMesh m;
+2250:         dcCartCutCells::fromBuilder(b2, grid, orig2, m);
+2251:         m.cellRank.assign(rank2.begin(), rank2.end());
+2252:         dbgDumpCells(m, "00assemble");
+2253:         dcCartCutCells::report rep;
+2254:         bool normalSolidCarveCompleted=false;
+2255:         dcCartCutCells::cutCarving(m, surfaces, cutSettings, rep);
+2256:         // This cutCells branch produces a fluid mesh, not a solid/material
+2257:         // region. The assignment follows successful completion of all shell
+2258:         // carving, not an environment authority or orig-alive anchor.
+2259:         normalSolidCarveCompleted=true;
+2260:         // (the cut counters count owned cells: summed over the ranks they
+
+RANGE 2828-2886
+2828:         const char* requestedWValue=getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
+2829:         const label requestedW=requestedWValue && std::string(requestedWValue)=="1";
+2830:         const label minRequestedW=returnReduce(requestedW,minOp<label>());
+2831:         const label maxRequestedW=returnReduce(requestedW,maxOp<label>());
+2832:         if (minRequestedW!=maxRequestedW)
+2833:             FatalErrorInFunction << "cross-parent W enable differs across ranks; no mesh written"
+2834:                                  << exit(FatalError);
+2835:         dcCartCutCells::weightUnionAuthority weightAuthority;
+2836:         if (maxRequestedW)
+2837:         {
+2838:             // This remains the actual normal product clock during the
+2839:             // intervening old cone stage; it is never a fixed launcher grant.
+2840:             std::function<scalar()> remainingW=[&]() -> scalar
+2841:             {
+2842:                 return std::isfinite(timeLimit) && timeLimit>0
+2843:                     ? std::max(scalar(0),timeLimit-timer.elapsedTime()-scalar(60))
+2844:                     : scalar(0);
+2845:             };
+2846:             // Snapshot setup is separately bounded and charged to the same
+2847:             // whole clock. The existing helper's four-second local cap remains.
+2848:             auto snapshotClock=std::make_shared<clockTime>();
+2849:             std::function<scalar()> remainingSnapshot=[remainingW,snapshotClock]() -> scalar
+2850:             {
+2851:                 return std::max(scalar(0),std::min
+2852:                     (remainingW(),scalar(4)-snapshotClock->elapsedTime()));
+2853:             };
+2854:             // Unknown/skipped post-carve paths refuse, while every rank still
+2855:             // enters readAuthority's one fixed collective below.
+2856:             const char* skippedStages=getenv("DCCART_SKIP");
+2857:             const bool completedNormalFluidOnlyPath=normalSolidCarveCompleted
+2858:                 && (!skippedStages || !*skippedStages);
+2859:             auto snapshot=dcCartPostCarveFluidOwnershipPreview::capture
+2860:                 (m,meshDict,patchNames,patchTypes,surfaces.faceZoneNames(),
+2861:                  myProc,completedNormalFluidOnlyPath,remainingSnapshot);
+2862:             Pout<<"Normal W ownership snapshot: rank "<<myProc
+2863:                 <<", completed normal path "<<completedNormalFluidOnlyPath
+2864:                 <<", immutable snapshot complete "<<snapshot->complete
+2865:                 <<", pre-cone cells/faces/points "<<m.nCells<<'/'<<m.faces.size()<<'/'<<m.points.size()
+2866:                 <<", setup wall "<<snapshotClock->elapsedTime()<<" s; no quality acceptance implied"<<endl;
+2867:             auto ownership=dcCartPostCarveFluidOwnershipPreview::verifier(snapshot);
+2868:             std::function<dcCartCutCells::weightUnionOrigin(label)> sourceOrigin=
+2869:                 [snapshot](label parent)
+2870:                 { return dcCartPostCarveFluidOwnershipPreview::origin(snapshot,parent); };
+2871:             weightAuthority=dcCartWeightUnionSourceContract::readAuthority
+2872:                 (meshDict,ownership,remainingW,sourceOrigin);
+2873:             Pout<<"Normal W material authority: rank "<<myProc
+2874:                 <<", material gate "<<weightAuthority.globallyNoMaterialNoBulk
+2875:                 <<"; individual complete origin and installed quality guards required"<<endl;
+2876:         }
+2877:         if (getenv("DCCART_CONFORMING_CONES") != nullptr)
+2878:         {
+2879:             dcCartCutCells::decomposeConformingCones
+2880:             (
+2881:                 m,patchNames,patchTypes,patchNeighbours,myProc,
+2882:                 runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority
+2883:             );
+2884:             budgetCheck("conforming-mixed-cone-experiment");
+2885:         }
+2886: 
+
+RANGE 3001-3017
+3001:         std::function<scalar()> remainingPointRepairSeconds;
+3002:         if (maximumPointRepair)
+3003:         {
+3004:             // -timeLimit is the runner's remaining whole-job budget. The
+3005:             // prototype also caps its own total stage time. This reserve is
+3006:             // a refusal margin; the runner watchdog and full checkMesh remain
+3007:             // authoritative for the complete pipeline.
+3008:             remainingPointRepairSeconds=[&]() -> scalar
+3009:             {
+3010:                 return dcCartPointRepairBudget::allowance(timeLimit,timer.elapsedTime());
+3011:             };
+3012:         }
+3013:         // Always use this run's dcCartMeshDict, never the optional
+3014:         // snappy/geometry identitySource fallback. The enable gate above
+3015:         // makes this fixed gather/scatter sequence common to every rank.
+3016:         const bool singletonSourceRoleEligible=maximumPointRepair
+3017:             ? dcCartPointRepairSourceContract::readEligible(meshDict) : false;

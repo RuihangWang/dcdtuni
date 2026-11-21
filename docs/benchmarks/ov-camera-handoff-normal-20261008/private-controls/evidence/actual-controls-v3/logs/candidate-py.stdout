@@ -1,0 +1,176 @@
+..........................F.F.FFFFFFF........                            [100%]
+=================================== FAILURES ===================================
+_______ test_late_verified_writer_cannot_commit_after_retirement[scene] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe08df881c0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-camera-handoff-reply-private-20261008-v1/actual-controls-v3/tmp/candidate-py/test_late_verified_writer_cann1')
+retire = 'scene'
+
+    @pytest.mark.parametrize("retire", ["clear", "scene", "newer-signed"])
+    def test_late_verified_writer_cannot_commit_after_retirement(monkeypatch, tmp_path, retire):
+        import asyncio
+        import json
+        from test_dataset_scene_race import _drain_until
+        async def scenario():
+            ext, stage, _, _, grant, writes, tickets, entered, release = _signed_route_harness(monkeypatch, tmp_path, blocked=True)
+            ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "old", "grant": grant()}))
+            await _drain_until(entered.is_set)
+            if retire == "clear":
+                ext._route_render_command("clearRenderResultLayers", json.dumps({"requestId": "clear", "displayGeneration": 1}))
+                assert ext._trusted_result_context is None
+            elif retire == "scene":
+                ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+                assert ext._trusted_result_context is None
+            else:
+                ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "new", "grant": grant(frame=0.04, common_generation=1)}))
+                assert ext._trusted_result_context["timeSeconds"] == 0.04
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old")
+            assert old["ok"] is False and "context changed" in old["error"]
+            newer = next(a for a in ext.acks if a["requestId"] != "old")
+            assert newer["ok"] is True
+            if retire == "newer-signed":
+                assert [frame for _, frame in writes] == [0.04] and len(tickets) == 2
+            else:
+                assert writes == []
+                assert ext._trusted_result_context is None
+                if retire == "scene": assert stage.project == "new-project"
+            # No production assignment count is assumed: lifecycle protection is actual.
+>       asyncio.run(scenario())
+
+test_render_command_routing.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../../../fresh-clone-actual-20261007/dcdtuni/.codex-tmp/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../../../fresh-clone-actual-20261007/dcdtuni/.codex-tmp/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, stage, _, _, grant, writes, tickets, entered, release = _signed_route_harness(monkeypatch, tmp_path, blocked=True)
+        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "old", "grant": grant()}))
+        await _drain_until(entered.is_set)
+        if retire == "clear":
+            ext._route_render_command("clearRenderResultLayers", json.dumps({"requestId": "clear", "displayGeneration": 1}))
+            assert ext._trusted_result_context is None
+        elif retire == "scene":
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+            assert ext._trusted_result_context is None
+        else:
+            ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "new", "grant": grant(frame=0.04, common_generation=1)}))
+            assert ext._trusted_result_context["timeSeconds"] == 0.04
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old")
+        assert old["ok"] is False and "context changed" in old["error"]
+        newer = next(a for a in ext.acks if a["requestId"] != "old")
+>       assert newer["ok"] is True
+E       assert False is True
+
+test_render_command_routing.py:216: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: 'CfdBridgeExtension' object has no attribute '_sample_native_grid'
+[dc.cfd_bridge] render command loadVerifiedRenderResultLayers failed: signed result context changed while loading/authoring
+_________ test_view_state_reports_the_scene_identity_for_ack_recovery __________
+
+    def test_view_state_reports_the_scene_identity_for_ack_recovery():
+        """A scene ack the livestream plugin drops (NVST_R_BUSY) is recovered by
+        the browser from getViewState: that reply must carry the request id of
+        the last authored scene plus every identity field a scene ack carries, and
+        the id must be recorded only after authoring succeeded."""
+        tree = _tree()
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+        route = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "_route_render_command")
+        acks = [n for n in ast.walk(route) if isinstance(n, ast.Call)
+                and getattr(n.func, "attr", "") == "_render_ack"
+                and any(k.arg == "sceneRequestId" for k in n.keywords)]
+>       assert len(acks) == 1, "exactly the view-state reply reports sceneRequestId"
+E       AssertionError: exactly the view-state reply reports sceneRequestId
+E       assert 2 == 1
+E        +  where 2 = len([<ast.Call object at 0x7fe08ecbcdc0>, <ast.Call object at 0x7fe08ecbcd60>])
+
+test_render_command_routing.py:238: AssertionError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[current] _
+
+kind = 'current'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-scene] _
+
+kind = 'changed-scene'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-owner] _
+
+kind = 'changed-owner'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-material] _
+
+kind = 'changed-material'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-camera] _
+
+kind = 'changed-camera'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[old-view] _
+
+kind = 'old-view'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+_ test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[missing-coordinator] _
+
+kind = 'missing-coordinator'
+
+    @pytest.mark.parametrize('kind',['current','changed-scene','changed-owner','changed-material','changed-camera','old-view','missing-coordinator'])
+    def test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt(kind):
+>    from pxr import UsdShade,UsdGeom
+E    ModuleNotFoundError: No module named 'pxr'
+
+test_native_grid_ack_flush.py:9: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED test_render_command_routing.py::test_late_verified_writer_cannot_commit_after_retirement[scene]
+FAILED test_render_command_routing.py::test_view_state_reports_the_scene_identity_for_ack_recovery
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[current]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-scene]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-owner]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-material]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[changed-camera]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[old-view]
+FAILED test_native_grid_ack_flush.py::test_actual_delayed_flush_withdraws_stale_native_success_and_keeps_encoded_receipt[missing-coordinator]
+9 failed, 36 passed in 2.33s

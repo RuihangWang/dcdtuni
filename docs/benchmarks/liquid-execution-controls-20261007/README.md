@@ -1,0 +1,13 @@
+# Shared liquid Solve execution controls — 2026-10-07
+
+The main React Solve page now owns the DAE device, server-visible GPU index, precision, thread budget and Newton controls. Its single shared coolant editor writes the secondary-fluid properties actually compiled into the run manifest. Existing primary-circuit properties/provenance remain independent. Execution intent moves to sole `dae.execution` ownership on Prepare/adoption, and strict validation rejects ambiguous duplicates. Existing unmarked v2/PID inputs retain their compatibility route and saved values.
+
+DAE manifest lowering now declares actual backward Euler (BDF order 1), independently of retained legacy BDF/optimizer parameters. The backend returns observed tensor device and dtype; the UI distinguishes these from requested settings and reports unknown when actual observation is absent. Unavailable CUDA fails explicitly; numerical convergence/energy gates are unchanged. float64 is recommended; retained float32 energy/line-search failures mean float32 is not accepted for this case.
+
+Independent root replay: 106 frontend controls and 42 CPU tests passed, with one explicitly gated CUDA suite skipped. Normal-source focused replay: 14 frontend controls and four actual CPU observation tests passed; production build passed. Private expected failures, full candidate hashes and replay logs remain under `.codex-tmp/ov-shift-pick-private-20261007/DAE-CONTROLS-private-20261007T083014Z/FROZEN-v1` and integration `.codex-tmp/dae-controls-root-replay-20261007/`.
+
+Actual root GPU product probe on the sole already-used physical GPU0 UUID: 17-unknown real manifest/loader/initialization/two accepted stepped samples, CPU/CUDA float64 temperature and nonzero autograd heat derivative match. Runtime, state and gradient report `cuda:0`; no CPU fallback. Wall duration 11.27 s, CUDA probe 5.98 s, PyTorch peak allocation 17,218,048 bytes under enforced 256 MiB process allocator bound. Observed GPU context peak was 552 MiB (sampled, not exact peak); owned process disappeared after completion. Main and isolated Kit services remained on the same physical GPU0. This small product probe is not full Shinaide GPU/MMS/finite-difference acceptance.
+
+At this checkpoint the source/build are accepted for browser deployment; ordinary main-page device selection, export/Prepare and actual execution feedback still require the subsequent real browser run. No complete goal/main merge or worktree cleanup is claimed.
+
+The included normal test/build text copies trim trailing whitespace; complete original logs remain in the replay workspace. The GPU resource receipt derives only this allocated physical GPU from the retained raw observations.

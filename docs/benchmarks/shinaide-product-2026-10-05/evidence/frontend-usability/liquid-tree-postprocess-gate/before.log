@@ -1,0 +1,60 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidPostprocessHost.test.tsx (9 tests | 4 failed) 228ms
+   × liquid postprocess tree auto-opening > keeps repeated CDU tree selection unobstructed before any results exist 76ms
+     → expected true to be false // Object.is equality
+   × liquid postprocess tree auto-opening > does not auto-open after a missing result read with no historical records 22ms
+     → expected true to be false // Object.is equality
+   × liquid postprocess tree auto-opening > does not auto-open after a failed result read with no historical records 22ms
+     → expected true to be false // Object.is equality
+   × liquid postprocess tree auto-opening > does not auto-open after a malformed result read with no historical records 19ms
+     → expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 5 passed (9)
+   Start at  07:20:54
+   Duration  14.56s (transform 2.24s, setup 0ms, collect 4.13s, tests 228ms, environment 9.65s, prepare 251ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidPostprocessHost.test.tsx > liquid postprocess tree auto-opening > keeps repeated CDU tree selection unobstructed before any results exist
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/liquidPostprocessHost.test.tsx:100:34
+     98|       hooks()._lsmOnTreeClickPostProcess('m_30')
+     99|     })
+    100|     expect(ppWindowState().open).toBe(false)
+       |                                  ^
+    101|     expect(document.getElementById('lsm-monitor-window')).toBeNull()
+    102|     expect(fetcher).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/liquidPostprocessHost.test.tsx > liquid postprocess tree auto-opening > does not auto-open after a missing result read with no historical records
+ FAIL  test/liquidPostprocessHost.test.tsx > liquid postprocess tree auto-opening > does not auto-open after a failed result read with no historical records
+ FAIL  test/liquidPostprocessHost.test.tsx > liquid postprocess tree auto-opening > does not auto-open after a malformed result read with no historical records
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/liquidPostprocessHost.test.tsx:115:36
+    113|       fetcher.mockClear()
+    114|       await act(async () => hooks()._lsmOnTreeClickPostProcess('m_30'))
+    115|       expect(ppWindowState().open).toBe(false)
+       |                                    ^
+    116|       expect(document.getElementById('lsm-monitor-window')).toBeNull()
+    117|       expect(fetcher).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+

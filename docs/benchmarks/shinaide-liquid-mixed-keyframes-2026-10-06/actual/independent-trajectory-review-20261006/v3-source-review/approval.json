@@ -1,0 +1,23 @@
+{
+  "schema": "dcdtuni-independent-trajectory-v3-source-review/v1",
+  "createdUTC": "2026-10-05T19:47:03.979863+00:00",
+  "originalAuditManifestSHA": "3ecd30e8e538b74d1c72450ab8317885863ffa98766c026e7a949c84a919f4ad",
+  "sourceSHA": "bc330a69e8479ec0995233a6c9b8ce1f8f0ff1442d2ee99af0bdec03032f40a6",
+  "lifecycleSHA": "465fe94832748f1f0d214d7230e30ac4ecbf8ec23d4540f746b91b883d758302",
+  "scope": "Read source and completed results only. Source approved for ROOT-controlled execution on the unchanged actual input; no numerical v3 run was performed by reviewer.",
+  "decision": "No remaining blocking flaw found for this fixed actual artifact. Numerical execution still required.",
+  "resolvedFindings": [
+    "Two-element objective vector must use isfinite(...).all(), not bool(vector). ROOT corrected before any numerical v3 execution.",
+    "A nonfinite actual reference could bypass mismatch>=1e-7. ROOT added stdlib exact-grid/status/row/type/finiteness admission and Torch all-finite reference gate."
+  ],
+  "objectiveReview": {
+    "heat": "Final all-cold-plate solid-temperature mean versus post-t0 heat deviation amplitude",
+    "inlet": "Final primary-return fluid-temperature mean versus post-t0 inlet-temperature deviation amplitude",
+    "physicsBasis": "Independent linear-BE sensitivity gives heat solid 3.361644628443994, inlet solid 2.4369829033082698e-17, inlet primary-return -0.01795178819297585. Original insensitive v2 remains FAIL.",
+    "guardPreservation": "Five full 50-sample trajectories, epsilon1e-4, relative-error limit1e-4, nonzero derivative threshold1e-8 unchanged."
+  },
+  "baselineReview": "Actual result hash, run identity/status/time grid and finite nonempty 50-sample rows admitted; recomputed AD baseline flow/water/solid/two HX temperatures compared to all actual samples with max mismatch <1e-7.",
+  "autogradReview": "First grad(objective[0],a) retains graph; second grad(objective[1],b) reuses accepted trajectory graph then releases it. Separate FD directions select the same declared objective entries.",
+  "lifecycleReview": "owned_worker.py exact v2 bytes; actual v2 natural rc1 exit recorded, no timeout/fuser branch exercised. Mocked ownership tests do not prove actual timeout cleanup.",
+  "scopeLimit": "Local first-order thermal waveform amplitude derivatives only. No dynamic hydraulic regime, event-time, UI/JSON, global or second-order differentiability claim; no MMS constructed here."
+}

@@ -1,0 +1,27 @@
+EXE_INC = \
+    -I$(LIB_SRC)/finiteVolume/lnInclude \
+    -I$(LIB_SRC)/fileFormats/lnInclude \
+    -I$(LIB_SRC)/surfMesh/lnInclude \
+    -I$(LIB_SRC)/meshTools/lnInclude \
+    -I$(LIB_SRC)/dynamicMesh/lnInclude \
+    -I$(LIB_SRC)/sampling/lnInclude \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude \
+    -I$(LIB_SRC)/overset/lnInclude \
+    -I$(LIB_SRC)/parallel/decompose/decompositionMethods/lnInclude \
+    -I$(LIB_SRC)/parallel/distributed/lnInclude
+
+LIB_LIBS = \
+    -lfiniteVolume \
+    -lfileFormats \
+    -lsurfMesh \
+    -lmeshTools \
+    -ldynamicMesh \
+    -lsampling \
+    -llagrangian \
+    -lfvMotionSolvers \
+    -loverset \
+    -ldistributed \
+    -ldecompositionMethods \
+    -L$(FOAM_LIBBIN)/$(FOAM_MPI) -Wl,-rpath,$(FOAM_LIBBIN)/$(FOAM_MPI)
+/* dcdtuni: last line above pins MPI libs (Pstream) to conda OpenFOAM v2412,
+   not the system openfoam2406 also installed on this host */

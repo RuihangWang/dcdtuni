@@ -1,0 +1,66 @@
+--- a/src/frontend/shared/js/cfdproj_state_v4.js
++++ b/src/frontend/shared/js/cfdproj_state_v4.js
+@@ -144,8 +144,31 @@
+     return doc;
+   }
+ 
++  // Assign identity only when a document is created/opened, never in the empty
++  // schema/defaults template. A saved identity is kept byte-for-byte.
++  function withProjectUid(doc) {
++    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('Expected a project document');
++    if (typeof doc.uid === 'string' && doc.uid.length) return doc;
++    if (doc.uid !== undefined && doc.uid !== '') throw new Error('Project uid must be a string');
++    const rng = typeof globalThis !== 'undefined' && globalThis.crypto;
++    if (!rng) throw new Error('Secure random source unavailable for project identity');
++    let id;
++    if (typeof rng.randomUUID === 'function') id = rng.randomUUID();
++    else {
++      // getRandomValues is available on LAN HTTP where randomUUID is not.
++      if (typeof rng.getRandomValues !== 'function') throw new Error('Secure random source unavailable for project identity');
++      const bytes = rng.getRandomValues(new Uint8Array(16));
++      bytes[6] = (bytes[6] & 0x0f) | 0x40;
++      bytes[8] = (bytes[8] & 0x3f) | 0x80;
++      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
++      id = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
++    }
++    // Do not mutate the caller's disk-form top-level object during migration.
++    return Object.assign({}, doc, { uid: 'proj_' + id });
++  }
++
+   function newDocumentV4() {
+-    return applyNewProjectSizing(getInitialStateV4());
++    return withProjectUid(applyNewProjectSizing(getInitialStateV4()));
+   }
+ 
+   const BUCKET_BY_KIND = S.BUCKET_BY_KIND;
+@@ -333,5 +356,5 @@
+     if (unbound && (patchId in unbound)) delete unbound[patchId];
+   }
+ 
+-  return { getInitialStateV4, newDocumentV4, applyNewProjectSizing, bucketForKind, allModels, addConstruction, findConstruction, removeConstruction, clearConstructions, finalizeNewModelV4, normalizeStateV4, upgradeSimConvergence, upgradeFloorPolygon, findModelPatch, patchPhysicsMap, getPatchPhysics, ensurePatchPhysics, deletePatchPhysics };
++  return { getInitialStateV4, newDocumentV4, withProjectUid, applyNewProjectSizing, bucketForKind, allModels, addConstruction, findConstruction, removeConstruction, clearConstructions, finalizeNewModelV4, normalizeStateV4, upgradeSimConvergence, upgradeFloorPolygon, findModelPatch, patchPhysicsMap, getPatchPhysics, ensurePatchPhysics, deletePatchPhysics };
+ });
+--- a/src/frontend/react/src/projectStore.ts
++++ b/src/frontend/react/src/projectStore.ts
+@@ -266,7 +266,9 @@
+   // the bucket, so it has to be attached on the way in. It is made live first:
+   // brought to v5 and materialised at t = 0, so the rack pass below sees the
+   // fields it normalises.
+-  const revived = reviveKinds(liveProject(project, 0))
++  // Legacy empty-UID files receive identity in memory once; saving persists it.
++  // Existing accepted project/run identities are never rewritten.
++  const revived = reviveKinds(stateV4().withProjectUid(liveProject(project, 0)))
+   // V4/V5 loaders preserve already-current documents. Bring a legacy floor
+   // footprint into geometry here as well, before any render or STL export.
+   for (const floor of Object.values(revived.constructions?.floors ?? {})) {
+--- a/src/frontend/react/src/legacy/cfdprojModules.ts
++++ b/src/frontend/react/src/legacy/cfdprojModules.ts
+@@ -138,6 +138,8 @@
+   getInitialStateV4(): Record<string, unknown>
+   /** A document created from nothing: getInitialStateV4 on the recommended cell-size rule. */
+   newDocumentV4(): Record<string, unknown>
++  /** Backfill only missing/empty document identity; preserve a saved UID exactly. */
++  withProjectUid<T extends { uid?: string }>(doc: T): T
+   bucketForKind(kind: string): string
+   finalizeNewModelV4(seed: V3Seed): Construction
+   normalizeStateV4(raw: unknown): Record<string, unknown>

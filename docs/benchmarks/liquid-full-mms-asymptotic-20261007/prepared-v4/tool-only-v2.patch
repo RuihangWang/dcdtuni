@@ -1,0 +1,42 @@
+--- v1/generate_asymptotic.py
++++ v2/generate_asymptotic.py
+@@ -1,5 +1,5 @@
+ from pathlib import Path
+-import sys,os,json,numpy as np,torch
++import sys,os,json,hashlib,struct,math,numpy as np,torch
+ T=Path(__file__).resolve().parent;sys.path.insert(0,str(T/'after/src'))
+ torch.set_num_threads(2);torch.set_num_interop_threads(1)
+ from backend.liquidcooling.dae_runtime import admit_dae_runtime_input
+@@ -33,7 +33,21 @@
+  benchmark={'format':'dcdtuni-manufactured-benchmark','version':1,'provenance':'synthetic-research','formula_id':'cycle-storage-sinusoidal-20261006-v1','source_reference':'Independent NumPy constructive cycle basis, component laws, storage trajectories and node mixing; no product residual or normal DAE output used to manufacture forcing.','graph_layout_sha256':canonical_digest(graph_layout(raw)),'units':{'pressure':'Pa','temperature':'K','mass_flow':'kg/s','power':'W','time':'s','temperature_rate':'K/s'},'sampling':'endpoint_hold','times_s':times,'sources':{name:{'ids':ids[key],'values':np.stack([v[2][name] for v in targets],axis=1).tolist()} for name,key in smap.items()},'initial_state':{name:vector(name,value) for name,value in state.items()},'initial_temperature_rate':{name:vector(name,value) for name,value in rate.items()},'flow_signs':{'ids':ids['edges'],'values':np.sign(state['flow_kg_s']).tolist()}}
+  assert len(times)<=MAX_SAMPLES,'effective unchanged runtime sample cap'
+  assert benchmark['graph_layout_sha256']=='dde3685500f48cafa5fe0eccce7f2ce077217cc755b1fb4b676bdd5e31b40831'
+- assert canonical_digest(benchmark['initial_state'])=='15fda3dda0e32a5d3e4ac1d02e3e50d2b704bba530f6ff4920211fbbfffffab4'
++ # The anchor hash is its original default-sorted JSON image, not canonical_digest.
++ # IDs here are the genuine compiled_ids(eq) used by vector(), never borrowed from the anchor.
++ anchor_initial=json.loads((T/'results/original-anchor-0p0625.liquidrun').read_text())['manufactured_benchmark']['initial_state']
++ assert hashlib.sha256(json.dumps(anchor_initial,sort_keys=True).encode()).hexdigest()=='15fda3dda0e32a5d3e4ac1d02e3e50d2b704bba530f6ff4920211fbbfffffab4'
++ actual_initial=benchmark['initial_state']
++ assert set(actual_initial)==set(anchor_initial),'original initial-state family identity'
++ for family,expected_row in anchor_initial.items():
++  actual_row=actual_initial[family]
++  assert set(actual_row)==set(expected_row)=={'ids','values'},'original initial-state row keys: '+family
++  assert actual_row['ids']==expected_row['ids'],'genuine compiled initial IDs/order: '+family
++  assert len(actual_row['values'])==len(expected_row['values']),'original initial-state size: '+family
++  for ordinal,(actual_value,expected_value) in enumerate(zip(actual_row['values'],expected_row['values'])):
++   assert type(actual_value) in (int,float) and type(expected_value) in (int,float),'initial numeric type: '+family
++   assert math.isfinite(actual_value) and math.isfinite(expected_value),'initial nonfinite value: '+family
++   assert struct.pack('>d',actual_value)==struct.pack('>d',expected_value),'original initial IEEE64 identity: '+family+'/'+str(ordinal)
+  assert sum(len(v['ids'])*len(times) for v in benchmark['sources'].values())<=MAX_BENCHMARK_SCALARS
+  assert len(json.dumps(benchmark,separators=(',',':'),allow_nan=False).encode())<=MAX_BENCHMARK_BYTES
+  benchmark['source_sha256']=canonical_digest(benchmark)
+--- v1/fine.test.ts
++++ v2/fine.test.ts
+@@ -16,6 +16,7 @@
+   const built=compileSavedExperiment(p).liquidrun
+   expect(built.schemaVersion).toBe(4)
+   const old=JSON.parse(readFileSync(T+'/results/original-anchor-0p0625.liquidrun','utf8'))
++  expect(built.manufactured_benchmark.initial_state).toEqual(old.manufactured_benchmark.initial_state)
+   const restored=JSON.parse(JSON.stringify(built));delete restored.manufactured_benchmark;delete old.manufactured_benchmark
+   restored.dt=old.dt;restored.N_t=old.N_t
+   expect(restored).toEqual(old)

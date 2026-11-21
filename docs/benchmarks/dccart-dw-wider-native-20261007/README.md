@@ -1,0 +1,7 @@
+Actual wider-DW investigation, 2026-10-07
+
+Private controlled kernel GREEN does not establish native quality. Fresh six-unit build completed107.686601s (compile), APP640e39fd/LIB24dfd22b. Exactly one DEFAULT_OFF and one WIDER_ON real tiny case used identical12 inputs and original stock allTopology/allGeometry. Both strictFailed1: D1547/min3.15405e-05; N warning4017/max70.526 vs71.5006. NativeTotal0.26753/0.316694s, repair0.0180333/0.0141988s. No large-case speed or strict success.
+
+DefaultOFF matches old AXIS_SHARED all8 mesh bytes. ON changes only internal1565/1569; seven topology/zone files, all667 boundaryfaces/660 point bits and allstock set labels held. Movers are not incident to residualtet, whose4vertices remain exact. Eleven inputs held; sourceRegions only7 native-derived address scalars vary, alloriginal schema/UID/roles/facets held. Current normal39/Main29/pair2/UI4/eight services held. No normal promotion.
+
+All8 original frozen packets/manifests copied exact; actualnative source39 byvalue supports reproduction. APP/LIB byte payloads stay external: identities, build/dependency/compiler evidence and actual loader logs remain bound. Historical private paths are references, not runtime installation instructions. Root bytecode and archive collector corrections are honest tool-only records. Failed checks and Nmax worsening remain explicit. No solver/browser/full-goal acceptance.

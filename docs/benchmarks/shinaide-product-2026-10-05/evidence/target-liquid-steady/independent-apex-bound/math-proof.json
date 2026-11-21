@@ -1,0 +1,875 @@
+{
+  "scope": "Pure installed-source and mathematical audit; no checkMesh/native/API/browser or pytest execution. Bound constrains fixed physical triangular base with exactly three selected sides in 3D.",
+  "installedSources": {
+    "primitiveMeshTools.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshTools.C",
+      "sha256": "db2868dc5ccb66f8e3e8c4b919afb8abf8bb3b0fc290c704f9ad4c65b645a712",
+      "ranges": [
+        {
+          "start": 829,
+          "end": 931,
+          "text": "Foam::tmp<Foam::scalarField> Foam::primitiveMeshTools::cellDeterminant\n(\n    const primitiveMesh& mesh,\n    const Vector<label>& meshD,\n    const vectorField& faceAreas,\n    const bitSet& internalOrCoupledFace\n)\n{\n    // Determine number of dimensions and (for 2D) missing dimension\n    label nDims = 0;\n    label twoD = -1;\n    for (direction dir = 0; dir < vector::nComponents; dir++)\n    {\n        if (meshD[dir] == 1)\n        {\n            nDims++;\n        }\n        else\n        {\n            twoD = dir;\n        }\n    }\n\n    auto tcellDeterminant = tmp<scalarField>::New(mesh.nCells());\n    auto& cellDeterminant = tcellDeterminant.ref();\n\n    const cellList& c = mesh.cells();\n\n    if (nDims == 1)\n    {\n        cellDeterminant = 1.0;\n    }\n    else\n    {\n        forAll(c, celli)\n        {\n            const labelList& curFaces = c[celli];\n\n            // Calculate local normalization factor\n            scalar avgArea = 0;\n\n            label nInternalFaces = 0;\n\n            forAll(curFaces, i)\n            {\n                if (internalOrCoupledFace.test(curFaces[i]))\n                {\n                    avgArea += mag(faceAreas[curFaces[i]]);\n\n                    nInternalFaces++;\n                }\n            }\n\n            if (nInternalFaces == 0 || avgArea < ROOTVSMALL)\n            {\n                cellDeterminant[celli] = 0;\n            }\n            else\n            {\n                avgArea /= nInternalFaces;\n\n                symmTensor areaTensor(Zero);\n\n                forAll(curFaces, i)\n                {\n                    if (internalOrCoupledFace.test(curFaces[i]))\n                    {\n                        areaTensor += sqr(faceAreas[curFaces[i]]/avgArea);\n                    }\n                }\n\n                if (nDims == 2)\n                {\n                    // Add the missing eigenvector (such that it does not\n                    // affect the determinant)\n                    if (twoD == 0)\n                    {\n                        areaTensor.xx() = 1;\n                    }\n                    else if (twoD == 1)\n                    {\n                        areaTensor.yy() = 1;\n                    }\n                    else\n                    {\n                        areaTensor.zz() = 1;\n                    }\n                }\n\n                // Note:\n                // - normalise to be 0..1 (since cube has eigenvalues 2 2 2)\n                // - we use the determinant (i.e. 3rd invariant) and not e.g.\n                //   condition number (= max ev / min ev) since we are\n                //   interested in the minimum connectivity and not the\n                //   uniformity. Using the condition number on corner cells\n                //   leads to uniformity 1 i.e. equally bad in all three\n                //   directions which is not what we want.\n                cellDeterminant[celli] = mag(det(areaTensor))/8.0;\n            }\n        }\n    }\n\n    return tcellDeterminant;"
+        }
+      ]
+    },
+    "polyMeshCheck.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshCheck.C",
+      "sha256": "898bbdddf4f44aeb0b51eabcf5ded4f4f4ba009297d79a360c54adc5cceb1797",
+      "ranges": [
+        {
+          "start": 416,
+          "end": 449,
+          "text": "bool Foam::polyMesh::checkCellDeterminant\n(\n    const vectorField& faceAreas,\n    const bool report,\n    labelHashSet* setPtr,\n    const Vector<label>& meshD\n) const\n{\n    const scalar warnDet = 1e-3;\n\n    DebugInFunction << \"Checking for under-determined cells\" << endl;\n\n    tmp<scalarField> tcellDeterminant = primitiveMeshTools::cellDeterminant\n    (\n        *this,\n        meshD,\n        faceAreas,\n        syncTools::getInternalOrCoupledFaces(*this)\n    );\n    scalarField& cellDeterminant = tcellDeterminant.ref();\n\n\n    label nErrorCells = 0;\n    scalar minDet = min(cellDeterminant);\n    scalar sumDet = sum(cellDeterminant);\n\n    forAll(cellDeterminant, celli)\n    {\n        if (cellDeterminant[celli] < warnDet)\n        {\n            if (setPtr)\n            {\n                setPtr->insert(celli);\n            }"
+        },
+        {
+          "start": 736,
+          "end": 748,
+          "text": "bool Foam::polyMesh::checkCellDeterminant\n(\n    const bool report,\n    labelHashSet* setPtr\n) const\n{\n    return checkCellDeterminant\n    (\n        faceAreas(),\n        report,\n        setPtr,\n        geometricD()\n    );"
+        }
+      ]
+    },
+    "syncTools.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/syncTools.C",
+      "sha256": "097eeb7c1244fb77d68a1afaf9ed429394a30dfef871cbb582a3d9f6e0432d64",
+      "ranges": [
+        {
+          "start": 171,
+          "end": 186,
+          "text": "Foam::bitSet Foam::syncTools::getInternalOrCoupledFaces\n(\n    const polyMesh& mesh\n)\n{\n    bitSet isMaster(mesh.nFaces(), true);\n\n    for (const polyPatch& pp : mesh.boundaryMesh())\n    {\n        if (!pp.coupled())\n        {\n            isMaster.unset(pp.range());\n        }\n    }\n\n    return isMaster;"
+        }
+      ]
+    }
+  },
+  "namedNondegenerateCases": [
+    {
+      "shape": "right",
+      "apexPosition": "inside",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "apex": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.2
+      ],
+      "Dtriple": 0.04540554620388491,
+      "Dgram": 0.04540554620388488,
+      "formula": 0.04540554620388488,
+      "A": 0.5,
+      "P": 3.414213562373095,
+      "L": 1.4142135623730951,
+      "h": 0.2,
+      "S": 0.6073114104664201,
+      "outside": false,
+      "perimeterBound": 0.6706173862551411,
+      "longestEdgeBound": 1.4238281249999998,
+      "SminusA": 0.10731141046642012,
+      "SminusHeightPerimeter": 0.2658900542291106,
+      "strongerMinkowskiBound": 0.09935072388965054,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "right",
+      "apexPosition": "outsideNear",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "apex": [
+        -0.3,
+        0.5,
+        0.2
+      ],
+      "Dtriple": 0.005118063701098179,
+      "Dgram": 0.005118063701098175,
+      "formula": 0.005118063701098173,
+      "A": 0.5,
+      "P": 3.414213562373095,
+      "L": 1.4142135623730951,
+      "h": 0.2,
+      "S": 0.8737998728418532,
+      "outside": true,
+      "perimeterBound": 0.6706173862551411,
+      "longestEdgeBound": 1.4238281249999998,
+      "SminusA": 0.37379987284185323,
+      "SminusHeightPerimeter": 0.5323785166045437,
+      "strongerMinkowskiBound": 0.09935072388965054,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "right",
+      "apexPosition": "outsideFar",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "apex": [
+        23.0,
+        -37.0,
+        0.71
+      ],
+      "Dtriple": 1.2957473982639086e-10,
+      "Dgram": 1.2957473982663134e-10,
+      "formula": 1.2957473982639097e-10,
+      "A": 0.5,
+      "P": 3.414213562373095,
+      "L": 1.4142135623730951,
+      "h": 0.71,
+      "S": 37.52566836259775,
+      "outside": true,
+      "perimeterBound": 0.6706173862551411,
+      "longestEdgeBound": 1.4238281249999998,
+      "SminusA": 37.02566836259775,
+      "SminusHeightPerimeter": 36.3136225479553,
+      "strongerMinkowskiBound": 0.09935072388965054,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "right",
+      "apexPosition": "otherSide",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "apex": [
+        2.2,
+        1.8,
+        -0.3
+      ],
+      "Dtriple": 5.88503367460407e-06,
+      "Dgram": 5.88503367460407e-06,
+      "formula": 5.885033674604068e-06,
+      "A": 0.5,
+      "P": 3.414213562373095,
+      "L": 1.4142135623730951,
+      "h": 0.3,
+      "S": 3.5375202858577706,
+      "outside": true,
+      "perimeterBound": 0.6706173862551411,
+      "longestEdgeBound": 1.4238281249999998,
+      "SminusA": 3.0375202858577706,
+      "SminusHeightPerimeter": 3.0253882515018065,
+      "strongerMinkowskiBound": 0.09935072388965054,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "obtuse",
+      "apexPosition": "inside",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.8,
+          0.1,
+          0.0
+        ]
+      ],
+      "apex": [
+        0.9333333333333332,
+        0.03333333333333333,
+        0.2
+      ],
+      "Dtriple": 9.673518737237932e-05,
+      "Dgram": 9.673518737237922e-05,
+      "formula": 9.67351873723792e-05,
+      "A": 0.05,
+      "P": 3.6090014125618497,
+      "L": 1.8027756377319946,
+      "h": 0.2,
+      "S": 0.36475297725983047,
+      "outside": false,
+      "perimeterBound": 0.005371422736668383,
+      "longestEdgeBound": 0.005392011834319528,
+      "SminusA": 0.3147529772598305,
+      "SminusHeightPerimeter": 0.003852836003645499,
+      "strongerMinkowskiBound": 0.000795766331358279,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "obtuse",
+      "apexPosition": "outsideNear",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.8,
+          0.1,
+          0.0
+        ]
+      ],
+      "apex": [
+        0.6000000000000001,
+        0.05,
+        0.2
+      ],
+      "Dtriple": 8.327220535359231e-05,
+      "Dgram": 8.327220535359224e-05,
+      "formula": 8.327220535359217e-05,
+      "A": 0.05,
+      "P": 3.6090014125618497,
+      "L": 1.8027756377319946,
+      "h": 0.2,
+      "S": 0.37397816579169696,
+      "outside": true,
+      "perimeterBound": 0.005371422736668383,
+      "longestEdgeBound": 0.005392011834319528,
+      "SminusA": 0.32397816579169697,
+      "SminusHeightPerimeter": 0.01307802453551199,
+      "strongerMinkowskiBound": 0.000795766331358279,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "obtuse",
+      "apexPosition": "outsideFar",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.8,
+          0.1,
+          0.0
+        ]
+      ],
+      "apex": [
+        -43.60000000000001,
+        -3.7,
+        0.71
+      ],
+      "Dtriple": 8.79917169403079e-09,
+      "Dgram": 8.799171694027276e-09,
+      "formula": 8.799171694030848e-09,
+      "A": 0.05,
+      "P": 3.6090014125618497,
+      "L": 1.8027756377319946,
+      "h": 0.71,
+      "S": 4.00259389270963,
+      "outside": true,
+      "perimeterBound": 0.005371422736668383,
+      "longestEdgeBound": 0.005392011834319528,
+      "SminusA": 3.95259389270963,
+      "SminusHeightPerimeter": 2.7213983912501734,
+      "strongerMinkowskiBound": 0.000795766331358279,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "obtuse",
+      "apexPosition": "otherSide",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.8,
+          0.1,
+          0.0
+        ]
+      ],
+      "apex": [
+        5.44,
+        0.18000000000000002,
+        -0.3
+      ],
+      "Dtriple": 1.4011825855205477e-05,
+      "Dgram": 1.4011825855205345e-05,
+      "formula": 1.4011825855205492e-05,
+      "A": 0.05,
+      "P": 3.6090014125618497,
+      "L": 1.8027756377319946,
+      "h": 0.3,
+      "S": 0.659540257065236,
+      "outside": true,
+      "perimeterBound": 0.005371422736668383,
+      "longestEdgeBound": 0.005392011834319528,
+      "SminusA": 0.609540257065236,
+      "SminusHeightPerimeter": 0.11819004518095855,
+      "strongerMinkowskiBound": 0.000795766331358279,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "sliver",
+      "apexPosition": "inside",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.63,
+          0.001,
+          0.0
+        ]
+      ],
+      "apex": [
+        0.5433333333333333,
+        0.0003333333333333333,
+        0.2
+      ],
+      "Dtriple": 3.559468949862576e-11,
+      "Dgram": 3.559468949862561e-11,
+      "formula": 3.5594689498625516e-11,
+      "A": 0.0005,
+      "P": 2.0000021449991774,
+      "L": 1.0,
+      "h": 0.2,
+      "S": 0.20000094921870082,
+      "outside": false,
+      "perimeterBound": 5.6952880671842554e-06,
+      "longestEdgeBound": 5.6953125e-06,
+      "SminusA": 0.19950094921870082,
+      "SminusHeightPerimeter": 7.347187830630819e-07,
+      "strongerMinkowskiBound": 8.437463803235933e-07,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "sliver",
+      "apexPosition": "outsideNear",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.63,
+          0.001,
+          0.0
+        ]
+      ],
+      "apex": [
+        0.015000000000000013,
+        0.0005,
+        0.2
+      ],
+      "Dtriple": 3.5592640985877134e-11,
+      "Dgram": 3.55926409858768e-11,
+      "formula": 3.559264098587689e-11,
+      "A": 0.0005,
+      "P": 2.0000021449991774,
+      "L": 1.0,
+      "h": 0.2,
+      "S": 0.2000028676614748,
+      "outside": true,
+      "perimeterBound": 5.6952880671842554e-06,
+      "longestEdgeBound": 5.6953125e-06,
+      "SminusA": 0.1995028676614748,
+      "SminusHeightPerimeter": 2.653161557036876e-06,
+      "strongerMinkowskiBound": 8.437463803235933e-07,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "sliver",
+      "apexPosition": "outsideFar",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.63,
+          0.001,
+          0.0
+        ]
+      ],
+      "apex": [
+        -0.3099999999999987,
+        -0.037,
+        0.71
+      ],
+      "Dtriple": 2.8009352815987466e-12,
+      "Dgram": 2.8009352815987757e-12,
+      "formula": 2.8009352815987486e-12,
+      "A": 0.0005,
+      "P": 2.0000021449991774,
+      "L": 1.0,
+      "h": 0.71,
+      "S": 0.710991891767533,
+      "outside": true,
+      "perimeterBound": 5.6952880671842554e-06,
+      "longestEdgeBound": 5.6953125e-06,
+      "SminusA": 0.710491891767533,
+      "SminusHeightPerimeter": 0.0009911302928250487,
+      "strongerMinkowskiBound": 8.437463803235933e-07,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "sliver",
+      "apexPosition": "otherSide",
+      "base": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.63,
+          0.001,
+          0.0
+        ]
+      ],
+      "apex": [
+        3.3340000000000005,
+        0.0018000000000000002,
+        -0.3
+      ],
+      "Dtriple": 1.581092161579753e-11,
+      "Dgram": 1.581092161579728e-11,
+      "formula": 1.5810921615797467e-11,
+      "A": 0.0005,
+      "P": 2.0000021449991774,
+      "L": 1.0,
+      "h": 0.3,
+      "S": 0.30002969011303965,
+      "outside": true,
+      "perimeterBound": 5.6952880671842554e-06,
+      "longestEdgeBound": 5.6953125e-06,
+      "SminusA": 0.29952969011303965,
+      "SminusHeightPerimeter": 2.9368363163029265e-05,
+      "strongerMinkowskiBound": 8.437463803235933e-07,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "tilted",
+      "apexPosition": "inside",
+      "base": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          2.0,
+          3.0,
+          3.0
+        ],
+        [
+          1.2,
+          2.3,
+          3.7
+        ]
+      ],
+      "apex": [
+        1.5407052941362898,
+        2.2926280391970435,
+        3.253434089638517
+      ],
+      "Dtriple": 0.04309751848262145,
+      "Dgram": 0.04309751848262145,
+      "formula": 0.04309751848262151,
+      "A": 0.4974937185533101,
+      "P": 3.4744065559100616,
+      "L": 1.4142135623730951,
+      "h": 0.20000000000000007,
+      "S": 0.6105659942875608,
+      "outside": false,
+      "perimeterBound": 0.6190848732879434,
+      "longestEdgeBound": 1.4095898437500005,
+      "SminusA": 0.11307227573425066,
+      "SminusHeightPerimeter": 0.26312533869655447,
+      "strongerMinkowskiBound": 0.09171627752413976,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "tilted",
+      "apexPosition": "outsideNear",
+      "base": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          2.0,
+          3.0,
+          3.0
+        ],
+        [
+          1.2,
+          2.3,
+          3.7
+        ]
+      ],
+      "apex": [
+        0.9407052941362897,
+        1.7092947058637102,
+        3.370100756305184
+      ],
+      "Dtriple": 0.005053046443761195,
+      "Dgram": 0.005053046443761204,
+      "formula": 0.005053046443761194,
+      "A": 0.4974937185533101,
+      "P": 3.4744065559100616,
+      "L": 1.4142135623730951,
+      "h": 0.19999999999999998,
+      "S": 0.8727350971788757,
+      "outside": true,
+      "perimeterBound": 0.6190848732879434,
+      "longestEdgeBound": 1.4095898437500005,
+      "SminusA": 0.37524137862556556,
+      "SminusHeightPerimeter": 0.5252944415878695,
+      "strongerMinkowskiBound": 0.09171627752413976,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "tilted",
+      "apexPosition": "outsideFar",
+      "base": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          2.0,
+          3.0,
+          3.0
+        ],
+        [
+          1.2,
+          2.3,
+          3.7
+        ]
+      ],
+      "apex": [
+        17.09950379418383,
+        13.400496205816177,
+        -22.828642315116603
+      ],
+      "Dtriple": 1.3091752579052106e-10,
+      "Dgram": 1.3091752581470664e-10,
+      "formula": 1.309175257905467e-10,
+      "A": 0.4974937185533101,
+      "P": 3.4744065559100616,
+      "L": 1.4142135623730951,
+      "h": 0.71,
+      "S": 37.33595465359075,
+      "outside": true,
+      "perimeterBound": 0.6190848732879434,
+      "longestEdgeBound": 1.4095898437500005,
+      "SminusA": 36.83846093503744,
+      "SminusHeightPerimeter": 36.102540326242675,
+      "strongerMinkowskiBound": 0.09171627752413976,
+      "exactFractionTripleIdentity": true
+    },
+    {
+      "shape": "tilted",
+      "apexPosition": "otherSide",
+      "base": [
+        [
+          1.0,
+          2.0,
+          3.0
+        ],
+        [
+          2.0,
+          3.0,
+          3.0
+        ],
+        [
+          1.2,
+          2.3,
+          3.7
+        ]
+      ],
+      "apex": [
+        3.3489420587955654,
+        4.951057941204435,
+        4.229848865542224
+      ],
+      "Dtriple": 5.884371961645244e-06,
+      "Dgram": 5.884371961644127e-06,
+      "formula": 5.88437196164524e-06,
+      "A": 0.4974937185533101,
+      "P": 3.4744065559100616,
+      "L": 1.4142135623730951,
+      "h": 0.30000000000000054,
+      "S": 3.5257551016822495,
+      "outside": true,
+      "perimeterBound": 0.6190848732879434,
+      "longestEdgeBound": 1.4095898437500005,
+      "SminusA": 3.0282613831289393,
+      "SminusHeightPerimeter": 3.0045941182957394,
+      "strongerMinkowskiBound": 0.09171627752413976,
+      "exactFractionTripleIdentity": true
+    }
+  ],
+  "actualOptimalIncentreApex": [
+    {
+      "rank": 1,
+      "cell": 526531,
+      "apex": [
+        2.6389301715223037,
+        2.699769808113564,
+        4.0223615454227035
+      ],
+      "Dtriple": 4.046769975576279e-05,
+      "Dgram": 4.0467699755758184e-05,
+      "formula": 4.046769975576244e-05,
+      "A": 1.53088497472345e-05,
+      "P": 0.13298191737535336,
+      "L": 0.06646078716537383,
+      "h": 0.0003256079227034192,
+      "S": 2.6515705567633656e-05,
+      "outside": false,
+      "perimeterBound": 0.00027315697335139524,
+      "longestEdgeBound": 0.0002736533367533994,
+      "SminusA": 1.1206855820399155e-05,
+      "SminusHeightPerimeter": 4.8657226307803875e-06,
+      "strongerMinkowskiBound": 4.046769975576226e-05
+    },
+    {
+      "rank": 1,
+      "cell": 604333,
+      "apex": [
+        2.1389002141592504,
+        2.699980772291534,
+        4.022063197021044
+      ],
+      "Dtriple": 1.1448986253505145e-06,
+      "Dgram": 1.1448986253504497e-06,
+      "formula": 1.1448986253504989e-06,
+      "A": 6.379105985460355e-07,
+      "P": 0.066189117452857,
+      "L": 0.03309434456717876,
+      "h": 2.7259521043987434e-05,
+      "S": 1.1048935673677648e-06,
+      "outside": false,
+      "perimeterBound": 7.728065721115885e-06,
+      "longestEdgeBound": 7.728265761677923e-06,
+      "SminusA": 4.669829688217293e-07,
+      "SminusHeightPerimeter": 2.0275174732320921e-07,
+      "strongerMinkowskiBound": 1.1448986253505012e-06
+    },
+    {
+      "rank": 1,
+      "cell": 507880,
+      "apex": [
+        2.1393223125852594,
+        0.862489662154682,
+        4.022633177685634
+      ],
+      "Dtriple": 0.00012469069629383411,
+      "Dgram": 0.00012469069629383314,
+      "formula": 0.00012469069629383284,
+      "A": 2.9341878297385066e-05,
+      "P": 0.13895810506986686,
+      "L": 0.06946871456461554,
+      "h": 0.000597240185634007,
+      "S": 5.082162400055379e-05,
+      "outside": false,
+      "perimeterBound": 0.0008416621999833725,
+      "longestEdgeBound": 0.000842163318874767,
+      "SminusA": 2.1479745703168725e-05,
+      "SminusHeightPerimeter": 9.325941766915222e-06,
+      "strongerMinkowskiBound": 0.00012469069629383295
+    },
+    {
+      "rank": 1,
+      "cell": 507898,
+      "apex": [
+        2.1393223125852594,
+        0.862489662154682,
+        5.219275234484776
+      ],
+      "Dtriple": 0.00012469069629383395,
+      "Dgram": 0.00012469069629383292,
+      "formula": 0.00012469069629383273,
+      "A": 2.9341878297385066e-05,
+      "P": 0.13895810506986686,
+      "L": 0.06946871456461554,
+      "h": 0.000597240185634007,
+      "S": 5.08216240005538e-05,
+      "outside": false,
+      "perimeterBound": 0.0008416621999833725,
+      "longestEdgeBound": 0.000842163318874767,
+      "SminusA": 2.147974570316873e-05,
+      "SminusHeightPerimeter": 9.325941766915228e-06,
+      "strongerMinkowskiBound": 0.00012469069629383295
+    }
+  ],
+  "randomSearch": {
+    "samples": 12000,
+    "outsideProjectionSamples": 11949,
+    "boundViolations": 0,
+    "areaLowerBoundViolations": 0,
+    "maxRatioToPerimeterBound": 0.12293186127449801,
+    "maxRatioToLongestEdgeBound": 0.12291616237187318,
+    "maxFormulaRelativeError": 1.55750634928444e-14,
+    "rngSeed": 20261005
+  },
+  "maxSearchWitness": {
+    "base": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.647893273247444,
+        0.014991826029079416,
+        0.0
+      ]
+    ],
+    "apex": [
+      0.8947529734101032,
+      0.0058101294754058855,
+      0.005973182978136096
+    ],
+    "Dtriple": 2.133277773996612e-05,
+    "Dgram": 2.133277773996617e-05,
+    "formula": 2.1332777739966194e-05,
+    "A": 0.007495913014539708,
+    "P": 3.296028166991224,
+    "L": 1.6479614664372046,
+    "h": 0.005973182978136096,
+    "S": 0.012747996284814017,
+    "outside": false,
+    "perimeterBound": 0.00017353335025434587,
+    "longestEdgeBound": 0.00017355551400494818,
+    "SminusA": 0.005252083270274309,
+    "SminusHeightPerimeter": 0.0029041066135494682,
+    "strongerMinkowskiBound": 2.5708644482125316e-05
+  },
+  "selectionFormulaCounterexample": {
+    "base": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "apex": [
+      0.2,
+      0.2,
+      0.4
+    ],
+    "selected3SideD": 0.09039595701524346,
+    "selectedAll4D": 0.12973834946121557,
+    "scope": "Nondegenerate counterexample to applying the THREE-side equality after adding the base to selected faces. Not a counterexample to the stated upper bound and not the actual four target cells."
+  },
+  "limitations": [
+    "Exact mathematical bound, not a formal proof of all arbitrary IEEE-754 overflow/underflow inputs",
+    "Does not prohibit changing the cell topology, boundary tessellation, or other valid repairs that preserve the physical surface",
+    "No native ancestry or whole target impossibility is inferred"
+  ]
+}

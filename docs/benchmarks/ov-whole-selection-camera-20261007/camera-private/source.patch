@@ -1,0 +1,77 @@
+--- a/src/frontend/react/src/renderer/RendererControl.tsx
++++ b/src/frontend/react/src/renderer/RendererControl.tsx
+@@ -95,9 +95,24 @@
+   return info?preferredOvEndpoint(info,browserHost):null
+ }
+ 
+-/** An OV-side orbit survives a project edit; new React time and selection still win. */
+-export function keepActiveOvCamera(packet:SceneSnapshot,ack:RenderAck,activeProjectUid:string):SceneSnapshot {
+-  if(packet.project.uid!==activeProjectUid||!ack.view?.camera)return packet
++/** A view reply belongs to one precisely acknowledged editor scene. */
++export interface AcceptedRenderViewIdentity {
++  projectUid:string
++  projectHash:string|null
++  sceneRevision:number
++}
++export function isAcceptedRenderView(ack:RenderAck,identity:AcceptedRenderViewIdentity):boolean {
++  return identity.projectUid.trim().length>0&&typeof identity.projectHash==='string'
++    &&/^[0-9a-f]{64}$/.test(identity.projectHash)
++    &&Number.isSafeInteger(identity.sceneRevision)&&identity.sceneRevision>=0
++    &&ack.ok===true&&ack.projectHash===identity.projectHash
++    &&ack.sceneRevision===identity.sceneRevision
++}
++/** An acknowledged OV orbit survives a project edit; new time/selection still win. */
++export function keepActiveOvCamera(packet:SceneSnapshot,ack:RenderAck,activeProjectUid:string,
++  identity:AcceptedRenderViewIdentity):SceneSnapshot {
++  if(packet.project.uid!==activeProjectUid||identity.projectUid!==activeProjectUid
++    ||!isAcceptedRenderView(ack,identity)||!ack.view?.camera)return packet
+   return {...packet,view:{...packet.view,camera:ack.view.camera}}
+ }
+ 
+@@ -287,6 +302,7 @@
+     const token=++session.current
+     const sourceKey=key
+     const capturedClient=client.current
++    const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
+     let diagnosticContext:ReturnType<typeof captureDiagnosticContext>|null=null
+     let diagnosticCaptureError:unknown=null
+     try {
+@@ -296,7 +312,7 @@
+     }catch(error){diagnosticCaptureError=error}
+     // If a new project/frame has not reached Kit yet, its camera/selection reply
+     // belongs to the previous scene. Preserve the newer local state instead.
+-    const canRead=!!sync.current?.isCurrent(key)
++    const canRead=!!sync.current?.isCurrent(key)&&acceptedView.projectUid===projectUid.current
+     sync.current?.close();sync.current=null
+     overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+     resultSync.current?.close();resultSync.current=null
+@@ -307,7 +323,12 @@
+       if(client.current&&ready&&canRead) {
+         const ack=await waitForRenderView(diagnosticContext
+           ?capturedClient!.readViewDiagnostics(diagnosticContext):capturedClient!.readView(),diagnosticContext?3000:1000)
+-        if(session.current!==token||currentKey.current!==sourceKey||client.current!==capturedClient||ack.view?.timeSeconds!==timeSeconds)return
++        if(session.current!==token||currentKey.current!==sourceKey||client.current!==capturedClient
++          ||ack.view?.timeSeconds!==timeSeconds||selectedResultTime()!==timeSeconds)return
++        const liveProject=store.getProject()
++        if(!liveProject||liveProject.uid!==acceptedView.projectUid
++          ||cfdrunExport().projectContentHashSync(liveProject)!==acceptedView.projectHash)return
++        if(!isAcceptedRenderView(ack,acceptedView))throw new Error('Omniverse view belongs to another acknowledged scene')
+         if(diagnosticContext) {
+           const live=store.getProject()
+           if(!live||cfdrunExport().projectContentHashSync(live)!==diagnosticContext.expectedProjectHash||
+@@ -479,9 +500,14 @@
+         sync.current=new LatestSceneSync<SceneTransmission>(async ({packet,hash})=>{
+           let next=packet
+           if(packet.project.uid===sentProjectUid.current){
++            const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
+             const ack=await waitForRenderView(value.readView(),3000)
+-            next=keepActiveOvCamera(packet,ack,sentProjectUid.current)
++            if(session.current!==token||client.current!==value)return
++            if(sentProjectUid.current===acceptedView.projectUid
++              &&ackedSceneHash.current===acceptedView.projectHash&&sceneRevision.current===acceptedView.sceneRevision)
++              next=keepActiveOvCamera(packet,ack,acceptedView.projectUid,acceptedView)
+           }
++          if(session.current!==token||client.current!==value)return
+           const ack=await value.loadScene(next,hash)
+           if(installEditBridge(value,ack,next,hash)){
+             clearStaleResultLayerSet(next.project.uid,ack.projectHash!)

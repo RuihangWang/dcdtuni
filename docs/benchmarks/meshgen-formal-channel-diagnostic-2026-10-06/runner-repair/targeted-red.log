@@ -1,0 +1,209 @@
+FFFFF.F                                                                  [100%]
+=================================== FAILURES ===================================
+____ test_native_failure_timeout_and_missing_export_read_s7_not_ingest[rc1] ____
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1ef45510>
+failure = 'rc1'
+
+    @pytest.mark.parametrize("failure", ["rc1", "timeout", "missing_export"])
+    def test_native_failure_timeout_and_missing_export_read_s7_not_ingest(tmp_path, monkeypatch, failure):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        scratch = runner.mesh_dir / ".meshgen_scratch"
+        native_error = MeshTimeoutError("controlled deadline") if failure == "timeout" else RuntimeError("controlled rc1")
+    
+        def command(cmd, workdir):
+            runner.commands.append((shlex.split(cmd), workdir))
+            write_reports(workdir)
+            if failure != "missing_export":
+                raise native_error
+    
+        monkeypatch.setattr(runner, "_run_cmd", command)
+        with pytest.raises(MeshTimeoutError if failure == "timeout" else RuntimeError) as caught:
+            runner._run_meshgen_pipeline()
+        if failure == "timeout":
+            assert caught.value is native_error
+        elif failure == "rc1":
+            assert caught.value.__cause__ is native_error
+>           assert str(scratch / "constant/dc_report.json") in str(caught.value)
+E           AssertionError: assert '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch/constant/dc_report.json' in 'meshgen-cli refused the mesh (controlled rc1). dc_report: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-202610...en-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch for inspection.'
+E            +  where '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch/constant/dc_report.json' = str((PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch') / 'constant/dc_report.json'))
+E            +  and   'meshgen-cli refused the mesh (controlled rc1). dc_report: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-202610...en-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch for inspection.' = str(RuntimeError('meshgen-cli refused the mesh (controlled rc1). dc_report: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tm...n-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch for inspection.'))
+E            +    where RuntimeError('meshgen-cli refused the mesh (controlled rc1). dc_report: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tm...n-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch for inspection.') = <ExceptionInfo RuntimeError('meshgen-cli refused the mesh (controlled rc1). dc_report: /mnt/lv/home/litianyu/mycode/dc...report-path-repair-20261006/pytest-red/test_native_failure_timeout_an0/Mesh/.meshgen_scratch for inspection.') tblen=2>.value
+
+src/backend/tests/test_meshgen_report_paths.py:86: AssertionError
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 00:36:17.768 | INFO     | backend.aircooling.runner.stlgen_runner:_run_meshgen_pipeline:8230 - Step 1/3: meshgen-cli cfdrun (dc-mode, raw geometry, seeds pre)
+__ test_native_failure_timeout_and_missing_export_read_s7_not_ingest[timeout] __
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1eb17bb0>
+failure = 'timeout'
+
+    @pytest.mark.parametrize("failure", ["rc1", "timeout", "missing_export"])
+    def test_native_failure_timeout_and_missing_export_read_s7_not_ingest(tmp_path, monkeypatch, failure):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        scratch = runner.mesh_dir / ".meshgen_scratch"
+        native_error = MeshTimeoutError("controlled deadline") if failure == "timeout" else RuntimeError("controlled rc1")
+    
+        def command(cmd, workdir):
+            runner.commands.append((shlex.split(cmd), workdir))
+            write_reports(workdir)
+            if failure != "missing_export":
+                raise native_error
+    
+        monkeypatch.setattr(runner, "_run_cmd", command)
+        with pytest.raises(MeshTimeoutError if failure == "timeout" else RuntimeError) as caught:
+            runner._run_meshgen_pipeline()
+        if failure == "timeout":
+            assert caught.value is native_error
+        elif failure == "rc1":
+            assert caught.value.__cause__ is native_error
+            assert str(scratch / "constant/dc_report.json") in str(caught.value)
+        else:
+            assert "no usable polyMesh" in str(caught.value)
+        words, workdir = runner.commands[0]
+        assert workdir == scratch
+        assert words[words.index("--report") + 1] == str(scratch / "dc_report.json")
+        assert words[words.index("--export-foam") + 1] == str(scratch / "constant/polyMesh")
+        assert words[words.index("--dc-mode"):words.index("--export-foam")] == ["--dc-mode", "--dc-raw", "--dc-seeds", "pre"]
+>       assert_s7_diagnostic(errors)
+
+src/backend/tests/test_meshgen_report_paths.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+errors = ['dc_report.json: stage=None mode=None shells=None openEdgeShells=None nonManifoldShells=None problemShells=0', '  ful... true, "level": [1, 1], "levelSource": "acuRefinementLevel", "patchName": "Channel_supply_Front", "patchType": "wall"']
+
+    def assert_s7_diagnostic(errors):
+>       assert any("stage=S7 mode=dcMode-report-not-refusal" in line for line in errors)
+E       assert False
+E        +  where False = any(<generator object assert_s7_diagnostic.<locals>.<genexpr> at 0x7f9e1ef2fc30>)
+
+src/backend/tests/test_meshgen_report_paths.py:61: AssertionError
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 00:36:17.816 | INFO     | backend.aircooling.runner.stlgen_runner:_run_meshgen_pipeline:8230 - Step 1/3: meshgen-cli cfdrun (dc-mode, raw geometry, seeds pre)
+_ test_native_failure_timeout_and_missing_export_read_s7_not_ingest[missing_export] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_native_failure_timeout_an2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1ef47a00>
+failure = 'missing_export'
+
+    @pytest.mark.parametrize("failure", ["rc1", "timeout", "missing_export"])
+    def test_native_failure_timeout_and_missing_export_read_s7_not_ingest(tmp_path, monkeypatch, failure):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        scratch = runner.mesh_dir / ".meshgen_scratch"
+        native_error = MeshTimeoutError("controlled deadline") if failure == "timeout" else RuntimeError("controlled rc1")
+    
+        def command(cmd, workdir):
+            runner.commands.append((shlex.split(cmd), workdir))
+            write_reports(workdir)
+            if failure != "missing_export":
+                raise native_error
+    
+        monkeypatch.setattr(runner, "_run_cmd", command)
+        with pytest.raises(MeshTimeoutError if failure == "timeout" else RuntimeError) as caught:
+            runner._run_meshgen_pipeline()
+        if failure == "timeout":
+            assert caught.value is native_error
+        elif failure == "rc1":
+            assert caught.value.__cause__ is native_error
+            assert str(scratch / "constant/dc_report.json") in str(caught.value)
+        else:
+            assert "no usable polyMesh" in str(caught.value)
+        words, workdir = runner.commands[0]
+        assert workdir == scratch
+        assert words[words.index("--report") + 1] == str(scratch / "dc_report.json")
+        assert words[words.index("--export-foam") + 1] == str(scratch / "constant/polyMesh")
+        assert words[words.index("--dc-mode"):words.index("--export-foam")] == ["--dc-mode", "--dc-raw", "--dc-seeds", "pre"]
+>       assert_s7_diagnostic(errors)
+
+src/backend/tests/test_meshgen_report_paths.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+errors = ['dc_report.json: stage=None mode=None shells=None openEdgeShells=None nonManifoldShells=None problemShells=0', '  ful... true, "level": [1, 1], "levelSource": "acuRefinementLevel", "patchName": "Channel_supply_Front", "patchType": "wall"']
+
+    def assert_s7_diagnostic(errors):
+>       assert any("stage=S7 mode=dcMode-report-not-refusal" in line for line in errors)
+E       assert False
+E        +  where False = any(<generator object assert_s7_diagnostic.<locals>.<genexpr> at 0x7f9e1eb08510>)
+
+src/backend/tests/test_meshgen_report_paths.py:61: AssertionError
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 00:36:17.838 | INFO     | backend.aircooling.runner.stlgen_runner:_run_meshgen_pipeline:8230 - Step 1/3: meshgen-cli cfdrun (dc-mode, raw geometry, seeds pre)
+2026-10-06 00:36:17.840 | INFO     | backend.aircooling.runner.stlgen_runner:_run_meshgen_pipeline:8255 - Step 2/3: assemble Mesh/ from meshgen output (dc17 contract)
+_________ test_missing_native_report_never_falls_back_to_valid_ingest __________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_missing_native_report_nev0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1ef44ac0>
+
+    def test_missing_native_report_never_falls_back_to_valid_ingest(tmp_path, monkeypatch):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        scratch = runner.mesh_dir / ".meshgen_scratch"
+    
+        def command(cmd, workdir):
+            write_reports(workdir, native=False)
+            raise RuntimeError("controlled rc1 before native report")
+    
+        monkeypatch.setattr(runner, "_run_cmd", command)
+        with pytest.raises(RuntimeError, match="refused the mesh"):
+            runner._run_meshgen_pipeline()
+>       assert any("no native S7 report" in line and str(scratch / "constant/dc_report.json") in line for line in errors)
+E       assert False
+E        +  where False = any(<generator object test_missing_native_report_never_falls_back_to_valid_ingest.<locals>.<genexpr> at 0x7f9e1ef2e960>)
+
+src/backend/tests/test_meshgen_report_paths.py:111: AssertionError
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 00:36:17.861 | INFO     | backend.aircooling.runner.stlgen_runner:_run_meshgen_pipeline:8230 - Step 1/3: meshgen-cli cfdrun (dc-mode, raw geometry, seeds pre)
+_____________ test_ingest_body_is_explicitly_rejected_as_native_s7 _____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_ingest_body_is_explicitly0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1ef1e320>
+
+    def test_ingest_body_is_explicitly_rejected_as_native_s7(tmp_path, monkeypatch):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        wrong = tmp_path / "dc_report.json"
+        wrong.write_bytes(INGEST)
+        runner._log_meshgen_report(wrong)
+>       assert any("not a native S7 report" in line and "dc17-ingest-mapping/v1" in line for line in errors)
+E       assert False
+E        +  where False = any(<generator object test_ingest_body_is_explicitly_rejected_as_native_s7.<locals>.<genexpr> at 0x7f9e1eb08a50>)
+
+src/backend/tests/test_meshgen_report_paths.py:121: AssertionError
+___________ test_degenerate_floor_diagnostic_uses_export_sibling_s7 ____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-red/test_degenerate_floor_diagnost0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9e1eb171f0>
+
+    def test_degenerate_floor_diagnostic_uses_export_sibling_s7(tmp_path, monkeypatch):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        scratch = runner.mesh_dir / ".meshgen_scratch"
+        out_poly = scratch / "constant/polyMesh"
+        out_poly.mkdir(parents=True)
+        write_reports(scratch)
+        for name in runner._MESHGEN_POLYMESH_REQUIRED:
+            (out_poly / name).write_text("controlled export\n")
+        from backend.aircooling.runner import polymesh_io
+        monkeypatch.setattr(polymesh_io, "mesh_topology_summary", lambda path: {"nCells": 2})
+        with pytest.raises(RuntimeError, match="2 cells < 1000 floor"):
+            runner._assemble_meshgen_polymesh(runner.mesh_dir, out_poly, scratch)
+>       assert_s7_diagnostic(errors)
+
+src/backend/tests/test_meshgen_report_paths.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+errors = ['dc_report.json: stage=None mode=None shells=None openEdgeShells=None nonManifoldShells=None problemShells=0', '  ful... true, "level": [1, 1], "levelSource": "acuRefinementLevel", "patchName": "Channel_supply_Front", "patchType": "wall"']
+
+    def assert_s7_diagnostic(errors):
+>       assert any("stage=S7 mode=dcMode-report-not-refusal" in line for line in errors)
+E       assert False
+E        +  where False = any(<generator object assert_s7_diagnostic.<locals>.<genexpr> at 0x7f9e1eb09540>)
+
+src/backend/tests/test_meshgen_report_paths.py:61: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_native_failure_timeout_and_missing_export_read_s7_not_ingest[rc1]
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_native_failure_timeout_and_missing_export_read_s7_not_ingest[timeout]
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_native_failure_timeout_and_missing_export_read_s7_not_ingest[missing_export]
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_missing_native_report_never_falls_back_to_valid_ingest
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_ingest_body_is_explicitly_rejected_as_native_s7
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_degenerate_floor_diagnostic_uses_export_sibling_s7
+6 failed, 1 passed in 2.68s

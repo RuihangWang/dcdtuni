@@ -1,0 +1,19 @@
+# Canonical physical-base fan enumeration, independent pure math
+
+The source is the hash-bound, preserved 25147/25148 compact contexts from f60f70b6. This tool performs no native operation and writes no mesh. It enumerates every positive original-vertex fan and every contiguous partition for a planar convex original outline with 3..8 original nodes. Merged pieces must be strictly convex, contain no collinear intermediate edge, preserve all outline nodes and directed boundary edges, and preserve original area and first moment.
+
+For each actual seven-node outline, seven anchors give two positive fans and 32 contiguous partition attempts. There are six strict geometry candidates. Exact physical triangular any-apex determinant bounds eliminate two, leaving four necessary candidates. Only one also satisfies within-base weight >= .05 and volume ratio >= .01. Both independent selections reproduce the prior constructive four-piece partition exactly. All four necessary candidates, their triangles, groups, interfaces, and exact bound fractions are retained in each enumeration JSON; no failed candidate is discarded from the raw geometry candidate list.
+
+The front chosen anchor is 19876; the back chosen anchor is 19745. In the common coordinate cycle, group sizes are [1,1,2,1]. The front pieces are [19876,19877,43902], [19876,43902,43917], [19876,43917,43942,575910], [19876,575910,21167]. The back exact-XY mirror is [19745,19742,43922], [19745,43922,43921], [19745,43921,575876,19985], [19745,19985,19983]. No original vertex moves or disappears.
+
+For coplanar bases sharing one apex AP, each cone centre is C=(3*FC+AP)/4 and volume is A*h/3. The interface plane contains a fixed shared edge and AP. Projecting C onto its unit normal multiplies each base-centre distance to the same fixed edge by the same positive factor. Thus OF interpolation weight min(d1,d2)/(d1+d2) and neighbour volume ratio min(A1,A2)/max(A1,A2) depend only on the base partition, for any noncoplanar apex. The focused test also checks outside tangential projections; the tool does not use those projections as admissible parent-kernel candidates.
+
+A fixed physical triangular cone with three selected internal side faces has the installed determinant D=729*A^4*h^4/(32*S^6). The exact conservative any-apex bound used here is 729*A^2/(32*Lmax^4). A bound below .001 proves that fixed physical triangular cone cannot pass that determinant branch. A bound above .001 does not prove a valid cone. No such exclusion is applied to nontriangular pieces. Actual thresholds are recorded in the JSON.
+
+Selection is independent of AP: maximize (minimum 2*A/P^2, minimum within-base weight, minimum within-base volume ratio, negative piece count), resolving ties by exact common coordinate traversal. The original-node labels are output identities only. Rotation, reversal, and rank-local relabelling tests preserve the same selected coordinate pieces.
+
+The AIR read-only C++ snapshot separately records the source and excerpt hashes. Its continuous groups are capped at three fan triangles; this does not remove either actual unique selected partition, whose maximum group length is two. The independent diagnostic tolerances are not identical to all native tolerances, and the native triangular bound uses floating arithmetic. This evidence is not a general CPP equivalence claim.
+
+Scope remains local base topology: nontriangular determinant, other original-base interfaces, parent and outside-neighbour quality, admissible kernel, coupled/periodic transforms, and full checkMesh still require their actual guards. The previous f60 parent sweeps retain whole-parent failures. This proof establishes a generic constructive local partition rather than a complete target mesh acceptance.
+
+No production C++, browser, API, CFD case, runtime, or Git merge was changed. The focused suite uses CPU36–39 and repo-contained pytest temporary storage.

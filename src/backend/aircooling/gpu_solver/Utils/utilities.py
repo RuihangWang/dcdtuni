@@ -1,0 +1,303 @@
+import numpy as np
+from torch_geometric.data import Data
+import enum
+import torch
+from torch_geometric.utils import scatter
+
+# ===== Face type enum (from polyMesh/boundary geometry) =====
+class FaceType(enum.IntEnum):
+    NORMAL = 0   # interior face (not listed in polyMesh/boundary)
+    PATCH = 1    # generic boundary patch
+    EMPTY = 2
+    WALL = 3     # 没有单独的 wall face type，壁面都归入 patch
+    SYMMETRY = 4 # symmetry plane boundary
+    CYCLIC = 5   # cyclic boundary (changed from 99 to avoid gradient explosion in encoder)
+
+def calc_cell_centered_with_node_attr(
+    node_attr, cells_node, cells_index, reduce="mean", map=True
+):
+    if cells_node.shape != cells_index.shape:
+        raise ValueError("wrong cells_node/cells_index dim")
+
+    if len(cells_node.shape) > 1:
+        cells_node = cells_node.view(-1)
+
+    if len(cells_index.shape) > 1:
+        cells_index = cells_index.view(-1)
+
+    if map:
+        mapped_node_attr = node_attr[cells_node]
+    else:
+        mapped_node_attr = node_attr
+
+    cell_attr = scatter(src=mapped_node_attr, index=cells_index, dim=0, reduce=reduce)
+
+    return cell_attr
+
+
+def calc_node_centered_with_cell_attr(
+    cell_attr, cells_node, cells_index, reduce="mean", map=True
+):
+    if cells_node.shape != cells_index.shape:
+        raise ValueError(f"wrong cells_node/cells_index dim ")
+
+    if len(cells_node.shape) > 1:
+        cells_node = cells_node.view(-1)
+
+    if len(cells_index.shape) > 1:
+        cells_index = cells_index.view(-1)
+
+    if map:
+        maped_cell_attr = cell_attr[cells_index]
+    else:
+        maped_cell_attr = cell_attr
+
+    cell_attr = scatter(src=maped_cell_attr, index=cells_node, dim=0, reduce=reduce)
+
+    return cell_attr
+
+def shuffle_np(array):
+    array_t = array.copy()
+    np.random.shuffle(array_t)
+    return array_t
+
+
+def generate_boundary_zone(
+    dataset=None, surf_mask=None, rho=None, mu=None, dt=None
+):
+    face_node = dataset["face_node"].long()
+    if face_node.shape[0] > face_node.shape[1]:
+        face_node = face_node.mT
+
+    node_pos = dataset["node|node_pos"].to(torch.float32)
+
+    surf_face_index,surf_face_mask = filter_adj(
+        face_node.numpy(),
+        perm=torch.arange(node_pos.shape[0]).numpy(),
+        num_nodes=node_pos.shape[0]
+    )
+    surf_face_index = torch.from_numpy(surf_face_index)
+    surf_face_mask = torch.from_numpy(surf_face_mask)
+
+    boundary_zone = {"name": "OBSTACLE", "rho": rho, "mu": mu, "dt": dt}
+    boundary_zone["zonename"] = "OBSTICALE_BOUNDARY"
+
+    boundary_zone["node|surf_mask"] = surf_mask
+    boundary_zone["face|surf_face_mask"] = surf_face_mask
+
+    boundary_zone["face_node"] = surf_face_index
+    boundary_zone["node|node_pos"] = node_pos[surf_mask]
+
+    return boundary_zone
+
+
+def filter_adj(edge_index, perm, num_nodes):
+    # 初始化 mask 数组，默认值为 -1
+    mask = np.full((num_nodes,), -1, dtype=int)
+
+    # 根据 perm 更新 mask 的有效位置
+    mask[perm] = np.arange(perm.size)
+
+    # 提取 row 和 col
+    row, col = edge_index[0], edge_index[1]
+
+    # 更新 row 和 col 的索引，使用 mask 过滤无效节点
+    row, col = mask[row], mask[col]
+
+    # 创建一个布尔掩码来筛选有效边（row 和 col >= 0）
+    valid_mask = (row >= 0) & (col >= 0)
+    row, col = row[valid_mask], col[valid_mask]
+
+    # 将 row 和 col 堆叠为一个 (2, N) 形状的数组
+    return np.stack([row, col], axis=0), valid_mask
+
+# Scalar Eular solution
+def Scalar_Eular_solution(
+    node_pos, phi_0, phi_x, phi_y, phi_xy, alpha_x, alpha_y, alpha_xy, L, device="cpu"
+):
+    """
+    使用PyTorch计算给定网格点上的φ值及其一阶导数和二阶导数（Hessian矩阵）。
+
+    参数:
+    node_pos: 一个形状为(100, 2)的张量，表示100个网格点的x和y坐标。
+    phi_0, phi_x, phi_y, phi_xy: 公式中的系数。
+    alpha_x, alpha_y, alpha_xy: 公式中的alpha参数。
+    L: 域的长度。
+
+    返回:
+    phi_values: 一个张量，包含每个网格点上的φ值，形状为(N, 1)。
+    nabla_phi: 一个张量，包含每个网格点上的φ对x和y的一阶导数，形状为(N, 2)。
+    hessian_phi: 一个张量，包含每个网格点上的φ对x和y的二阶导数（Hessian矩阵），形状为(N, 2, 2)。
+    """
+    # 检查输入参数类型
+    if not isinstance(node_pos, torch.Tensor):
+        raise TypeError("node_pos must be a torch.Tensor")
+    if not node_pos.dtype == torch.float32:
+        raise TypeError("node_pos must be of type torch.float32")
+
+    # 确保 node_pos 需要计算梯度
+    node_pos = node_pos.clone().to(device)
+    node_pos.requires_grad_(True)
+
+    # 提取 x 和 y 坐标
+    x = node_pos[:, 0]
+    y = node_pos[:, 1]
+
+    # 计算 φ 值
+    phi_values = (
+        phi_0
+        + phi_x * torch.sin(alpha_x * np.pi * x / L)
+        + phi_y * torch.sin(alpha_y * np.pi * y / L)
+        + phi_xy * torch.cos(alpha_xy * np.pi * x * y / L**2)
+    )
+
+    # 计算 φ 对 x 和 y 的一阶导数
+    dphi_dx = torch.autograd.grad(
+        phi_values, x, grad_outputs=torch.ones_like(phi_values), create_graph=True
+    )[0]
+    dphi_dy = torch.autograd.grad(
+        phi_values, y, grad_outputs=torch.ones_like(phi_values), create_graph=True
+    )[0]
+
+    # 将一阶导数合并为 nabla_phi 张量
+    nabla_phi = torch.stack([dphi_dx, dphi_dy], dim=1)
+
+    # 计算 φ 对 x 的二阶导数（即 Hessian 矩阵的 [0, 0] 分量）
+    d2phi_dx2 = torch.autograd.grad(
+        dphi_dx, x, grad_outputs=torch.ones_like(dphi_dx), create_graph=True
+    )[0]
+
+    # 计算 φ 对 y 的二阶导数（即 Hessian 矩阵的 [1, 1] 分量）
+    d2phi_dy2 = torch.autograd.grad(
+        dphi_dy, y, grad_outputs=torch.ones_like(dphi_dy), create_graph=True
+    )[0]
+
+    # 计算 φ 对 x 和 y 的混合二阶导数（即 Hessian 矩阵的 [0, 1] 和 [1, 0] 分量）
+    d2phi_dxdy = torch.autograd.grad(
+        dphi_dx, y, grad_outputs=torch.ones_like(dphi_dx), create_graph=True
+    )[0]
+
+    d2phi_dydx = torch.autograd.grad(
+        dphi_dy, x, grad_outputs=torch.ones_like(dphi_dy), create_graph=True
+    )[0]
+
+    # 组装 Hessian 矩阵
+    hessian_phi = torch.stack(
+        [
+            torch.stack([d2phi_dx2, d2phi_dxdy], dim=1),
+            torch.stack([d2phi_dydx, d2phi_dy2], dim=1),
+        ],
+        dim=1,
+    )
+
+    # 返回 φ, nabla_phi 和 hessian_phi
+    return phi_values.view(-1, 1).detach(), nabla_phi.detach(), hessian_phi.detach()
+
+# Scalar Eular solution for 3D
+def Scalar_Eular_solution_3D(
+    node_pos, phi_0, phi_x, phi_y, phi_z, phi_xy, phi_xz, phi_yz,
+    alpha_x, alpha_y, alpha_z, alpha_xy, alpha_xz, alpha_yz, L, device="cpu"
+):
+    """
+    使用PyTorch计算给定3D网格点上的φ值及其一阶导数和二阶导数（Hessian矩阵）。
+
+    参数:
+    node_pos: 一个形状为(N, 3)的张量，表示N个网格点的x、y和z坐标。
+    phi_0, phi_x, phi_y, phi_z: 公式中的系数。
+    phi_xy, phi_xz, phi_yz: 交叉项系数。
+    alpha_x, alpha_y, alpha_z: 公式中的alpha参数。
+    alpha_xy, alpha_xz, alpha_yz: 交叉项alpha参数。
+    L: 域的长度。
+
+    返回:
+    phi_values: 一个张量，包含每个网格点上的φ值，形状为(N, 1)。
+    nabla_phi: 一个张量，包含每个网格点上的φ对x、y和z的一阶导数，形状为(N, 3)。
+    hessian_phi: 一个张量，包含每个网格点上的φ对x、y和z的二阶导数（Hessian矩阵），形状为(N, 3, 3)。
+    """
+    # 检查输入参数类型
+    if not isinstance(node_pos, torch.Tensor):
+        raise TypeError("node_pos must be a torch.Tensor")
+    if not node_pos.dtype == torch.float32:
+        raise TypeError("node_pos must be of type torch.float32")
+
+    if node_pos.shape[1] != 3:
+        raise ValueError("node_pos must have shape [N, 3] for 3D coordinates")
+
+    # 确保 node_pos 需要计算梯度
+    node_pos = node_pos.clone().to(device)
+    node_pos.requires_grad_(True)
+
+    # 提取 x、y 和 z 坐标
+    x = node_pos[:, 0]
+    y = node_pos[:, 1]
+    z = node_pos[:, 2]
+
+    # 计算 φ 值 (3D版本)
+    phi_values = (
+        phi_0
+        + phi_x * torch.sin(alpha_x * np.pi * x / L)
+        + phi_y * torch.sin(alpha_y * np.pi * y / L)
+        + phi_z * torch.sin(alpha_z * np.pi * z / L)
+        + phi_xy * torch.cos(alpha_xy * np.pi * x * y / L**2)
+        + phi_xz * torch.cos(alpha_xz * np.pi * x * z / L**2)
+        + phi_yz * torch.cos(alpha_yz * np.pi * y * z / L**2)
+    )
+
+    # 计算 φ 对 x、y 和 z 的一阶导数
+    dphi_dx = torch.autograd.grad(
+        phi_values, x, grad_outputs=torch.ones_like(phi_values), create_graph=True
+    )[0]
+    dphi_dy = torch.autograd.grad(
+        phi_values, y, grad_outputs=torch.ones_like(phi_values), create_graph=True
+    )[0]
+    dphi_dz = torch.autograd.grad(
+        phi_values, z, grad_outputs=torch.ones_like(phi_values), create_graph=True
+    )[0]
+
+    # 将一阶导数合并为 nabla_phi 张量
+    nabla_phi = torch.stack([dphi_dx, dphi_dy, dphi_dz], dim=1)
+
+    # 计算二阶导数 (3x3 Hessian矩阵)
+    # 对角元素
+    d2phi_dx2 = torch.autograd.grad(
+        dphi_dx, x, grad_outputs=torch.ones_like(dphi_dx), create_graph=True
+    )[0]
+    d2phi_dy2 = torch.autograd.grad(
+        dphi_dy, y, grad_outputs=torch.ones_like(dphi_dy), create_graph=True
+    )[0]
+    d2phi_dz2 = torch.autograd.grad(
+        dphi_dz, z, grad_outputs=torch.ones_like(dphi_dz), create_graph=True
+    )[0]
+
+    # 非对角元素 (交叉导数)
+    d2phi_dxdy = torch.autograd.grad(
+        dphi_dx, y, grad_outputs=torch.ones_like(dphi_dx), create_graph=True
+    )[0]
+    d2phi_dxdz = torch.autograd.grad(
+        dphi_dx, z, grad_outputs=torch.ones_like(dphi_dx), create_graph=True
+    )[0]
+    d2phi_dydx = torch.autograd.grad(
+        dphi_dy, x, grad_outputs=torch.ones_like(dphi_dy), create_graph=True
+    )[0]
+    d2phi_dydz = torch.autograd.grad(
+        dphi_dy, z, grad_outputs=torch.ones_like(dphi_dy), create_graph=True
+    )[0]
+    d2phi_dzdx = torch.autograd.grad(
+        dphi_dz, x, grad_outputs=torch.ones_like(dphi_dz), create_graph=True
+    )[0]
+    d2phi_dzdy = torch.autograd.grad(
+        dphi_dz, y, grad_outputs=torch.ones_like(dphi_dz), create_graph=True
+    )[0]
+
+    # 组装 3D Hessian 矩阵
+    hessian_phi = torch.stack(
+        [
+            torch.stack([d2phi_dx2, d2phi_dxdy, d2phi_dxdz], dim=1),  # 第一行
+            torch.stack([d2phi_dydx, d2phi_dy2, d2phi_dydz], dim=1),  # 第二行
+            torch.stack([d2phi_dzdx, d2phi_dzdy, d2phi_dz2], dim=1),  # 第三行
+        ],
+        dim=1,
+    )
+
+    # 返回 φ, nabla_phi 和 hessian_phi
+    return phi_values.view(-1, 1).detach(), nabla_phi.detach(), hessian_phi.detach()

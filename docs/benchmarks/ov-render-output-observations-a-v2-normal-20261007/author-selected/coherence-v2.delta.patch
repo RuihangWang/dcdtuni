@@ -1,0 +1,168 @@
+--- F1/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_output_observations.py
++++ F2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_output_observations.py
+@@ -10,6 +10,7 @@
+ import math
+ from pathlib import Path
+ import re
++import weakref
+ 
+ OBSERVATION_BYTES = 6144
+ MAX_SAFE = 9007199254740991
+@@ -107,9 +108,9 @@
+         app_type = modules['omni.appwindow'].IAppWindow
+         if not all(isinstance(t, type) for t in (viewport_type, window_type, app_type)):
+             return None
+-        result['supports_viewport'] = lambda api: isinstance(api, viewport_type)
+-        result['supports_window'] = lambda window: isinstance(window, window_type)
+-        result['supports_appwindow'] = lambda app: isinstance(app, app_type)
++        result['supports_viewport'] = lambda api: api.__class__ is viewport_type
++        result['supports_window'] = lambda window: window.__class__ is window_type
++        result['supports_appwindow'] = lambda app: app.__class__ is app_type
+         return result
+     except Exception:
+         return None
+@@ -124,6 +125,22 @@
+             'view': _matrix(info['view']), 'projection': _matrix(info['projection'])}
+ 
+ 
++def _same_public_api(a, b):
++    # Python standard weakref identity, never generic equality or repr/private
++    # unwrapping. The public utility normally returns the stored widget proxy.
++    if a is b:
++        return True
++    for owner, reference in ((a, b), (b, a)):
++        if type(owner) in weakref.ProxyTypes:
++            continue
++        try:
++            if any(ref is reference for ref in weakref.getweakrefs(owner)):
++                return True
++        except TypeError:
++            pass
++    return False
++
++
+ def _owner(api, window, stage, expected_camera_path):
+     if api is None or window is None or api.stage is not stage:
+         raise ValueError('owner-mismatch')
+@@ -133,7 +150,9 @@
+     widget = window.viewport_widget
+     paired = widget.viewport_api
+     # Public wrappers expose weakref.proxy; compare their public native id.
+-    if paired.stage is not stage or paired.id != api.id or paired.usd_context_name != api.usd_context_name or str(paired.camera_path) != camera:
++    if (not _same_public_api(paired, api) or paired.stage is not stage or paired.id != api.id
++            or paired.usd_context_name != api.usd_context_name or str(paired.camera_path) != camera
++            or paired.render_product_path != api.render_product_path or paired.time != api.time):
+         raise ValueError('owner-mismatch')
+     owner = {'viewportId': _string(api.id, 128), 'usdContextName': _string(api.usd_context_name, 128, True),
+              'cameraPath': camera, 'renderProductPath': _string(api.render_product_path, 512)}
+@@ -179,7 +198,8 @@
+         native_time = api.time
+         initial_api, initial_window = paired_viewport()
+         initial_owner, _ = _owner(initial_api, initial_window, stage, expected_camera_path)
+-        if initial_owner != owner or initial_window is not viewport_window:
++        if (initial_owner != owner or initial_window is not viewport_window
++                or not _same_public_api(initial_api, api)):
+             return _refusal('owner-mismatch')
+         app = app_window()
+         if app is not None and renderer_getters['supports_appwindow'](app) is not True:
+@@ -224,20 +244,28 @@
+             _observed(lambda: _app_observation(app)))
+         final_framebuffer = (_unavailable('headless-or-unattached') if app is None else
+             _observed(lambda: _framebuffer(app, renderer_getters)))
+-        # The context/view fence is after every final getter, too.
++        # Capture every last public identity getter before the closing native
++        # metadata/source fence. The final conditional is a pure comparison;
++        # no widget/window/API getter can run after that fence.
+         final_owner, final_widget = _owner(api, viewport_window, stage, expected_camera_path)
+-        final_frame = _observed(lambda: _frame(api))
++        final_widget_api_ref = final_widget.viewport_api
++        final_window_frame_ref = viewport_window.frame
+         final_app = app_window()
+         paired_api, paired_window = paired_viewport()
+         paired_owner, _ = _owner(paired_api, paired_window, stage, expected_camera_path)
++        same_paired_api = _same_public_api(paired_api, api)
++        # Complete native values follow all potentially late widget/window/
++        # active-owner getters. Read-only owned context/view callbacks close
++        # after metadata, too, to catch side effects in the final API getter.
++        final_frame = _observed(lambda: _frame(api))
+         final_time = api.time
+         final_view = read_complete_view()
+         final_stage, final_context = _context(read_context())
+         if (final_stage is not stage or final_context != context or final_view != view
+                 or final_owner != owner or paired_owner != owner or paired_window is not viewport_window
+-                or final_time != native_time or final_widget is not widget_ref
+-                or final_widget.viewport_api is not widget_api_ref
+-                or viewport_window.frame is not frame_ref or final_app is not app
++                or not same_paired_api or final_time != native_time or final_widget is not widget_ref
++                or final_widget_api_ref is not widget_api_ref
++                or final_window_frame_ref is not frame_ref or final_app is not app
+                 or final_frame != delivered or final_canvas != canvas or final_rect != rect
+                 or final_association != association or final_application != application
+                 or final_framebuffer != framebuffer):
+--- F1/src/frontend/omniverse/cfd_demo/tests/test_render_output_observations.py
++++ F2/src/frontend/omniverse/cfd_demo/tests/test_render_output_observations.py
+@@ -49,18 +49,53 @@
+  def test_same_id_proxy_replacement_not_self_proof(self):
+   v=self.fixture();old=v[0];replacement=types.SimpleNamespace(**old.__dict__)
+   v[3]['get_framebuffer_width']=lambda _:setattr(v[1].viewport_widget,'viewport_api',replacement) or 1600
++  self.assertEqual(v[6]()['reason'],'owner-mismatch')
++ def test_final_metadata_getter_cannot_late_change_context(self):
++  for kind in ['context','time']:
++   v=self.fixture();old=v[0]
++   class API:
++    calls=0
++    def __getattr__(self,key):
++     if key=='frame_info':
++      self.calls+=1
++      if self.calls==2:
++       if kind=='context':v[4]['sceneRevision']=2
++       else:old.time=1
++     return getattr(old,key)
++   api=API();v[1].viewport_widget.viewport_api=api
++   self.assertEqual(o.sample_render_output_observations(api,v[1],lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(api,v[1]))['reason'],'changed-during-observation')
++ def test_initial_same_labels_different_referent(self):
++  v=self.fixture();replacement=types.SimpleNamespace(**v[0].__dict__)
++  v[1].viewport_widget.viewport_api=replacement
++  self.assertEqual(v[6]()['reason'],'owner-mismatch')
++ def test_late_stored_proxy_getter_before_final_frame(self):
++  v=self.fixture();api=v[0]
++  class Widget:
++   calls=0;name='';visible=True
++   @property
++   def viewport_api(self):
++    self.calls+=1
++    if self.calls==8:api.frame_info['frame_number']=18
++    return api
++  v[1].viewport_widget=Widget()
+   self.assertEqual(v[6]()['reason'],'changed-during-observation')
+- def test_final_metadata_getter_cannot_late_change_context(self):
+-  v=self.fixture();old=v[0]
+-  class API:
+-   calls=0
+-   def __getattr__(self,key):
+-    if key=='frame_info':
+-     self.calls+=1
+-     if self.calls==2:v[4]['sceneRevision']=2
+-    return getattr(old,key)
+-  api=API();v[1].viewport_widget.viewport_api=api
+-  self.assertEqual(o.sample_render_output_observations(api,v[1],lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(api,v[1]))['reason'],'changed-during-observation')
++ def test_late_window_frame_getter_before_final_frame(self):
++  v=self.fixture();old=v[1]
++  class Window:
++   calls=0;viewport_widget=old.viewport_widget
++   @property
++   def frame(self):
++    self.calls+=1
++    if self.calls==2:v[0].frame_info['frame_number']=18
++    return old.frame
++  w=Window()
++  self.assertEqual(o.sample_render_output_observations(v[0],w,lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(v[0],w))['reason'],'changed-during-observation')
++ def test_standard_weakref_identity_only(self):
++  import weakref
++  class A:pass
++  a=A();b=A();pa=weakref.proxy(a);pb=weakref.proxy(b)
++  self.assertTrue(o._same_public_api(a,pa));self.assertTrue(o._same_public_api(pa,a));self.assertTrue(o._same_public_api(pa,pa))
++  self.assertFalse(o._same_public_api(a,b));self.assertFalse(o._same_public_api(pa,pb))
+  def test_default_gate_unknown(self):
+   v=self.fixture();self.assertEqual(o.sample_render_output_observations(v[0],v[1],lambda:v[2],None,'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(v[0],v[1]))['reason'],'unsupported-runtime')
+  def test_unreviewed_class_guard_no_coercion(self):

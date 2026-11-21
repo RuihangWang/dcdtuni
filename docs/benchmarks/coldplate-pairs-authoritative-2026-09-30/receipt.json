@@ -1,0 +1,95 @@
+{
+ "format": "dcdtuni-stage-receipt/v1",
+ "stage": "cold plates: liquidCooling.cpCuPairs is the one list; pairs carry a stable uid",
+ "date": "2026-09-30",
+ "verdict": "pass (unit + manifest identity); browser gate not run",
+ "branch": "fix/coldplate-pairs-authoritative",
+ "base": "da9a4d83",
+ "code": "ee4a8fc3",
+ "machine": "mac, isolated worktree .codex-tmp/wt-coldplate (40901 and 8360 untouched)",
+ "defect": "membership/order of compiled cold_plate edges came from constructions.coldPlates (written once by the v3->v4 migration); a pair added or deleted in the editor on a migrated server was ignored/kept; resolveTreeClick read the same copy and returned null for coldPlates: {}",
+ "design": {
+  "authoritative": "liquidCooling.cpCuPairs (membership, order, values)",
+  "identity": "pair.uid; compiler derives it on its snapshot for any document; inspector editPairs writes it with the first pair edit on a server (skipped when the scene is frozen off t = 0)",
+  "coldPlates_reads_after": "cpCuPairIdentity.backfillServerPairUids only: uid for a pair that has none; never membership or values",
+  "load": "projectStore.ts byte-identical to base: opening a project writes nothing",
+  "why_not_on_load": "project content hash binds air results and mesh previews: windResultProducer.ts:76-78,:133-135 throw on mismatch, resultLayerRevision.ts:58-60 clears stale layers; load-time stamping would orphan existing results of Liquid, LiquidSingle and three Shinaide files"
+ },
+ "tests": {
+  "vitest_baseline": {
+   "files": 307,
+   "tests": 3118,
+   "failed": 0
+  },
+  "vitest_after": {
+   "files_passed": 308,
+   "files_skipped": 1,
+   "tests_passed": 3128,
+   "tests_skipped": 1,
+   "failed": 0,
+   "skipped_is": "coldPlateManifestDump (env-gated)"
+  },
+  "tsc_b": "clean",
+  "tsc_noEmit": "clean",
+  "red_then_green": [
+   "coldPlatePairs: drops the compiled cold-plate edge of a pair deleted in the editor (Liquid m_1/e_1)",
+   "coldPlatePairs: compiles a pair added in the editor into a new cold-plate edge (m_1_e_1_cp_CP-CU_5)",
+   "coldPlatePairs: opens unchanged, and stamps a server's pairs with their plate uids at its first pair edit",
+   "coldPlatePairs: keeps a plate edge when its pair is renamed (red as m_1_e_1_cp_GPU-0 with no stamping)",
+   "coldPlatePairs: editor-created server keeps the other plates' edges when an earlier pair is deleted",
+   "coldPlatePairs: a new pair gets a uid no other pair on the server uses",
+   "coldPlatePairs: backfills a distinct uid for each pair, matching a plate at most once",
+   "coldPlatePairs: leaves a pair that already has a uid alone",
+   "liquidPostprocess: reads the pairs, not the migration-only coldPlates copy",
+   "liquidColdPlates: addPair expectation now includes uid"
+  ],
+  "frozen_guard": "coldPlatePairs 'writes no uid with a keyframe edit off t = 0' and projectStoreTransient cold-plate keyframe test both fail with reason 'static' when the editPairs stamping has no sceneFrozen guard; pass with it",
+  "fixture_moved": "dynamicLiquidGraph 'keeps cold plate identity after another plate is inserted before it': insertion moved from coldPlates to cpCuPairs, assertions unchanged"
+ },
+ "manifest_identity": {
+  "harness": "src/frontend/react/test/coldPlateManifestDump.test.ts + diff_manifests.py",
+  "cases": 11,
+  "paths": [
+   "editor",
+   "raw",
+   "research"
+  ],
+  "compared": 33,
+  "identical": 33,
+  "differences": {},
+  "note": "includes source_project.sha256; research path compiles only the 5 files with a saved DAE, the other 6 throw the same 'no saved DAE V3 experiment' error before and after"
+ },
+ "behaviour_changes": {
+  "out_of_repo_ids": "pairs without uid on a server with empty coldPlates: React dynamic compile edge id changes from <rack>_<srv>_cp<i> to <rack>_<srv>_cp_<pair name>; no repo case has such a server; no case persists a cold-plate edge id",
+  "display": "NV_PEK02 postprocess title uses the pair name (MOCK equivalent 01) instead of the plate key (nv_heat_01)",
+  "file_content": "first pair edit on a server adds uid to each of its pairs; saved (Liquid rename: uid CP-CU_1, name GPU-0)"
+ },
+ "checked_not_changed": {
+  "timeline_tracks_on_delete": "Liquid: e_1/3=999 becomes e_1/2=999 after deleting pair 0 -> follows CP-CU_4",
+  "legacy_run_liquid_solve": "compileLiquidGraph -> liquid_graphgen keeps positional ids, consistent with cpCatalogFromProject",
+  "aidesign_projcomp": "scales/clears both lists together",
+  "duplicate_uid": "two pairs with one uid: liquid_graphgen duplicate-edge check refuses the compile (fail closed); React surfaces only the generic 'Liquid topology cannot be compiled' message — known limitation"
+ },
+ "not_done": [
+  "coldPlates save-time mirror (would have to be built after stripTrackedFields)",
+  "40901 browser gate",
+  "push"
+ ],
+ "merge_verification": {
+  "main_before": "462d0d01",
+  "merge": "225109f2",
+  "vitest": {
+   "files_passed": 312,
+   "files_skipped": 1,
+   "tests_passed": 3141,
+   "tests_skipped": 1,
+   "failed": 0
+  },
+  "tsc_b": "clean",
+  "manifest_identity": {
+   "baseline": "462d0d01",
+   "compared": 33,
+   "identical": 33
+  }
+ }
+}

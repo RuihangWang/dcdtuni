@@ -1,0 +1,9 @@
+# Written coupled geometry after experimental cone writer correction
+
+This is a read-only diagnostic on actual job 421ad7b3, not accepted product mesh evidence. Full checkMesh still rejects this 5,892,014-cell mesh with four failed checks: 3353 low determinants, 984 low face weights, 68 low volume ratios, and 2 skew faces. Mesh/API wall time was 86.76363671617582 s.
+
+The independent tool follows reciprocal actual boundary patch roles before comparing each relative face polygon and its first vertex. All 24 coincident cyclic pairs (25,186 faces per side) and 7 processor pairs (123,157 faces per side) have exact coordinate equality with same-start reversed cycles, including point zero. Maximum expected paired-point distance is exactly zero. There are no actual processorCyclic patches in this fixture; processorCyclic logic has only a targeted role test here.
+
+Compared with the preceding rejected signed-moment mesh, 28 cyclic point-zero mismatches and all 38 written open tetrahedra are absent from the new actual checker log. This comparison uses separate frozen source/input/mesh hashes; it does not assume identical inputs. Coupled geometric correctness alone does not override the four remaining quality failures.
+
+The tool supports coincidentFullMatch cyclic coupling and rejects transformed cyclic, AMI and mapped families outside its stated scope. Its six pytest tests cover whole reversal, one-ULP motion, nonfinite polygons, actual rank roles, ambiguous peers, reciprocal processorCyclic references and transformed rejection. Original native raw stdout, SSE, tested source patch, source/ELF identity, boundary files and failure sets are preserved beside this receipt. Large experimental point/face files are hash-bound at the original mesh path and are not copied into this diagnostic evidence directory.

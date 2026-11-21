@@ -1,0 +1,335 @@
+- generic: ▼
+- generic: 📁 工程与视图
+- button "📂 加载工程"
+- button "💾 保存工程"
+- button "🏠 房间 2D 平面设计"
+- button "🎮 进入第一人称"
+- button "💧 液冷模拟"
+- button "🌬️ 风冷模拟"
+- button "🗂️ 几何与属性":
+  - generic: 🗂️
+  - generic: 几何
+- button "⚙️ 网格":
+  - generic: ⚙️
+  - generic: 网格
+- button "🔬 求解":
+  - generic: 🔬
+  - generic: 求解
+- button "📊 后处理":
+  - generic: 📊
+  - generic: 后处理
+- button "⚙ System":
+  - generic: ⚙
+  - generic: 系统
+- generic: 🗂️ 几何拓扑特征树
+- generic "特征树排序方式：名称升序 → 名称降序 → 手动（拖拽）顺序。名称排序按自然序，Rack_C2 排在 Rack_C10 之前。": 名称 A→Z
+- generic: 多模型工程 7
+- generic "折叠/展开": ▾
+- generic: 📁
+- generic: 🗂️ 工程根节点 · Steady lifecycle MPI2 channel
+- generic: "7"
+- list:
+  - generic: ▾
+  - generic: 📦
+  - generic: 白模 (BOX)
+  - generic: "1"
+  - list:
+    - generic "m_heat":
+      - generic: ▾
+      - checkbox "开启后显示且可选中，关闭后隐藏且不可选中" [checked]
+      - generic: 📦
+      - generic: Thermal_block
+      - button "⧉"
+      - button "✕"
+    - list:
+      - generic: 📄 Front
+      - generic: "0"
+      - generic: 📄 Back
+      - generic: "0"
+      - generic: 📄 Left
+      - generic: "0"
+      - generic: 📄 Right
+      - generic: "0"
+      - generic: 📄 Top
+      - generic: "0"
+      - generic: 📄 Bottom
+      - generic: "0"
+  - generic: ▾
+  - generic: ❄️
+  - generic: 空调 (ACU)
+  - generic: "2"
+  - list:
+    - generic "m_return":
+      - generic: ▾
+      - checkbox "开启后显示且可选中，关闭后隐藏且不可选中" [checked]
+      - generic: ❄️
+      - generic: Channel_return
+      - button "⧉"
+      - button "✕"
+    - list:
+      - generic: ▾
+      - generic: 📄 Front
+      - generic: "1"
+      - list:
+        - generic: Return
+      - generic: 📄 Back
+      - generic: "0"
+      - generic: 📄 Left
+      - generic: "0"
+      - generic: 📄 Right
+      - generic: "0"
+      - generic: 📄 Top
+      - generic: "0"
+      - generic: 📄 Bottom
+      - generic: "0"
+    - generic "m_20":
+      - generic: ▾
+      - checkbox "开启后显示且可选中，关闭后隐藏且不可选中" [checked]
+      - generic: ❄️
+      - generic: Channel_supply
+      - button "⧉"
+      - button "✕"
+    - list:
+      - generic: 📄 Front
+      - generic: "0"
+      - generic: ▾
+      - generic: 📄 Back
+      - generic: "1"
+      - list:
+        - generic: Supply
+      - generic: 📄 Left
+      - generic: "0"
+      - generic: 📄 Right
+      - generic: "0"
+  - generic: ▾
+  - generic: 🧱
+  - generic: 墙壁 (WALL)
+  - generic: "2"
+  - list:
+  - generic: ▾
+  - generic: 🟫
+  - generic: 地板 (FLOOR)
+  - generic: "2"
+  - list:
+- button "📥 导出 CFD 流形拓扑 STL"
+- button "🔬 导出 CFD 工程包 (JSON+STL)"
+- button "▼ 折叠工具栏" [expanded]: ⌃
+- radiogroup "风冷工况：稳态或瞬态":
+  - generic: 风冷
+  - radio "稳态":
+    - text: 稳态
+  - radio "瞬态" [checked]:
+    - text: 瞬态
+  - generic: 液冷·稳态
+- text: 渲染器
+- combobox "渲染器":
+  - option "Three.js"
+  - option "Omniverse" [selected]
+- button "导出渲染场景"
+- generic "OV 连接"
+- button "建模工具":
+  - generic: 建模工具
+  - generic: ⌄
+- button "视图工具":
+  - generic: 视图工具
+  - generic: ⌄
+- button "偏好设置":
+  - generic: 偏好设置
+  - generic: ⌄
+- combobox "瞬态起点：从稳态收敛场出发，或从均匀初场出发":
+  - option "起点：稳态收敛场" [selected]
+  - option "起点：均匀初场"
+- slider "播放头（秒）"
+- generic "播放头（秒）":
+  - text: t
+  - spinbutton "播放头（秒）": "0"
+  - text: s
+- generic "时间设置"
+- button "轨道"
+- generic: "FPS: 22"
+- text: "| meshes: 22"
+- generic "Omniverse 后处理（仅显示）" [active]
+- group "液冷结果（Kit 着色）":
+  - generic: 液冷结果（Kit 着色）
+  - paragraph: 尚无液冷结果；请先运行可微 DAE 求解。
+  - checkbox "在 OV 中按结果着色" [disabled]
+  - text: 在 OV 中按结果着色
+  - checkbox "固定色标（全时域）" [disabled]
+  - text: 固定色标（全时域）
+  - paragraph: 管道、机柜 manifold、三通、阀门与 CDU 共用水路色标；服务器显示其最热芯片。结果时间滑条驱动帧。
+- group "结果数据集":
+  - generic: 结果数据集
+  - text: 运行
+  - combobox "运行":
+    - option "2026-10-05-23-50-05_RamSnapshot_Archive_CUA" [selected]
+    - option "2026-10-05-23-48-35_RamSnapshot_Archive_CUA"
+  - text: 时刻 (s)
+  - combobox "时刻 (s)":
+    - option "读取各分区均已写出的最新完整结果" [selected]
+    - option "0.005"
+    - option "0.01"
+    - option "0.015"
+    - option "0.02"
+  - button "载入 OV"
+  - paragraph: 服务器转换该运行（foamToEnsight）并签发显示授权；Kit 只读取授权中指定的文件。
+- group "体渲染":
+  - generic: 体渲染
+  - radio "关" [checked] [disabled]
+  - text: 关
+  - radio "温度" [disabled]
+  - text: 温度
+  - radio "速度 |U|" [disabled]
+  - text: 速度 |U|
+- group "表面切片":
+  - generic: 表面切片
+  - checkbox "显示切片"
+  - text: 显示切片
+  - text: 切面法向
+  - combobox "切面法向":
+    - option "+Y" [selected]
+    - option "−Y"
+    - option "+X"
+    - option "+Z"
+  - text: X
+  - spinbutton "切面原点 X": "0.5"
+  - text: "Y"
+  - spinbutton "切面原点 Y": "0.5"
+  - text: Z
+  - spinbutton "切面原点 Z": "0.5"
+  - text: 圆盘半径（m）
+  - spinbutton "圆盘半径（m）": "0.6"
+  - text: 着色场
+  - combobox "着色场":
+    - option "T" [selected]
+    - option "|U|"
+  - button "回读视口拖拽"
+  - paragraph: 在 OV 视口拖拽黄色预览圈后点击回读：Kit 采用拖拽位置并在该处重新切割。拖拽优先于面板旧数值。
+- group "流线":
+  - generic: 流线
+  - checkbox "追踪流线" [disabled]
+  - text: 追踪流线
+  - text: 着色场
+  - combobox "流线着色场" [disabled]:
+    - option "T" [disabled] [selected]
+    - option "|U|" [disabled]
+  - text: X
+  - spinbutton "种子中心 X" [disabled]: "0"
+  - text: "Y"
+  - spinbutton "种子中心 Y" [disabled]: "1"
+  - text: Z
+  - spinbutton "种子中心 Z" [disabled]: "0"
+  - text: 种子球半径（m）
+  - spinbutton "种子球半径（m）" [disabled]: "1"
+  - text: 种子数
+  - spinbutton "种子数" [disabled]: "27"
+  - button "显示/移动种子球" [disabled]
+  - button "按视口拖拽重新积分" [disabled]
+  - paragraph: 在 OV 视口拖拽种子球后点击重新积分。流线命令没有 Kit 确认回执，请以视口画面为准。
+- generic "拖动旋转视角，单击某个面切换到该法向视角"
+- generic: ▼
+- generic: ➕ 创建几何
+- button "➕ 新建方形白模"
+- button "🗄️ 新建 RACK 白模"
+- button "❄️ 新建空调 (ACU)"
+- button "🧱 新建墙壁 (Wall)"
+- button "🧱 新建隔断墙 (Partition Wall)"
+- button "📄 新建挡板 (Baffle)"
+- button "🟫 新建地板 (Floor)"
+- button "🧵 新建管道 (PIPE)"
+- button "🛸 导入水密曲面 STL 进行水转印"
+- generic: 🗂️ 工程设定
+- generic: 📏 输入单位
+- generic: 长度单位
+- combobox "长度单位":
+  - option "mm" [selected]
+  - option "cm"
+  - option "m"
+- generic: 内部几何统一以米存储，当前输入和显示单位为 mm。
+- generic: 模型描述
+- textbox "为该模型添加一段描述…": Synthetic zero-load lifecycle regression; native CFD execution, not a calibrated cooling prediction
+- generic: 传感器数据（实测）
+- generic: 真实场景传感器读数，仅作记录，不参与求解。
+- button "+ 添加传感器"
+- generic: 📐 工程边界约束 (mm)
+- generic: 勾选后，所有模型的边界（位置+尺寸）不得超越对应轴的限制值。未勾选的方向不做约束。
+- generic: X
+- checkbox "Min"
+- text: Min
+- spinbutton "X Min (mm)" [disabled]: "0"
+- checkbox "Max"
+- text: Max
+- spinbutton "X Max (mm)" [disabled]: "1000"
+- generic: "Y"
+- checkbox "Min"
+- text: Min
+- spinbutton "Y Min (mm)" [disabled]: "0"
+- checkbox "Max"
+- text: Max
+- spinbutton "Y Max (mm)" [disabled]: "1000"
+- generic: Z
+- checkbox "Min"
+- text: Min
+- spinbutton "Z Min (mm)" [disabled]: "0"
+- checkbox "Max"
+- text: Max
+- spinbutton "Z Max (mm)" [disabled]: "1000"
+- generic: 📐 房间几何 (m)
+- generic: 宽度 X
+- generic: "1.000"
+- generic: 进深 Z
+- generic: "1.000"
+- generic: 层高 Y
+- generic: "1.000"
+- generic: 轮廓顶点
+- generic: "4"
+- generic: 房间轮廓是多边形，宽度与进深取其包围盒，非矩形房间同样成立。
+- generic: 🌡️ 室温 (Reference Temperature)
+- generic: 设定环境参考温度，影响 TRef 和热膨胀系数 beta (= 1/TRef)。
+- generic: 室温
+- combobox "室温":
+  - option "18°C (291.15 K)"
+  - option "20°C (293.15 K)"
+  - option "22°C (295.15 K)" [selected]
+  - option "24°C (297.15 K)"
+  - option "26°C (299.15 K)"
+  - option "28°C (301.15 K)"
+  - option "30°C (303.15 K)"
+  - option "自定义..."
+- generic: "当前: 22°C = 295.15 K | beta = 3.388e-3"
+- generic: 📋 工程名称
+- generic: 项目名
+- textbox "项目名":
+  - /placeholder: 输入工程名（用于保存和导出）
+  - text: Steady lifecycle MPI2
+- generic: 保存工程（.cfdproj）和导出 CFD 工程包时使用此名称。
+- generic: 🔧 DCTwin 集成设置
+- generic: Case 路径
+- generic "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/RamSnapshot_Archive_CUA"
+- button "✅ 已就绪 — 点击更换目录"
+- generic: 工程总览
+- generic: 当前模型数
+- generic: "7"
+- generic: Schema 版本
+- generic: "5"
+- generic: 在特征树中选中一个模型可查看并编辑它的属性。
+- button "◀"
+- button "▶"
+- generic: 拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- generic: 拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- separator "调整左侧栏宽度"
+- separator "调整右侧栏宽度"
+- separator "调整工具栏高度"
+- separator "调整日志栏高度"
+- generic: Terminal无可撤销操作
+- button "↶ 撤销" [disabled]
+- button "↷ 重做" [disabled]
+- button "Terminal"
+- button "Log"
+- button "Toggle"
+- button "📸 截图"
+- generic: "[10:50:58]"
+- generic: "[file:loadProject]"
+- generic: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/RamSnapshot_Archive_CUA/RamSnapshot_Archive.cfdproj
+- generic: "[10:50:59]"
+- generic: "[view:refreshServerInfo]"
+- generic: DCTwin 就绪

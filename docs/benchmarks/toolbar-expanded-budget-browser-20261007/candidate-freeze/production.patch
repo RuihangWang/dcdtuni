@@ -1,0 +1,56 @@
+--- a/src/frontend/react/src/components/PanelResizers.tsx
++++ b/src/frontend/react/src/components/PanelResizers.tsx
+@@ -217,6 +217,7 @@
+     let headerNatural = 0
+     let contentGap = 0
+     let bodyFloor = 32
++    let expandedTools = false
+ 
+     // Measure without the pinned height so expanding a tool group is visible
+     // to the fit even while overflow is scrolled.
+@@ -252,6 +253,7 @@
+       contentGap = content ? Number.parseFloat(getComputedStyle(content).rowGap) || 0 : 0
+       const body = document.getElementById('toolbar-body')
+       const toolsVisible = !body || !body.hidden
++      expandedTools = !!body && !body.hidden && !toolbar.classList.contains('collapsed')
+       bodyFloor = toolsVisible ? 32 : 0
+       headerGap = headerNatural && toolsVisible ? contentGap : 0
+       footerGap = timelineNatural && (toolsVisible || headerNatural) ? contentGap : 0
+@@ -283,7 +285,7 @@
+     const fit = (manual: number | null) => {
+       if (natural === null) natural = measureNatural()
+       toolbarNatural.current = natural
+-      const target = toolbarTargetHeight(natural, manual, window.innerHeight, toolbarReserved.current)
++      const target = toolbarTargetHeight(natural, manual, window.innerHeight, toolbarReserved.current, expandedTools)
+       // When even the wrapped footer exceeds the window cap, keep both regions
+       // bounded and keyboard-scrollable rather than letting them cover the view.
+       const naturalGaps = headerGap + footerGap
+--- a/src/frontend/react/src/ui/layoutMetrics.ts
++++ b/src/frontend/react/src/ui/layoutMetrics.ts
+@@ -112,7 +112,9 @@
+  * The toolbar wraps, so as the window narrows its natural height grows without
+  * bound — measured at 1245px inside a 480px-tall window, which leaves no
+  * viewport at all. Automatic wrapping is capped at28%, and deliberate drags
+- * at half the window. Reserve the footer and an operable tool body within
++ * at half the window. An explicitly expanded tool group uses that same
++ * half-window cap so its controls can be read; closed groups retain 28%.
++ * Reserve the footer and an operable tool body within
+  * that cap; unusually tall footers scroll internally at their natural text size.
+  */
+ export function toolbarTargetHeight(
+@@ -120,10 +122,12 @@
+   manualHeight: number | null,
+   windowHeight: number,
+   reservedHeight = MIN_SIZE.toolbar,
++  expandedTools = false,
+ ): number {
+-  // A dragged height is the user's call and gets the generous cap; an
+-  // un-dragged toolbar that merely wrapped gets the tighter one.
+-  const fraction = manualHeight === null ? TOOLBAR_AUTO_HEIGHT_FRACTION : MAX_HEIGHT_FRACTION
++  // Opening tools is an explicit request for their content, like a height drag.
++  // Closed groups that merely wrap keep the tighter automatic cap.
++  const fraction = manualHeight === null && !expandedTools
++    ? TOOLBAR_AUTO_HEIGHT_FRACTION : MAX_HEIGHT_FRACTION
+   const cap = Math.max(MIN_SIZE.toolbar, windowHeight * fraction)
+   const wanted = manualHeight === null ? naturalHeight : Math.min(manualHeight, naturalHeight)
+   return Math.max(1, Math.min(Math.max(wanted, reservedHeight), naturalHeight, cap))

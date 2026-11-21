@@ -1,0 +1,182 @@
+--- src/server/ov_result_dataset.py
++++ src/server/ov_result_dataset.py
+@@ -1,7 +1,7 @@
+ """Prepare an OpenFOAM run for the OV display bridge and sign a display grant.
+ 
+ The browser picks a run by the same ``runId`` ``/api/pp/runs`` lists; nothing
+-it sends becomes a path. The server converts the run's latest time with
++it sends becomes a path. The server converts the run's latest time (or an explicit complete frame) with
+ ``foamToEnsight`` (Kit's bridge turns the EnSight ``.case`` into its own .vtu)
+ and signs a short-lived grant naming the converted file. Kit verifies the grant
+ with the key both processes received from ``start_server.sh``.
+@@ -28,6 +28,7 @@
+ import hashlib
+ import importlib.util
+ import json
++import math
+ import os
+ from pathlib import Path
+ import re
+@@ -123,11 +124,80 @@
+     return name, [proc / name for proc in procs]
+ 
+ 
++_LATEST = object()
++
++def validate_frame_time(value):
++    """Explicit frames are positive finite JSON numbers, never coercions."""
++    try:
++        valid = not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
++    except OverflowError:
++        valid = False
++    if not valid:
++        raise DatasetError(400, 'frame_time_invalid', 'time must be a positive finite numeric result time')
++    return value
++
++def _matching_time(parent: Path, value):
++    matches = []
++    for child in parent.iterdir():
++        if not child.is_dir():
++            continue
++        try:
++            numeric = float(child.name)
++        except ValueError:
++            continue
++        if math.isfinite(numeric) and numeric == value:
++            matches.append(child)
++    if len(matches) > 1:
++        raise DatasetError(409, 'frame_time_ambiguous', 'Multiple directory spellings name the selected time')
++    if not matches or not any((matches[0] / field).is_file() or (matches[0] / (field + '.gz')).is_file()
++                              for field in ('T', 'U', 'p_rgh', 'p')):
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time has no complete result fields')
++    return matches[0]
++
++def _selected_source(run: Path, time_value):
++    # Share normal postprocessing discovery: complete root or every contiguous
++    # complete processor mesh. Readiness is not a quality/provenance certificate.
++    from backend.aircooling.runner.mesh_layout import available_result_times, mesh_directories, processor_mesh_dirs
++    value = validate_frame_time(time_value)
++    if value not in available_result_times(run):
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time is not complete in this run')
++    root = run / 'constant/polyMesh'
++    meshes = mesh_directories(run)
++    if meshes == [root]:
++        try:
++            td = _matching_time(run, value)
++            return td.name, td, None
++        except DatasetError as exc:
++            if exc.code != 'frame_time_unavailable':
++                raise
++    meshes = processor_mesh_dirs(run)
++    if not meshes:
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time has no complete mesh')
++    dirs = [_matching_time(mesh.parent.parent, value) for mesh in meshes]
++    return dirs[0].name, dirs[0], dirs
++
++def _resolve_source(run: Path, time_value):
++    if time_value is not _LATEST:
++        return _selected_source(run, time_value)
++    try:
++        name, td = latest_field_time(run)
++        return name, td, None
++    except DatasetError as exc:
++        if exc.code != 'run_decomposed':
++            raise
++        name, dirs = latest_decomposed_time(run)
++        return name, dirs[0], dirs
++
++def _resolved_signature(run: Path, selection):
++    name, td, dirs = selection
++    return _source_signature(run, name, td) if dirs is None else _decomposed_signature(run, name, dirs)
++
++
+ def _stat_material(prefix: str, files):
+     out = []
+     for p in files:
+         st = p.stat()
+-        out.append([f'{prefix}/{p.name}', st.st_size, st.st_mtime_ns])
++        out.append([f'{prefix}/{p.name}', st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino])
+     return out
+ 
+ 
+@@ -136,17 +206,21 @@
+     mesh = run / 'constant' / 'polyMesh'
+     material += _stat_material('mesh', [p for p in sorted(mesh.iterdir()) if p.is_file()] if mesh.is_dir() else [])
+     material += _stat_material('field', _field_files(time_dir))
++    material += _stat_material('uniform', [time_dir / 'uniform/time'] if (time_dir / 'uniform/time').is_file() else [])
++    material += _stat_material('system', [p for p in sorted((run / 'system').iterdir()) if p.is_file()] if (run / 'system').is_dir() else [])
+     return hashlib.sha256(json.dumps(material, separators=(',', ':')).encode()).hexdigest()
+ 
+ 
+ def _decomposed_signature(run: Path, time_name: str, time_dirs) -> str:
+-    material = [time_name, 'decomposed', len(time_dirs)]
++    material = [time_name, 'decomposed', [str(td.relative_to(run)) for td in time_dirs]]
+     for td in time_dirs:
+         proc = td.parent
+         mesh = proc / 'constant' / 'polyMesh'
+         material += _stat_material(f'{proc.name}/mesh',
+                                    [p for p in sorted(mesh.iterdir()) if p.is_file()] if mesh.is_dir() else [])
+         material += _stat_material(f'{proc.name}/field', _field_files(td))
++        material += _stat_material(f'{proc.name}/uniform', [td / 'uniform/time'] if (td / 'uniform/time').is_file() else [])
++    material += _stat_material('system', [p for p in sorted((run / 'system').iterdir()) if p.is_file()] if (run / 'system').is_dir() else [])
+     return hashlib.sha256(json.dumps(material, separators=(',', ':')).encode()).hexdigest()
+ 
+ 
+@@ -201,25 +275,28 @@
+         _link_time(mirror / proc.name, time_name, td)
+ 
+ 
+-def prepare_ensight(run: Path, convert) -> dict:
+-    """Convert ``run``'s latest time for Kit. ``convert(mirror) -> (rc, log)``
+-    runs foamToEnsight on the mirror (injected so tests need no OpenFOAM); a
+-    decomposed run calls ``convert(mirror, nprocs=N)``."""
++def prepare_ensight(run: Path, convert, *, time_value=_LATEST) -> dict:
++    """Convert latest (legacy) or an explicitly selected complete frame.
++
++    The injected converter needs no OpenFOAM in CPU tests. Its mirror contains
++    just this frame on all required ranks. Explicit frames never fall back.
++    """
+     run = Path(run).resolve()
+-    try:
+-        time_name, time_dir = latest_field_time(run)
+-        time_dirs = None
+-        sig = _source_signature(run, time_name, time_dir)
+-    except DatasetError as exc:
+-        if exc.code != 'run_decomposed':
+-            raise
+-        time_name, time_dirs = latest_decomposed_time(run)
+-        time_dir = time_dirs[0]
+-        sig = _decomposed_signature(run, time_name, time_dirs)
+-    mirror = run / MIRROR_DIRNAME / sig[:16]
+     with _LOCK:
++        selection = _resolve_source(run, time_value)
++        time_name, time_dir, time_dirs = selection
++        sig = _resolved_signature(run, selection)
++        mirror = run / MIRROR_DIRNAME / sig[:16]
++        def unchanged():
++            try:
++                current = _resolve_source(run, time_value)
++                return _resolved_signature(run, current) == sig
++            except (DatasetError, OSError):
++                return False
+         case_file, ready = _ensight_output(mirror)
+         if ready:
++            if not unchanged():
++                raise DatasetError(409, 'dataset_source_changed', 'Result source changed while preparing display')
+             return {'path': str(case_file), 'time': time_name, 'cached': True,
+                     'fields': [p.name for p in _field_files(time_dir)], 'signature': sig}
+         if time_dirs is None:
+@@ -228,7 +305,13 @@
+         else:
+             _build_decomposed_mirror(run, mirror, time_name, time_dirs)
+             rc, log = convert(mirror, nprocs=len(time_dirs))
++        if not unchanged():
++            # A conversion from a moving source must not become a cache hit if
++            # source stats are later restored.
++            shutil.rmtree(mirror)
++            raise DatasetError(409, 'dataset_source_changed', 'Result source changed while preparing display')
+         if rc != 0:
++            shutil.rmtree(mirror)
+             raise DatasetError(500, 'ensight_conversion_failed',
+                                f'foamToEnsight exited {rc}: {str(log)[-400:]}')
+         case_file, ready = _ensight_output(mirror)

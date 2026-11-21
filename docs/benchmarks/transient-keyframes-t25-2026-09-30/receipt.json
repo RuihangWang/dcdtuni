@@ -1,0 +1,37 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T2.5 (liquid keyframes into .liquidrun v2/v3; air keyframes refused until T4)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t25-liquid-bridge",
+  "code": "b7d8b7c2",
+  "machine": "40901, isolated worktree ~/scratch/wt-t25 on 8390 (8360 untouched)",
+  "regression": "T1 migration moved loadStep/supplySchedule into cp.heat/cdu.primaryInletT keyframes; compileSavedExperiment read only the cleared settings, so NV_PEK02_Mock, Shinaide_dae_cpu and Shinaide_hybrid_cpu compiled without their load step",
+  "air_verdict": "not a regression: runner registry comes only from boundaryBindings; old model.timeVarying never reached it. Now refused explicitly for solverType=transient with keyframes after t=0",
+  "tests": {
+    "vitest": {"files": 307, "tests": 3118, "failed": 0, "where": ["mac", "40901 worktree"]},
+    "tsc_b": "clean",
+    "node_transient_migration": {"passed": 23, "failed": 0},
+    "pytest_transient_parity": {"passed": 38, "failed": 0},
+    "pytest_liquid_subset": {"passed": 668, "skipped": 5, "failed": 2, "failed_cause": "test_mms_product_case needs untracked case/MMS_Product/Liquid/model/MMS_product.liquidrun absent from the worktree; passes 3/3 in the main checkout"}
+  },
+  "browser_gate": {
+    "case": "NV_PEK02_Mock/NV_PEK02_mock.cfdproj",
+    "loaded": {"schemaVersion": 5, "mode": "transient", "durationS": 10, "gridS": 1, "cp_heat_tracks": 34, "first_track": [{"t": 0, "value": 10000}, {"t": 5, "value": 12000, "rampS": 0}], "loadStep_setting": false},
+    "manifest_posted": {"endpoint": "/api/liquid/runs", "schemaVersion": 3, "analysis": "transient", "N_t": 11, "dt_s": 1, "cold_plates": 34, "Q_W_events": 34, "event_times_s": [5], "event_ratio": 1.2, "source_schema_version": 5},
+    "run": {"id": "5fb5029108904d04b95fb876cbf1cd00", "frames": 11,
+      "cp1_chip_C": [39.2985, 39.2985, 39.2985, 39.2985, 39.2985, 39.3375, 39.3754, 39.4123, 39.4482, 39.4832, 39.5173],
+      "mean_chip_C": [43.0022, 43.0022, 43.0022, 43.0022, 43.0022, 43.0414, 43.08, 43.1178, 43.1549, 43.1914, 43.2272],
+      "initial_slope_check": "0.039 K/s vs dQ/C_solid = 2000/50000 = 0.04 K/s"}
+  },
+  "defects_fixed": [
+    {"commit": "9bbdfe16", "what": "liquid graph replaced cpCuPairs with constructions.coldPlates (a copy written once by v3->v4 migration), so inspector/track cold-plate values never reached the compile; pair values now win, canonical objects keep identity/order"},
+    {"commit": "b7d8b7c2", "what": "keyframed cp.heat / valve.opening -> v2/v3 events; DAE primary inlet/flow -> N_t series; refusals by name for everything a v2/v3 manifest cannot hold"}
+  ],
+  "open": [
+    "cold-plate membership can still differ between coldPlates and cpCuPairs (pairs added/removed in the editor on migrated servers); liquidPostprocess reads coldPlates",
+    "design ruling needed: one global transient.mode cannot express air-steady + liquid-transient hybrids",
+    "liquid experiment panel still offers load step / supply schedule (refused when combined with keyframes; removed in T2c/T3)"
+  ],
+  "teardown": "8390 stopped and the worktree removed after the gate"
+}

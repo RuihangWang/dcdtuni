@@ -1,0 +1,85 @@
+14440:             if(physicalPointEnabled&&baselineFailures==0&&m.completeCavityContext)
+14441:             {
+14442:                 // The same earliest immutable checkpoint is installed once.
+14443:                 // It is never replaced by the candidate's current geometry.
+14444:                 m.writerBaseline=baseline;
+14445:                 auto& catalogue=*m.completeCavityContext;
+14446:                 std::vector<label> physicalCreator=unionBase;
+14447:                 const bool sources=dcCartCompleteCavityLocalOracle::retainNormalFacetSources
+14448:                     (m,physicalCreator,cavityAuthority,catalogue);
+14449:                 m.weightUnionState->clock=clockTime(); // original W admission start, before physical work
+14450:                 label capturedPhysical=0,stagedPhysical=0;
+14451:                 dcCartPhysicalPointLifecycle::Statistics pointStats;
+14452:                 if(sources&&physicalStage->begin(cavityAuthority))
+14453:                 {
+14454:                     const auto candidates=dcCartPhysicalPointLifecycle::discover(*oracle,*physicalStage);
+14455:                     if(candidates.complete)for(label point:candidates.compactPoints)
+14456:                     {
+14457:                         if(!physicalStage->available())break;
+14458:                         PhysicalDecisionRow* observed=nullptr;
+14459:                         if(observePhysicalDecision)
+14460:                         {
+14461:                             if(physicalDecisionCount<label(physicalDecisionRows.size()))
+14462:                             {observed=&physicalDecisionRows[physicalDecisionCount++];observed->compact=point;}
+14463:                             else physicalDecisionCapped=true;
+14464:                         }
+14465:                         const bool captured=physicalStage->capture(m,*oracle,oracleBindings,cavityAuthority,
+14466:                             catalogue,physicalPatchMap,point);
+14467:                         if(observed)
+14468:                         {observed->capture.evaluated=true;observed->capture.ok=captured;
+14469:                          observed->capture.refusal=label(physicalStage->refusal());
+14470:                          observed->representative=physicalStage->representative();}
+14471:                         if(!captured)continue;
+14472:                         ++capturedPhysical;Foam::point midpoint;
+14473:                         const bool midpointReady=physicalStage->midpoint(midpoint);
+14474:                         if(observed)
+14475:                         {observed->midpoint.evaluated=true;observed->midpoint.ok=midpointReady;
+14476:                          observed->midpoint.refusal=label(physicalStage->refusal());
+14477:                          if(midpointReady){observed->midpointKnown=true;observed->midpointBits=physicalDecisionBits(midpoint);}}
+14478:                         if(!midpointReady)continue;
+14479:                         const Foam::point old=m.points[physicalStage->representative()];
+14480:                         if(observed){observed->oldKnown=true;observed->oldBits=physicalDecisionBits(old);}
+14481:                         bool qualified=false;unsigned fractionIndex=0;
+14482:                         for(scalar fraction:physicalPointFractions)
+14483:                         {
+14484:                             if(!physicalStage->available())break;
+14485:                             // Observe the very same temporary proposal by const reference:
+14486:                             // no second coordinate expression or oracle evaluation.
+14487:                             const bool localReady=[&](const Foam::point& proposal)
+14488:                             {
+14489:                                 const bool result=physicalStage->local(proposal,pointStats);
+14490:                                 if(observed)
+14491:                                 {auto& call=observed->local[fractionIndex];call.evaluated=true;call.ok=result;
+14492:                                  call.refusal=label(physicalStage->refusal());call.proposalKnown=true;
+14493:                                  call.proposalBits=physicalDecisionBits(proposal);call.statistics=pointStats;call.statisticsObserved=true;
+14494:                                  if(!result&&call.refusal==label(dcCartPhysicalPointLifecycle::Refusal::quality))
+14495:                                      capturePhysicalDeterminants(*physicalStage,physicalDecisionCount-1,*observed,fractionIndex);}
+14496:                                 return result;
+14497:                             }(old+fraction*(midpoint-old));
+14498:                             ++fractionIndex;
+14499:                             if(localReady){qualified=true;break;}
+14500:                         }
+14501:                         if(!qualified)continue;
+14502:                         const bool staged=physicalStage->stage(runTime,patchNames,patchTypes,faceZoneNames,
+14503:                             *m.weightUnionState,oracleBindings,physicalPatchMap,unionBase,unionParent,pointStats);
+14504:                         if(observed)
+14505:                         {observed->stage.evaluated=true;observed->stage.ok=staged;
+14506:                          observed->stage.refusal=label(physicalStage->refusal());observed->stage.statistics=pointStats;observed->stage.statisticsObserved=true;}
+14507:                         if(!staged)break;
+14508:                         ++stagedPhysical;
+14509:                         // All dependent wrappers are allocated BEFORE the first
+14510:                         // live point write. Publication itself is no-throw swaps.
+14511:                         // Transaction privately owns prepared wrappers; no
+14512:                         // mutable staged frame is exposed to caller callbacks.
+14513:                         const bool committed=physicalStage->commit(m,physicalFrame);
+14514:                         if(observed)
+14515:                         {observed->commit.evaluated=true;observed->commit.ok=committed;
+14516:                          observed->commit.refusal=label(physicalStage->refusal());observed->commit.statistics=pointStats;observed->commit.statisticsObserved=true;}
+14517:                         if(!committed)break;
+14518:                         physicalPointCommitted=1;break;
+14519:                     }
+14520:                 }
+14521:                 Pout<<"PRIVATE normal physical-point lifecycle: rank "<<myRank
+14522:                     <<", captured/staged/committed "<<capturedPhysical<<'/'<<stagedPhysical<<'/'<<label(bool(physicalFrame))
+14523:                     <<", D old/new "<<pointStats.oldD<<'/'<<pointStats.newD
+14524:                     <<"; original earliest and W/D clock retained; full writer guard required"<<endl;

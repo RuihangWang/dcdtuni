@@ -1,0 +1,48 @@
+// DCTwin original point-node sampler using the original VTK validity field.
+// No temporal interpolation: the signed common controller selects one frame.
+NV_IDX_XAC_VERSION_1_0
+using namespace nv::index::xac;
+struct Params {
+ float3 origin;
+ float3 spacing;
+ float3 dimensions;
+ float sentinel; // legacy diagnostic slot, also maintains float2 alignment
+ float2 domain;
+ float opacity;
+ float flatDomain; // Derived from literal signed LUT equality before float rounding.
+};
+class Volume_sample_program {
+ NV_IDX_VOLUME_SAMPLE_PROGRAM
+ Params p;
+public:
+ NV_IDX_DEVICE_INLINE_MEMBER void initialize() {
+  p=*state.bind_parameter_buffer<Params>(0);
+ }
+ NV_IDX_DEVICE_INLINE_MEMBER int execute(const Sample_info_self& info,Sample_output& output) {
+  const auto validity=state.self.template generate_sampler<float,VDB_volume_filter_mode::NEAREST,float>(1);
+  const auto sampler=state.self.template generate_sampler<float,VDB_volume_filter_mode::NEAREST,float>(0);
+  // /World/RenderResultLayers has no transform. Original CPP node i,j,k is
+  // exactly at the physical world position origin + i,j,k * spacing.
+  float3 q=(info.scene_position-p.origin)/p.spacing;
+  q=make_float3(clamp(q.x,0.0f,p.dimensions.x-1.0f),clamp(q.y,0.0f,p.dimensions.y-1.0f),clamp(q.z,0.0f,p.dimensions.z-1.0f));
+  float3 base=make_float3(floorf(q.x),floorf(q.y),floorf(q.z));
+  float3 fraction=q-base;
+  float sum=0.0f,weight=0.0f;
+  for(int z=0;z<2;++z)for(int y=0;y<2;++y)for(int x=0;x<2;++x) {
+   float3 offset=make_float3(float(x),float(y),float(z));
+   float3 address=make_float3(min(base.x+offset.x,p.dimensions.x-1.0f),min(base.y+offset.y,p.dimensions.y-1.0f),min(base.z+offset.z,p.dimensions.z-1.0f));
+   float value=sampler.fetch_sample(address);
+   if(validity.fetch_sample(address)>0.5f && isfinite(value)) {
+    float w=(x?fraction.x:1.0f-fraction.x)*(y?fraction.y:1.0f-fraction.y)*(z?fraction.z:1.0f-fraction.z);
+    weight+=w;sum+=w*value;
+   }
+  }
+  if(weight<0.001f) {output.set_color(make_float4(0.0f,0.0f,0.0f,0.0f));return NV_IDX_PROG_OK;}
+  float scalar=sum/weight;
+  float t=p.flatDomain>0.5f?0.0f:clamp((scalar-p.domain.x)/max(p.domain.y-p.domain.x,1e-6f),0.0f,1.0f);
+  float4 color=state.self.get_colormap().lookup(t);
+  color.w=p.opacity*(0.02f+0.6f*powf(fabsf(t-0.5f)*2.0f,1.5f));
+  output.set_color(color);
+  return NV_IDX_PROG_OK;
+ }
+};

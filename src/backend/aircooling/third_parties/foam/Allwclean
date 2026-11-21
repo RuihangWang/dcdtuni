@@ -1,0 +1,13 @@
+#!/bin/bash
+set -eo pipefail
+cd "$(dirname "$0")"
+DC_FOAM_ROOT="$(pwd -P)"
+# shellcheck disable=SC1091
+source "$DC_FOAM_ROOT/env.sh"
+for d in src/applications/solvers/*/; do
+    [ -d "$d/Make" ] || continue
+    echo "==> cleaning $(basename "$d")"
+    ( cd "$DC_FOAM_ROOT/$d" && wclean )
+done
+rm -rf "$DC_FOAM_ROOT/platforms"
+echo "==> clean"

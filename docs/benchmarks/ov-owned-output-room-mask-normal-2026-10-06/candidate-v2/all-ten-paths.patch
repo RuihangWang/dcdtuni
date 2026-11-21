@@ -1,0 +1,642 @@
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/owned_paths.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/owned_paths.py
+@@ -1,25 +1,106 @@
+-
+-"""Repository boundary for bridge-created display textures (no Kit imports)."""
++"""Output boundaries for bridge-owned files, independent of cwd and Kit imports."""
++import json
+ import os
+ from pathlib import Path
++import secrets
++import stat
++
++CHECKOUT_ROOT = Path(__file__).resolve().parents[9]
++
++
++def owned_path(value, label):
++    """Validate absolute checkout membership and reject existing symlink components."""
++    if not isinstance(value, str) or not value.strip() or not Path(value).is_absolute():
++        raise ValueError(f"{label} must name an absolute path inside this checkout")
++    root = CHECKOUT_ROOT.resolve()
++    candidate = Path(os.path.abspath(value))
++    if not candidate.is_relative_to(root) or candidate == root:
++        raise ValueError(f"{label} must stay inside this checkout")
++    current = root
++    for part in candidate.relative_to(root).parts:
++        current = current / part
++        if current.is_symlink():
++            raise ValueError(f"{label} must not use symlink components")
++    if not candidate.resolve().is_relative_to(root):
++        raise ValueError(f"{label} must stay inside this checkout")
++    return str(candidate)
+ 
+ 
+ def render_texture_cache_path(environment=None):
+-    """Require an explicit checkout-local path before any texture write.
++    """Direct bridge use still requires an explicit owned texture directory."""
++    environment = os.environ if environment is None else environment
++    return owned_path(environment.get("DCDTUNI_RENDER_TEXTURE_CACHE"), "DCDTUNI_RENDER_TEXTURE_CACHE")
+ 
+-    The normal owner supplies its own runtime/render-textures. Direct bridge
+-    use must opt into a repository path too; cwd and inherited /tmp defaults
+-    must never decide where product-created textures are written.
+-    """
++
++def metadata_path(key, filename, environment=None):
+     environment = os.environ if environment is None else environment
+-    value = environment.get("DCDTUNI_RENDER_TEXTURE_CACHE")
+-    if not isinstance(value, str) or not value.strip():
+-        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must explicitly name a directory inside this checkout")
+-    candidate = Path(value)
+-    if not candidate.is_absolute():
+-        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must be an absolute directory inside this checkout")
+-    root = Path(__file__).resolve().parents[9]
+-    resolved = candidate.resolve()
+-    if not resolved.is_relative_to(root):
+-        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must stay inside this checkout")
+-    return str(resolved)
++    if key in environment:
++        value = environment[key]
++    elif "DC_CFD_RUNTIME_DIR" in environment:
++        runtime = owned_path(environment["DC_CFD_RUNTIME_DIR"], "DC_CFD_RUNTIME_DIR")
++        value = str(Path(runtime) / filename)
++    else:
++        value = str(CHECKOUT_ROOT / ".codex-tmp/ov-bridge-metadata" / filename)
++    return owned_path(value, key)
++
++
++def _directory_fd(directory):
++    """Open/create descendants via held directory descriptors without following links."""
++    root = CHECKOUT_ROOT.resolve()
++    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++    try:
++        for part in Path(directory).relative_to(root).parts:
++            try:
++                os.mkdir(part, mode=0o700, dir_fd=fd)
++            except FileExistsError:
++                pass
++            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
++            os.close(fd)
++            fd = next_fd
++        return fd
++    except BaseException:
++        os.close(fd)
++        raise
++
++
++def write_owned_json(path, payload, label):
++    """Atomic JSON output with no-follow directories and an exclusive owned temporary."""
++    path = Path(owned_path(str(path), label))
++    parent_fd = _directory_fd(path.parent)
++    temporary = path.name + ".tmp." + secrets.token_hex(8)
++    fd = None
++    created = False
++    try:
++        try:
++            current = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
++            if not stat.S_ISREG(current.st_mode):
++                raise ValueError(f"{label} destination must be a regular file")
++        except FileNotFoundError:
++            pass
++        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent_fd)
++        created = True
++        with os.fdopen(fd, "w", encoding="utf-8") as stream:
++            fd = None
++            json.dump(payload, stream)
++        os.replace(temporary, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
++        created = False
++    finally:
++        if fd is not None:
++            os.close(fd)
++        if created:
++            os.unlink(temporary, dir_fd=parent_fd)
++        os.close(parent_fd)
++    return str(path)
++
++
++def bridge_cache_directory(environment=None):
++    environment = os.environ if environment is None else environment
++    if "DC_CFD_RUNTIME_DIR" in environment:
++        runtime = owned_path(environment["DC_CFD_RUNTIME_DIR"], "DC_CFD_RUNTIME_DIR")
++        path = str(Path(runtime) / "dataset-cache")
++    else:
++        path = str(CHECKOUT_ROOT / ".codex-tmp/ov-bridge-cache")
++    path = owned_path(path, "bridge cache")
++    fd = _directory_fd(path)
++    os.close(fd)
++    return path
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scene.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scene.py
+@@ -1117,11 +1117,9 @@
+         """
+         info = {"path": path, "fields": getattr(self, "field_stats", None) or {}}
+         try:
+-            out = os.environ.get("DC_CFD_DATASET_INFO", "/tmp/dc_cfd_dataset.json")
+-            tmp = out + ".tmp"
+-            with open(tmp, "w") as f:
+-                json.dump(info, f)
+-            os.replace(tmp, out)
++            from .owned_paths import metadata_path, write_owned_json
++            out = metadata_path("DC_CFD_DATASET_INFO", "dataset-info.json")
++            write_owned_json(out, info, "DC_CFD_DATASET_INFO")
+             print(f"[dc.cfd_bridge] datasetInfo written: {out} {info['fields']}")
+         except Exception as e:  # noqa: BLE001
+             print(f"[dc.cfd_bridge] datasetInfo FAILED: {e}")
+@@ -1198,10 +1196,9 @@
+         box = tuple(round(float(v), 4) for v in (*mn, *mx))
+         key = hashlib.sha1(
+             f"{src}|{st.st_mtime_ns}|{st.st_size}|{box}|{fmt}".encode()).hexdigest()[:16]
+-        cache_dir = os.path.abspath(os.path.join(
+-            os.path.dirname(os.path.abspath(__file__)), "../../../../../kit/cache"))
+-        os.makedirs(cache_dir, exist_ok=True)
+-        out = os.path.join(cache_dir, f"roi_{key}.{fmt}")
++        from .owned_paths import bridge_cache_directory, owned_path
++        cache_dir = bridge_cache_directory()
++        out = owned_path(os.path.join(cache_dir, f"roi_{key}.{fmt}"), "ROI cache")
+         if os.path.exists(out):
+             print(f"[dc.cfd_bridge] extractRoi: cache hit, 0 cells computed -> "
+                   f"{os.path.basename(out)}")
+@@ -1246,7 +1243,7 @@
+             _reused = False
+             try:
+                 from . import cpd_cache as _cc
+-                _root = os.path.join(cache_dir, "cpd")
++                _root = owned_path(os.path.join(cache_dir, "cpd"), "CPD cache")
+                 self._cpd_cache = (
+                     _sig, _cc.CpdCache.open(_root, src, lambda: ctr, n_cells=len(ctr)))
+                 print(f"[dc.cfd_bridge] cpd layout ready: mesh_id="
+@@ -1346,11 +1343,9 @@
+             return None
+         key = hashlib.sha1(
+             f"{self.vtu_path}|{st.st_mtime_ns}|{st.st_size}".encode()).hexdigest()[:16]
+-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+-                                 "../../../../../kit/cache")
+-        cache_dir = os.path.abspath(cache_dir)
+-        os.makedirs(cache_dir, exist_ok=True)
+-        npz = os.path.join(cache_dir, f"umag_{key}.npz")
++        from .owned_paths import bridge_cache_directory, owned_path
++        cache_dir = bridge_cache_directory()
++        npz = owned_path(os.path.join(cache_dir, f"umag_{key}.npz"), "Umag cache")
+ 
+         if not os.path.exists(npz):
+             try:
+@@ -1459,6 +1454,9 @@
+         self._loading = True
+         ok = False
+         try:
++            # A new dataset starts with no volume: undo only our temporary shell mask.
++            from .handlers import _set_geometry_hidden
++            _set_geometry_hidden(self, stage, False)
+             # Tear down the old viz + dataset, but KEEP the ROI box and clip state: the
+             # user may have set the region of interest (and turned Clip on) BEFORE
+             # loading a result, and that intent must survive the swap ("ROI is god").
+@@ -1515,6 +1513,8 @@
+         from omni.cae.testing import wait_for_update
+         from pxr import UsdGeom
+         import omni.usd
++        from .handlers import _set_geometry_hidden
++        _set_geometry_hidden(self, stage, False)
+         # 1) Retire the IndeX volume SAFELY: composite-off -> hide -> settle -> drop the
+         #    [viz:index_volume] cache -> remove (removing while IndeX holds GPU refs crashes).
+         vp = stage.GetPrimAtPath(self.volume_path)
+@@ -1587,7 +1587,8 @@
+         Kit runtime (omni.cae.vtk bundles vtkmodules). Runs in a thread so it does
+         not stall the render. Returns the .vtu path or None."""
+         import os, asyncio
+-        out = os.path.splitext(vtm_path)[0] + ".dcconv.vtu"
++        from .owned_paths import owned_path
++        out = owned_path(os.path.splitext(vtm_path)[0] + ".dcconv.vtu", "dataset conversion")
+ 
+         def _do():
+             try:
+@@ -1634,7 +1635,8 @@
+         into one unstructured grid. Mirrors _convert_vtm; runs off-thread. Returns
+         the .vtu path or None."""
+         import os, asyncio
+-        out = os.path.splitext(case_path)[0] + ".dcconv.vtu"
++        from .owned_paths import owned_path
++        out = owned_path(os.path.splitext(case_path)[0] + ".dcconv.vtu", "dataset conversion")
+ 
+         def _do():
+             try:
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scenetree.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scenetree.py
+@@ -58,7 +58,9 @@
+ # Where Kit drops the manifest and the dev server picks it up. A file, not a log line:
+ # a 238-rack project serialises to hundreds of KB, which would swamp the Operation Log
+ # and risk being cut by the SSE tail's byte window.
+-MANIFEST_PATH = os.environ.get("DC_CFD_SCENE_TREE", "/tmp/dc_cfd_scene_tree.json")
++from .owned_paths import metadata_path, write_owned_json
++
++MANIFEST_PATH = metadata_path("DC_CFD_SCENE_TREE", "scene-tree.json")
+ 
+ 
+ def _patch_badge(patch: dict) -> str:
+@@ -235,14 +237,8 @@
+ 
+ 
+ def write_manifest(manifest: dict, path: str = None) -> str:
+-    path = path or MANIFEST_PATH
+-    tmp = path + ".tmp"
+-    with open(tmp, "w") as f:
+-        json.dump(manifest, f)
+-    # Atomic replace: the web UI polls this file, and it must never read a half-written
+-    # one and decide the scene has no geometry.
+-    os.replace(tmp, path)
+-    return path
++    path = path if path is not None else metadata_path("DC_CFD_SCENE_TREE", "scene-tree.json")
++    return write_owned_json(path, manifest, "DC_CFD_SCENE_TREE")
+ 
+ 
+ # The GTC scene's own groups, in the order the scene JSON builds them. Labels used to
+--- a/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
++++ b/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
+@@ -261,6 +261,18 @@
+     if not math.isfinite(result) or not 0 < result <= 1800:
+         raise argparse.ArgumentTypeError("timeout must be finite and in (0, 1800]")
+     return result
++
++
++def _owned_metadata_environment(environment, runtime, root):
++    """Managed launches ignore inherited side-channel output overrides."""
++    root = Path(root).resolve()
++    runtime = Path(runtime).resolve()
++    if not runtime.is_relative_to(root) or runtime == root:
++        raise RuntimeError("metadata runtime must stay inside this checkout")
++    environment = dict(environment)
++    environment["DC_CFD_DATASET_INFO"] = str(runtime / "dataset-info.json")
++    environment["DC_CFD_SCENE_TREE"] = str(runtime / "scene-tree.json")
++    return environment
+ 
+ 
+ def main():
+@@ -324,6 +336,7 @@
+                 raise RuntimeError("texture cache must stay inside this checkout")
+             texture_cache.mkdir(exist_ok=True)
+             environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = str(texture_cache)
++            environment = _owned_metadata_environment(environment, runtime, root)
+             if args.gpu is not None:
+                 def run_probe(command, *, env, timeout):
+                     return owner.probe(command, env=env,
+--- a/src/frontend/omniverse/cfd_demo/web/vite.config.ts
++++ b/src/frontend/omniverse/cfd_demo/web/vite.config.ts
+@@ -3,10 +3,29 @@
+ import fs from "node:fs";
+ import path from "node:path";
+ 
+-// The Kit process redirects BOTH stdout and stderr to this file (start_demo.sh:
+-// "> /tmp/dc_cfd_demo.kit.log 2>&1"), so it carries ALL Omniverse output —
+-// print(), omni.log, errors and warnings. Override with DC_CFD_KIT_LOG.
+-const KIT_LOG = process.env.DC_CFD_KIT_LOG || "/tmp/dc_cfd_demo.kit.log";
++// Reference-demo side channels share the bridge's checkout-owned defaults.
++const CHECKOUT_ROOT = path.resolve(__dirname, "../../../../..");
++function checkoutReadPath(key: string, filename: string): string {
++  const value = process.env[key] ?? path.join(
++    process.env.DC_CFD_RUNTIME_DIR ?? path.join(CHECKOUT_ROOT, ".codex-tmp/ov-bridge-metadata"), filename);
++  if (!path.isAbsolute(value)) throw new Error(key + " must be absolute inside this checkout");
++  const resolved = path.resolve(value);
++  const relative = path.relative(CHECKOUT_ROOT, resolved);
++  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
++    throw new Error(key + " must stay inside this checkout");
++  }
++  let current = CHECKOUT_ROOT;
++  for (const part of relative.split(path.sep)) {
++    current = path.join(current, part);
++    try {
++      if (fs.lstatSync(current).isSymbolicLink()) throw new Error(key + " must not use symlink components");
++    } catch (error) {
++      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
++    }
++  }
++  return resolved;
++}
++const KIT_LOG = checkoutReadPath("DC_CFD_KIT_LOG", "kit.log");
+ const TAIL_BYTES = 64 * 1024; // initial backlog sent on connect
+ const POLL_MS = 400;
+ 
+@@ -87,7 +106,7 @@
+ // WebRTC command channel is one-way, so a file plus this endpoint is the return path —
+ // without it the tree was a hardcoded GTC list whose rows toggled groups a .cfdproj
+ // build never creates.
+-const SCENE_TREE = process.env.DC_CFD_SCENE_TREE || "/tmp/dc_cfd_scene_tree.json";
++const SCENE_TREE = checkoutReadPath("DC_CFD_SCENE_TREE", "scene-tree.json");
+ 
+ function sceneTree(): Plugin {
+   return {
+@@ -116,7 +135,7 @@
+ // threshold sliders open on THIS result instead of the GTC/A3 constants they used to be
+ // pinned to. Same file-plus-endpoint side channel as the scene tree, for the same
+ // reason: the WebRTC command channel is one-way.
+-const DATASET_INFO = process.env.DC_CFD_DATASET_INFO || "/tmp/dc_cfd_dataset.json";
++const DATASET_INFO = checkoutReadPath("DC_CFD_DATASET_INFO", "dataset-info.json");
+ 
+ function datasetInfo(): Plugin {
+   return {
+@@ -222,7 +241,7 @@
+ // Override the worker location with DC_CFD_AI_PORT / DC_CFD_AI_HOST.
+ const AI_HOST = process.env.DC_CFD_AI_HOST || "127.0.0.1";
+ const AI_PORT = process.env.DC_CFD_AI_PORT || "8302";
+-const AI_LOG = process.env.DC_CFD_AI_LOG || "/tmp/dc_cfd_ai_worker.log";
++const AI_LOG = checkoutReadPath("DC_CFD_AI_LOG", "ai-worker.log");
+ 
+ function aiBridge(): Plugin {
+   const base = `http://${AI_HOST}:${AI_PORT}`;
+--- a/src/frontend/react/src/renderer/sceneSnapshot.ts
++++ b/src/frontend/react/src/renderer/sceneSnapshot.ts
+@@ -41,6 +41,8 @@
+   id: string
+   modelUid: string
+   equipmentUid?: string
++  /** Derived display-only enclosure role; never a model visibility or physics edit. */
++  displayRole?: 'room-shell'
+   /** Which side of a rack's liquid manifold this primitive belongs to, so
+    * result colouring can tell manifolds from the rack frame. */
+   liquidPart?: 'supply-manifold' | 'return-manifold'
+@@ -413,12 +415,29 @@
+   return { ...(viewCamera ? { camera: viewCamera } : {}), selectedUids: [...(options.selectedUids ?? [])], timeSeconds: time }
+ }
+ 
++function roomShellUids(project: SnapshotOptions['project']): Set<string> {
++  const constructions = project.constructions
++  const result = new Set<string>()
++  if (!constructions || typeof constructions !== 'object') return result
++  for (const bucket of ['walls', 'floors']) {
++    const entries = (constructions as Record<string, unknown>)[bucket]
++    if (!entries || typeof entries !== 'object' || Array.isArray(entries)) continue
++    for (const [key, value] of Object.entries(entries)) {
++      if (!value || typeof value !== 'object' || Array.isArray(value)) continue
++      const record = value as { uid?: unknown; isRoomBoundary?: unknown }
++      if (record.isRoomBoundary === true) result.add(typeof record.uid === 'string' ? record.uid : key)
++    }
++  }
++  return result
++}
++
+ export function buildSceneSnapshot(options: SnapshotOptions): SceneSnapshot {
+   const { root } = options
+   root.updateWorldMatrix(true, true)
+   const inverse = root.matrixWorld.clone().invert()
+   const helpers = new Set(options.helpers ?? [])
+   const fittingOwners = valveOwners(options.project)
++  const roomShells = roomShellUids(options.project)
+   const warnings = new Set<string>()
+   const proxies = new Map<THREE.Material, THREE.Material>()
+   const packet: SceneSnapshot = {
+@@ -496,6 +515,7 @@
+           const item: RenderPrimitive = {
+             id: `${uid}/${path}/${instance}/${gi}`, modelUid: uid,
+             ...(equipmentUid ? { equipmentUid } : {}),
++            ...(roomShells.has(uid) ? { displayRole: 'room-shell' as const } : {}),
+             ...(liquidPart ? { liquidPart } : {}),
+             name: o.name || String(d.exportName ?? ''), kind,
+             positions: attribute(pos, 3), indices,
+--- a/src/frontend/shared/schema/render-scene.schema.json
++++ b/src/frontend/shared/schema/render-scene.schema.json
+@@ -55,6 +55,9 @@
+           },
+           "equipmentUid": {
+             "type": "string"
++          },
++          "displayRole": {
++            "enum": ["room-shell"]
+           },
+           "liquidPart": {
+             "enum": ["supply-manifold", "return-manifold"]
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py
+@@ -412,6 +412,7 @@
+     key.CreateIntensityAttr(1000)
+     UsdGeom.Xformable(key).AddRotateXYZOp().Set(Gf.Vec3f(-45, 35, 0))
+     paths = {}
++    room_shell_paths = []
+     for p in packet['primitives']:
+         name = 'p_' + hashlib.sha256(p['id'].encode()).hexdigest()[:24]
+         path = ROOT + '/Geometry/' + name
+@@ -449,6 +450,9 @@
+         prim.SetDisplayName(p['name'])
+         prim.SetCustomDataByKey('dcdtuni:modelUid', p['modelUid'])
+         prim.SetCustomDataByKey('dcdtuni:primitiveId', p['id'])
++        if p.get('displayRole') == 'room-shell':
++            prim.SetCustomDataByKey('dcdtuni:displayRole', 'room-shell')
++            room_shell_paths.append(path)
+         if p.get('equipmentUid'):
+             prim.SetCustomDataByKey('dcdtuni:equipmentUid', p['equipmentUid'])
+         if p.get('liquidPart'):
+@@ -515,7 +519,7 @@
+         raise
+     finally:
+         stage.SetEditTarget(previous_target)
+-    return {'uidPaths': paths, 'primitives': len(packet['primitives']), 'view': packet['view']}
++    return {'uidPaths': paths, 'roomShellPaths': room_shell_paths, 'primitives': len(packet['primitives']), 'view': packet['view']}
+ 
+ 
+ def apply_view(stage, view):
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -57,6 +57,7 @@
+         # complete final-patch/run/field certificate for Kit to verify.
+         self._trusted_result_context = None
+         self._render_uid_paths = {}
++        self._render_room_shell_paths = ()
+         self._render_primitive_ids = {}
+         self._render_project_hash = None
+         self._scene_revision = 0
+@@ -117,6 +118,9 @@
+         # loadScene command builds + reveals it (handle_load_scene). This keeps the
+         # default state clean (no geometry) and matches the dataset-load flow.
+         self._scene = CfdScene(self._vtu, self._json, self._geo, self._ranges_path)
++        from .handlers import install_render_room_shell_paths
++        install_render_room_shell_paths(self._scene, omni.usd.get_context().get_stage(),
++                                       self._render_room_shell_paths)
+         # Render-only: strip the native editor chrome so the stream shows only
+         # the 3D viewport. The web React UI is the sole control surface (user
+         # requirement: "render-only viewport, NOT native OV UI").
+@@ -440,6 +444,9 @@
+             await s.show_volume_display(stage, 'off')
+         except Exception as exc:  # noqa: BLE001
+             print(f'[dc.cfd_bridge] display clear incomplete: {exc}')
++        # A failed result teardown must not carry our temporary enclosure mask forward.
++        from .handlers import _set_geometry_hidden
++        _set_geometry_hidden(s, stage, False)
+         if stage.GetPrimAtPath('/World/internal').IsValid():
+             stage.RemovePrim('/World/internal')
+         s.dataset_path = None
+@@ -507,6 +514,10 @@
+             cache = render_texture_cache_path()
+             result = render_scene.author_scene(stage, packet, cache, validated=True)
+             print(f'[dc.cfd_bridge] scene load authored primitives={result["primitives"]}')
++            from .handlers import install_render_room_shell_paths
++            self._render_room_shell_paths = tuple(result.get('roomShellPaths', ()))
++            if self._scene is not None:
++                install_render_room_shell_paths(self._scene, stage, self._render_room_shell_paths)
+             self._render_uid_paths = result['uidPaths']
+             self._render_primitive_ids = {p['id']: p['modelUid'] for p in packet['primitives']}
+             self._render_project_hash = project_hash
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
+@@ -276,18 +276,156 @@
+ _VOLUME_HIDE_GROUPS = ["Room"]
+ 
+ 
++def _visibility_snapshot(stage, path):
++    """Own the exact RootLayer property, independently of composed opinions."""
++    from pxr import Sdf
++    root = stage.GetRootLayer()
++    property_path = Sdf.Path(path).AppendProperty("visibility")
++    backup = Sdf.Layer.CreateAnonymous("volume-visibility")
++    authored = root.GetAttributeAtPath(property_path) is not None
++    if authored:
++        Sdf.CreatePrimInLayer(backup, property_path.GetPrimPath())
++        if not Sdf.CopySpec(root, property_path, backup, property_path):
++            raise RuntimeError("cannot save root visibility: " + path)
++    # Root authoring can create over ancestors for a prim defined only in a
++    # sublayer. Off removes only those originally absent, still-empty overs.
++    missing = []
++    parent = property_path.GetPrimPath()
++    while parent != Sdf.Path.absoluteRootPath:
++        if root.GetPrimAtPath(parent) is None:
++            missing.append(parent)
++        parent = parent.GetParentPath()
++    return root, backup, property_path, authored, tuple(missing)
++
++
++def _restore_visibility(stage, snapshot):
++    from pxr import Sdf
++    root, backup, property_path, authored, missing = snapshot
++    if stage.GetRootLayer() != root:
++        raise RuntimeError("volume mask belongs to a different RootLayer")
++    # A removed model is retired, never resurrected by display cleanup.
++    if stage.GetPrimAtPath(property_path.GetPrimPath()).IsValid():
++        current = root.GetAttributeAtPath(property_path)
++        if current is not None:
++            current.owner.RemoveProperty(current)
++        if authored:
++            Sdf.CreatePrimInLayer(root, property_path.GetPrimPath())
++            if not Sdf.CopySpec(backup, property_path, root, property_path):
++                raise RuntimeError("cannot restore root visibility: " + str(property_path))
++    for path in missing:  # deepest first; do not remove later unrelated edits
++        spec = root.GetPrimAtPath(path)
++        if (spec is not None and spec.specifier == Sdf.SpecifierOver
++                and not spec.properties and not spec.nameChildren
++                and set(spec.ListInfoKeys()) <= {"specifier"}):
++            stage.RemovePrim(path)
++
++
++def install_render_room_shell_paths(scene, stage, paths):
++    """Register a successful RootLayer reauthor, retiring its old mask specs."""
++    was_hidden = getattr(scene, "_volume_geometry_hidden", False)
++    bound = getattr(scene, "_volume_geometry_stage", None)
++    if bound is not None and bound.GetRootLayer() != stage.GetRootLayer():
++        _set_geometry_hidden(scene, bound, False)
++    saved = getattr(scene, "_volume_geometry_saved", {})
++    for path in list(saved):
++        if path.startswith("/World/RenderScene/"):
++            # author_scene replaced this entire RootLayer subtree. Session
++            # opinions were not replaced and are never stored as originals.
++            del saved[path]
++    # The replaced Root subtree no longer contains our old mask. A refused
++    # re-mask must report the actual remaining owned masks, not stale intent.
++    scene._volume_geometry_hidden = bool(saved)
++    if not saved:
++        scene._volume_geometry_stage = None
++    scene._render_room_shell_paths = tuple(paths)
++    if was_hidden:
++        _set_geometry_hidden(scene, stage, True)
++
++
+ def _set_geometry_hidden(scene, stage, hidden, groups=None):
+-    """Hide (or restore) the given geometry groups (default: just the Room shell) so
+-    the CFD volume reads clearly. Called when a volume is enabled (hidden=True) or
+-    disabled (hidden=False)."""
++    """Mask RootLayer only; stronger visible opinions fail and roll back."""
++    from pxr import Usd, UsdGeom
+     names = groups if groups is not None else _VOLUME_HIDE_GROUPS
++    bound = getattr(scene, "_volume_geometry_stage", None)
++    if bound is not None and bound.GetRootLayer() != stage.GetRootLayer():
++        _set_geometry_hidden(scene, bound, False)
++    saved = getattr(scene, "_volume_geometry_saved", {})
++    scene._volume_geometry_saved = saved
++    paths = [p for name in names for p in scene.geo_groups.get(name, [])]
++    if groups is None:
++        paths.extend(getattr(scene, "_render_room_shell_paths", ()))
++    previous_target = stage.GetEditTarget()
++    was_hidden = getattr(scene, "_volume_geometry_hidden", False)
+     n = 0
+-    for name in names:
+-        for p in scene.geo_groups.get(name, []):
+-            img = _imageable(stage, p)
+-            if img:
+-                img.MakeInvisible() if hidden else img.MakeVisible()
+-                n += 1
++    try:
++        stage.SetEditTarget(stage.GetRootLayer())
++        if hidden:
++            previous_saved = dict(saved)
++            touched = []
++            try:
++                for path in dict.fromkeys(paths):
++                    img = _imageable(stage, path)
++                    if not img:
++                        continue
++                    before = _visibility_snapshot(stage, path)
++                    touched.append((path, before))
++                    if path not in saved:
++                        saved[path] = before
++                    attr = img.GetVisibilityAttr()
++                    # Clear RootLayer defaults AND timeSamples; Set default alone
++                    # leaves animated inherited samples visible at nondefault time.
++                    if not attr.Clear() or not attr.Set(UsdGeom.Tokens.invisible):
++                        raise RuntimeError("cannot author root volume mask: " + path)
++                    times = [Usd.TimeCode.Default()]
++                    times.extend(Usd.TimeCode(t) for t in attr.GetTimeSamples())
++                    if any(img.ComputeVisibility(t) != UsdGeom.Tokens.invisible for t in times):
++                        raise RuntimeError("stronger visibility opinion prevents volume mask: " + path)
++                    n += 1
++            except Exception as error:
++                failed = {}
++                for path, before in reversed(touched):
++                    try:
++                        _restore_visibility(stage, before)
++                    except Exception as restore_error:
++                        failed[path] = restore_error
++                saved.clear()
++                saved.update(previous_saved)
++                missing = {p for _, before in touched for p in before[4]}
++                missing.update(p for original in previous_saved.values() for p in original[4])
++                for path, before in touched:
++                    if path in failed:
++                        original = saved.get(path, before)
++                        ancestors = tuple(sorted(missing | set(original[4]), key=lambda p: (-str(p).count("/"), str(p))))
++                        saved[path] = original[:4] + (ancestors,)
++                scene._volume_geometry_hidden = was_hidden or bool(failed)
++                if failed:
++                    scene._volume_geometry_stage = stage
++                    raise RuntimeError("volume mask rollback failed: " + ", ".join(failed)) from error
++                raise
++            scene._volume_geometry_stage = stage
++        else:
++            errors = []
++            missing = {p for original in saved.values() for p in original[4]}
++            # Last-created leaf first, then the first creator of shared overs.
++            for path, snapshot in reversed(list(saved.items())):
++                try:
++                    _restore_visibility(stage, snapshot)
++                    del saved[path]
++                    n += 1
++                except Exception as error:
++                    errors.append((path, error))
++            if errors:
++                # Successful siblings may have owned the shared missing-parent
++                # record. Retain that cleanup ownership with every retry entry.
++                for path, snapshot in list(saved.items()):
++                    ancestors = tuple(sorted(missing | set(snapshot[4]), key=lambda p: (-str(p).count("/"), str(p))))
++                    saved[path] = snapshot[:4] + (ancestors,)
++                scene._volume_geometry_hidden = True
++                raise RuntimeError("volume mask restore failed: " + ", ".join(p for p, _ in errors)) from errors[0][1]
++            scene._volume_geometry_stage = None
++        scene._volume_geometry_hidden = bool(hidden)
++    finally:
++        stage.SetEditTarget(previous_target)
+     print(f"[dc.cfd_bridge] geometry {'hidden' if hidden else 'restored'} for volume "
+           f"(groups={names}, {n} prims)")
+ 

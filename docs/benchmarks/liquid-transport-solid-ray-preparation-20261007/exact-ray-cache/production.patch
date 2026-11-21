@@ -1,0 +1,181 @@
+--- a/src/backend/aircooling/runner/stlgen_runner.py
++++ b/src/backend/aircooling/runner/stlgen_runner.py
+@@ -1003,15 +1003,141 @@
+     return distance
+ 
+ 
++
++_RAY_BATCH_TRIANGLES = 8192
++
++
++@dataclass(frozen=True)
++class _SceneRayCache:
++    """Immutable rows/arrays owned by one seed-generation epoch, never global.
++
++    Packed binary64 arrays have immutable bytes backing, retaining all triangles,
++    surface labels and original order. Unsupported inputs keep the scalar path.
++    """
++    rows: Tuple[SceneTriangle, ...]
++    _np: Any = None
++    _v0: Any = None
++    _edge1: Any = None
++    _edge2: Any = None
++    _surface_ids: Any = None
++    _surface_refs: Tuple[SurfaceRef, ...] = ()
++
++    def __iter__(self):
++        return iter(self.rows)
++
++    def nearest(self, center: Vec3, direction: Vec3,
++                ignored: Set[SurfaceRef]) -> Optional[float]:
++        np = self._np
++        if np is None or any(type(v) is not float or not math.isfinite(v)
++                             for vec in (center, direction) for v in vec):
++            raise ValueError("scalar ray input required")
++        origin = _vec_add(center, _vec_scale(direction, _RAY_START_EPS))
++        if not all(math.isfinite(v) for v in origin):
++            raise ValueError("scalar ray origin required")
++        ignored_ids = [i for i, ref in enumerate(self._surface_refs) if ref in ignored]
++        nearest: Optional[float] = None
++        # Independent component ufuncs preserve scalar operation order:
++        # no einsum/dot reduction/FMA/float32 or geometric pruning.
++        with np.errstate(over="raise", divide="raise", invalid="raise", under="ignore"):
++            for start in range(0, len(self.rows), _RAY_BATCH_TRIANGLES):
++                stop = min(start + _RAY_BATCH_TRIANGLES, len(self.rows))
++                keep = np.ones(stop - start, dtype=np.bool_)
++                for surface_id in ignored_ids:
++                    keep &= self._surface_ids[start:stop] != surface_id
++                if not keep.any():
++                    continue
++                distances = _ray_triangle_distances_batch(
++                    np, origin, direction, self._v0[start:stop][keep],
++                    self._edge1[start:stop][keep], self._edge2[start:stop][keep])
++                if distances.size:
++                    # Accepted distances + positive start epsilon cannot be
++                    # signed zero; equal minima have identical binary64 bits.
++                    clearance = float(np.min(distances + _RAY_START_EPS))
++                    if nearest is None or clearance < nearest:
++                        nearest = clearance
++        return nearest
++
++
++def _make_scene_ray_cache(scene_triangles: Iterable[SceneTriangle]) -> _SceneRayCache:
++    """Freeze parsed rows once per call; no cross-scene/cross-run cache."""
++    rows = tuple(scene_triangles)
++    try:
++        # Do not sanitize exotic/nonfinite numeric carriers into valid geometry.
++        for filename, solid_name, triangle in rows:
++            if type(filename) is not str or type(solid_name) is not str or len(triangle) != 3:
++                return _SceneRayCache(rows)
++            for vertex in triangle:
++                if len(vertex) != 3 or any(type(v) is not float or not math.isfinite(v) for v in vertex):
++                    return _SceneRayCache(rows)
++        import numpy as np
++        frozen = tuple((filename, solid_name, tuple(tuple(v) for v in triangle))
++                       for filename, solid_name, triangle in rows)
++        # frombuffer(bytes) prevents re-enabling array writeability and keeps
++        # mutable caller vertices/owners out of the accelerated epoch.
++        def immutable(array):
++            return np.frombuffer(array.tobytes(), dtype=array.dtype).reshape(array.shape)
++        vertices = np.asarray([row[2] for row in frozen], dtype=np.float64).reshape((-1, 3, 3))
++        with np.errstate(over="raise", divide="raise", invalid="raise", under="ignore"):
++            v0 = immutable(vertices[:, 0, :])
++            edge1 = immutable(vertices[:, 1, :] - vertices[:, 0, :])
++            edge2 = immutable(vertices[:, 2, :] - vertices[:, 0, :])
++        refs: Dict[SurfaceRef, int] = {}
++        ids = []
++        for filename, solid_name, _ in frozen:
++            ref = (filename, solid_name)
++            if ref not in refs:
++                refs[ref] = len(refs)
++            ids.append(refs[ref])
++        return _SceneRayCache(frozen, np, v0, edge1, edge2,
++                              immutable(np.asarray(ids, dtype=np.int64)), tuple(refs))
++    except Exception:
++        # Missing NumPy, allocation/conversion/overflow errors fall back to
++        # identical scalar rows rather than bypassing any seed guard.
++        return _SceneRayCache(rows)
++
++
++def _ray_triangle_distances_batch(np, origin: Vec3, direction: Vec3, v0, edge1, edge2):
++    """Component-order Moller-Trumbore for one bounded finite batch."""
++    px = direction[1] * edge2[:, 2] - direction[2] * edge2[:, 1]
++    py = direction[2] * edge2[:, 0] - direction[0] * edge2[:, 2]
++    pz = direction[0] * edge2[:, 1] - direction[1] * edge2[:, 0]
++    det = (edge1[:, 0] * px + edge1[:, 1] * py) + edge1[:, 2] * pz
++    keep = np.abs(det) > _GEOM_EPS
++    if not keep.any():
++        return np.empty(0, dtype=np.float64)
++    inv_det = 1.0 / det[keep]
++    v0, edge1, edge2, px, py, pz = v0[keep], edge1[keep], edge2[keep], px[keep], py[keep], pz[keep]
++    tx, ty, tz = origin[0] - v0[:, 0], origin[1] - v0[:, 1], origin[2] - v0[:, 2]
++    u = ((tx * px + ty * py) + tz * pz) * inv_det
++    keep = ~((u < 0.0) | (u > 1.0))
++    if not keep.any():
++        return np.empty(0, dtype=np.float64)
++    tx, ty, tz, edge1, edge2, inv_det, u = tx[keep], ty[keep], tz[keep], edge1[keep], edge2[keep], inv_det[keep], u[keep]
++    qx = ty * edge1[:, 2] - tz * edge1[:, 1]
++    qy = tz * edge1[:, 0] - tx * edge1[:, 2]
++    qz = tx * edge1[:, 1] - ty * edge1[:, 0]
++    v = ((direction[0] * qx + direction[1] * qy) + direction[2] * qz) * inv_det
++    keep = ~((v < 0.0) | (u + v > 1.0))
++    if not keep.any():
++        return np.empty(0, dtype=np.float64)
++    edge2, qx, qy, qz, inv_det = edge2[keep], qx[keep], qy[keep], qz[keep], inv_det[keep]
++    distance = ((edge2[:, 0] * qx + edge2[:, 1] * qy) + edge2[:, 2] * qz) * inv_det
++    return distance[~(distance <= _GEOM_EPS)]
++
+ def _nearest_ray_clearance(
+     center: Vec3,
+     direction: Vec3,
+     scene_triangles: Iterable[SceneTriangle],
+     ignored_surfaces: Iterable[SurfaceRef],
+ ) -> Optional[float]:
++    ignored_surface_set = set(ignored_surfaces)
++    if isinstance(scene_triangles, _SceneRayCache) and scene_triangles._np is not None:
++        try:
++            return scene_triangles.nearest(center, direction, ignored_surface_set)
++        except Exception:
++            pass  # Same captured epoch; no new source read or weaker predicate.
+     origin = _vec_add(center, _vec_scale(direction, _RAY_START_EPS))
+     nearest: Optional[float] = None
+-    ignored_surface_set = set(ignored_surfaces)
+     for filename, solid_name, triangle in scene_triangles:
+         if (filename, solid_name) in ignored_surface_set:
+             continue
+@@ -1031,7 +1157,7 @@
+     ignored_surfaces: Iterable[SurfaceRef],
+ ) -> Tuple[Optional[float], Optional[float]]:
+     ignored = set(ignored_surfaces)
+-    scene = list(scene_triangles)
++    scene = scene_triangles if isinstance(scene_triangles, _SceneRayCache) else list(scene_triangles)
+     return (
+         _nearest_ray_clearance(anchor, direction, scene, ignored),
+         _nearest_ray_clearance(anchor, _vec_scale(direction, -1.0), scene, ignored),
+@@ -1079,7 +1205,7 @@
+     smaller clearance is largest, or None when no candidate has clearance on
+     both sides.
+     """
+-    scene = list(scene_triangles)
++    scene = scene_triangles if isinstance(scene_triangles, _SceneRayCache) else list(scene_triangles)
+     ignored = set(ignored_surfaces)
+     best: Optional[Tuple[Vec3, float, float]] = None
+     best_min = -1.0
+@@ -4795,7 +4921,7 @@
+         default_offset = 0.5 * h_local
+ 
+         triangle_cache = self._build_stl_triangle_cache()
+-        scene_triangles = _flatten_scene_triangles(triangle_cache)
++        scene_triangles = _make_scene_ray_cache(_flatten_scene_triangles(triangle_cache))
+ 
+         seed_entries: List[Tuple[Vec3, str]] = []
+         for spec in specs:
+@@ -5321,7 +5447,7 @@
+         """Collect axis-aligned face coordinates from major-object STL AABBs.
+ 
+         Used by :func:`compute_aligned_grid` to place background grid lines on
+-        solid surfaces (the 6Sigma method), so a snap-off Cartesian mesh has
++        solid surfaces (surface-aligned Cartesian planes), so a snap-off Cartesian mesh has
+         exact straight boundaries instead of half-cell-shifted / stepped ones.
+         """
+         planes: Dict[str, List[float]] = {"x": [], "y": [], "z": []}

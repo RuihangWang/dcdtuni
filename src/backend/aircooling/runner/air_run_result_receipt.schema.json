@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schemas/air-run-result-receipt-v1.json",
+  "title": "OpenFOAM wind-result identity receipt V1",
+  "description": "Byte identity for one native T/U result time. No mesh-quality, convergence, or physical-acceptance claim.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "caseName", "runRelativePath", "cfdrunRelativePath",
+    "cfdrunSha256", "runId", "projectContentHash", "timeValue",
+    "meshLayout", "meshSha256", "meshFiles", "fieldFiles"
+  ],
+  "properties": {
+    "format": { "const": "air-run-result-receipt/v1" },
+    "caseName": { "type": "string", "minLength": 1 },
+    "runRelativePath": { "type": "string", "pattern": "^log/[^/]+$" },
+    "cfdrunRelativePath": { "type": "string", "pattern": "\\.cfdrun$" },
+    "cfdrunSha256": { "$ref": "#/$defs/sha256" },
+    "runId": { "type": "string", "minLength": 1 },
+    "projectContentHash": { "$ref": "#/$defs/sha256" },
+    "timeValue": { "type": "number", "exclusiveMinimum": 0 },
+    "meshLayout": { "enum": ["serial", "partitioned"] },
+    "meshSha256": { "$ref": "#/$defs/sha256" },
+    "meshFiles": {
+      "type": "array", "minItems": 5,
+      "items": { "$ref": "#/$defs/fileIdentity" }
+    },
+    "fieldFiles": {
+      "type": "array", "minItems": 2,
+      "items": { "$ref": "#/$defs/fieldIdentity" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "fileIdentity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "fieldIdentity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["field", "path", "sha256", "foamClass", "dimensions"],
+      "properties": {
+        "field": { "enum": ["T", "U"] },
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "foamClass": { "enum": ["volScalarField", "volVectorField"] },
+        "dimensions": {
+          "type": "array", "minItems": 7, "maxItems": 7,
+          "items": { "type": "number" }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "field": { "const": "T" },
+            "foamClass": { "const": "volScalarField" },
+            "dimensions": { "const": [0, 0, 0, 1, 0, 0, 0] }
+          }
+        },
+        {
+          "properties": {
+            "field": { "const": "U" },
+            "foamClass": { "const": "volVectorField" },
+            "dimensions": { "const": [0, 1, -1, 0, 0, 0, 0] }
+          }
+        }
+      ]
+    }
+  }
+}

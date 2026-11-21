@@ -1,0 +1,159 @@
+<h2>瞬态模拟 UI 设计方案</h2>
+<p class="subtitle">如何让用户定义 Server 功耗变化 + ACU 状态变化的瞬态场景？</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>事件列表 + 内联时间线预览</h3>
+      <p>左侧是事件列表（"t=60s ACU-1 关机"），右侧自动生成简化的时间线甘特图预览。用户通过"添加事件"按钮创建事件，每个事件选择设备、变化类型、触发时间。</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">方案 A 预览</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:12px;background:#1a1a2e;color:#ccc;padding:16px;">
+          <div style="display:flex;gap:16px;">
+            <div style="flex:1;border-right:1px solid #333;padding-right:12px;">
+              <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">📋 事件列表</div>
+              <div style="background:#252540;padding:6px 8px;margin:4px 0;border-radius:4px;border-left:3px solid #ff6b6b;">
+                <span style="color:#888;">t=0s</span> 初始稳态（从定常结果启动）
+              </div>
+              <div style="background:#252540;padding:6px 8px;margin:4px 0;border-radius:4px;border-left:3px solid #ff6b6b;">
+                <span style="color:#888;">t=60s</span> <span style="color:#8be9fd;">ACU-1</span> 关机 (风量→0, 供冷→0)
+              </div>
+              <div style="background:#252540;padding:6px 8px;margin:4px 0;border-radius:4px;border-left:3px solid #54d6a0;">
+                <span style="color:#888;">t=120s</span> <span style="color:#8be9fd;">R3</span> 功耗 5kW → 10kW (30s爬坡)
+              </div>
+              <div style="background:#252540;padding:6px 8px;margin:4px 0;border-radius:4px;border-left:3px solid #ff6b6b;">
+                <span style="color:#888;">t=300s</span> <span style="color:#8be9fd;">ACU-2</span> 关机
+              </div>
+              <div style="margin-top:8px;">
+                <span style="background:#3a3a5a;padding:4px 12px;border-radius:4px;color:#8be9fd;cursor:pointer;">+ 添加事件</span>
+              </div>
+            </div>
+            <div style="flex:1.2;">
+              <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">📈 时间线预览 (总时长: 600s)</div>
+              <div style="position:relative;height:20px;background:#252540;margin:4px 0;border-radius:3px;">
+                <span style="position:absolute;left:0;font-size:9px;color:#666;">ACU-1</span>
+                <div style="position:absolute;left:0;top:4px;width:10%;height:12px;background:#54d6a0;border-radius:2px;"></div>
+                <div style="position:absolute;left:10%;top:4px;width:90%;height:12px;background:#ff6b6b;border-radius:2px;opacity:0.5;"></div>
+              </div>
+              <div style="position:relative;height:20px;background:#252540;margin:4px 0;border-radius:3px;">
+                <span style="position:absolute;left:0;font-size:9px;color:#666;">ACU-2</span>
+                <div style="position:absolute;left:0;top:4px;width:50%;height:12px;background:#54d6a0;border-radius:2px;"></div>
+                <div style="position:absolute;left:50%;top:4px;width:50%;height:12px;background:#ff6b6b;border-radius:2px;opacity:0.5;"></div>
+              </div>
+              <div style="position:relative;height:20px;background:#252540;margin:4px 0;border-radius:3px;">
+                <span style="position:absolute;left:0;font-size:9px;color:#666;">R3功耗</span>
+                <div style="position:absolute;left:0;top:4px;width:20%;height:12px;background:#4a9eff;border-radius:2px;"></div>
+                <div style="position:absolute;left:20%;top:4px;width:5%;height:12px;background:linear-gradient(90deg,#4a9eff,#ff9f43);border-radius:2px;"></div>
+                <div style="position:absolute;left:25%;top:4px;width:75%;height:12px;background:#ff9f43;border-radius:2px;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-top:4px;">
+                <span>0s</span><span>120s</span><span>300s</span><span>600s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul><li>事件驱动直觉，像故障报告</li><li>时间线预览一目了然</li><li>适合多数场景</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>复杂功耗曲线（如日负载周期）不好表达</li><li>需要额外的"编辑曲线"入口</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>设备属性面板 + 时变开关</h3>
+      <p>在现有的右侧属性检查器中，每个 ACU/Server 的参数旁增加一个"⏱"按钮，点击后展开时变编辑器（表格或迷你曲线）。不需要单独的瞬态场景面板。</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">方案 B 预览 — 属性面板内编辑</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:12px;background:#1a1a2e;color:#ccc;padding:16px;">
+          <div style="max-width:280px;">
+            <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">🖥 ACU-1 属性</div>
+            <div style="display:flex;align-items:center;margin:4px 0;">
+              <span style="flex:1;font-size:11px;">供冷温度</span>
+              <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;" value="15°C" readonly>
+              <span style="margin-left:4px;cursor:pointer;background:#3a3a5a;padding:2px 6px;border-radius:3px;font-size:10px;">⏱</span>
+            </div>
+            <div style="display:flex;align-items:center;margin:4px 0;">
+              <span style="flex:1;font-size:11px;">风量 (CFM)</span>
+              <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;" value="3000" readonly>
+              <span style="margin-left:4px;cursor:pointer;background:#3a3a5a;padding:2px 6px;border-radius:3px;font-size:10px;">⏱</span>
+            </div>
+            <div style="background:#1e2a3a;border:1px solid #4a6a8a;padding:8px;margin:6px 0;border-radius:4px;">
+              <div style="color:#8be9fd;font-size:10px;margin-bottom:6px;">⏱ 风量时变设置</div>
+              <table style="width:100%;font-size:10px;border-collapse:collapse;">
+                <tr style="color:#888;"><td>时间(s)</td><td>值(CFM)</td><td></td></tr>
+                <tr><td style="color:#ccc;">0</td><td style="color:#54d6a0;">3000</td><td style="color:#666;">×</td></tr>
+                <tr><td style="color:#ccc;">60</td><td style="color:#54d6a0;">3000</td><td style="color:#666;">×</td></tr>
+                <tr><td style="color:#ccc;">61</td><td style="color:#ff6b6b;">0</td><td style="color:#666;">×</td></tr>
+              </table>
+              <span style="font-size:10px;color:#4a9eff;cursor:pointer;">+ 添加行</span>
+            </div>
+            <div style="border-top:1px solid #333;margin:8px 0;"></div>
+            <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">📦 R3 (机柜)</div>
+            <div style="display:flex;align-items:center;margin:4px 0;">
+              <span style="flex:1;font-size:11px;">总功耗 (W)</span>
+              <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;" value="5000" readonly>
+              <span style="margin-left:4px;cursor:pointer;background:#2a3a4a;padding:2px 6px;border-radius:3px;font-size:10px;border:1px solid #4a6a8a;color:#8be9fd;">⏱✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul><li>与现有 UI 无缝集成</li><li>精确到每个参数</li><li>可用于任意复杂曲线</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>缺少全局视角（要逐个设备查看）</li><li>不方便构建"故障场景"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>A + B 混合：场景面板 + 属性内联（推荐）</h3>
+      <p>新增一个"瞬态场景"左侧 Tab（和 geometry/mesh/solver 同级），提供事件列表 + 时间线预览（方案A）。同时在设备属性面板保留 ⏱ 按钮用于精细调节（方案B）。两处数据双向同步。</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">方案 C 预览 — 混合布局</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:11px;background:#1a1a2e;color:#ccc;padding:16px;">
+          <div style="display:flex;gap:2px;margin-bottom:10px;">
+            <span style="background:#252540;padding:3px 8px;border-radius:3px;color:#666;">🏗 建模</span>
+            <span style="background:#252540;padding:3px 8px;border-radius:3px;color:#666;">◈ 网格</span>
+            <span style="background:#252540;padding:3px 8px;border-radius:3px;color:#666;">🔬 求解</span>
+            <span style="background:#2a3a4a;padding:3px 8px;border-radius:3px;color:#8be9fd;border:1px solid #4a6a8a;">⏱ 瞬态场景</span>
+            <span style="background:#252540;padding:3px 8px;border-radius:3px;color:#666;">📊 后处理</span>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <div style="flex:1;">
+              <div style="color:#ff9f43;font-size:10px;margin-bottom:6px;">事件列表</div>
+              <div style="background:#252540;padding:4px 6px;margin:3px 0;border-radius:3px;border-left:2px solid #ff6b6b;font-size:10px;">
+                <span style="color:#888;">t=60s</span> ACU-1 关机
+              </div>
+              <div style="background:#252540;padding:4px 6px;margin:3px 0;border-radius:3px;border-left:2px solid #54d6a0;font-size:10px;">
+                <span style="color:#888;">t=120s</span> R3 功耗↑ 10kW
+              </div>
+              <span style="font-size:10px;color:#4a9eff;">+ 添加事件</span>
+              <div style="border-top:1px solid #333;margin:8px 0;"></div>
+              <div style="color:#ff9f43;font-size:10px;margin-bottom:6px;">时间线</div>
+              <div style="height:60px;background:#252540;border-radius:4px;padding:4px;position:relative;">
+                <div style="font-size:8px;color:#666;">ACU-1 ████<span style="color:#ff6b6b;">░░░░░░</span></div>
+                <div style="font-size:8px;color:#666;">ACU-2 ██████████████</div>
+                <div style="font-size:8px;color:#666;">R3功耗 ████<span style="color:#ff9f43;">▓▓▓▓▓▓▓▓▓</span></div>
+              </div>
+            </div>
+            <div style="flex:0.8;border-left:1px solid #333;padding-left:10px;">
+              <div style="color:#ff9f43;font-size:10px;margin-bottom:6px;">选中: ACU-1</div>
+              <div style="font-size:10px;">风量 3000 CFM <span style="color:#8be9fd;">⏱✓</span></div>
+              <div style="font-size:10px;">供冷 15°C <span style="color:#666;">⏱</span></div>
+              <div style="font-size:10px;color:#888;margin-top:4px;">点击 ⏱ 编辑时变曲线</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul><li>全局视角 + 精细控制两全</li><li>快捷事件创建 + 高级曲线编辑</li><li>符合行业工具范式</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>实现复杂度最高</li><li>双向同步需仔细设计</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

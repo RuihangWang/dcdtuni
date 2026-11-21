@@ -1,0 +1,150 @@
+--- original-actual/dcCartFinitePointRepair.H
++++ after/dcCartFinitePointRepair.H
+@@ -146,6 +146,7 @@
+     double bestHardDW=-1;
+     bool bestHardImproved=false;
+     unsigned requests=0, iterations=0, projectionUpdates=0;
++    unsigned restorationAttempts=0,restorationRequests=0; // Private pure-kernel policy only.
+     bool improved=false, stoppedByBudget=false;
+     bool stoppedByRequestCap=false,stoppedByTimeBudget=false;
+ };
+@@ -155,7 +156,8 @@
+     const std::function<Evaluation(const Row&)>& evaluate,
+     const std::function<bool()>& available,
+     ObjectiveKind objectiveKind=ObjectiveKind::Ratio,
+-    bool widerDWeightSearch=false
++    bool widerDWeightSearch=false,
++    bool nonlinearFeasibilityTail=false // Default OFF; no production caller enables this.
+ )
+ {
+     Search out; out.parameters.assign(dimension,0);
+@@ -172,6 +174,7 @@
+             && !e.constraints.empty() && finite(e.constraints);
+     };
+     const bool widerDW=widerDWeightSearch && objectiveKind==ObjectiveKind::DWeightCount;
++    const bool restoreDW=widerDW && nonlinearFeasibilityTail;
+     const double trustBound=widerDW ? .2 : .08;
+     Row q(dimension,0); Evaluation current;
+     if (!request(q,current)) return out;
+@@ -196,6 +199,7 @@
+         const double n=std::sqrt(dot(grad,grad));
+         if (!std::isfinite(n) || n<1e-12) break;
+         bool accepted=false;
++        bool restorationKnown=false;Row restorationQ;Evaluation restorationValue;
+         for (double radius:{.004,.002,.001,.0005})
+         {
+             if (widerDW) radius*=5; // DW only: .02/.01/.005/.0025.
+@@ -224,6 +228,13 @@
+                 if (!request(trial,next)) { valid=false; break; }
+                 if (next.constraints.size()!=current.constraints.size())
+                 { valid=false; break; }
++                // Only own an already-evaluated, descending but nonlinear-infeasible trial.
++                // No extra callbacks or allocations on the default-OFF path.
++                if (restoreDW
++                 && *std::min_element(next.constraints.begin(),next.constraints.end())<-2e-9
++                 && next.objective<current.objective-1e-8
++                 && (!restorationKnown || next.objective<restorationValue.objective))
++                { restorationQ=trial;restorationValue=next;restorationKnown=true; }
+                 if (*std::min_element(next.constraints.begin(),next.constraints.end())>=-2e-9
+                  && next.objective<current.objective-1e-8)
+                 {
+@@ -244,6 +255,54 @@
+             }
+             if (!valid || accepted) break;
+         }
++        // Preserve the complete original radius/fraction search first. One fixed
++        // tail per proposal may correct curvature residuals using this iteration's Jacobian.
++        // All evaluations use request(), so the original 256/32/time caps remain.
++        if (restoreDW && valid && !accepted && restorationKnown
++         && out.restorationAttempts==0)
++        {
++            ++out.restorationAttempts;
++            for (unsigned correction=0;correction<2;++correction)
++            {
++                Matrix a=jac;Row b=restorationValue.constraints;
++                for (unsigned k=0;k<dimension;++k)
++                {
++                    Row row(dimension,0);row[k]=1;
++                    a.push_back(row);b.push_back(restorationQ[k]+trustBound);
++                }
++                for (unsigned k=0;k<dimension;++k)
++                {
++                    Row row(dimension,0);row[k]=-1;
++                    a.push_back(row);b.push_back(trustBound-restorationQ[k]);
++                }
++                const Projection projected=project(Row(dimension,0),a,b);
++                out.projectionUpdates+=projected.updates;
++                if (!projected.feasible || !finite(projected.step)
++                 || dot(projected.step,projected.step)==0) break;
++                Row corrected=restorationQ;
++                for (unsigned k=0;k<dimension;++k) corrected[k]+=projected.step[k];
++                Evaluation next;const unsigned requestsBefore=out.requests;
++                const bool requested=request(corrected,next);
++                out.restorationRequests+=out.requests-requestsBefore;
++                if (!requested || next.constraints.size()!=current.constraints.size())
++                { valid=false;break; }
++                if (*std::min_element(next.constraints.begin(),next.constraints.end())>=-2e-9
++                 && next.objective<current.objective-1e-8)
++                {
++                    q=corrected;current=next;accepted=true;
++                    out.parameters=q;out.improved=true;
++                    if (validHardDW(initialHardDW) && validHardDW(current.hardDW)
++                     && current.hardDW<initialHardDW
++                     && (!out.bestHardImproved || current.hardDW<out.bestHardDW))
++                    {
++                        out.bestHardParameters=q;out.bestHardDW=current.hardDW;
++                        out.bestHardImproved=true;
++                    }
++                    break;
++                }
++                restorationQ=corrected;restorationValue=next;
++            }
++        }
+         ++out.iterations;
+         if (!valid || !accepted
+          || (objectiveKind==ObjectiveKind::Ratio && -current.objective*.01>=.0105)) break;
+@@ -275,6 +334,7 @@
+ {
+     unsigned dimension,n,evalCalls,evalValid,firstInvalid,requests,iterations,projectionUpdates;
+     unsigned improved,bestHardImproved,requestCap,timeCap,breakReason;
++    unsigned restorationAttempts,restorationRequests; // Two scalars, same record slots/caps.
+     std::int64_t moving[3];std::uint64_t oldPoint[9],firstObjective,lastObjective,firstHard,lastHard,parameters[9],bestParameters[9];
+     DWObservedSummary before;
+ };
+@@ -306,6 +366,7 @@
+     {
+         if(!enabled||at<0)return;auto& p=proposals[at];p.requests=s.requests;p.iterations=s.iterations;p.projectionUpdates=s.projectionUpdates;
+         p.improved=s.improved;p.bestHardImproved=s.bestHardImproved;p.requestCap=s.stoppedByRequestCap;p.timeCap=s.stoppedByTimeBudget;
++        p.restorationAttempts=s.restorationAttempts;p.restorationRequests=s.restorationRequests;
+         if(s.parameters.size()>9||s.bestHardParameters.size()>9){incomplete=true;return;}
+         for(unsigned j=0;j<s.parameters.size();++j)p.parameters[j]=observationBits(s.parameters[j]);
+         for(unsigned j=0;j<s.bestHardParameters.size();++j)p.bestParameters[j]=observationBits(s.bestHardParameters[j]);
+@@ -341,7 +402,8 @@
+              <<",\"firstHardBits\":"<<p.firstHard<<",\"lastHardBits\":"<<p.lastHard
+              <<",\"requests\":"<<p.requests<<",\"iterations\":"<<p.iterations<<",\"projectionUpdates\":"<<p.projectionUpdates
+              <<",\"improved\":"<<p.improved<<",\"bestHardImproved\":"<<p.bestHardImproved<<",\"requestCap\":"<<p.requestCap
+-             <<",\"timeCap\":"<<p.timeCap<<",\"breakReason\":"<<p.breakReason<<",\"parametersBits\":[";
++             <<",\"timeCap\":"<<p.timeCap<<",\"breakReason\":"<<p.breakReason
++             <<",\"restorationAttempts\":"<<p.restorationAttempts<<",\"restorationRequests\":"<<p.restorationRequests<<",\"parametersBits\":[";
+             for(unsigned j=0;j<p.dimension;++j)o<<(j?",":"")<<p.parameters[j];o<<"],\"bestParametersBits\":[";
+             for(unsigned j=0;j<p.dimension;++j)o<<(j?",":"")<<p.bestParameters[j];o<<"],\"before\":";summary(p.before);o<<"}";
+         }
+@@ -1562,6 +1624,8 @@
+     observation.enabled=!Pstream::parRun() && observationFlag && std::strcmp(observationFlag,"1")==0;
+     const bool widerDWeightSearch=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
+         (std::getenv("DCCART_PRIVATE_DW_WIDER_SEARCH"),Pstream::parRun());
++    const bool nonlinearFeasibilityTail=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
++        (std::getenv("DCCART_PRIVATE_DW_NONLINEAR_FEASIBILITY_TAIL"),Pstream::parRun());
+     if (widerDWeightSearch)
+         Pout<< "PRIVATE wider DW search policy: trustBox=.2 radiusFactor=5"
+             << " requestsCap=256 iterationsCap=32 stageCap=20; actual guards retained" << nl;
+@@ -1797,7 +1861,8 @@
+             else observation.incomplete=true;
+         }
+         const auto search=dcCartFiniteRepairKernel::propose
+-            (proposal.dimension,evaluate,available,proposal.kind,dw && widerDWeightSearch);
++            (proposal.dimension,evaluate,available,proposal.kind,dw && widerDWeightSearch,
++             dw && nonlinearFeasibilityTail);
+         if(observation.enabled&&dw)observation.search(observationIndex,search);
+         result.requests+=search.requests;
+         if (search.stoppedByRequestCap) ++result.requestCapStopped;

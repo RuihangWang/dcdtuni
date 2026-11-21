@@ -1,0 +1,13 @@
+# Independent actual33 point semantic boundary review
+
+The exact ce178f4a/495 physical cfdrun is unchanged. sourceTerms is empty, partitionWalls and heatSources are absent, and all14 rack leakage settings are disabled. Ten porousBindings represent five paired boundary sheets (Raised_Floor, merged_wall_baffle, and perforatedBlankingPanel3U/4U/5U), rather than bulk cell-zone/material sources. Actual writer already generated these baffle pairs and runner skips createBaffles. Its later temporary topoSet is a keepCells quality cleanup, not an undisclosed material-zone constructor.
+
+The old P screen's touchedSourceZone refers to cutMesh.zone, explicitly faceZone id in the real C++ header line69. It scans any face in core plus outside. Thus it is an intentionally stronger boundary-sheet screen; it cannot by itself label a free fluid point as belonging to a solid material cell zone.
+
+All33 recovered points were independently re-derived on the current exact topology with complete incident/core/outside faces. No moving point lies on any physical or coupled boundary facet, and no core cell owns a coupled face. Some core cells touch unchanged physical walls/baffles on faces that do not contain the moving point. All those roles have exact real porous/boundary binding, or explicit named-STL region wall declaration in generated snappyHexMeshDict (the same dict is consumed by dcCart). The eight initially unmapped named wall regions are explicitly supplied by merged_acu.stl/merged_box.stl, with actual type wall and bound source hashes. They were not silently mapped to the nearby supply/return patches.
+
+Three points (r3p4849,r3p9339,r6p13179) have outside-only coupled owner cells. Since none of these outside cell faces contains the moving point, topology and their geometric inputs would be fixed, but actual recomputation must still prove earliest-baseline/final DP-exact owner CC/V/ring/alias/role certificate. This report does not waive it or certify a numerical candidate.
+
+For this exact no-bulk-source business input, those33 are not rejected merely because an unchanged shell face was tagged by TRACE. A future singleton selector may test them only under the explicit case-bound source-role contract and all installed geometry/quality guards. New inputs with unresolved planned bulk/material/interface semantics remain rejected. All33 remain untested singleton proposals here; V4 chose none of them.
+
+The audit maps 383132924 bytes of selected-rank owner/neighbour/face arrays; it does not instantiate a complete mesh, scan2GB of source arrays, read all point payloads, or run any metrics/optimizer/native/API/build/browser. Source excerpts and complete face lists are saved alongside the role mappings. Existing frozen census/manifest is unchanged.

@@ -1,0 +1,72 @@
+--- before/src/backend/aircooling/runner/stlgen_runner.py
++++ after/src/backend/aircooling/runner/stlgen_runner.py
+@@ -8214,7 +8214,10 @@
+             shutil.rmtree(scratch, ignore_errors=True)
+         out_poly = scratch / "constant" / "polyMesh"
+         out_poly.mkdir(parents=True, exist_ok=True)
++        # --report records dc17 ingest mapping; the native S7 verdict is a
++        # separate sidecar beside the exported polyMesh (CLI parentDir contract).
+         report = scratch / "dc_report.json"
++        native_report = out_poly.parent / "dc_report.json"
+ 
+         # Editor-only export buckets (is_editor_only_stl) do not count as
+         # "STLs present" — meshgen would have nothing to mesh without them.
+@@ -8240,14 +8243,14 @@
+                 )
+                 self._run_cmd(cmd, scratch)
+         except MeshTimeoutError:
+-            self._log_meshgen_report(report)
++            self._log_meshgen_report(native_report)
+             raise
+         except RuntimeError as exc:
+             # _run_cmd already streamed the stderr tail into the job log; add
+             # the engine's own verdict so the failure is legible at a glance.
+-            self._log_meshgen_report(report)
++            self._log_meshgen_report(native_report)
+             raise RuntimeError(
+-                f"meshgen-cli refused the mesh ({exc}). dc_report: {report}; "
++                f"meshgen-cli refused the mesh ({exc}). dc_report: {native_report}; "
+                 f"scratch output kept at {scratch} for inspection."
+             ) from exc
+ 
+@@ -8269,14 +8272,20 @@
+         logger.info(f"meshgen scratch {scratch} cleaned up")
+ 
+     def _log_meshgen_report(self, report: Path) -> None:
+-        """Surface the dc_report.json verdict (stage/mode/problem shells) in the job log."""
++        """Log the native S7 sidecar, never the separate --report ingest mapping."""
+         if not report.is_file():
+-            logger.error("meshgen wrote no dc_report.json — the run died before the dc-mode report stage")
++            logger.error(f"meshgen wrote no native S7 report at {report} — the run died before the dc-mode report stage")
+             return
+         try:
+             data = json.loads(report.read_text(encoding="utf-8"))
+         except Exception as exc:
+             logger.error(f"dc_report.json is unreadable: {exc}")
++            return
++        if (not isinstance(data, dict) or data.get("stage") != "S7"
++                or data.get("schema") == "dc17-ingest-mapping/v1"):
++            identity = (f"schema={data.get('schema')!r}, stage={data.get('stage')!r}"
++                        if isinstance(data, dict) else type(data).__name__)
++            logger.error(f"{report} is not a native S7 report ({identity}); ingest mapping is not a mesh verdict")
+             return
+         stage = data.get("stage")
+         mode = data.get("mode")
+@@ -8309,7 +8318,7 @@
+         missing = [n for n in self._MESHGEN_POLYMESH_REQUIRED
+                    if not (out_poly / n).is_file() or (out_poly / n).stat().st_size == 0]
+         if missing:
+-            self._log_meshgen_report(scratch / "dc_report.json")
++            self._log_meshgen_report(out_poly.parent / "dc_report.json")
+             raise RuntimeError(
+                 f"meshgen exported no usable polyMesh (missing/empty: {missing}) — "
+                 "the mesh is refused, nothing was assembled into Mesh/"
+@@ -8326,7 +8335,7 @@
+         if summary is not None:
+             n_cells = summary["nCells"]
+             if n_cells < self._MESHGEN_MIN_CELLS:
+-                self._log_meshgen_report(scratch / "dc_report.json")
++                self._log_meshgen_report(out_poly.parent / "dc_report.json")
+                 raise RuntimeError(
+                     f"meshgen exported a DEGENERATE mesh ({n_cells} cells < "
+                     f"{self._MESHGEN_MIN_CELLS} floor) — refused, nothing assembled"

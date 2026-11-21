@@ -1,0 +1,84 @@
+# ============================================================================
+# Inference Config — A3 (GTC): TextCondTransFVGN_v1 + PatchNumericalEncoder + z-score
+# ============================================================================
+# Mirrors cases/GTC/A3/configs/config_A3_train.yaml. model_configs is IDENTICAL to
+# the train config (no extra arch flags) so train==inference architecture; the
+# z-score normalization (patch_numerical_normalize) is applied at inference too,
+# loading the SAME cases/GTC/A3/dataset/patch_statistics.json used in training.
+# checkpoint_path is set after training finishes.
+# ============================================================================
+
+logging_config:
+  log_level: "INFO"
+  logger_root: cases/GTC/A3/Logger
+
+model_configs:
+  TextCondTransFVGN_v1:
+    name: "TextCondTransFVGN_v1"
+    message_passing_num: 1
+    attn_processor_num: 7
+    hidden_size: 256
+    use_film_conditioning: false
+    use_internal_gn_block_before_slice: false
+    node_output_size: 5
+    dropout: false
+    patch_slice_num: 32
+    assume_single_graph_batch: true
+    patch_only_numerical: true
+    patch_numerical_dim: 5
+    text_reference_graph: true
+    text_reference_mp_layers: 1
+    use_sampled_global_text_conditioning: false
+
+dataset_config:
+  data_root: cases/GTC/A3/dataset
+  train_ratio: 0.90
+  test_ratio: 0.10
+  text_source: "toml_codebook"
+  text_bc_fields: ["U", "p_rgh", "T"]
+  text_global_files:
+    - "constant/transportProperties"
+    - "constant/turbulenceProperties"
+    - "constant/thermophysicalProperties"
+    - "constant/g"
+  num_processes: 8
+  enable_visualization: false
+  statistics_only: true
+  force_compute_1st_field: false
+
+training_config:
+  model_name: "TextCondTransFVGN_v1"
+  dataset_path: cases/GTC/A3/dataset
+  use_text_conditioning: false
+  patch_only_numerical: true
+  patch_numerical_normalize: true
+  field_source: "unconverged_t1"
+
+inference_config:
+  model_name: "TextCondTransFVGN_v1"
+  # Relative to the bundle root — inference.py joins any non-absolute value with
+  # project_root (= this bundle). An absolute path meant the bundle could not be
+  # copied or even renamed: the data/ -> SCANO/ rename alone would have broken it.
+  checkpoint_path: "logger/model/best.state"
+  dataset_path: cases/GTC/A3/dataset
+  case: ["case0"]
+  use_text_conditioning: false
+  patch_only_numerical: true
+  patch_numerical_normalize: true
+  field_source: "unconverged_t1"
+  use_precomputed_features: true
+
+  mixed_precision: true
+  amp_dtype: "bfloat16"
+  enable_compile: false
+
+  tta_sample_ratio: 0.02
+  tta_sample_ratio_multi_gpu: 0.02
+  tta_khop: 2
+  tta_batch_size: 1
+
+  sensor_only_inference: false
+  sensor_interpolation_k: 4
+  sensor_interpolation_power: 2.0
+  sensor_benchmark_iterations: 0
+  sensor_positions: {}

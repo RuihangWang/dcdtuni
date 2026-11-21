@@ -1,0 +1,16 @@
+# Full Shinaide graph CPU/GPU parity and implicit heat gradient — 2026-10-07
+
+The actual React-produced Glycol 25% GPU experiment 6af34438f70a406889ac8ba08ba029d8 was replayed through the unchanged physical Newton DAE. Its strict v4 input contains 229 nodes, 286 edges, 892 liquid cells, 56 cold plates and 1693 unknowns. The accepted online heat command changes the multiplier from 1.0 to 1.2 at the first accepted step (2 s). Secondary fluid is rho=1032 kg/m³, cp=3850 J/(kg·K), mu=0.0018 Pa·s and k=0.48 W/(m·K); the saved primary loop retains its independent material values.
+
+All eight independent processes returned zero under their unchanged 300 s watchdogs. CPU and CUDA:0 float64 forward trajectories include all 11 samples through 20 s. Their maximum state difference is 2.9863e-9; the eight pressure/flow/temperature fields also match the original GUI result within the predeclared rtol=1e-10, atol=1e-7. CUDA tensor placement was asserted, with a 256 MiB allocator budget; actual peak was 184,969,728 bytes. GPU timing is a measurement under concurrent Kit services, not a speedup claim.
+
+Implicit heat adjoints were verified on the same entire graph over its first two accepted steps (4 s). Objectives are the sum of 56 final solid temperatures and the first solid temperature. CPU derivatives are 499.0331481376087 and 2.3765728558828845 K per unit heat multiplier. GPU agrees within 4.45e-16. Symmetric CPU finite differences at epsilon 1e-3 and 5e-4 agree with relative differences below 7.2e-12. This establishes tensor control differentiation through the physical implicit solver; it does not establish differentiability of JSON serialization, graph compilation, every control, or the full 20 s GPU adjoint.
+
+Both unsuccessful initial attempts remain intact. The first used incorrect probe-only fluid key names and raised KeyError before physics. The second completed the CPU 20 s forward and its two gradients, then hit its original aggregate 300 s watchdog while advancing GPU. These results were not relabelled as a successful full GPU adjoint. The bounded cohorts save trajectories before adjoints, so a later timeout cannot discard accepted physical data.
+
+Every original byte stream, process status, trajectory and script is bound in MANIFEST.json. Large JSON streams use lossless gzip; the original and stored SHA-256 values are recorded. Forty-eight backend source files were rechecked against the original cohort before archival. No equations, Newton tolerances or production time limits changed.
+
+Offline arithmetic replay (no GPU or solver run): python VERIFY_ARTIFACTS.py.
+A new physical replay uses python RUN_REPRO.py --repo /absolute/dcdtuni --python /absolute/product/python --gpu, after reserving the currently permitted physical GPU. Omitting --gpu selects CPU cohorts only and does not certify all eight cohorts. The runner places every generated file inside the selected checkout.
+
+Related genuine browser evidence and original engineering file: [GPU glycol GUI](../liquid-fullcase-gpu-glycol-browser-20261007/README.md). The separate complete manufactured-solution derivation and refinement study are [full graph MMS](../liquid-full-mms-asymptotic-20261007/README.md); this ordinary physical replay does not use manufactured forcing.

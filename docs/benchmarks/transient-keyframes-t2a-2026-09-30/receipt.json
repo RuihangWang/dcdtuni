@@ -1,0 +1,48 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T2a (freeze on every write path, top-bar mode switch, retire the old transient tab)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t2a",
+  "code": "ee5f1f42",
+  "machine": "40901",
+  "launch": "CONDA_EXE=$HOME/miniconda3/bin/conda PATH=$HOME/miniconda3/bin:$PATH CUDA_VISIBLE_DEVICES=\"\" OMP_NUM_THREADS=2 src/start_server.sh --build --app react --port 8390 --case-dir <repo>/case/Base_coldAisleIso",
+  "client": "built-in browser pane, background tab, via SSH tunnel 8390/8391",
+  "user_rulings": [
+    "static = scene state only (geometry + constructions); project settings editable at any playhead",
+    "display-only fields (meta.display, face opacity/wallOpacities, moveTool/rotateTool) editable at any playhead"
+  ],
+  "tests": {
+    "vitest": {"files": 302, "tests": 3082, "failed": 0},
+    "tsc_b": "clean",
+    "vite_build": "ok",
+    "node_transient": {"passed": 23, "failed": 0},
+    "node_all_files": {"failing_files_same_as_main": 7},
+    "python_40901": {"files": ["frontend/test/test_cfdproj_transient_py.py", "frontend/test/test_cfdproj_transient_parity.py", "backend/tests/test_hybrid_air_heat_handoff.py", "server/tests/test_browser_load_project_route.py"], "passed": 1559, "failed": 0}
+  },
+  "mutation_checks": [
+    "notifyLiveEdit guard removed -> in-place revert test fails",
+    "refresh after undo removed -> undo/redo reference test fails",
+    "{ scene: false } removed from tool toggles -> real-writer test fails"
+  ],
+  "smoke": {
+    "case": "case/Shinaide_Liquid/Shinaide_liquid.cfdproj",
+    "top_bar_switch": {"in_toolbar": true, "options": ["稳态", "瞬态"], "old_transient_tab_present": false},
+    "switch_to_transient": {"mode": "transient", "solverType": "transient", "endTimeSeconds": 300, "durationS": 300},
+    "playhead_120": {"sceneFrozen": true},
+    "cold_plate_power_edit": {"from": 100, "to": 180, "keyframes": [{"t": 0, "value": 100}, {"t": 120, "value": 180, "rampS": 0}], "preset": "cpu", "rejected": false},
+    "static_edit_inlet_setback": {"from": 0.12, "tried": 0.2, "rejected": "static", "field_after": "0.120", "path": "rackDetail notifyLiveEdit"},
+    "server_opacity_drag": {"to": 0.37, "rejected": false},
+    "scene_drag_mutateLive_while_frozen": {"moved": false},
+    "undo_redo_at_120": {"undo_steps": 2, "Q_W_after_undo": 100, "Q_W_after_redo": 180},
+    "save_reopen": {"path": "/tmp/t2agate/Shinaide_liquid.cfdproj", "sha256_prefix": "062ff00ea55ebe8e", "mode": "transient", "playhead_on_open": 0, "Q_W_t0": 100, "Q_W_t120": 180, "preset": "cpu", "opacity": 0.37, "Q_W_on_disk": null},
+    "case_file_untouched": true
+  },
+  "deviations": [
+    "A3: one guard in mutateLive instead of per-drag-entry blocks; 22 non-scene callers pass { scene: false }",
+    "A4: no source change (commit blur re-syncs); pinned by NumberFieldRefusal.test.tsx",
+    "top-bar options use new keys transient.mode.steady/transient (稳态 / 瞬态)"
+  ],
+  "open": ["no on-screen notice for a refused edit yet (T2c)", "top-bar supply/return summary shows imbalance off t = 0 (return derived at compile, T4)"],
+  "teardown": "8390/8391 stopped after the smoke"
+}

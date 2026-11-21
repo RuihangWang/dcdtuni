@@ -1,0 +1,12 @@
+--- red/test_meshgen_report_paths.py
++++ final/test_meshgen_report_paths.py
+@@ -119,7 +119,8 @@
+     wrong.write_bytes(INGEST)
+     runner._log_meshgen_report(wrong)
+     assert any("not a native S7 report" in line and "dc17-ingest-mapping/v1" in line for line in errors)
+-    assert not any("stage=None" in line or "full report:" in line for line in errors)
++    # A rejection may quote the absent stage; it must not emit a verdict summary.
++    assert not any(line.startswith("dc_report.json: stage=") or "full report:" in line for line in errors)
+ 
+ 
+ def test_actual_native_s7_body_remains_a_diagnostic_not_mesh_acceptance(tmp_path, monkeypatch):

@@ -1,0 +1,9 @@
+# Original BOX/CDU producer capture and baseline RED
+
+The original then-live SceneBuilder rendered only the requested actual record in a normalized per-model harness, with webglAvailable false and liquid detail display disabled. This is a structural numerical/export oracle, not full business, browser, texture-ready PBR, or Kit acceptance.
+
+Three actual records are bound to complete original input copies: LiquidSingle CDU, Shinaide UPS BOX, and Shinaide CDU. Seven owned synthetic variants cover rectangular hole, circle32 hole, overlapping islands, quad corner offsets, disconnected wall fragments, mirrored/nonuniform quaternion pose and opacity. Full raw attributes/index byte hex, values, world matrices, complete grouped STL strings and camera/material snapshot are stored in boxGeometryProductParity.json. No new algorithm produced the golden.
+
+The one explicit capture test passed. Final baseline has 10 complete original carrier parity controls PASS and 13 missing-domain-method RED (10 BOX/CDU + 3 unsupported-kind gates). Production source is unchanged. The first harness assertion draft is preserved and corrected: the legacy normalizer adds kind, so the domain side now consumes original persisted records without that added field while the actual carrier still uses its real normalizer. It does not weaken buffer or export assertions.
+
+Capture is opt-in and checks all original producer hashes before writing. Once production changes, that gate refuses recapture. The capture tool, original producer copies, original full input bytes, first RED, final RED and commands are retained here. ROOT reviews the declared product interface and implements the next slice before green validation. No build, Git, service, browser, API, mesher or solver operation was performed during this capture.

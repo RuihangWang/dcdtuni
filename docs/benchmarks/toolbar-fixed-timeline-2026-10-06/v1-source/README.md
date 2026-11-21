@@ -1,0 +1,5 @@
+# Toolbar fixed timeline repair
+
+The original 1280x720 observation clipped the final timeline under the automatic201.6px toolbar cap. Tools now scroll in their own body; the wrapped timeline remains a nonshrinking footer. Actual measured footer/chrome+32px body reserve is a lower bound for manual resize within the original auto28%/manual50% window caps. If the footer itself exceeds a cap, it scrolls internally while the body retains a bounded accessible region. All current control IDs/renderer portals/collapse ownership and independent center-view cube are retained.
+
+Two reservation regressions first failed against the original code (2failed/19passed), retained verbatim. The first combined run had35passed/1failed because a test used a single40px keyboard step from215.04px and had not reached the152px lower bound; the corrected test uses3steps. Original focused logs remain. Typecheck0. New DOM tests use explicit synthetic layout measurements; they do not prove browser layout or GPU behavior. Normal production build and actual1280x720 UI remain to be verified. No physics/renderer/material source or case/service/Git mutation.

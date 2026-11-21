@@ -1,0 +1,21 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# Allwclean -- remove build artefacts (objects + platforms/ outputs).
+# ---------------------------------------------------------------------------
+# NB: no `set -u` -- conda's activate.d scripts reference unbound vars.
+set -eo pipefail
+
+cd "$(dirname "$0")"
+SNAPPY_ROOT="$(pwd -P)"
+
+# shellcheck disable=SC1091
+source "$SNAPPY_ROOT/env.sh" || true
+
+LIB_DIR="$SNAPPY_ROOT/src/mesh/snappyHexMesh"
+APP_DIR="$SNAPPY_ROOT/applications/utilities/mesh/generation/snappyHexMesh"
+
+( cd "$LIB_DIR" && wclean libso ) || true
+( cd "$APP_DIR" && wclean ) || true
+rm -rf "$SNAPPY_ROOT/platforms"
+rm -rf "$LIB_DIR/lnInclude"
+echo "cleaned."

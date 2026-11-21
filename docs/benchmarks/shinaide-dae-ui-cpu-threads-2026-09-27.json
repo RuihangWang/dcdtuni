@@ -1,0 +1,52 @@
+{
+  "scope": "Saved Shinaide DAE .cfdproj CPU-thread choice through React v3 export and one actual CPU transient step",
+  "source_project": {
+    "path": "case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj",
+    "sha256": "9d193dc07b6dd789d60e71840c9217bcf17a7f76f006abb306aafaa9d25bafd0",
+    "saved_max_threads_before_ui_edit": 1,
+    "modified_on_disk": false
+  },
+  "derived_manifest": {
+    "sha256": "dc553ab36e6ca9d5ccecaa8c1383092fa34fbdfc0e8b04ca3a4b42e410654d55",
+    "schemaVersion": 3,
+    "max_threads_after_ui_edit": 4,
+    "source": "React loaded the saved project, changed its DAE thread selector to 4, serialized/reopened it in memory, and compiled the strict v3 input"
+  },
+  "execution": {
+    "host": "NTU-Litianyu-40901",
+    "checkout": "/mnt/lv/home/litianyu/mycode/dcdtuni-liquid-platform",
+    "cpu_affinity": [0, 1, 2, 3],
+    "nice": 10,
+    "cuda_visible_devices": "",
+    "dtype": "float64",
+    "device": "cpu",
+    "state_size": 1096,
+    "time_step_s": 20,
+    "results": [
+      {"requested_threads": 4, "actual_threads": 4, "one_initialization_plus_step_s": 1.0534092229790986, "primary_return_K_at_20s": 298.1739234471478, "energy_balance_W_at_20s": -0.000009078190487343818},
+      {"requested_threads": 2, "actual_threads": 2, "one_initialization_plus_step_s": 0.682270293997135, "primary_return_K_at_20s": 298.1739234471478, "energy_balance_W_at_20s": -0.000009078190487343818},
+      {"requested_threads": 1, "actual_threads": 1, "one_initialization_plus_step_s": 0.7567814980284311, "primary_return_K_at_20s": 298.17392344634254, "energy_balance_W_at_20s": -0.000005711921403417364}
+    ],
+    "scaled_one_step_state_max_diff_vs_cpu1": {"cpu2": 2.530953224777477e-11, "cpu4": 2.530953224777477e-11}
+  },
+  "verification": {
+    "frontend_targeted": "10 passed: live DAE controls and project v3 export",
+    "frontend_full_suite": "251 files / 2595 tests passed",
+    "frontend_production_build": "passed",
+    "backend_actual_runtime": "DAESimulation loaded the UI-derived strict v3 input and reported actual_threads 1, 2 and 4; one initialization and one BE step completed for each budget"
+  },
+  "browser_check": {
+    "url": "http://127.0.0.1:18360/",
+    "saved_project": "Shinaide_dae_cpu.cfdproj",
+    "observed_models": 32,
+    "observed_three_meshes": 800,
+    "selector_before": 1,
+    "selector_after_edit": 4,
+    "saved_execution_label_after_edit": "CPU · float64 · 4 threads",
+    "selector_after_undo": 1,
+    "project_file_written": false,
+    "original_project_sha256_unchanged": true,
+    "test_tab_closed": true
+  },
+  "interpretation": "One bounded measurement per budget demonstrates actual thread propagation and numerical agreement, not a general speedup. This short Shinaide case was slower at 4 threads than at 1 or 2. No GPU, CFD mesh or new browser-side numerical run was started."
+}

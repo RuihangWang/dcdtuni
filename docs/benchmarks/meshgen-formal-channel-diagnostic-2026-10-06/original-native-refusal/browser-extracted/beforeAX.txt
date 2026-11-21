@@ -1,0 +1,284 @@
+Browser tab: 13, Title: "DCTwin Editor", URL: "http://10.96.72.147:8396/".
+1 AXWebArea DCTwin Editor, URL: 10.96.72.147:8396/
+	2 container
+		3 container root
+			4 container left-panel
+				5 container file-bar-header
+					6 text ▼
+					7 text 📁 工程与视图
+				8 button 📂 加载工程
+				9 button 💾 保存工程
+				10 button 🏠 房间 2D 平面设计
+				11 button 🎮 进入第一人称, ID: fps-toggle-btn
+				12 button 💧 液冷模拟, ID: btn-mode-liquid
+				13 button 🌬️ 风冷模拟, ID: btn-mode-air
+				14 container left-tab-bar
+					15 button Description: 🗂️ 几何与属性, ID: tab-btn-geometry
+					16 button Description: ⚙️ 网格, ID: tab-btn-mesh
+					17 button (disabled) Description: 🔬 求解, Help: 请先生成网格, ID: tab-btn-solver
+					18 button (disabled) Description: 📊 后处理, Help: 请先完成求解, ID: tab-btn-postprocess
+					19 button Description: ⚙ System, ID: tab-btn-system
+				254 container mesh-settings-panel
+					255 container
+						256 text 🌐 网格全局参数 基础尺寸 (m)
+						257 stepper (settable, float) 基础尺寸 (m), Value: 0.25, ID: ms-base-size
+						258 text 最大网格数
+						259 stepper (settable, integer) 最大网格数, Value: 5000000, ID: ms-max-cells
+						260 text 加密设置决定实际单元数，请在生成后的网格报告中核查。
+						261 checkbox (settable, integer) Description: 并行网格, Value: 1, ID: ms-parallel
+						262 text 进程数
+						263 stepper (settable, integer) 进程数, Value: 2, ID: ms-procs
+					264 container
+						265 text ⚙️ 网格引擎 (Mesh Engine) 网格引擎
+						266 pop up button (collapsed, settable) 网格引擎, Value: MeshGenerator, ID: ms-mesh-engine, Secondary Actions: Expand
+							267 menu
+								268 snappyHexMesh
+								269 dcCartMesh
+								270 (selected) MeshGenerator
+						271 text 笛卡尔切割网格，使用单进程。
+						272 button (collapsed) 高级引擎说明, Secondary Actions: Expand
+							273 text 高级引擎说明
+						274 text 首层尺寸 (m)
+						275 stepper (settable) 首层尺寸 (m), ID: ms-first-cell
+					276 container
+						277 text 📐 单元尺寸规则 dcCart 的首层网格下限与机架单元下限。留空 = runner 默认值（焊合 1.2 mm，首层 0.3 × 层间距，上限 5 mm）。下方读数按当前设置换算成每类表面的单元边长。
+						278 container 轴对齐表面距最细一级网格面小于此值时并到网格面上 (m)。0 = 关闭。
+							279 text 焊合容差 (m)
+						280 stepper (settable, float) 焊合容差 (m), Value: 0.0012000000569969416, Details: 0.0012, ID: ms-weldTolerance
+						281 container 首层下限：每类表面按其加密层间距的这一比例把表面吸附到网格面，保证壁面第一层不薄于该值。0 = 关闭，0.5 = 全部吸附。
+							282 text 首层下限 (×层间距)
+						283 stepper (settable, float) 首层下限 (×层间距), Value: 0.30000001192092896, Details: 0.3, ID: ms-firstLayerMinFraction
+						284 container 首层下限的绝对上限 (m)，0 = 不封顶。
+							285 text 首层下限上限 (m)
+						286 stepper (settable, float) 首层下限上限 (m), Value: 0.004999999888241291, Details: 0.005, ID: ms-firstLayerMax
+						287 container 两固体之间宽于此值的缝隙不会被首层吸附封死 (m)；-1 = 与焊合容差相同。
+							288 text 可封缝隙 (m)
+						289 stepper (settable, integer) 可封缝隙 (m), Value: -1, ID: ms-firstLayerSealGap
+						290 container 机架区域单元下限 (m)：为分辨最薄风扇服务器而自动提升机架加密层级时，单元不会小于此值。留空 = 不封顶。
+							291 text 机架单元下限 (m)
+						292 stepper (settable, float) 机架单元下限 (m), Value: 0.017500000074505806, Details: 0.0175, ID: ms-rackCellMinSize
+						293 button 📐 应用推荐尺寸规则, Help: 设置背景0.25 m、dcCart、8个网格进程、完整网格预算300 s；焊合1.2 mm、首层0.3倍间距且上限5 mm、机架单元下限17.5 mm。保留局部加密、单元数上限和种子点。
+						294 container ms-sizing-readout
+							295 container
+								296 text 背景网格 : L 0  →  250.0  mm
+							297 container
+								298 text 房间墙壁 : L 1  →  125.0  mm
+							299 container
+								300 text 机架区域加密 : L 3  →  31.3  mm
+							301 container
+								302 text ACU : L 1  →  125.0  mm
+							303 container
+								304 text 白模 : L 1  →  125.0  mm
+							305 container
+								306 text 挡板/地板 : L 1  →  125.0  mm
+							307 text 首层下限 0.3×层间距 → 最薄 5.0 mm
+							308 text 地面 1.0 m²，0 台机架 → 建议上限 ≥ 500,000（当前 5,000,000）
+					309 container
+						310 text 🔬 加密策略 表面 [min, max]：控制几何表面附近网格密度。特征线：控制转角/棱边附近网格密度（建议 ≥ 表面 max）。
+						311 container ms-refine-grid
+							312 text 表面 min 表面 max 特征线
+							313 container 房间墙壁 (room_wall.stl)
+								314 text 房间墙壁
+							315 stepper (settable, integer) Description: 房间墙壁 表面 min, Value: 1, ID: ms-rl-0
+							316 stepper (settable, integer) Description: 房间墙壁 表面 max, Value: 1, ID: ms-rl-1
+							317 stepper (settable, integer) Description: 房间墙壁 特征线, Value: 2, ID: ms-feat-default
+							318 text 机架区域加密
+							319 stepper (settable, integer) Description: 机架区域加密, Value: 3, ID: ms-rack-region
+							320 container ACU 设备 (merged_acu.stl)
+								321 text ACU
+							322 stepper (settable, integer) Description: ACU 表面 min, Value: 1, ID: ms-acu-0
+							323 stepper (settable, integer) Description: ACU 表面 max, Value: 1, ID: ms-acu-1
+							324 stepper (settable, integer) Description: ACU 特征线, Value: 2, ID: ms-feat-acu
+							325 container 白模 (merged_box.stl)
+								326 text 白模
+							327 stepper (settable, integer) Description: 白模 表面 min, Value: 1, ID: ms-box-0
+							328 stepper (settable, integer) Description: 白模 表面 max, Value: 1, ID: ms-box-1
+							329 stepper (settable, integer) Description: 白模 特征线, Value: 2, ID: ms-feat-box
+							330 text 隔离墙
+							331 stepper (settable, integer) Description: 隔离墙 表面 min, Value: 1, ID: ms-pw-0
+							332 stepper (settable, integer) Description: 隔离墙 表面 max, Value: 1, ID: ms-pw-1
+							333 stepper (settable, integer) Description: 隔离墙 特征线, Value: 2, ID: ms-feat-pw
+							334 container 挡板和地板 (merged_baffle.stl, merged_floor_ceiling.stl)
+								335 text 挡板/地板
+							336 stepper (settable, integer) Description: 挡板/地板 表面 min, Value: 1, ID: ms-bfl-0
+							337 stepper (settable, integer) Description: 挡板/地板 表面 max, Value: 1, ID: ms-bfl-1
+							338 stepper (settable, integer) Description: 挡板/地板 特征线, Value: 2, ID: ms-feat-baffle
+							339 text 地板 (FLOOR)
+							340 stepper (settable, integer) Description: 地板 (FLOOR) 表面 min, Value: 1, ID: rx-floor-0
+							341 stepper (settable, integer) Description: 地板 (FLOOR) 表面 max, Value: 1, ID: rx-floor-1
+							342 stepper (settable, integer) Description: 地板 (FLOOR) 特征线, Value: 2, ID: rx-floor-feat
+						343 button 🔍 自动检测, ID: btn-auto-detect-refinement
+						344 text 检测基准 (m)
+						345 stepper (settable, float) 检测基准 (m), Value: 0.25, ID: ms-detect-base
+					346 container
+						347 text 🧊 BlockMesh 计算域
+						348 container bm-readonly-display
+							349 text BlockMesh 范围由房间边界自动计算（各方向外扩 1 个网格单元）
+							350 text X: [-0.2500, 1.2500] Y: [-0.2500, 1.2500] Z: [-0.2500, 1.2500]
+						351 button 👁 预览背景网格, ID: bm-grid-preview-btn
+					352 container
+						353 text 📍 locationInMesh (m) 流体域内一点，snappyHexMesh 保留该点所在的一侧。 X
+						354 stepper (settable, float) Description: 📍 locationInMesh (m) X, Value: 0.17299999296665192, Details: 0.173, ID: slv-loc-x
+						355 text Y
+						356 stepper (settable, float) Description: 📍 locationInMesh (m) Y, Value: 0.11299999803304672, Details: 0.113, ID: slv-loc-y
+						357 text Z
+						358 stepper (settable, float) Description: 📍 locationInMesh (m) Z, Value: 0.17299999296665192, Details: 0.173, ID: slv-loc-z
+						359 checkbox (settable, integer) Description: 显示, Value: 1, ID: loc-visible-cb
+						360 text 拖拽轴约束
+						361 checkbox (settable, integer) Description: X, Value: 1, ID: loc-axis-x
+						362 checkbox (settable, integer) Description: Y, Value: 1, ID: loc-axis-y
+						363 checkbox (settable, integer) Description: Z, Value: 1, ID: loc-axis-z
+						364 button 📷 定位视角到该点, ID: btn-locate-loc
+						365 text 用于标记额外的连通流体区域（均为 none 模式）。
+						366 button ＋ 添加种子点, ID: btn-add-seed
+					367 container
+						368 text 📦 体积加密区域 (Refinement Zones) 无加密区域
+						369 button ➕ 添加加密区域, ID: btn-add-zone
+					370 text case 目录: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA
+					371 button 🚀 执行网格生成, ID: mesh-run-btn
+					372 button 🔍 检测网格状态, ID: mesh-check-btn
+					373 button 🔲 显示网格, ID: mp-show-mesh
+				83 container left-geo-export
+					84 button 📥 导出 CFD 流形拓扑 STL, ID: btn-export-stl
+					85 button 🔬 导出 CFD 工程包 (JSON+STL), ID: btn-export-package
+			86 container toolbar
+				87 button (expanded) Description: ▼ 折叠工具栏, ID: toolbar-collapse-btn, Secondary Actions: Collapse
+				88 container toolbar-content
+					89 Description: 风冷工况：稳态或瞬态, Help: 工况：稳态计算，或带进度条与关键帧的瞬态计算, ID: transient-mode-selector
+						90 text 风冷
+						91 radio button 稳态, Value: 0
+						92 radio button 瞬态, Value: 1
+						93 text 液冷·稳态
+					94 container renderer-switch-slot
+						95 container
+							96 text 渲染器
+							97 pop up button (collapsed, settable) Description: 渲染器, Value: Three.js, Secondary Actions: Expand
+								98 menu
+									99 (selected) Three.js
+									100 Omniverse
+						101 button 导出渲染场景
+						102 container
+							103 button (collapsed) OV 连接, Secondary Actions: Expand
+								104 text OV 连接
+					105 button (collapsed) 建模工具, ID: toolbar-model-tools-toggle, Secondary Actions: Expand
+					106 button (collapsed) 视图工具, ID: toolbar-view-tools-toggle, Secondary Actions: Expand
+					107 button (collapsed) 偏好设置, ID: toolbar-preferences-toggle, Secondary Actions: Expand
+					108 container timeline-strip
+						109 pop up button (collapsed, settable) Description: 瞬态起点：从稳态收敛场出发，或从均匀初场出发, Value: 起点：稳态收敛场, ID: timeline-start, Secondary Actions: Expand
+							110 menu
+								111 (selected) 起点：稳态收敛场
+								112 起点：均匀初场
+						113 slider Description: 播放头（秒）, Help: 点击或拖动定位播放头；左右方向键移动一个时间步，Home/End 定位起点/终点。拖动菱形平移该时刻的全部关键帧，双击菱形输入精确时间, Value: 0, ID: timeline-bar
+						114 container Description: 播放头（秒）, ID: timeline-time
+							115 text t
+							116 stepper (settable, integer) Description: 播放头（秒）, Value: 0, ID: timeline-playhead-time
+							117 text s
+						118 button (collapsed) 时间设置, Secondary Actions: Expand
+							119 text 时间设置
+						120 button 轨道, Help: 展开 / 收起所选物体的参数轨道, ID: timeline-tracks-toggle
+			121 container center-view
+				122 image
+				123 image corner-axes-gizmo
+				124 container
+					125 container fps-display
+						126 text FPS:  28
+					127 text  | meshes:  22
+			128 container right-panel
+				129 container right-panel-tabs
+					374 button ⚙️ 属性检查器 (Inspector), ID: rpt-inspector-tab
+					375 button 🔲 网格预览, ID: rpt-meshpreview-tab
+				376 text 🗂️ 工程设定
+				377 container prop-content
+					378 container
+						379 text 📏 输入单位 长度单位
+						380 pop up button (collapsed, settable) 长度单位, Value: mm, ID: input-unit, Secondary Actions: Expand
+							381 menu
+								382 (selected) mm
+								383 cm
+								384 m
+						385 text 内部几何统一以米存储，当前输入和显示单位为  mm 。
+					386 container
+						387 text 模型描述
+						388 text entry area (settable) Value: Synthetic zero-load lifecycle regression; native CFD execution, not a calibrated cooling prediction, ID: project-description
+					389 container
+						390 text 传感器数据（实测） 真实场景传感器读数，仅作记录，不参与求解。
+						391 button + 添加传感器, ID: sensor-rec-add
+					392 container
+						393 text 📐 工程边界约束 (mm) 勾选后，所有模型的边界（位置+尺寸）不得超越对应轴的限制值。未勾选的方向不做约束。 X
+						394 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-xMin-enabled
+						395 stepper (disabled, settable, integer) Description: X Min (mm), Value: 0, ID: bound-xMin-value
+						396 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-xMax-enabled
+						397 stepper (disabled, settable, integer) Description: X Max (mm), Value: 1000, ID: bound-xMax-value
+						398 text Y
+						399 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-yMin-enabled
+						400 stepper (disabled, settable, integer) Description: Y Min (mm), Value: 0, ID: bound-yMin-value
+						401 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-yMax-enabled
+						402 stepper (disabled, settable, integer) Description: Y Max (mm), Value: 1000, ID: bound-yMax-value
+						403 text Z
+						404 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-zMin-enabled
+						405 stepper (disabled, settable, integer) Description: Z Min (mm), Value: 0, ID: bound-zMin-value
+						406 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-zMax-enabled
+						407 stepper (disabled, settable, integer) Description: Z Max (mm), Value: 1000, ID: bound-zMax-value
+					408 container
+						409 text 📐 房间几何 (m) 宽度 X 1.000 进深 Z 1.000 层高 Y 1.000 轮廓顶点 4 房间轮廓是多边形，宽度与进深取其包围盒，非矩形房间同样成立。
+					410 container
+						411 text 🌡️ 室温 (Reference Temperature) 设定环境参考温度，影响 TRef 和热膨胀系数 beta (= 1/TRef)。 室温
+						412 pop up button (collapsed, settable) 室温, Value: 22°C (295.15 K), ID: room-temp-select, Secondary Actions: Expand
+							413 menu
+								414 18°C (291.15 K)
+								415 20°C (293.15 K)
+								416 (selected) 22°C (295.15 K)
+								417 24°C (297.15 K)
+								418 26°C (299.15 K)
+								419 28°C (301.15 K)
+								420 30°C (303.15 K)
+								421 自定义...
+						422 text 当前: 22°C = 295.15 K | beta = 3.388e-3
+					423 container
+						424 text 📋 工程名称 项目名
+						425 text field (settable) 项目名, Value: Steady lifecycle MPI2, ID: project-name-input
+						426 text 保存工程（.cfdproj）和导出 CFD 工程包时使用此名称。
+					427 container
+						428 text 🔧 DCTwin 集成设置 Case 路径
+						429 text /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA
+						430 button ✅ 已就绪 — 点击更换目录, ID: dctwin-setdir-btn
+					431 container
+						432 text 工程总览 当前模型数 7 Schema 版本 5 在特征树中选中一个模型可查看并编辑它的属性。
+			199 button ◀, Help: 折叠 / 展开左侧面板, ID: left-collapse-btn
+			200 button ▶, Help: 折叠 / 展开右侧面板, ID: right-collapse-btn
+			201 text 拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+			202 text 拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+			203 splitter Description: 调整左侧栏宽度, Value: 294.3999938964844, ID: left-resizer
+			204 splitter Description: 调整右侧栏宽度, Value: 294.3999938964844, ID: right-resizer
+			205 splitter Description: 调整工具栏高度, Value: 135.40000915527344, ID: toolbar-resizer
+			206 splitter Description: 调整日志栏高度, Value: 160, ID: log-resizer
+			207 container log-panel
+				208 container log-header
+					209 text Terminal 可撤销 2 步
+					210 button ↶ 撤销, Help: Ctrl+Z
+					211 button (disabled) ↷ 重做, Help: Ctrl+Y
+					212 button TERMINAL, ID: log-view-terminal
+					213 button LOG, ID: log-view-log
+					214 button TOGGLE
+					215 button 📸 截图, ID: btn-screenshot
+				216 container log-content
+					217 container
+						218 text [ 08:18:11 ] [file:loadProject] /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/RamSnapshot_Channel_CUA/RamSnapshot_Channel.cfdproj
+					219 container
+						220 text [ 08:18:12 ] [view:refreshServerInfo] DCTwin 就绪
+					221 container
+						222 text [ 08:18:48 ] [view:applyDctwinCaseDir] Case 目录已设置: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA
+					248 container
+						249 text [ 08:18:49 ] [view:refreshServerInfo] DCTwin 就绪
+					250 container
+						251 text [ 08:18:49 ] [file:saveProject] /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA/Meshgen_Formal_Channel.cfdproj
+					252 container
+						253 text [ 08:18:49 ] [file:saveProject] 工程已保存到服务器：/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA/Meshgen_Formal_Channel.cfdproj
+					433 container
+						434 text [ 08:19:01 ] [view:setRunConfig] meshConfig.meshEngine = "meshgen"
+					435 container
+						436 text [ 08:19:02 ] [file:saveProject] /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA/Meshgen_Formal_Channel.cfdproj
+					437 container
+						438 text [ 08:19:02 ] [file:saveProject] 工程已保存到服务器：/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Meshgen_Formal_Channel_CUA/Meshgen_Formal_Channel.cfdproj
+
+The focused UI element is 1 AXWebArea DCTwin Editor, URL: 10.96.72.147:8396/

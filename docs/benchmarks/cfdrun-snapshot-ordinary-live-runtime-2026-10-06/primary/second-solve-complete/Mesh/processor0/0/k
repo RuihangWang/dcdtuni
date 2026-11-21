@@ -1,0 +1,91 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2406                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      k;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 2 -2 0 0 0 0];
+
+internalField   uniform 0.1;
+
+boundaryField
+{
+    Channel_supply_Back_patch
+    {
+        type            turbulentIntensityKineticEnergyInlet;
+        intensity       0.1;
+        value           uniform 0.1;
+    }
+    Channel_return_Front_patch
+    {
+        type            inletOutlet;
+        inletValue      uniform 0.1;
+        value           uniform 0.1;
+    }
+    Thermal_block_Front
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Thermal_block_Back
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Thermal_block_Left
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Thermal_block_Right
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Thermal_block_Top
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Thermal_block_Bottom
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Room_Floor
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Room_Ceiling
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Room_Wall_2
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    Room_Wall_4
+    {
+        type            kqRWallFunction;
+        value           uniform 0.1;
+    }
+    procBoundary0to1
+    {
+        type            processor;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,49 @@
+{
+  "scope": "Actual isolated React browser, project compiler, CPU PyTorch DAE, live heat/pump/valve inputs, independent equilibrium, accepted-input replay and liquid heat audit",
+  "host": "NTU-Litianyu-40901",
+  "scratch_case": "/mnt/lv/home/litianyu/benchmarks/dcdtuni_shinaide_controls_browser_20260927",
+  "browser_url_during_test": "http://127.0.0.1:18370/",
+  "browser_tab_closed": true,
+  "scratch_service_stopped": true,
+  "original_shinaide_project_sha256": "9d193dc07b6dd789d60e71840c9217bcf17a7f76f006abb306aafaa9d25bafd0",
+  "derived_project_sha256": "fdafad683475eb62b966f4b4e61e50e4daa75b83fed474289135b36fd9f2cd6f",
+  "derived_project_uid": "proj_Shinaide_controls_smoke",
+  "model_count": 32,
+  "three_mesh_count": 800,
+  "execution": {"device": "cpu", "max_threads": 2, "cpu_affinity": [0, 1, 2, 3], "nice": 10, "cuda_visible_devices": ""},
+  "run_id": "127086e36f7f40ec81747228d7b4fdb6",
+  "run_artifacts": {
+    "original_input_sha256": "d8810d182aebb64069e86e3848bdc7fe038232422923396d27420a57be8cabd2",
+    "executed_input_sha256": "b987d2e87fc4699d4d15cc648df8729eb58f5bbe45ae4e47fc95e5f23f02bec1",
+    "result_sha256": "72fe6c20b5d972ccf5ce99e09c1b1ee0d535fc534e5e2327d5dfbf25d271b191",
+    "checkpoint_version": 2,
+    "runtime_executed_inputs_receipt": true
+  },
+  "live_sequence": [
+    "At t=0, React showed 21.00 kW heat input, 25.02 °C primary return and one accepted frame.",
+    "The browser queued 120% heat, pump m_30_pump rpm_ratio=0.9 and valve m_32_control_valve_1778059294098 opening=0.7; accepted time remained 0 s and pending values were visible.",
+    "Independent equilibrium preview used the current accepted boundary with pending controls and did not add a transient frame.",
+    "One accepted step moved to 20 s/two frames. The UI showed accepted pump=0.9, valve=0.7, 25.20 kW heat input, 25.01 °C primary return, 4.25 kW storage rate and -4.04e-10 W global balance."
+  ],
+  "independent_artifact_verification": {
+    "accepted_times_s": [0, 20],
+    "heat_multipliers": [1, 1.2],
+    "pump_rpm_ratio_at_20s": 0.9,
+    "valve_opening_at_20s": 0.7,
+    "primary_return_K": [298.1739234471478, 298.1627046437181],
+    "heat_input_W": [21000, 25200],
+    "energy_balance_W": [-0.000009078190487343818, -4.0381564758718014e-10],
+    "equilibrium_input_basis": "current_accepted_sample_with_pending_controls",
+    "seven_physical_field_groups_equal_from_standalone_strict_v3_replay": ["node_pressure_Pa", "edge_flow_kg_s", "node_temperature_K", "chip_temp_K", "cell_temp_K", "primary_return_K", "secondary_supply_K"]
+  },
+  "liquid_heat_audit": {
+    "browser_server_count": 56,
+    "checked_server_samples": 112,
+    "max_abs_closure_residual_W": 8.155032560352993e-08,
+    "identity_verified": true,
+    "auditable": true,
+    "handoff_ready": false,
+    "reason": "Only 2 of the configured 31 transient samples have been accepted, and no total IT-to-air residual budget has been defined."
+  },
+  "limits": "This proves an isolated CPU browser loop and liquid energy bookkeeping, not calibrated NV performance, converged OpenFOAM wind fields or live Omniverse rendering. The original Shinaide .cfdproj was not modified."
+}

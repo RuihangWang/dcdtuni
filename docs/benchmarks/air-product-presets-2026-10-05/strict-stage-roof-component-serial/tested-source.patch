@@ -1,0 +1,440 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index db1c8cf6..08bca869 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -11,6 +11,10 @@
+ #include "unitConversion.H"
+ #include "PstreamReduceOps.H"
+ #include "clockTime.H"
++#include "tetPointRef.H"
++#include "symmTensor.H"
++#include <fstream>
++#include <iomanip>
+ #include <cstring>
+ #include <string>
+ #include <map>
+@@ -11752,7 +11756,9 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+     };
+     struct packet
+     {
+-        label cell, axis; scalar sign, size;
++        label cell, axis; scalar sign, size, plane;
++        std::vector<label> proposalPoints;
++        std::vector<vector> proposalDisplacement;
+         std::vector<label> points;
+         std::vector<vector> displacement;
+         std::set<label> star;
+@@ -11760,6 +11766,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+     };
+     std::vector<packet> packets;
+     const bool rectangular=getenv("DCCART_TRANSITION_ROOF_RECTANGULAR")!=nullptr;
++    const bool components=getenv("DCCART_TRANSITION_ROOF_COMPONENTS")!=nullptr;
+     label nineFaces=0,bboxRejected=0,axisRejected=0,layoutRejected=0,tileRejected=0;
+     label detected=0,physical=0,coupled=0,zone=0;
+     for (label c=0;c<m.nCells;++c)
+@@ -11774,6 +11781,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+         if (!std::isfinite(lo.x()) || !std::isfinite(lo.y()) || !std::isfinite(lo.z())
+          || !std::isfinite(hi.x()) || !std::isfinite(hi.y()) || !std::isfinite(hi.z())
+          || !std::isfinite(h) || !std::isfinite(shortest) || shortest<=1e-6
++         || (rectangular && h/shortest>1.1)
+          || (!rectangular && (h-shortest)>tol))
+         { ++bboxRejected;continue; }
+         std::vector<label> groups[6];
+@@ -11827,14 +11835,16 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+         for (label j=0;j<9;++j) { if (grid[j]<0) { regular=false; } }
+         if (!regular) { ++tileRejected;continue; }
+         ++detected;
+-        packet p; p.cell=c;p.axis=axis;p.sign=sign;p.size=h;
++        packet p; p.cell=c;p.axis=axis;p.sign=sign;p.size=h;p.plane=plane;
+         unsigned char mask=0;
+         for (label i=0;i<3;++i) for (label j=0;j<3;++j)
+         {
+             const scalar fraction=(i==1 ? .5 : 0)+(j==1 ? .5 : 0);
+-            if (!fraction) { continue; }
+-            const label node=grid[3*i+j];mask |= protectedPoint[node];
++            const label node=grid[3*i+j];
+             vector delta(vector::zero);delta[axis]=sign*(5e-4*extent[axis])*fraction;
++            p.proposalPoints.push_back(node);p.proposalDisplacement.push_back(delta);
++            if (!fraction) { continue; }
++            mask |= protectedPoint[node];
+             p.points.push_back(node);p.displacement.push_back(delta);
+         }
+         if (mask)
+@@ -11922,6 +11932,377 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+         else if (!strict) { ++facePlane; }
+         else { ++geometricCandidates; }
+     }
++
++    if (components)
++    {
++        // Union by full affected-cell stars, not merely equal moved points.
++        std::vector<label> parent(packets.size());
++        for (label i=0;i<label(parent.size());++i) { parent[i]=i; }
++        auto root = [&](label i)
++        {
++            label r=i;while (parent[r]!=r) { r=parent[r]; }
++            while (parent[i]!=i) { const label n=parent[i];parent[i]=r;i=n; }
++            return r;
++        };
++        for (label k=0;k<label(packets.size());++k) for (label c:packets[k].star)
++        {
++            const label a=root(k),b=root(cellPacket.at(c));
++            if (a!=b) { parent[max(a,b)]=min(a,b); }
++        }
++        std::map<label,std::vector<label>> groups;
++        for (label k=0;k<label(packets.size());++k) { groups[root(k)].push_back(k); }
++        enum reason { conflict,unsupportedSize,coupledStar,planarityFail,polygonFail,
++                      closureFail,cellPlaneFail,volumeFail,detFail,tetFail,
++                      weightFail,ratioFail,skewFail,conservationFail,nReasons };
++        label veto[nReasons]={};label survived=0,singlePlane=0,multiAxis=0;
++        label maxPackets=0,maxPoints=0,maxStar=0,conflictPoints=0,fixedConflict=0,axisConflict=0;
++        label examples=0;std::set<label> exampleReasons;
++        std::ofstream evidence;
++        if (getenv("DCCART_TRANSITION_ROOF_EVIDENCE")!=nullptr)
++        {
++            evidence.open("transition-roof-components-rank"+std::to_string(Pstream::myProcNo())+".jsonl");
++            evidence<<std::setprecision(17);
++            if (!evidence.good()) { FatalErrorInFunction<<"cannot save requested roof audit evidence"<<exit(FatalError); }
++        }
++        for (const auto& group:groups)
++        {
++            struct proposal { vector delta;label axis;scalar sign,plane; };
++            std::map<label,proposal> proposals;
++            std::set<label> star,badPoints;
++            std::set<std::tuple<label,scalar,scalar>> planes;
++            std::set<label> axes;
++            for (label k:group.second)
++            {
++                const packet& p=packets[k];star.insert(p.star.begin(),p.star.end());
++                planes.emplace(p.axis,p.sign,p.plane);axes.insert(p.axis);
++                // Zero corner proposals are constraints too: a neighbour's
++                // midpoint must not silently move this packet's fixed corner.
++                for (size_t j=0;j<p.proposalPoints.size();++j)
++                {
++                    const label node=p.proposalPoints[j];
++                    const proposal next{p.proposalDisplacement[j],p.axis,p.sign,p.plane};
++                    auto inserted=proposals.emplace(node,next);
++                    if (inserted.second) { continue; }
++                    const proposal& old=inserted.first->second;
++                    const bool zeroOld=magSqr(old.delta)==0,zeroNew=magSqr(next.delta)==0;
++                    const bool different=magSqr(old.delta-next.delta)>0
++                     || (!zeroOld && !zeroNew && (old.axis!=next.axis
++                          || old.sign!=next.sign || old.plane!=next.plane));
++                    if (different && badPoints.insert(node).second)
++                    {
++                        ++conflictPoints;fixedConflict+=zeroOld!=zeroNew;
++                        axisConflict+=old.axis!=next.axis;
++                    }
++                }
++            }
++            singlePlane+=planes.size()==1;multiAxis+=axes.size()>1;
++            label nMoved=0;
++            for (const auto& item:proposals) { nMoved+=magSqr(item.second.delta)>0; }
++            maxPackets=max(maxPackets,label(group.second.size()));
++            maxPoints=max(maxPoints,nMoved);maxStar=max(maxStar,label(star.size()));
++            label why=-1;
++            if (!badPoints.empty()) { why=conflict; }
++            // Diagnostic workload cap, never an authorization of skipped cells.
++            if (why<0 && (star.size()>100000 || group.second.size()>10000))
++            { why=unsupportedSize; }
++            if (why<0)
++            {
++                for (label c:star) for (label f:cf[c])
++                {
++                    const label patch=m.patch[f];
++                    if (patch>=0 && patch<coupledPatch.size() && coupledPatch[patch])
++                    { why=coupledStar;break; }
++                }
++            }
++            std::set<label> qualityCells=star;
++            if (why<0)
++            {
++                for (label c:star) for (label f:cf[c])
++                {
++                    if (m.neighbour[f]>=0)
++                    { qualityCells.insert(m.owner[f]);qualityCells.insert(m.neighbour[f]); }
++                }
++            }
++            struct faceGeometry { vector area;point centre; };
++            struct cellGeometry { point centre;scalar volume; };
++            std::map<label,faceGeometry> faces;
++            std::map<label,cellGeometry> cells;
++            auto faceGeo = [&](label f) -> const faceGeometry&
++            {
++                auto found=faces.find(f);
++                if (found!=faces.end()) { return found->second; }
++                faceGeometry g;faceAreaCentreOF(m.points,m.faces[f],g.area,g.centre);
++                return faces.emplace(f,g).first->second;
++            };
++            auto cellGeo = [&](label c) -> const cellGeometry&
++            {
++                auto found=cells.find(c);if (found!=cells.end()) { return found->second; }
++                point estimate(point::zero);
++                for (label f:cf[c]) { estimate+=faceGeo(f).centre; }
++                estimate/=scalar(cf[c].size());
++                scalar pyramid3=0;point moment(point::zero);
++                for (label f:cf[c])
++                {
++                    const auto& g=faceGeo(f);const vector a=m.owner[f]==c ? g.area : -g.area;
++                    const scalar pv=a&(g.centre-estimate);
++                    pyramid3+=pv;moment+=pv*(.75*g.centre+.25*estimate);
++                }
++                const cellGeometry g{moment/max(pyramid3,VSMALL),pyramid3/3};
++                return cells.emplace(c,g).first->second;
++            };
++            scalar oldVolume=0;
++            std::map<label,point> saved;
++            if (why<0)
++            {
++                for (label c:star) { oldVolume+=cellGeo(c).volume; }
++                faces.clear();cells.clear();
++                for (const auto& item:proposals)
++                {
++                    if (magSqr(item.second.delta)==0) { continue; }
++                    saved.emplace(item.first,m.points[item.first]);
++                    m.points[item.first]+=item.second.delta;
++                }
++                for (label c:qualityCells)
++                {
++                    const auto& cg=cellGeo(c);
++                    if (!std::isfinite(cg.volume) || cg.volume<=VSMALL
++                     || !std::isfinite(cg.centre.x()) || !std::isfinite(cg.centre.y())
++                     || !std::isfinite(cg.centre.z())) { why=volumeFail;break; }
++                    point lo,hi;bounds(c,lo,hi);const scalar span=max(mag(hi-lo),scalar(1e-6));
++                    std::set<label> vertices;vector sumArea(vector::zero);scalar areaSum=0;
++                    std::map<std::pair<label,label>,std::pair<label,label>> edges;
++                    scalar meanInternalArea=0;label nInternal=0;
++                    for (label f:cf[c])
++                    {
++                        const auto& g=faceGeo(f);const scalar ar=mag(g.area);
++                        if (!std::isfinite(ar) || ar<=VSMALL) { why=polygonFail;break; }
++                        const vector normal=g.area/ar;
++                        for (label q:m.faces[f])
++                        {
++                            vertices.insert(q);
++                            const scalar off=mag((m.points[q]-g.centre)&normal);
++                            if (!std::isfinite(off) || off>1e-10*span) { why=planarityFail;break; }
++                        }
++                        if (why>=0) { break; }
++                        const auto& poly=m.faces[f];
++                        for (size_t j=0;j<poly.size();++j)
++                        {
++                            const label a=poly[j],b=poly[(j+1)%poly.size()];
++                            const vector edge=m.points[b]-m.points[a];
++                            const scalar len=mag(edge);
++                            if (!std::isfinite(len) || len<=VSMALL) { why=polygonFail;break; }
++                            for (label q:poly)
++                            {
++                                const scalar support=((edge^(m.points[q]-m.points[a]))&normal)/len;
++                                if (!std::isfinite(support) || support < -1e-10*span)
++                                { why=polygonFail;break; }
++                            }
++                            label aa=a,bb=b;if (m.owner[f]!=c) { std::swap(aa,bb); }
++                            auto& usage=edges[std::minmax(aa,bb)];
++                            ++usage.first;usage.second+=aa<bb ? 1 : -1;
++                        }
++                        if (why>=0) { break; }
++                        const vector outward=m.owner[f]==c ? g.area : -g.area;
++                        sumArea+=outward;areaSum+=ar;
++                        const scalar pyramid=(outward&(g.centre-cg.centre))/3;
++                        if (!std::isfinite(pyramid) || pyramid<=1e-15*cg.volume)
++                        { why=volumeFail;break; }
++                        const label patch=m.patch[f];
++                        if (m.neighbour[f]>=0 || (patch>=0 && patch<coupledPatch.size() && coupledPatch[patch]))
++                        { meanInternalArea+=ar;++nInternal; }
++                    }
++                    if (why>=0) { break; }
++                    for (const auto& edge:edges)
++                    { if (edge.second.first!=2 || edge.second.second!=0) { why=closureFail;break; } }
++                    if (mag(sumArea)/max(areaSum,VSMALL)>1e-12) { why=closureFail; }
++                    if (why>=0) { break; }
++                    for (label f:cf[c])
++                    {
++                        const auto& g=faceGeo(f);vector normal=g.area/mag(g.area);
++                        if (m.owner[f]!=c) { normal=-normal; }
++                        for (label q:vertices)
++                        {
++                            const scalar off=(m.points[q]-g.centre)&normal;
++                            if (!std::isfinite(off) || off>1e-10*span) { why=cellPlaneFail;break; }
++                        }
++                        for (label other:cf[c])
++                        {
++                            if (other==f) { continue; }
++                            const vector d=faceGeo(other).centre-g.centre;
++                            const scalar cosine=(d&normal)/max(mag(d),VSMALL);
++                            if (!std::isfinite(cosine) || cosine>=-1.0001e-6)
++                            { why=cellPlaneFail;break; }
++                        }
++                        if (why>=0) { break; }
++                    }
++                    if (why>=0) { break; }
++                    if (!nInternal || meanInternalArea<=ROOTVSMALL) { why=detFail;break; }
++                    meanInternalArea/=nInternal;symmTensor tensor(Zero);
++                    for (label f:cf[c])
++                    {
++                        const label patch=m.patch[f];
++                        if (m.neighbour[f]>=0 || (patch>=0 && patch<coupledPatch.size() && coupledPatch[patch]))
++                        { tensor+=sqr(faceGeo(f).area/meanInternalArea); }
++                    }
++                    const scalar determinant=mag(det(tensor))/8;
++                    if (!std::isfinite(determinant) || determinant<.001) { why=detFail;break; }
++                }
++                std::set<label> checkedFaces;
++                if (why<0) for (label c:star) for (label f:cf[c]) { checkedFaces.insert(f); }
++                if (why<0) for (label f:checkedFaces)
++                {
++                    const auto& g=faceGeo(f);const auto& poly=m.faces[f];
++                    const auto& own=cellGeo(m.owner[f]);const label nei=m.neighbour[f];
++                    const point nc=nei>=0 ? cellGeo(nei).centre : own.centre;
++                    const scalar tol=1e-15;
++                    for (size_t j=0;j<poly.size();++j)
++                    {
++                        const point& a=m.points[poly[j]];const point& b=m.points[poly[(j+1)%poly.size()]];
++                        const scalar oq=tetPointRef(a,b,g.centre,own.centre).quality();
++                        const scalar nq=nei>=0 ? tetPointRef(a,b,g.centre,nc).quality() : 1;
++                        if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-tol || nq<=tol)
++                        { why=tetFail;break; }
++                    }
++                    if (why>=0) { break; }
++                    bool baseFound=false;
++                    for (size_t anchor=0;anchor<poly.size() && !baseFound;++anchor)
++                    {
++                        bool good=true;const point& a=m.points[poly[anchor]];
++                        for (size_t j=1;j+1<poly.size();++j)
++                        {
++                            const point& b=m.points[poly[(anchor+j)%poly.size()]];
++                            const point& d=m.points[poly[(anchor+j+1)%poly.size()]];
++                            const scalar oq=tetPointRef(a,b,d,own.centre).quality();
++                            const scalar nq=nei>=0 ? tetPointRef(a,b,d,nc).quality() : 1;
++                            if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-tol || nq<=tol)
++                            { good=false;break; }
++                        }
++                        baseFound=good;
++                    }
++                    if (!baseFound) { why=tetFail;break; }
++                    vector d;
++                    if (nei>=0)
++                    {
++                        const auto& neighbour=cellGeo(nei);
++                        const scalar a=mag(g.area&(g.centre-own.centre));
++                        const scalar b=mag(g.area&(neighbour.centre-g.centre));
++                        const scalar weight=min(a,b)/max(a+b,VSMALL);
++                        const scalar ratio=min(own.volume,neighbour.volume)/max(own.volume,neighbour.volume);
++                        if (!std::isfinite(weight) || weight<.05) { why=weightFail;break; }
++                        if (!std::isfinite(ratio) || ratio<.01) { why=ratioFail;break; }
++                        d=neighbour.centre-own.centre;
++                    }
++                    else
++                    {
++                        const vector n=g.area/mag(g.area);
++                        d=n*(n&(g.centre-own.centre));
++                    }
++                    const vector cpf=g.centre-own.centre;
++                    const vector skew=cpf-((g.area&cpf)/((g.area&d)+ROOTVSMALL))*d;
++                    const vector sh=skew/(mag(skew)+ROOTVSMALL);
++                    scalar reach=(nei>=0 ? .2 : .4)*mag(d)+ROOTVSMALL;
++                    for (label q:poly) { reach=max(reach,mag(sh&(m.points[q]-g.centre))); }
++                    const scalar value=mag(skew)/reach;
++                    if (!std::isfinite(value) || value>4-1e-8) { why=skewFail;break; }
++                }
++                scalar newVolume=0;
++                if (why<0) for (label c:star) { newVolume+=cellGeo(c).volume; }
++                if (why<0 && (!std::isfinite(oldVolume) || oldVolume<=VSMALL
++                 || mag(newVolume-oldVolume)/oldVolume>1e-10)) { why=conservationFail; }
++            }
++            // All paths restore exact original values; no writer-visible move.
++            for (const auto& item:saved) { m.points[item.first]=item.second; }
++            if (why>=0) { ++veto[why]; } else { ++survived; }
++            const bool emit=examples<3 && (exampleReasons.insert(why).second || group.second.size()<4);
++            if (emit)
++            {
++                ++examples;
++                Pout<< "Transition roof component example: packets "<<group.second.size()
++                    <<", moved points "<<nMoved<<", full-star cells "<<star.size()
++                    <<", planes "<<planes.size()<<", axes "<<axes.size()
++                    <<", exact point conflicts "<<badPoints.size()<<", veto reason "<<why
++                    <<" (-1=all local gates pass; no mutation)"<<nl;
++            }
++
++            if (emit && evidence.good())
++            {
++                const size_t np=min(group.second.size(),size_t(8));
++                std::set<label> sampleCells,sampleFaces,samplePoints;
++                for (label c:star) { if (sampleCells.size()==32) { break; } sampleCells.insert(c); }
++                for (size_t j=0;j<np;++j)
++                {
++                    const packet& p=packets[group.second[j]];sampleCells.insert(p.cell);
++                    samplePoints.insert(p.proposalPoints.begin(),p.proposalPoints.end());
++                }
++                for (label c:sampleCells) for (label f:cf[c])
++                { sampleFaces.insert(f);samplePoints.insert(m.faces[f].begin(),m.faces[f].end()); }
++                auto xyz = [&](const vector& a) { evidence<<'['<<a.x()<<','<<a.y()<<','<<a.z()<<']'; };
++                evidence<<"{\"rank\":"<<Pstream::myProcNo()<<",\"vetoReason\":"<<why
++                    <<",\"totalPackets\":"<<group.second.size()<<",\"totalStarCells\":"<<star.size()
++                    <<",\"totalMovingPoints\":"<<nMoved<<",\"exactConflictPoints\":"<<badPoints.size()
++                    <<",\"exportedPackets\":"<<np<<",\"exportedCells\":"<<sampleCells.size()
++                    <<",\"truncated\":"<<((np<group.second.size() || sampleCells.size()<star.size()) ? "true" : "false")
++                    <<",\"scope\":\"Read-only native proposal witness; original coordinates restored. Limited sample does not prove whole-component quality.\",\"packets\":[";
++                for (size_t j=0;j<np;++j)
++                {
++                    if (j) { evidence<<','; }const packet& p=packets[group.second[j]];
++                    point lo,hi;bounds(p.cell,lo,hi);
++                    evidence<<"{\"cell\":"<<p.cell<<",\"axis\":"<<p.axis<<",\"sign\":"<<p.sign
++                        <<",\"plane\":"<<p.plane<<",\"normalSpan\":"<<hi[p.axis]-lo[p.axis]
++                        <<",\"bboxMin\":";xyz(lo);evidence<<",\"bboxMax\":";xyz(hi);
++                    evidence<<",\"pointProposals\":[";
++                    for (size_t k=0;k<p.proposalPoints.size();++k)
++                    {
++                        if (k) { evidence<<','; }const label node=p.proposalPoints[k];
++                        evidence<<"{\"point\":"<<node<<",\"original\":";xyz(m.points[node]);
++                        evidence<<",\"delta\":";xyz(p.proposalDisplacement[k]);evidence<<'}';
++                    }
++                    evidence<<"]}";
++                }
++                evidence<<"],\"cells\":[";bool first=true;
++                for (label c:sampleCells)
++                {
++                    if (!first) { evidence<<','; }first=false;
++                    evidence<<"{\"cell\":"<<c<<",\"belongsToFullStar\":"<<(star.count(c) ? "true" : "false")<<",\"faces\":[";
++                    for (size_t j=0;j<cf[c].size();++j) { if (j) { evidence<<','; }evidence<<cf[c][j]; }
++                    evidence<<"]}";
++                }
++                evidence<<"],\"faces\":[";first=true;
++                for (label f:sampleFaces)
++                {
++                    if (!first) { evidence<<','; }first=false;const label patch=m.patch[f];
++                    const bool coupled=patch>=0 && patch<coupledPatch.size() && coupledPatch[patch];
++                    evidence<<"{\"face\":"<<f<<",\"owner\":"<<m.owner[f]<<",\"neighbour\":"<<m.neighbour[f]
++                        <<",\"patch\":"<<patch<<",\"zone\":"<<m.zone[f]<<",\"coupled\":"<<(coupled ? "true" : "false")
++                        <<",\"physical\":"<<(patch>=0 && !coupled ? "true" : "false")<<",\"points\":[";
++                    for (size_t j=0;j<m.faces[f].size();++j) { if (j) { evidence<<','; }evidence<<m.faces[f][j]; }
++                    evidence<<"]}";
++                }
++                evidence<<"],\"points\":[";first=true;
++                for (label q:samplePoints)
++                {
++                    if (!first) { evidence<<','; }first=false;
++                    evidence<<"{\"point\":"<<q<<",\"protectedMask\":"<<label(protectedPoint[q])<<",\"original\":";
++                    xyz(m.points[q]);evidence<<'}';
++                }
++                evidence<<"]}\n";
++            }
++        }
++        label count=returnReduce(label(groups.size()),sumOp<label>());
++        survived=returnReduce(survived,sumOp<label>());singlePlane=returnReduce(singlePlane,sumOp<label>());
++        multiAxis=returnReduce(multiAxis,sumOp<label>());conflictPoints=returnReduce(conflictPoints,sumOp<label>());
++        fixedConflict=returnReduce(fixedConflict,sumOp<label>());axisConflict=returnReduce(axisConflict,sumOp<label>());
++        for (label j=0;j<nReasons;++j) { veto[j]=returnReduce(veto[j],sumOp<label>()); }
++        reduce(maxPackets,maxOp<label>());reduce(maxPoints,maxOp<label>());reduce(maxStar,maxOp<label>());
++        Info<< "Transition roof component audit (no mutation): components "<<count
++            <<", single-plane "<<singlePlane<<", multi-axis "<<multiAxis
++            <<"; maximum packets/points/star "<<maxPackets<<'/'<<maxPoints<<'/'<<maxStar
++            <<"; conflicting points "<<conflictPoints<<", fixed-corner "<<fixedConflict<<", multi-axis "<<axisConflict
++            <<"; vetoes [conflict,size,coupledStar,planarity,polygon,closure,cellPlane,volume,det,tet,weight,ratio,skew,conservation] ";
++        for (label j=0;j<nReasons;++j) { Info<<veto[j]<<' '; }
++        Info<<"; all-local-gate survivors "<<survived<<" (still not full-mesh acceptance)"<<nl;
++    }
++
+     nineFaces=returnReduce(nineFaces,sumOp<label>());
+     bboxRejected=returnReduce(bboxRejected,sumOp<label>());
+     axisRejected=returnReduce(axisRejected,sumOp<label>());

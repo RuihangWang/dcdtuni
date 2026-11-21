@@ -1,0 +1,1066 @@
+[
+  {
+    "first": 321,
+    "last": 387,
+    "lines": [
+      {
+        "line": 321,
+        "text": "inline bool legacyMutationClosure(const LegacyCommit& entry,LegacyWork& work)"
+      },
+      {
+        "line": 322,
+        "text": "{"
+      },
+      {
+        "line": 323,
+        "text": "    P17::Operation p17Operation(P17::Phase::closure,P17::Source::oracle,312);"
+      },
+      {
+        "line": 324,
+        "text": "    const auto& a=entry.before;const auto& b=entry.after;"
+      },
+      {
+        "line": 325,
+        "text": "    if(!a.complete||!b.complete||a.cells.size()!=b.cells.size()||a.faces.size()!=b.faces.size()"
+      },
+      {
+        "line": 326,
+        "text": "     ||a.aliases.size()!=b.aliases.size()||a.core!=b.core||a.outside!=b.outside||a.secondHalo!=b.secondHalo)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,316));"
+      },
+      {
+        "line": 327,
+        "text": "    std::size_t visits=0;"
+      },
+      {
+        "line": 328,
+        "text": "    auto touch=[&](){return (++visits&255)!=0||work.awake();};"
+      },
+      {
+        "line": 329,
+        "text": "    std::set<label> points;"
+      },
+      {
+        "line": 330,
+        "text": "    for(const auto& f:a.faces)for(label p:f.ring){if(!touch())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,320));points.insert(p);}"
+      },
+      {
+        "line": 331,
+        "text": "    for(std::size_t i=0;i<a.cells.size();++i)"
+      },
+      {
+        "line": 332,
+        "text": "    {"
+      },
+      {
+        "line": 333,
+        "text": "        if(!touch())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,323));const auto& old=a.cells[i];const auto& now=b.cells[i];"
+      },
+      {
+        "line": 334,
+        "text": "        if(old.native!=now.native||old.rank!=now.rank)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,324));"
+      },
+      {
+        "line": 335,
+        "text": "        if(old.native==entry.drop){if(!old.alive||now.alive||!now.rawFaces.empty()||!now.origins.empty())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,325));}"
+      },
+      {
+        "line": 336,
+        "text": "        else if(old.native==entry.keep){if(!old.alive||!now.alive)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,326));}"
+      },
+      {
+        "line": 337,
+        "text": "        else"
+      },
+      {
+        "line": 338,
+        "text": "        {"
+      },
+      {
+        "line": 339,
+        "text": "            if(old.alive!=now.alive||old.rawFaces!=now.rawFaces||old.origins.size()!=now.origins.size())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,329));"
+      },
+      {
+        "line": 340,
+        "text": "            for(std::size_t q=0;q<old.origins.size();++q)"
+      },
+      {
+        "line": 341,
+        "text": "            {"
+      },
+      {
+        "line": 342,
+        "text": "                if(!touch())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,332));const auto& x=old.origins[q];const auto& y=now.origins[q];"
+      },
+      {
+        "line": 343,
+        "text": "                if(x.nativeParent!=y.nativeParent||x.rank!=y.rank||x.level!=y.level||x.leaf!=y.leaf"
+      },
+      {
+        "line": 344,
+        "text": "                 ||x.piece!=y.piece||x.region!=y.region||x.sourceFacets.size()!=y.sourceFacets.size())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,334));"
+      },
+      {
+        "line": 345,
+        "text": "                for(std::size_t k=0;k<x.sourceFacets.size();++k)if(!touch()||x.sourceFacets[k]!=y.sourceFacets[k])return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,335));"
+      },
+      {
+        "line": 346,
+        "text": "            }"
+      },
+      {
+        "line": 347,
+        "text": "        }"
+      },
+      {
+        "line": 348,
+        "text": "    }"
+      },
+      {
+        "line": 349,
+        "text": "    for(std::size_t i=0;i<a.faces.size();++i)"
+      },
+      {
+        "line": 350,
+        "text": "    {"
+      },
+      {
+        "line": 351,
+        "text": "        if(!touch())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,341));const auto& old=a.faces[i];const auto& now=b.faces[i];"
+      },
+      {
+        "line": 352,
+        "text": "        if(old.native!=now.native||old.patch!=now.patch||old.zone!=now.zone||old.role!=now.role||!old.alive)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,342));"
+      },
+      {
+        "line": 353,
+        "text": "        if(!now.alive)"
+      },
+      {
+        "line": 354,
+        "text": "        {"
+      },
+      {
+        "line": 355,
+        "text": "            // Old commit can only delete its shared internal or its own authorized physical facet."
+      },
+      {
+        "line": 356,
+        "text": "            if(old.owner!=now.owner||old.neighbour!=now.neighbour||old.ring!=now.ring)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,346));"
+      },
+      {
+        "line": 357,
+        "text": "            const bool shared=(old.owner==entry.keep&&old.neighbour==entry.drop)"
+      },
+      {
+        "line": 358,
+        "text": "                ||(old.owner==entry.drop&&old.neighbour==entry.keep);"
+      },
+      {
+        "line": 359,
+        "text": "            const bool physical=old.neighbour==-1&&old.patch>=0"
+      },
+      {
+        "line": 360,
+        "text": "                &&(old.owner==entry.keep||old.owner==entry.drop);"
+      },
+      {
+        "line": 361,
+        "text": "            if(!shared&&!physical)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,351));"
+      },
+      {
+        "line": 362,
+        "text": "        }"
+      },
+      {
+        "line": 363,
+        "text": "        else"
+      },
+      {
+        "line": 364,
+        "text": "        {"
+      },
+      {
+        "line": 365,
+        "text": "            label owner=old.owner==entry.drop?entry.keep:old.owner;"
+      },
+      {
+        "line": 366,
+        "text": "            label nei=old.neighbour==entry.drop?entry.keep:old.neighbour;"
+      },
+      {
+        "line": 367,
+        "text": "            // tryLiteralUnion canonicalizes only its surviving exterior incident faces."
+      },
+      {
+        "line": 368,
+        "text": "            // Complete halo faces outside this mutation remain literal, even owner > neighbour."
+      },
+      {
+        "line": 369,
+        "text": "            const bool incident=old.owner==entry.keep||old.owner==entry.drop"
+      },
+      {
+        "line": 370,
+        "text": "                ||old.neighbour==entry.keep||old.neighbour==entry.drop;"
+      },
+      {
+        "line": 371,
+        "text": "            if(incident&&nei>=0&&owner>nei)std::swap(owner,nei);"
+      },
+      {
+        "line": 372,
+        "text": "            if(now.owner!=owner||now.neighbour!=nei)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,358));"
+      },
+      {
+        "line": 373,
+        "text": "            for(label p:now.ring)if(!touch()||!points.count(p))return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,359));"
+      },
+      {
+        "line": 374,
+        "text": "            if(old.owner!=entry.keep&&old.owner!=entry.drop&&old.neighbour!=entry.keep&&old.neighbour!=entry.drop"
+      },
+      {
+        "line": 375,
+        "text": "             &&old.ring!=now.ring)return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,361));"
+      },
+      {
+        "line": 376,
+        "text": "        }"
+      },
+      {
+        "line": 377,
+        "text": "    }"
+      },
+      {
+        "line": 378,
+        "text": "    for(std::size_t i=0;i<a.aliases.size();++i)"
+      },
+      {
+        "line": 379,
+        "text": "    {"
+      },
+      {
+        "line": 380,
+        "text": "        if(!touch())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,366));const auto& x=a.aliases[i];const auto& y=b.aliases[i];"
+      },
+      {
+        "line": 381,
+        "text": "        if(x.representative!=y.representative||!bits(x.world,y.world)"
+      },
+      {
+        "line": 382,
+        "text": "         ||x.members.size()!=y.members.size()||x.rawWorld.size()!=y.rawWorld.size())return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,368));"
+      },
+      {
+        "line": 383,
+        "text": "        for(std::size_t q=0;q<x.members.size();++q)"
+      },
+      {
+        "line": 384,
+        "text": "            if(!touch()||x.members[q]!=y.members[q]||!bits(x.rawWorld[q],y.rawWorld[q]))return p17Operation.result(P17::reject(P17::Reason::mutation,P17::Source::oracle,370));"
+      },
+      {
+        "line": 385,
+        "text": "    }"
+      },
+      {
+        "line": 386,
+        "text": "    return p17Operation.result(work.awake());"
+      },
+      {
+        "line": 387,
+        "text": "}"
+      }
+    ],
+    "sha256": "951708e28ff848a24ce8b2edd4c1f7ee49f98a5d41ef60ae11565ebba519f1c6",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityLocalOracle.H"
+  },
+  {
+    "first": 903,
+    "last": 969,
+    "lines": [
+      {
+        "line": 903,
+        "text": "inline bool legacyJournalDisjoint(const View& view,const Authority& authority,label accepted)"
+      },
+      {
+        "line": 904,
+        "text": "{"
+      },
+      {
+        "line": 905,
+        "text": "    P17::Operation p17Operation(P17::enabled()?P17::active->phase:P17::Phase::current,P17::Source::oracle,887,"
+      },
+      {
+        "line": 906,
+        "text": "        view.legacyJournal?&view.legacyJournal->complete:nullptr);"
+      },
+      {
+        "line": 907,
+        "text": "    if(P17::observe(accepted<=0,P17::Reason::sequence,P17::Source::oracle,889)||P17::observe(!view.legacyJournal,P17::Reason::noHandle,P17::Source::oracle,889))return p17Operation.result(P17::reject(P17::Reason::noHandle,P17::Source::oracle,889));"
+      },
+      {
+        "line": 908,
+        "text": "    const auto& j=*view.legacyJournal;"
+      },
+      {
+        "line": 909,
+        "text": "    if(P17::enabled())p17Operation.bind(j.epoch,j.commits.size(),j.payloadBytes,j.workSeconds,accepted,"
+      },
+      {
+        "line": 910,
+        "text": "        view.core.empty()?-1:view.core.front());"
+      },
+      {
+        "line": 911,
+        "text": "    if(P17::observe(!j.complete,P17::Reason::incomplete,P17::Source::oracle,891)||P17::observe(j.epoch!=view.epoch,P17::Reason::identity,P17::Source::oracle,891)||P17::observe(j.rank!=view.actualRank,P17::Reason::identity,P17::Source::oracle,891)"
+      },
+      {
+        "line": 912,
+        "text": "     ||P17::observe(j.nativeCells!=view.nativeCells,P17::Reason::identity,P17::Source::oracle,892)||P17::observe(j.nativePoints!=view.nativePoints,P17::Reason::identity,P17::Source::oracle,892)||P17::observe(j.nGridPoints!=view.nGridPoints,P17::Reason::identity,P17::Source::oracle,892)"
+      },
+      {
+        "line": 913,
+        "text": "     ||P17::observe(j.commits.size()!=std::size_t(accepted),P17::Reason::sequence,P17::Source::oracle,893)||P17::greater(j.payloadBytes,LegacyJournalCaps::bytes,P17::Source::oracle,893)"
+      },
+      {
+        "line": 914,
+        "text": "     ||P17::observe(!sameFingerprint(j.source,view.source),P17::Reason::identity,P17::Source::oracle,894))return p17Operation.result(P17::reject(P17::Reason::identity,P17::Source::oracle,894));"
+      },
+      {
+        "line": 915,
+        "text": "    LegacyWork work(j,authority);"
+      },
+      {
+        "line": 916,
+        "text": "    std::size_t visits=0;"
+      },
+      {
+        "line": 917,
+        "text": "    auto touch=[&](){return (++visits&255)!=0||work.awake();};"
+      },
+      {
+        "line": 918,
+        "text": "    auto overlaps=[&](const LegacySnapshot& s)"
+      },
+      {
+        "line": 919,
+        "text": "    {"
+      },
+      {
+        "line": 920,
+        "text": "        for(const auto& c:s.cells)"
+      },
+      {
+        "line": 921,
+        "text": "        {"
+      },
+      {
+        "line": 922,
+        "text": "            if(!work.awake())return P17::overlap(P17::Source::oracle,902,0,0,0,0);"
+      },
+      {
+        "line": 923,
+        "text": "            for(const auto& ours:view.cells)if(!touch()||c.native==ours.native)return P17::overlap(P17::Source::oracle,903,c.native,ours.native,0,0);"
+      },
+      {
+        "line": 924,
+        "text": "            for(const auto& origin:c.origins)"
+      },
+      {
+        "line": 925,
+        "text": "            {"
+      },
+      {
+        "line": 926,
+        "text": "                for(const auto& ours:view.origins)"
+      },
+      {
+        "line": 927,
+        "text": "                {"
+      },
+      {
+        "line": 928,
+        "text": "                    if(!touch()||(origin.rank==ours.rank&&origin.nativeParent==ours.nativeParent))return P17::overlap(P17::Source::oracle,908,origin.nativeParent,ours.nativeParent,origin.rank,ours.rank);"
+      },
+      {
+        "line": 929,
+        "text": "                    for(const auto& a:origin.sourceFacets)for(const auto& b:ours.sourceFacets)"
+      },
+      {
+        "line": 930,
+        "text": "                        if(!touch()||a==b)return P17::overlap(P17::Source::oracle,910,a[0],a[1],a[2],b[0]);"
+      },
+      {
+        "line": 931,
+        "text": "                }"
+      },
+      {
+        "line": 932,
+        "text": "                for(const auto& facet:origin.sourceFacets)for(const auto& ours:view.faces)"
+      },
+      {
+        "line": 933,
+        "text": "                    if(!touch()||facet[0]==ours.native)return P17::overlap(P17::Source::oracle,913,facet[0],ours.native,0,0);"
+      },
+      {
+        "line": 934,
+        "text": "            }"
+      },
+      {
+        "line": 935,
+        "text": "        }"
+      },
+      {
+        "line": 936,
+        "text": "        for(const auto& f:s.faces)"
+      },
+      {
+        "line": 937,
+        "text": "        {"
+      },
+      {
+        "line": 938,
+        "text": "            if(!work.awake())return P17::overlap(P17::Source::oracle,918,0,0,0,0);"
+      },
+      {
+        "line": 939,
+        "text": "            for(const auto& ours:view.faces)if(!touch()||f.native==ours.native)return P17::overlap(P17::Source::oracle,919,f.native,ours.native,0,0);"
+      },
+      {
+        "line": 940,
+        "text": "            for(const auto& ours:view.cells)if(!touch()||f.owner==ours.native||f.neighbour==ours.native)return P17::overlap(P17::Source::oracle,920,f.owner,f.neighbour,ours.native,0);"
+      },
+      {
+        "line": 941,
+        "text": "            for(const auto& ours:view.origins)for(const auto& facet:ours.sourceFacets)"
+      },
+      {
+        "line": 942,
+        "text": "                if(!touch()||f.native==facet[0])return P17::overlap(P17::Source::oracle,922,f.native,facet[0],0,0);"
+      },
+      {
+        "line": 943,
+        "text": "        }"
+      },
+      {
+        "line": 944,
+        "text": "        for(const auto& a:s.aliases)"
+      },
+      {
+        "line": 945,
+        "text": "        {"
+      },
+      {
+        "line": 946,
+        "text": "            if(!work.awake())return P17::overlap(P17::Source::oracle,926,0,0,0,0);"
+      },
+      {
+        "line": 947,
+        "text": "            for(const auto& ours:view.aliases)"
+      },
+      {
+        "line": 948,
+        "text": "            {"
+      },
+      {
+        "line": 949,
+        "text": "                if(!touch()||a.representative==ours.representative)return P17::overlap(P17::Source::oracle,929,a.representative,ours.representative,0,0);"
+      },
+      {
+        "line": 950,
+        "text": "                for(label p:a.members)for(label q:ours.members)if(!touch()||p==q)return P17::overlap(P17::Source::oracle,930,p,q,0,0);"
+      },
+      {
+        "line": 951,
+        "text": "            }"
+      },
+      {
+        "line": 952,
+        "text": "        }"
+      },
+      {
+        "line": 953,
+        "text": "        return false;"
+      },
+      {
+        "line": 954,
+        "text": "    };"
+      },
+      {
+        "line": 955,
+        "text": "    try"
+      },
+      {
+        "line": 956,
+        "text": "    {"
+      },
+      {
+        "line": 957,
+        "text": "        for(std::size_t i=0;i<j.commits.size();++i)"
+      },
+      {
+        "line": 958,
+        "text": "        {"
+      },
+      {
+        "line": 959,
+        "text": "            const auto& entry=j.commits[i];"
+      },
+      {
+        "line": 960,
+        "text": "            if(P17::observe(!entry.prepared,P17::Reason::pending,P17::Source::oracle,940)||P17::observe(!entry.complete,P17::Reason::pending,P17::Source::oracle,940)||P17::observe(!entry.before.complete,P17::Reason::pending,P17::Source::oracle,940)||P17::observe(!entry.after.complete,P17::Reason::pending,P17::Source::oracle,940)"
+      },
+      {
+        "line": 961,
+        "text": "             ||P17::observe(entry.acceptedBefore!=label(i),P17::Reason::sequence,P17::Source::oracle,941)||P17::observe(entry.keep<0||entry.drop<0||entry.keep==entry.drop,P17::Reason::identity,P17::Source::oracle,941)"
+      },
+      {
+        "line": 962,
+        "text": "             ||P17::observe(entry.before.core!=std::vector<label>({min(entry.keep,entry.drop),max(entry.keep,entry.drop)}),P17::Reason::identity,P17::Source::oracle,942)"
+      },
+      {
+        "line": 963,
+        "text": "             ||P17::observe(entry.after.core!=entry.before.core,P17::Reason::identity,P17::Source::oracle,943)||P17::observe(entry.before.cells.empty()||entry.after.cells.empty(),P17::Reason::shape,P17::Source::oracle,943)"
+      },
+      {
+        "line": 964,
+        "text": "             ||overlaps(entry.before)||overlaps(entry.after))return p17Operation.result(P17::reject(P17::Reason::pending,P17::Source::oracle,944));"
+      },
+      {
+        "line": 965,
+        "text": "        }"
+      },
+      {
+        "line": 966,
+        "text": "        return p17Operation.result(work.awake());"
+      },
+      {
+        "line": 967,
+        "text": "    }"
+      },
+      {
+        "line": 968,
+        "text": "    catch(...){P17::failure(P17::Reason::exception,P17::Source::oracle,948);j.invalidate();return p17Operation.result(P17::reject(P17::Reason::exception,P17::Source::oracle,948));}"
+      },
+      {
+        "line": 969,
+        "text": "}"
+      }
+    ],
+    "sha256": "951708e28ff848a24ce8b2edd4c1f7ee49f98a5d41ef60ae11565ebba519f1c6",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityLocalOracle.H"
+  },
+  {
+    "first": 972,
+    "last": 990,
+    "lines": [
+      {
+        "line": 972,
+        "text": "inline bool current(const View& view,const Cut& live,"
+      },
+      {
+        "line": 973,
+        "text": "                    const Authority& authority,label legacyAccepted,"
+      },
+      {
+        "line": 974,
+        "text": "                    const std::vector<std::vector<label>>& currentCellFaces,"
+      },
+      {
+        "line": 975,
+        "text": "                    CurrentRefusal* refusal=nullptr)"
+      },
+      {
+        "line": 976,
+        "text": "{"
+      },
+      {
+        "line": 977,
+        "text": "    CurrentRefusal p17LocalReason=CurrentRefusal::none;"
+      },
+      {
+        "line": 978,
+        "text": "    if(!refusal&&P17::enabled())refusal=&p17LocalReason;"
+      },
+      {
+        "line": 979,
+        "text": "    P17::CurrentOutcome<CurrentRefusal> p17Current(refusal,view.legacyJournal?&view.legacyJournal->complete:nullptr);"
+      },
+      {
+        "line": 980,
+        "text": "    if(P17::enabled())p17Current.operation.bind(view.epoch,view.legacyJournal?view.legacyJournal->commits.size():0,"
+      },
+      {
+        "line": 981,
+        "text": "        view.legacyJournal?view.legacyJournal->payloadBytes:0,view.legacyJournal?view.legacyJournal->workSeconds:0,"
+      },
+      {
+        "line": 982,
+        "text": "        legacyAccepted,view.core.empty()?-1:view.core.front());"
+      },
+      {
+        "line": 983,
+        "text": "    if(refusal)*refusal=CurrentRefusal::none;"
+      },
+      {
+        "line": 984,
+        "text": "    auto refuse=[&](CurrentRefusal why)"
+      },
+      {
+        "line": 985,
+        "text": "    {if(refusal)*refusal=why;return false;};"
+      },
+      {
+        "line": 986,
+        "text": "    try"
+      },
+      {
+        "line": 987,
+        "text": "    {"
+      },
+      {
+        "line": 988,
+        "text": "    if(!view.ready())return refuse(CurrentRefusal::ready);"
+      },
+      {
+        "line": 989,
+        "text": "    if(legacyAccepted!=0&&!legacyJournalDisjoint(view,authority,legacyAccepted))return refuse(CurrentRefusal::legacy);"
+      },
+      {
+        "line": 990,
+        "text": "    if(!available(authority))return refuse(CurrentRefusal::budget);"
+      }
+    ],
+    "sha256": "951708e28ff848a24ce8b2edd4c1f7ee49f98a5d41ef60ae11565ebba519f1c6",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityLocalOracle.H"
+  },
+  {
+    "first": 14820,
+    "last": 14861,
+    "lines": [
+      {
+        "line": 14820,
+        "text": "                    dcCartCompleteCavityLocalOracle::LegacyCommit legacyCommit;"
+      },
+      {
+        "line": 14821,
+        "text": "                    auto* legacyJournal=(!weightPacket&&m.completeCavityContext"
+      },
+      {
+        "line": 14822,
+        "text": "                        &&m.completeCavityContext->legacyJournal)"
+      },
+      {
+        "line": 14823,
+        "text": "                        ?m.completeCavityContext->legacyJournal.get():nullptr;"
+      },
+      {
+        "line": 14824,
+        "text": "                    if(legacyJournal)"
+      },
+      {
+        "line": 14825,
+        "text": "                        dcCartCompleteCavityLocalOracle::prepareLegacyCommit"
+      },
+      {
+        "line": 14826,
+        "text": "                            (*legacyJournal,m,cavityAuthority,unionCF,patchTypes,keep,drop,accepted,legacyCommit);"
+      },
+      {
+        "line": 14827,
+        "text": "                    // No mutation precedes complete geometry/role preflight."
+      },
+      {
+        "line": 14828,
+        "text": "                    if (weightPacket)"
+      },
+      {
+        "line": 14829,
+        "text": "                    {"
+      },
+      {
+        "line": 14830,
+        "text": "                        if (shared[0]!=weightPacket->nativeFace || !joinedPhysical.empty())"
+      },
+      {
+        "line": 14831,
+        "text": "                        { ++cavityQuality;return false; }"
+      },
+      {
+        "line": 14832,
+        "text": "                        auto record=*weightPacket;record.keep=keep;record.drop=drop;"
+      },
+      {
+        "line": 14833,
+        "text": "                        m.weightUnionState->committed.push_back(std::move(record));"
+      },
+      {
+        "line": 14834,
+        "text": "                        m.weightUnionState->survivorOrigins[keep]=weightPacket->origins;"
+      },
+      {
+        "line": 14835,
+        "text": "                        // Optional evidence must not pretend a multi-origin survivor is one cone parent."
+      },
+      {
+        "line": 14836,
+        "text": "                        if (traceCones) { m.coneEvidenceParent[keep]=-1; }"
+      },
+      {
+        "line": 14837,
+        "text": "                        ++m.weightUnionState->accepted;"
+      },
+      {
+        "line": 14838,
+        "text": "                    }"
+      },
+      {
+        "line": 14839,
+        "text": "                    // Record every surviving origin; failure only makes this"
+      },
+      {
+        "line": 14840,
+        "text": "                    // new permission unavailable, never alters the old union."
+      },
+      {
+        "line": 14841,
+        "text": "                    m.completeCavityLineage.join(keep,drop,cavityAvailable);"
+      },
+      {
+        "line": 14842,
+        "text": "                    m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;"
+      },
+      {
+        "line": 14843,
+        "text": "                    if (!joinedPhysical.empty())"
+      },
+      {
+        "line": 14844,
+        "text": "                    {"
+      },
+      {
+        "line": 14845,
+        "text": "                        m.faceAlive[joinedPhysical[1]]=false;++roleAccepted;"
+      },
+      {
+        "line": 14846,
+        "text": "                        if (m.weightUnionState)"
+      },
+      {
+        "line": 14847,
+        "text": "                        { ++m.weightUnionState->authorizedPhysicalPruned[m.patch[joinedPhysical[1]]]; }"
+      },
+      {
+        "line": 14848,
+        "text": "                    }"
+      },
+      {
+        "line": 14849,
+        "text": "                    for (auto& row:changed)"
+      },
+      {
+        "line": 14850,
+        "text": "                    {"
+      },
+      {
+        "line": 14851,
+        "text": "                        const label f=row.first;auto& value=row.second;"
+      },
+      {
+        "line": 14852,
+        "text": "                        m.owner[f]=value.owner;m.neighbour[f]=value.neighbour;m.faces[f].swap(value.polygon);"
+      },
+      {
+        "line": 14853,
+        "text": "                        unionArea[f]=value.area;unionCentre[f]=value.centre;"
+      },
+      {
+        "line": 14854,
+        "text": "                    }"
+      },
+      {
+        "line": 14855,
+        "text": "                    for (const auto& row:next)"
+      },
+      {
+        "line": 14856,
+        "text": "                    { const label c=row.first;unionCC[c]=row.second.centre;unionVolume[c]=row.second.volume;unionDet[c]=row.second.determinant;unionValid[c]=1; }"
+      },
+      {
+        "line": 14857,
+        "text": "                    unionValid[drop]=2;if (!weightPacket) { ++accepted; }++acceptedRound;"
+      },
+      {
+        "line": 14858,
+        "text": "                    if(legacyJournal)"
+      },
+      {
+        "line": 14859,
+        "text": "                        dcCartCompleteCavityLocalOracle::finishLegacyCommit"
+      },
+      {
+        "line": 14860,
+        "text": "                            (*legacyJournal,m,cavityAuthority,unionCF,patchTypes,accepted,legacyCommit);"
+      },
+      {
+        "line": 14861,
+        "text": "                    if (!certifiedCoupled.empty()) { ++unchangedCoupledAccepted; }"
+      }
+    ],
+    "sha256": "4a5b2d100ebcf9eaa89720addf7c588dd75e363dbaef0bd1efd03d30bcd8d4fd",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C"
+  },
+  {
+    "first": 14992,
+    "last": 15031,
+    "lines": [
+      {
+        "line": 14992,
+        "text": "        if(m.completeCavityContext)"
+      },
+      {
+        "line": 14993,
+        "text": "        {"
+      },
+      {
+        "line": 14994,
+        "text": "            auto& context=*m.completeCavityContext;"
+      },
+      {
+        "line": 14995,
+        "text": "            // Existing accepted counts ONLY non-packet literal mutations;"
+      },
+      {
+        "line": 14996,
+        "text": "            // tryLiteralUnion separately increments weightUnionState->accepted."
+      },
+      {
+        "line": 14997,
+        "text": "            const label unjournalledLegacy=accepted;"
+      },
+      {
+        "line": 14998,
+        "text": "            using CurrentRefusal=dcCartCompleteCavityLocalOracle::CurrentRefusal;"
+      },
+      {
+        "line": 14999,
+        "text": "            std::array<label,unsigned(CurrentRefusal::count)> currentRefused{};"
+      },
+      {
+        "line": 15000,
+        "text": "            dcCartLegacyJournalObservation::PhaseScope p17CensusScope(dcCartLegacyJournalObservation::Phase::census);"
+      },
+      {
+        "line": 15001,
+        "text": "            for(const auto& view:context.views)"
+      },
+      {
+        "line": 15002,
+        "text": "            {"
+      },
+      {
+        "line": 15003,
+        "text": "                CurrentRefusal why=CurrentRefusal::none;"
+      },
+      {
+        "line": 15004,
+        "text": "                if(dcCartCompleteCavityLocalOracle::current"
+      },
+      {
+        "line": 15005,
+        "text": "                    (view,m,cavityAuthority,unjournalledLegacy,unionCF,&why))++context.currentReady;"
+      },
+      {
+        "line": 15006,
+        "text": "                else ++currentRefused[unsigned(why)];"
+      },
+      {
+        "line": 15007,
+        "text": "            }"
+      },
+      {
+        "line": 15008,
+        "text": "            Pout<<\"Normal complete-cavity installed context: rank \"<<myRank"
+      },
+      {
+        "line": 15009,
+        "text": "                <<\", proposed/captured/current \"<<context.proposed<<'/'<<context.captured<<'/'<<context.currentReady"
+      },
+      {
+        "line": 15010,
+        "text": "                <<\", refused \"<<context.refused<<\", capture \"<<context.captureSeconds<<\" s\"<<endl;"
+      },
+      {
+        "line": 15011,
+        "text": "            Pout<<\"Normal complete-cavity current admission observations: rank \"<<myRank"
+      },
+      {
+        "line": 15012,
+        "text": "                <<\", local legacy accepted \"<<unjournalledLegacy<<\"; first-predicate refusals \";"
+      },
+      {
+        "line": 15013,
+        "text": "            for(unsigned j=0;j<unsigned(CurrentRefusal::count);++j)"
+      },
+      {
+        "line": 15014,
+        "text": "                Pout<<dcCartCompleteCavityLocalOracle::currentRefusalName(CurrentRefusal(j))"
+      },
+      {
+        "line": 15015,
+        "text": "                    <<'='<<currentRefused[j]<<' ';"
+      },
+      {
+        "line": 15016,
+        "text": "            Pout<<\"; observations do not change admission or refresh the earliest oracle\"<<endl;"
+      },
+      {
+        "line": 15017,
+        "text": "            if(completeRepairEnabled)"
+      },
+      {
+        "line": 15018,
+        "text": "            {"
+      },
+      {
+        "line": 15019,
+        "text": "                // One current complete star replacement/rank, after all old"
+      },
+      {
+        "line": 15020,
+        "text": "                // trials. Non-journalled legacy mutations and packet overlap"
+      },
+      {
+        "line": 15021,
+        "text": "                // refuse. Neither old W state nor earliest oracle is refreshed."
+      },
+      {
+        "line": 15022,
+        "text": "                dcCartLegacyJournalObservation::PhaseScope p17RepairScope(dcCartLegacyJournalObservation::Phase::repair);"
+      },
+      {
+        "line": 15023,
+        "text": "                const auto cavity=dcCartCompleteCavityRepair::apply"
+      },
+      {
+        "line": 15024,
+        "text": "                    (m,context,cavityAuthority,unjournalledLegacy,unionCF);"
+      },
+      {
+        "line": 15025,
+        "text": "                Pout<<\"Normal complete-cavity repair: rank \"<<myRank"
+      },
+      {
+        "line": 15026,
+        "text": "                    <<\", current/attempted/generated/prepared/committed \"<<cavity.current<<'/'<<cavity.attempted<<'/'<<cavity.generated"
+      },
+      {
+        "line": 15027,
+        "text": "                    <<'/'<<cavity.prepared<<'/'<<cavity.committed<<\", plane bases \"<<cavity.planeBases"
+      },
+      {
+        "line": 15028,
+        "text": "                    <<\", prepared bytes \"<<cavity.preparedBytes<<\", local \"<<cavity.seconds<<\" s; refusals \";"
+      },
+      {
+        "line": 15029,
+        "text": "                for(const auto count:cavity.refused){Pout<<count<<' ';}"
+      },
+      {
+        "line": 15030,
+        "text": "                Pout<<\"; actual installed prefix/final and earliest coupled guards still required\"<<endl;"
+      },
+      {
+        "line": 15031,
+        "text": "            }"
+      }
+    ],
+    "sha256": "4a5b2d100ebcf9eaa89720addf7c588dd75e363dbaef0bd1efd03d30bcd8d4fd",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C"
+  },
+  {
+    "first": 15,
+    "last": 18,
+    "lines": [
+      {
+        "line": 15,
+        "text": "{"
+      },
+      {
+        "line": 16,
+        "text": "enum class Reason:unsigned char {pass,noHandle,incomplete,aliasIndex,capacity,deadline,authority,sequence,identity,shape,alias,origin,pending,mutation,dependency,exception,count};"
+      },
+      {
+        "line": 17,
+        "text": "enum class Phase:unsigned char {init,prepare,before,finish,after,closure,census,repair,current,count};"
+      },
+      {
+        "line": 18,
+        "text": "enum class Source:unsigned char {core,authority,oracle,consumer,cli};"
+      }
+    ],
+    "sha256": "e2f7628c733456cac4f93f9b1c676be6ade633101c376b86717f474879da1ec1",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityOriginCore.H"
+  },
+  {
+    "first": 92,
+    "last": 104,
+    "lines": [
+      {
+        "line": 92,
+        "text": "}"
+      },
+      {
+        "line": 93,
+        "text": "inline bool reject(Reason reason,Source source,unsigned site,"
+      },
+      {
+        "line": 94,
+        "text": "                   std::int64_t a=0,std::int64_t b=0,std::int64_t c=0,std::int64_t d=0)noexcept"
+      },
+      {
+        "line": 95,
+        "text": "{failure(reason,source,site,a,b,c,d);return false;}"
+      },
+      {
+        "line": 96,
+        "text": "inline bool overlap(Source source,unsigned site,std::int64_t a=0,std::int64_t b=0,std::int64_t c=0,std::int64_t d=0)noexcept"
+      },
+      {
+        "line": 97,
+        "text": "{failure(Reason::dependency,source,site,a,b,c,d);return true;}"
+      },
+      {
+        "line": 98,
+        "text": "inline void invalidation(bool previouslyComplete)noexcept"
+      },
+      {
+        "line": 99,
+        "text": "{"
+      },
+      {
+        "line": 100,
+        "text": "    if(!enabled()||!previouslyComplete||active->haveFirst)return;"
+      },
+      {
+        "line": 101,
+        "text": "    if(!active->haveLast)failure(Reason::incomplete,Source::oracle,110);"
+      },
+      {
+        "line": 102,
+        "text": "    active->first=active->last;active->first.kind=1;"
+      },
+      {
+        "line": 103,
+        "text": "    active->first.completeKnown=1;active->first.preComplete=1;active->first.postComplete=0;"
+      },
+      {
+        "line": 104,
+        "text": "    active->haveFirst=true;"
+      }
+    ],
+    "sha256": "e2f7628c733456cac4f93f9b1c676be6ade633101c376b86717f474879da1ec1",
+    "source": "source/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityOriginCore.H"
+  }
+]

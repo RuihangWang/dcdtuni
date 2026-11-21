@@ -1,0 +1,29 @@
+# Independent finite-proposal feasibility audit
+
+The original-input reproduction passes for two bounded R fixtures. It does not establish installed C++ behavior, full mesh acceptance, whole-case D909/W100 feasibility, or a 300-second runtime guarantee.
+
+All 27 declared payloads in AIR manifest `b58da0fded34de732e35abb89690f605804e3178de2b1cc9d7e7d3d01ceb422a` were verified before and after recomputation. AIR receipt `1a80c8cd05a4ab9ab185ac84171ddb6098d8d068a0ce71b8b14a3c4fde3e0548`, frozen C/H/app identities and 52 actual source-array bindings match original bytes.
+
+The independent adapter starts from only the two `oldDocument` objects. It recalculates their actual bad-ratio faces, then calls the generic topology selector to derive the three-coordinate interior pivot and, for rank1, the additional exact two-node Y mode. It does not copy a previous optimizer candidate or its successful coordinates. Reassigning all point IDs and reversing dictionary insertion order preserves the geometrically selected mode and basis. The selector's core source contains no case IDs or success-coordinate constants. Actual source binding verifies each supplied compact document is the complete point star with complete outside cells; the native adapter must independently construct that closure.
+
+The finite algorithm starts at zero displacement, uses central finite differences, finite radii, direct dual halfspace projection and finite backtracking. Static source inspection plus runtime profiling confirms no optimizer call. Reproduction returns exactly the stored parameters and every iteration-history value: rank1 uses 4 parameters and 168 requests; rank3 uses 3 parameters and 8 requests. Instrumentation records 336 and 16 fast field computations respectively because each request currently computes fields once directly and once inside constraints. Setup and final authorization are additional work.
+
+At the declared .95 backtrack, original and candidate compound documents are independently reconstructed and evaluated again, using all 96 core and 83 complete outside cells. Counts are D14→14, weight18→18, ratio2→0, skew0→0 and non-orthogonality15→14, with maximum86.8289526577 degrees. This particular candidate adds zero new >70-degree labels. Original passing D/W/R/skew roles and worst failed severities are checked by the separate complete original-formula evaluator, not inferred from proposal projection success. Independent scalar determinant differs from the saved NumPy determinant by at most5.56e-16, with identical classifications; weight and ratio values match exactly.
+
+All 83 outside cell centres and volumes are double-byte exact. The original and candidate exterior-shell x-directed divergence volume/first-moment integrals are exactly equal as Fractions and independently match all-cell origin-tetra integrals. Floating-point aggregate volume relative difference is3.75e-16 and first-moment norm difference1.60e-18 m⁴. Those small floating-point sums are disclosed separately from exact geometric total conservation.
+
+No moving point is physical, coupled or zoned; no coupled/zone-protected face exists in either complete touched stencil. All physical external coordinates stay fixed. Actual named faceZones have zero member labels and cellZones are empty in the two original ranks. Rank1 nontriangular incident planes remain exact-planar under the shared mode, with internal support planes allowed to rotate. Controlled binary64 copies have exact original header/suffix and all nonmoving rank points; exactly the four declared points differ. These are existing scratch copies, and the independent audit never writes an actual mesh or invokes an installed writer.
+
+The earlier long endpoint is a real negative example: its original count8 becomes9 bad determinant cells, and originally passing cell508838 has D=.0009999999980392809. Reapplying the original complete gate rejects it without rounding that near-threshold failure away. The long optimization is not rerun; the frozen endpoint geometry is directly re-evaluated. Its stored419 requests belong to an initial larger-budget exploration, distinct from the capped168/8 requests reproduced here.
+
+The independent safety probes confirm request limits, zero-wall stopping, contradictory zero-gradient rejection and insufficient projection-budget refusal. The called projection path always has nonempty unit trust rows and a positive384-update budget. A general C++ implementation must explicitly handle empty/nonfinite inputs and zero update budget; no general optimizer convergence claim follows from this example.
+
+Porting scalar/vector arithmetic and bounded dual updates needs no SQP/SciPy or third-party optimizer code. However, C++ rounding, installed geometry/tet caches, safe owned updateGeomPoints batches, restore/refresh on failure, whole coupled certificates, parallel stop/collective ordering, actual peak RSS and whole-job deadline remain untested here. A request checks time before its evaluation and can consume further time in that evaluation; it is not a hard asynchronous whole-job watchdog. Neither this four-point proof nor the earlier fourteen-point SLSQP proof authorizes native implementation or acceptance by itself.
+
+Reproduce from the integration repository on40901:
+
+```sh
+CUDA_VISIBLE_DEVICES='' PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TMPDIR="$PWD/.codex-tmp/finite-native-proposal-independent-20261005/tmp" taskset -c 24-31 /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/python .codex-tmp/finite-native-proposal-independent-20261005/independent_finite_audit.py
+```
+
+The first own generated script failed string escaping before any math ran; its original source and logs are retained. Only this new integration scratch directory was written. AIR evidence, current cases, CPP/source, services, APIs, browser, Git index and GPU were untouched.

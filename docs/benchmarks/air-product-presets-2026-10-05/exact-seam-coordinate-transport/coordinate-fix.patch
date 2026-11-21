@@ -1,0 +1,172 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 739ffaa2..d298900d 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -14,6 +14,7 @@
+ #include "tetPointRef.H"
+ #include "symmTensor.H"
+ #include <fstream>
++#include <sstream>
+ #include <iomanip>
+ #include <cstring>
+ #include <string>
+@@ -5649,7 +5650,19 @@ void Foam::dcCartCutCells::splitSeamedThinCells(cutMesh& m, const settings& s, r
+     };
+ 
+     std::map<std::pair<label, long long>, std::vector<label>> groups;
+-    std::map<std::pair<label, long long>, scalar> coords;
++    std::map<std::pair<label, long long>, std::pair<scalar, scalar>> coords;
++    auto recordPlane = [&](const std::pair<label, long long>& key, label c, scalar x)
++    {
++        if (!std::isfinite(x)) { return; }
++        groups[key].push_back(c);
++        const auto found = coords.find(key);
++        if (found == coords.end()) { coords.emplace(key, std::make_pair(x, x)); }
++        else
++        {
++            found->second.first = min(found->second.first, x);
++            found->second.second = max(found->second.second, x);
++        }
++    };
+ 
+     for (label c = 0; c < m.nCells; ++c)
+     {
+@@ -5757,12 +5770,12 @@ void Foam::dcCartCutCells::splitSeamedThinCells(cutMesh& m, const settings& s, r
+                                 if (x - lo < minShare * (hi - lo)) { continue; }
+                                 if (hi - x < minShare * (hi - lo)) { continue; }
+                                 if (!cleanPlane(c, cellFaces, S, x, minShare * (hi - lo))) { continue; }
++                                if (!std::isfinite(x)) { continue; }
+                                 const std::pair<label, long long> key
+                                 (
+                                     S, (long long)std::llround(x * 1e9)
+                                 );
+-                                groups[key].push_back(c);
+-                                coords[key] = x;
++                                recordPlane(key, c, x);
+                                 found = true;
+                             }
+                         }
+@@ -5874,12 +5887,12 @@ void Foam::dcCartCutCells::splitSeamedThinCells(cutMesh& m, const settings& s, r
+                             if (x - lo < minShare * (hi - lo)) { continue; }
+                             if (hi - x < minShare * (hi - lo)) { continue; }
+                             if (!cleanPlane(c, cellFaces, S, x, minShare * (hi - lo))) { continue; }
++                            if (!std::isfinite(x)) { continue; }
+                             const std::pair<label, long long> key
+                             (
+                                 S, (long long)std::llround(x * 1e9)
+                             );
+-                            groups[key].push_back(c);
+-                            coords[key] = x;
++                            recordPlane(key, c, x);
+                             tiltFound = true;
+                         }
+                     }
+@@ -5898,39 +5911,73 @@ void Foam::dcCartCutCells::splitSeamedThinCells(cutMesh& m, const settings& s, r
+     // cannot hit this because its planes come from the global surface
+     // geometry; these come from the local mesh, so they have to be unioned
+     // over the ranks and iterated in one global order. The plane coordinate is
+-    // carried in the key and reconstructed from it, so every rank splits at
+-    // bit-identical coordinates rather than at its own double.
++    // retained as a grouping/order key only. Reconstructing it at 1 nm
++    // rounded a true STL seam at .8999999761581421 to .899999976 and
++    // generated nonplanar internal bases. Transport real candidate doubles
++    // separately; all ranks agree on their bounds before any local skip.
+     const uint64_t lowMask = (uint64_t(1) << 62) - 1;
+     const long long cqBias = static_cast<long long>(1) << 40;
+-    std::vector<uint64_t> myKeys;
+-    myKeys.reserve(groups.size());
++    List<List<uint64_t>> gatheredKeys(UPstream::nProcs());
++    List<List<scalar>> gatheredCoords(UPstream::nProcs());
++    auto& myKeys = gatheredKeys[UPstream::myProcNo()];
++    auto& myCoords = gatheredCoords[UPstream::myProcNo()];
++    myKeys.resize(groups.size()); myCoords.resize(2*groups.size());
++    label slot = 0;
+     for (const auto& kv : groups)
+     {
+-        myKeys.push_back
+-        (
+-            (uint64_t(kv.first.first) << 62)
+-          | (static_cast<uint64_t>(kv.first.second + cqBias) & lowMask)
+-        );
++        myKeys[slot] = (uint64_t(kv.first.first) << 62)
++          | (static_cast<uint64_t>(kv.first.second + cqBias) & lowMask);
++        const auto& bound = coords.at(kv.first);
++        myCoords[2*slot] = bound.first; myCoords[2*slot+1] = bound.second;
++        ++slot;
+     }
+-    std::vector<uint64_t> allKeys;
+     if (Pstream::parRun())
+     {
+-        List<List<uint64_t>> all(UPstream::nProcs());
+-        List<uint64_t>& buf = all[UPstream::myProcNo()];
+-        buf.resize(label(myKeys.size()));
+-        forAll(buf, i) { buf[i] = myKeys[i]; }
+-        Pstream::allGatherList(all);
+-        forAll(all, r)
+-        {
+-            for (size_t i = 0; i < all[r].size(); ++i) { allKeys.push_back(all[r][i]); }
+-        }
++        Pstream::allGatherList(gatheredKeys);
++        Pstream::allGatherList(gatheredCoords);
+     }
+-    else
++    std::vector<uint64_t> allKeys;
++    std::map<uint64_t, std::pair<scalar, scalar>> exactCoords;
++    forAll(gatheredKeys, rank)
+     {
+-        allKeys = myKeys;
++        const auto& keys = gatheredKeys[rank]; const auto& bounds = gatheredCoords[rank];
++        if (bounds.size() != 2*keys.size())
++        { FatalErrorInFunction << "seam coordinate transport shape mismatch" << exit(FatalError); }
++        forAll(keys, i)
++        {
++            const scalar lo=bounds[2*i],hi=bounds[2*i+1];
++            if (!std::isfinite(lo) || !std::isfinite(hi) || lo>hi)
++            { FatalErrorInFunction << "invalid seam coordinate transport" << exit(FatalError); }
++            allKeys.push_back(keys[i]);
++            const auto found=exactCoords.find(keys[i]);
++            if (found==exactCoords.end()) { exactCoords.emplace(keys[i],std::make_pair(lo,hi)); }
++            else { found->second.first=min(found->second.first,lo); found->second.second=max(found->second.second,hi); }
++        }
+     }
+     std::sort(allKeys.begin(), allKeys.end());
+     allKeys.erase(std::unique(allKeys.begin(), allKeys.end()), allKeys.end());
++    label ambiguousPlanes=0;
++    for (const auto& kv:exactCoords) if (kv.second.first!=kv.second.second) { ++ambiguousPlanes; }
++    Info << "Seam plane coordinate transport: " << allKeys.size() << " groups, "
++         << ambiguousPlanes << " distinct-source groups refused; actual candidate coordinates retained" << endl;
++    if (getenv("DCCART_SEAM_COORD_EVIDENCE") && Pstream::master())
++    {
++        std::ofstream out("seam-plane-coordinates.json");out<<std::setprecision(17)<<"[";
++        bool first=true;
++        for (uint64_t key:allKeys)
++        {
++            if (!first) { out<<","; } first=false;
++            const label axis=label(key>>62);
++            const long long quantized=static_cast<long long>(key&lowMask)-cqBias;
++            const auto& bound=exactCoords.at(key);
++            out<<"{\"axis\":"<<axis<<",\"quantized\":"<<quantized
++               <<",\"minimum\":"<<bound.first<<",\"maximum\":"<<bound.second
++               <<",\"spread\":"<<(bound.second-bound.first)
++               <<",\"reconstructed\":"<<(scalar(quantized)*1e-9)
++               <<",\"eligibleCoordinate\":"<<(bound.first==bound.second ? "true":"false")<<"}";
++        }
++        out<<"]\n";
++    }
+     if (allKeys.empty()) { return; }
+ 
+     // Plane candidates refer to cells before the first seam cut. A cut
+@@ -5946,7 +5993,12 @@ void Foam::dcCartCutCells::splitSeamedThinCells(cutMesh& m, const settings& s, r
+     {
+         const label S = label(gk >> 62);
+         const long long cq = static_cast<long long>(gk & lowMask) - cqBias;
+-        const scalar x = scalar(cq) * 1e-9;
++        const auto& bound = exactCoords.at(gk);
++        // Distinct candidate planes sharing a quantized key are not assumed
++        // physically equivalent. Leave this group uncut; final quality still
++        // decides authorization. The decision is identical on every rank.
++        if (bound.first != bound.second) { continue; }
++        const scalar x = bound.first;
+         std::vector<label> cells;
+         const auto git = groups.find(std::make_pair(S, cq));
+         if (git != groups.end()) { cells = git->second; }

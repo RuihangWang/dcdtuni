@@ -1,0 +1,292 @@
+===== /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C lines 31-165 =====
+31: // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+32: 
+33: // Note: the use of this tolerance is ad-hoc, there may be extreme
+34: // cases where the resulting tetrahedra still have particle tracking
+35: // problems, or tets with lower quality may track OK.
+36: const Foam::scalar Foam::polyMeshTetDecomposition::minTetQuality = sqr(SMALL);
+37: 
+38: 
+39: // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+40: 
+41: Foam::scalar Foam::polyMeshTetDecomposition::minQuality
+42: (
+43:     const polyMesh& mesh,
+44:     const point& cC,
+45:     const label fI,
+46:     const bool isOwner,
+47:     const label faceBasePtI
+48: )
+49: {
+50:     // Does fan decomposition of face (starting at faceBasePti) and determines
+51:     // min quality over all resulting tets.
+52: 
+53:     const pointField& pPts = mesh.points();
+54:     const face& f = mesh.faces()[fI];
+55:     const point& tetBasePt = pPts[f[faceBasePtI]];
+56: 
+57:     scalar thisBaseMinTetQuality = VGREAT;
+58: 
+59:     for (label tetPtI = 1; tetPtI < f.size() - 1; tetPtI++)
+60:     {
+61:         label facePtI = (tetPtI + faceBasePtI) % f.size();
+62:         label otherFacePtI = f.fcIndex(facePtI);
+63: 
+64:         label ptAI = -1;
+65:         label ptBI = -1;
+66: 
+67:         if (isOwner)
+68:         {
+69:             ptAI = f[facePtI];
+70:             ptBI = f[otherFacePtI];
+71:         }
+72:         else
+73:         {
+74:             ptAI = f[otherFacePtI];
+75:             ptBI = f[facePtI];
+76:         }
+77: 
+78:         const point& pA = pPts[ptAI];
+79:         const point& pB = pPts[ptBI];
+80: 
+81:         tetPointRef tet(cC, tetBasePt, pA, pB);
+82: 
+83:         scalar tetQuality = tet.quality();
+84: 
+85:         if (tetQuality < thisBaseMinTetQuality)
+86:         {
+87:             thisBaseMinTetQuality = tetQuality;
+88:         }
+89:     }
+90:     return thisBaseMinTetQuality;
+91: }
+92: 
+93: 
+94: Foam::scalar Foam::polyMeshTetDecomposition::minQuality
+95: (
+96:     const polyMesh& mesh,
+97:     const label facei,
+98:     const label faceBasePtI
+99: )
+100: {
+101:     const scalar ownQuality =
+102:         minQuality
+103:         (
+104:             mesh,
+105:             mesh.cellCentres()[mesh.faceOwner()[facei]],
+106:             facei,
+107:             true,
+108:             faceBasePtI
+109:         );
+110: 
+111:     if (mesh.isInternalFace(facei))
+112:     {
+113:         const scalar neiQuality =
+114:             minQuality
+115:             (
+116:                 mesh,
+117:                 mesh.cellCentres()[mesh.faceNeighbour()[facei]],
+118:                 facei,
+119:                 false,
+120:                 faceBasePtI
+121:             );
+122: 
+123:         if (neiQuality < ownQuality)
+124:         {
+125:             return neiQuality;
+126:         }
+127:     }
+128: 
+129:     return ownQuality;
+130: }
+131: 
+132: 
+133: Foam::label Foam::polyMeshTetDecomposition::findSharedBasePoint
+134: (
+135:     const polyMesh& mesh,
+136:     label fI,
+137:     const point& nCc,
+138:     scalar tol,
+139:     bool report
+140: )
+141: {
+142:     const faceList& pFaces = mesh.faces();
+143:     const vectorField& pC = mesh.cellCentres();
+144:     const labelList& pOwner = mesh.faceOwner();
+145: 
+146:     const face& f = pFaces[fI];
+147: 
+148:     label oCI = pOwner[fI];
+149: 
+150:     const point& oCc = pC[oCI];
+151: 
+152:     forAll(f, faceBasePtI)
+153:     {
+154:         scalar ownQuality = minQuality(mesh, oCc, fI, true, faceBasePtI);
+155:         scalar neiQuality = minQuality(mesh, nCc, fI, false, faceBasePtI);
+156: 
+157:         if (min(ownQuality, neiQuality) > tol)
+158:         {
+159:             return faceBasePtI;
+160:         }
+161:     }
+162: 
+163:     // If a base point hasn't triggered a return by now, then there is
+164:     // none that can produce a good decomposition
+165:     return -1;
+===== /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C lines 383-537 =====
+383: bool Foam::polyMeshTetDecomposition::checkFaceTets
+384: (
+385:     const polyMesh& mesh,
+386:     scalar tol,
+387:     const bool report,
+388:     labelHashSet* setPtr
+389: )
+390: {
+391:     const labelList& own = mesh.faceOwner();
+392:     const labelList& nei = mesh.faceNeighbour();
+393:     const polyBoundaryMesh& patches = mesh.boundaryMesh();
+394: 
+395:     const vectorField& cc = mesh.cellCentres();
+396:     const vectorField& fc = mesh.faceCentres();
+397: 
+398:     // Calculate coupled cell centre
+399:     pointField neiCc(mesh.nBoundaryFaces());
+400: 
+401:     for (label facei = mesh.nInternalFaces(); facei < mesh.nFaces(); ++facei)
+402:     {
+403:         neiCc[facei - mesh.nInternalFaces()] = cc[own[facei]];
+404:     }
+405: 
+406:     syncTools::swapBoundaryFacePositions(mesh, neiCc);
+407: 
+408:     const faceList& fcs = mesh.faces();
+409: 
+410:     const pointField& p = mesh.points();
+411: 
+412:     label nErrorTets = 0;
+413: 
+414:     forAll(fcs, facei)
+415:     {
+416:         const face& f = fcs[facei];
+417: 
+418:         forAll(f, fPtI)
+419:         {
+420:             scalar tetQual = tetPointRef
+421:             (
+422:                 p[f[fPtI]],
+423:                 p[f.nextLabel(fPtI)],
+424:                 fc[facei],
+425:                 cc[own[facei]]
+426:             ).quality();
+427: 
+428:             if (tetQual > -tol)
+429:             {
+430:                 if (setPtr)
+431:                 {
+432:                     setPtr->insert(facei);
+433:                 }
+434: 
+435:                 nErrorTets++;
+436:                 break;              // no need to check other tets
+437:             }
+438:         }
+439: 
+440:         if (mesh.isInternalFace(facei))
+441:         {
+442:             // Create the neighbour tet - it will have positive volume
+443:             const face& f = fcs[facei];
+444: 
+445:             forAll(f, fPtI)
+446:             {
+447:                 scalar tetQual = tetPointRef
+448:                 (
+449:                     p[f[fPtI]],
+450:                     p[f.nextLabel(fPtI)],
+451:                     fc[facei],
+452:                     cc[nei[facei]]
+453:                 ).quality();
+454: 
+455:                 if (tetQual < tol)
+456:                 {
+457:                     if (setPtr)
+458:                     {
+459:                         setPtr->insert(facei);
+460:                     }
+461: 
+462:                     nErrorTets++;
+463:                     break;
+464:                 }
+465:             }
+466: 
+467:             if (findSharedBasePoint(mesh, facei, tol, report) == -1)
+468:             {
+469:                 if (setPtr)
+470:                 {
+471:                     setPtr->insert(facei);
+472:                 }
+473: 
+474:                 nErrorTets++;
+475:             }
+476:         }
+477:         else
+478:         {
+479:             const label patchi = patches.patchID(facei);
+480: 
+481:             if (patches[patchi].coupled())
+482:             {
+483:                 if
+484:                 (
+485:                     findSharedBasePoint
+486:                     (
+487:                         mesh,
+488:                         facei,
+489:                         neiCc[facei - mesh.nInternalFaces()],
+490:                         tol,
+491:                         report
+492:                     ) == -1
+493:                 )
+494:                 {
+495:                     if (setPtr)
+496:                     {
+497:                         setPtr->insert(facei);
+498:                     }
+499: 
+500:                     nErrorTets++;
+501:                 }
+502:             }
+503:             else
+504:             {
+505:                 if (findBasePoint(mesh, facei, tol, report) == -1)
+506:                 {
+507:                     if (setPtr)
+508:                     {
+509:                         setPtr->insert(facei);
+510:                     }
+511: 
+512:                     nErrorTets++;
+513:                 }
+514:             }
+515:         }
+516:     }
+517: 
+518:     reduce(nErrorTets, sumOp<label>());
+519: 
+520:     if (nErrorTets > 0)
+521:     {
+522:         if (report)
+523:         {
+524:             Info<< " ***Error in face tets: "
+525:                 << nErrorTets << " faces with low quality or negative volume "
+526:                 << "decomposition tets." << endl;
+527:         }
+528: 
+529:         return true;
+530:     }
+531: 
+532:     if (report)
+533:     {
+534:         Info<< "    Face tets OK." << endl;
+535:     }
+536: 
+537:     return false;

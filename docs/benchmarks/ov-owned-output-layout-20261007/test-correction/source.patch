@@ -1,0 +1,347 @@
+--- a/src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py
+@@ -6,6 +6,7 @@
+ import ast
+ import asyncio
+ import json
++import importlib.util
+ import os
+ from pathlib import Path
+ import re
+@@ -28,8 +29,12 @@
+ 
+ 
+ class Prim:
+-    def __init__(self, path="", kind=""):
++    def __init__(self, path="", kind="", metadata=None):
+         self.path, self.kind = path, kind
++        self.metadata = metadata or {}
++
++    def GetCustomDataByKey(self, key):
++        return self.metadata.get(key)
+ 
+     def __bool__(self):
+         return bool(self.path)
+@@ -50,8 +55,23 @@
+ class Stage:
+     def __init__(self):
+         self.project = "old-project"
+-        self.prims = {}
++        self.prims = {"/World/RenderScene": Prim("/World/RenderScene", "Xform",
++            {"dcdtuni:projectUid": self.project})}
+         self.events = []
++        # Empty result/mask roots: these tests exercise scheduling, not USD
++        # composition. Unexpected nonempty layer work must not become a no-op.
++        self.root = types.SimpleNamespace(identifier="controlled-stage",
++            GetPrimAtPath=lambda path: self.prims.get(path))
++        self.edit_target = self.root
++
++    def GetRootLayer(self):
++        return self.root
++
++    def GetEditTarget(self):
++        return self.edit_target
++
++    def SetEditTarget(self, target):
++        self.edit_target = target
+ 
+     def GetPrimAtPath(self, path):
+         return self.prims.get(path, Prim())
+@@ -70,13 +90,20 @@
+     started, release = asyncio.Event(), asyncio.Event()
+     stage = Stage()
+     package = types.ModuleType("race_bridge")
+-    package.__path__ = []
++    package.__path__ = [str(BRIDGE)]
+     monkeypatch.setitem(sys.modules, "race_bridge", package)
+ 
+     def module(name, **values):
+         value = types.ModuleType(name)
+         value.__dict__.update(values)
+         monkeypatch.setitem(sys.modules, name, value)
++        return value
++
++    def real_module(name):
++        spec = importlib.util.spec_from_file_location("race_bridge." + name, BRIDGE / (name + ".py"))
++        value = importlib.util.module_from_spec(spec)
++        monkeypatch.setitem(sys.modules, spec.name, value)
++        spec.loader.exec_module(value)
+         return value
+ 
+     async def wait_for_update():
+@@ -107,15 +134,30 @@
+         get_selected_prim_paths=lambda: [])
+     usd.get_context = lambda: types.SimpleNamespace(
+         get_stage=lambda: stage, get_selection=lambda: selection)
+-    module("pxr", UsdGeom=types.SimpleNamespace(
++    # No visibility/geometry writes exist in this empty-root scheduling carrier.
++    # Nonempty USD composition is covered by the genuine CPU-USD suites.
++    module("pxr", Usd=types.SimpleNamespace(), Sdf=types.SimpleNamespace(), UsdGeom=types.SimpleNamespace(
+         Imageable=lambda prim: types.SimpleNamespace(MakeInvisible=lambda: None)))
+ 
+     def author_scene(target, packet, cache, **kwargs):
+         target.project = packet["project"]["uid"]
+         target.events.append(("scene", target.project))
++        target.prims["/World/RenderScene"] = Prim("/World/RenderScene", "Xform",
++            {"dcdtuni:projectUid": target.project})
+         return {"uidPaths": {}, "primitives": 0}
+ 
+-    module("race_bridge.render_scene", author_scene=author_scene, CAMERA="/World/Camera")
++    renderer = real_module("render_scene")
++    renderer.author_scene = author_scene  # controlled stage carrier; validator remains real
++    real_module("result_layers_usd")
++    controller = real_module("verified_result_grant")
++    real_module("grid_raster")
++    output_file = BRIDGE / "output_layout.py"
++    output = real_module("output_layout").OwnedOutputLayout(False) if output_file.exists() else None
++    omni.kit = module("omni.kit")
++    omni.kit.viewport = module("omni.kit.viewport")
++    omni.kit.viewport.utility = module("omni.kit.viewport.utility", get_active_viewport=lambda: None)
++    # Execute the real empty-root masking/retirement code, including edit-target restoration.
++    real_module("handlers")
+     module("race_bridge.owned_paths", render_texture_cache_path=lambda: str(tmp_path / "textures"))
+     module("race_bridge.display_grant", verify=lambda grant, *args, **kwargs: grant,
+            roots_from_env=lambda value: [str(tmp_path)])
+@@ -133,7 +175,9 @@
+                 "asyncio": asyncio, "json": json, "os": os, "re": re, "omni": omni}
+     Extension = _class_methods("extension.py", "CfdBridgeExtension",
+         {"_route_render_command", "_load_granted_dataset", "_clear_display", "_ack_after",
+-         "_author_render_scene", "_apply_render_view"}, dict(globals_))
++         "_author_render_scene", "_apply_render_view", "_result_scene_identity",
++         "_current_scene_context", "_ensure_grid_raster", "_observe_grid_viewport", "_sample_grid_raster",
++         "_prepare_output_layout", "_clear_verified_result"}, dict(globals_))
+     Scene = _class_methods("scene.py", "CfdScene",
+         {"load_dataset", "_ingest_dataset"}, dict(globals_))
+     scene = Scene()
+@@ -143,7 +187,9 @@
+         seed_source_path="/World/CAE/SeedPoints", slice_visible=False,
+         dataset_path=None, t_field=None, u_field=None, umag_field=None,
+         field_stats=None, ranges={}, vtu_path=None, source_vtu_path=None,
+-        _slice_grid=None, _slice_cache_key=None, _slice_summary=None)
++        _slice_grid=None, _slice_cache_key=None, _slice_summary=None,
++        geo_groups={}, _render_room_shell_paths=(), _volume_geometry_saved={},
++        _volume_geometry_hidden=False, _volume_geometry_stage=None)
+     path = tmp_path / "old.case"
+     path.write_text("fake granted case")
+ 
+@@ -165,12 +211,15 @@
+         _display_project_uid=None, _render_project_hash="a" * 64,
+         _render_uid_paths={}, _render_primitive_ids={}, _last_scene_request_id="before",
+         _liquid=None, _liquid_saved={}, _last_ov_pick=None, _suppress_ov_pick=False,
+-        _display_generation=0, _display_commit_lock=asyncio.Lock())
++        _display_generation=0, _display_commit_lock=asyncio.Lock(),
++        _trusted_result_context=None, _verified_result_controller=controller.VerifiedResultController(),
++        _owned_output_layout=output, _render_room_shell_paths=(),
++        _grid_raster=None, _grid_frame_revision=0, _grid_viewport_api=None, _grid_subscriptions=[])
+     ext.acks = []
+     ext._render_ack = lambda request_id, **result: ext.acks.append({"requestId": request_id, **result})
+     ext._render_transfer = types.SimpleNamespace(finish=lambda request_id: {
+         "project": {"uid": "new-project"}, "primitives": [],
+-        "view": {"camera": None, "selectedUids": []}})
++        "view": {"selectedUids": [], "timeSeconds": None}})
+     granted = {"path": str(path), "run": "old-run", "runId": "old-run-id", "time": 0.005}
+     return ext, scene, stage, started, release, granted
+ 
+@@ -259,7 +308,7 @@
+         await _drain_until(started.is_set)
+         ext._render_transfer.finish = lambda request_id: {
+             "project": {"uid": "middle-project" if request_id == "middle" else "new-project"},
+-            "primitives": [], "view": {"camera": None, "selectedUids": []}}
++            "primitives": [], "view": {"selectedUids": [], "timeSeconds": None}}
+         ext._route_render_command("loadRenderScene", json.dumps({"requestId": "middle"}))
+         ext._route_render_command("loadRenderScene", json.dumps({"requestId": "latest"}))
+         release.set()
+@@ -285,7 +334,7 @@
+         old_source, old_grid = scene.source_vtu_path, scene._slice_grid
+         ext._render_transfer.finish = lambda request_id: {
+             "project": {"uid": "old-project"}, "primitives": [],
+-            "view": {"camera": None, "selectedUids": []}}
++            "view": {"selectedUids": [], "timeSeconds": None}}
+         ext._route_render_command("loadRenderScene", json.dumps({"requestId": "same-project"}))
+         await _drain_until(lambda: len(ext.acks) == 2)
+         assert all(a["ok"] for a in ext.acks)
+--- a/src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
+@@ -55,15 +55,173 @@
+     assert "push" not in ast.unparse(ack)
+ 
+ 
+-def test_air_result_context_is_never_set_by_any_command():
+-    """Liquid colouring has its own verified context; the air result-layer
+-    context stays fail-closed (only its None initialisation may assign it)."""
+-    tree = _tree()
+-    assigned = [n for n in ast.walk(tree) if isinstance(n, ast.Assign)
+-                and any(isinstance(t, ast.Attribute) and t.attr == "_trusted_result_context" for t in n.targets)]
+-    assert len(assigned) == 1 and isinstance(assigned[0].value, ast.Constant) and assigned[0].value.value is None
+-    src = open(EXT).read()
+-    assert "kind='liquidResult'" in src  # liquid grants are verified as their own kind
++def _signed_route_harness(monkeypatch, tmp_path, *, blocked=False):
++    """Real HMAC verifier, artifact read and controller, controlled USD writer.
++
++    Hashes/receipts here are synthetic test identities, never native acceptance.
++    This tests receiver lifecycle, not the numerical packet's full USD schema.
++    """
++    import asyncio
++    import hashlib
++    import importlib.util
++    import json
++    import sys
++    import time
++    from test_dataset_scene_race import BRIDGE, _harness
++    ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
++    spec = importlib.util.spec_from_file_location("race_bridge.display_grant", BRIDGE / "display_grant.py")
++    grants = importlib.util.module_from_spec(spec)
++    monkeypatch.setitem(sys.modules, spec.name, grants)
++    spec.loader.exec_module(grants)
++    verifier = sys.modules["race_bridge.verified_result_grant"]
++    # A public controlled test key, scoped to this test, never a service key.
++    key = "controlled-router-test-key-" * 2
++    monkeypatch.setenv("DCDTUNI_OV_GRANT_KEY", key)
++    monkeypatch.setenv("DC_CFD_DATASET_ROOTS", str(tmp_path))
++    source = {"projectUid": "old-project", "projectContentSha256": "a" * 64,
++              "cfdrunSha256": "b" * 64, "meshReceiptSha256": "c" * 64,
++              "meshQuality": "accepted", "run": {"uid": "controlled-run", "receiptSha256": "d" * 64}}
++    convergence = {"verdict": "NOT_CONVERGED", "receiptSha256": "e" * 64}
++    writes, tickets = [], []
++    entered, release = asyncio.Event(), asyncio.Event()
++    async def writer(target, ticket):
++        tickets.append(ticket)
++        packet = verifier.read_granted_packet(ticket.granted())
++        entered.set()
++        if blocked:
++            await release.wait()
++        # Same actual final gate used by production's USD transaction.
++        with ext._verified_result_controller.commit(ticket, packet,
++                lambda: ext._result_scene_identity(target), lambda: ext._display_generation):
++            writes.append((packet["source"], packet["timeSeconds"]))
++        return {"controlledWriter": True}
++    ext._load_verified_result = writer
++    def grant(*, frame=0.02, common_generation=0):
++        packet = {"schema": "dcdtuni.render-result-layers/v3", "source": source,
++                  "timeSeconds": frame, "runConvergence": convergence}
++        raw = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
++        artifact = tmp_path / ("controlled-" + str(frame) + ".json")
++        artifact.write_bytes(raw)
++        now = time.time()
++        payload = {"kind": "rendererResult", "path": str(artifact), "runId": "f" * 64,
++                   "issuedAt": now, "expiresAt": now + 60, "nonce": "controlled-nonce",
++                   "packetSha256": hashlib.sha256(raw).hexdigest(), "nativeInputSha256": "1" * 64,
++                   "postprocessRevision": "controlled-pp", "timeSeconds": frame,
++                   "sceneRevision": ext._scene_revision, "displayGeneration": common_generation,
++                   "source": source, "runConvergence": convergence}
++        return grants.sign(payload, key)
++    return ext, stage, grants, key, grant, writes, tickets, entered, release
++
++
++def test_signed_diagnostic_context_is_installed_only_after_actual_verification(monkeypatch, tmp_path):
++    import asyncio
++    import json
++    from test_dataset_scene_race import _drain_until
++    async def scenario():
++        ext, stage, _, _, grant, writes, tickets, _, _ = _signed_route_harness(monkeypatch, tmp_path)
++        assert ext._trusted_result_context is None
++        signed = grant()
++        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "verified", "grant": signed}))
++        await _drain_until(lambda: len(ext.acks) == 1)
++        assert ext.acks[0]["ok"] is True
++        assert ext._trusted_result_context == {"source": signed["payload"]["source"], "timeSeconds": 0.02}
++        assert writes == [(signed["payload"]["source"], 0.02)] and len(tickets) == 1
++        assert tickets[0].granted()["runConvergence"]["verdict"] == "NOT_CONVERGED"
++    asyncio.run(scenario())
++
++
++import pytest
++
++@pytest.mark.parametrize("command, fields", [
++    ("beginRenderResultLayers", {"chunks": 1}),
++    ("renderResultLayersChunk", {"index": 0, "data": "controlled"}),
++    ("renderResultLayersProgress", {"resultRequestId": "raw", "received": 1}),
++    ("loadRenderResultLayers", {}),
++])
++def test_unsigned_commands_cannot_create_or_replace_a_verified_context(monkeypatch, tmp_path, command, fields):
++    import asyncio
++    import json
++    from test_dataset_scene_race import _drain_until
++    async def scenario():
++        ext, _, _, _, grant, writes, _, _, _ = _signed_route_harness(monkeypatch, tmp_path)
++        ext._route_render_command(command, json.dumps({"requestId": "raw-first", **fields}))
++        assert ext.acks[-1]["ok"] is False and "verified server canonical grant" in ext.acks[-1]["error"]
++        assert ext._trusted_result_context is None and writes == []
++        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "verified", "grant": grant()}))
++        await _drain_until(lambda: len(ext.acks) == 2)
++        context = ext._trusted_result_context.copy()
++        ext._route_render_command(command, json.dumps({"requestId": "raw-after", **fields}))
++        assert ext.acks[-1]["ok"] is False
++        assert ext._trusted_result_context == context and len(writes) == 1
++    asyncio.run(scenario())
++
++
++@pytest.mark.parametrize("fault", ["signature", "source", "revision", "expired", "wrong-kind", "artifact-bytes"])
++def test_bad_signed_inputs_cannot_author_or_replace_entry_context(monkeypatch, tmp_path, fault):
++    import asyncio
++    import copy
++    import json
++    from pathlib import Path
++    from test_dataset_scene_race import _drain_until
++    async def scenario():
++        ext, _, grants, key, grant, writes, _, _, _ = _signed_route_harness(monkeypatch, tmp_path)
++        valid = grant()
++        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "good", "grant": valid}))
++        await _drain_until(lambda: len(ext.acks) == 1)
++        context = copy.deepcopy(ext._trusted_result_context)
++        bad = copy.deepcopy(valid)
++        if fault == "signature":
++            bad["signature"] = "0" * 64
++        elif fault == "artifact-bytes":
++            Path(bad["payload"]["path"]).write_text("changed-controlled-packet")
++        else:
++            payload = bad["payload"]
++            if fault == "source": payload["source"]["projectUid"] = "another-project"
++            elif fault == "revision": payload["sceneRevision"] += 1
++            elif fault == "expired": payload["issuedAt"] -= 100; payload["expiresAt"] -= 100
++            elif fault == "wrong-kind": payload["kind"] = "liquidResult"
++            bad = grants.sign(payload, key)
++        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "bad", "grant": bad}))
++        await _drain_until(lambda: len(ext.acks) == 2)
++        assert ext.acks[-1]["ok"] is False and writes == [(valid["payload"]["source"], 0.02)]
++        # Artifact bytes are checked after a verified context is installed;
++        # its failed load cannot author data. Entry failures leave prior context.
++        if fault != "artifact-bytes": assert ext._trusted_result_context == context
++    asyncio.run(scenario())
++
++
++@pytest.mark.parametrize("retire", ["clear", "scene", "newer-signed"])
++def test_late_verified_writer_cannot_commit_after_retirement(monkeypatch, tmp_path, retire):
++    import asyncio
++    import json
++    from test_dataset_scene_race import _drain_until
++    async def scenario():
++        ext, stage, _, _, grant, writes, tickets, entered, release = _signed_route_harness(monkeypatch, tmp_path, blocked=True)
++        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "old", "grant": grant()}))
++        await _drain_until(entered.is_set)
++        if retire == "clear":
++            ext._route_render_command("clearRenderResultLayers", json.dumps({"requestId": "clear", "displayGeneration": 1}))
++            assert ext._trusted_result_context is None
++        elif retire == "scene":
++            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
++            assert ext._trusted_result_context is None
++        else:
++            ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "new", "grant": grant(frame=0.04, common_generation=1)}))
++            assert ext._trusted_result_context["timeSeconds"] == 0.04
++        release.set()
++        await _drain_until(lambda: len(ext.acks) == 2)
++        old = next(a for a in ext.acks if a["requestId"] == "old")
++        assert old["ok"] is False and "context changed" in old["error"]
++        newer = next(a for a in ext.acks if a["requestId"] != "old")
++        assert newer["ok"] is True
++        if retire == "newer-signed":
++            assert [frame for _, frame in writes] == [0.04] and len(tickets) == 2
++        else:
++            assert writes == []
++            assert ext._trusted_result_context is None
++            if retire == "scene": assert stage.project == "new-project"
++        # No production assignment count is assumed: lifecycle protection is actual.
++    asyncio.run(scenario())
+ 
+ 
+ def test_view_state_reports_the_scene_identity_for_ack_recovery():

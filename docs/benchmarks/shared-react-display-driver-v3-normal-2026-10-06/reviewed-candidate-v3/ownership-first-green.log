@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/shared-postprocess-driver-private-20261006/candidate/src/frontend/react
+
+ ✓ test/sharedPostprocessDriver.test.ts (12 tests) 154ms
+ ✓ test/sharedOvPostprocessAdapter.test.ts (10 tests) 55ms
+ ❯ test/sharedDisplayUiOwnership.test.tsx (7 tests | 2 failed) 148ms
+   × clears the actual numeric mesh carrier after the public mesh preview is hidden 26ms
+     → expected "spy" to be called once, but got 0 times
+   × hiding during the actual mesh carrier transfer clears it after the mesh ACK 11ms
+     → expected "spy" to be called once, but got 0 times
+ ✓ test/ovResultMutationQueue.test.ts (7 tests) 23ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/sharedDisplayUiOwnership.test.tsx > clears the actual numeric mesh carrier after the public mesh preview is hidden
+AssertionError: expected "spy" to be called once, but got 0 times
+ ❯ test/sharedDisplayUiOwnership.test.tsx:74:35
+     72|  await mountOv();expect(client.loadResultLayers).toHaveBeenCalledOnce()
+     73|  await act(async()=>{m.preview.mockReturnValue({...m.state,visible:fal…
+     74|  expect(client.clearResultLayers).toHaveBeenCalledOnce()
+       |                                   ^
+     75| })
+     76| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/sharedDisplayUiOwnership.test.tsx > hiding during the actual mesh carrier transfer clears it after the mesh ACK
+AssertionError: expected "spy" to be called once, but got 0 times
+ ❯ test/sharedDisplayUiOwnership.test.tsx:84:35
+     82|  expect(client.clearResultLayers).not.toHaveBeenCalled()
+     83|  await act(async()=>{release({ok:true,requestId:'mesh',revision:1});aw…
+     84|  expect(client.clearResultLayers).toHaveBeenCalledOnce()
+       |                                   ^
+     85| })
+     86| function presentAir() {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 34 passed (36)
+   Start at  04:01:34
+   Duration  18.17s (transform 2.49s, setup 0ms, collect 6.43s, tests 380ms, environment 24.00s, prepare 935ms)
+

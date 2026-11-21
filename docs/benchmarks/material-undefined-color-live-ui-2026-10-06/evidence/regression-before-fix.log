@@ -1,0 +1,46 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/materialRecipeKernel.test.ts --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/materialRecipeKernel.test.ts (9 tests | 1 failed) 109ms
+   × shared material creation intent has no renderer ownership > creates missing-color materials without warnings while retaining Phong and library defaults 25ms
+     → untyped/false: expected [ Array(1) ] to deeply equal []
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/materialRecipeKernel.test.ts > shared material creation intent has no renderer ownership > creates missing-color materials without warnings while retaining Phong and library defaults
+AssertionError: untyped/false: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   Array [
++     "THREE.Material: parameter 'color' has value of undefined.",
++   ],
++ ]
+
+ ❯ test/materialRecipeKernel.test.ts:102:134
+    100|           warn.mockClear()
+    101|           const missing=spawn(group,new THREE.PlaneGeometry(2,1),{obje…
+    102|           expect(warn.mock.calls.filter(([message])=>String(message).i…
+       |                                                                                                                                      ^
+    103|           const material=missing.material as THREE.MeshPhongMaterial|T…
+    104|           const defaultColor=library?new THREE.Color(lib.ROLES['painte…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  01:32:06
+   Duration  11.11s (transform 1.55s, setup 0ms, collect 2.77s, tests 109ms, environment 7.57s, prepare 361ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -1,0 +1,5 @@
+# Inspector description follows document loads
+
+Actual CUA found a previously edited large proof description still visible after another canonical project was loaded. The component keyed its uncontrolled textarea only by project UID. Three meaningful baseline failures were preserved: typed+blur old committed text survived a same-UID load, uncommitted text survived a same-UID/same-text load, and undo changed store text without changing the DOM. A pristine untouched defaultValue load does not reproduce the first bug; the initial2-failure run is preserved separately.
+
+The narrow fix retains blur editing. It remounts only the description field when committed description/UID changes or an actual document-load notification occurs. Ordinary same-document edits keep the draft. Actual Inspector/store component tests went3FAIL1PASS to4PASS; existing InspectorDelete six tests also pass, total10PASS. No production build, browser, service/API, native/solver or Git action was performed. ROOT performs review, deployment and actual UI verification.

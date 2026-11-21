@@ -1,0 +1,51 @@
+7148: inline void faceAreaCentreOF
+7149: (
+7150:     const std::vector<Foam::point>& pts,
+7151:     const std::vector<Foam::label>& poly,
+7152:     Foam::vector& A,
+7153:     Foam::point& C
+7154: )
+7155: {
+7156:     using namespace Foam;
+7157:     A = vector::zero;
+7158:     C = point::zero;
+7159:     const label k = label(poly.size());
+7160:     if (k < 3)
+7161:     {
+7162:         for (label v : poly) { C += pts[v]; }
+7163:         if (k) { C /= scalar(k); }
+7164:         return;
+7165:     }
+7166:     if (k == 3)
+7167:     {
+7168:         C = (pts[poly[0]] + pts[poly[1]] + pts[poly[2]]) / 3.0;
+7169:         A = 0.5 * ((pts[poly[1]] - pts[poly[0]]) ^ (pts[poly[2]] - pts[poly[0]]));
+7170:         return;
+7171:     }
+7172:     point fc = point::zero;
+7173:     for (label i = 0; i < k; ++i) { fc += pts[poly[i]]; }
+7174:     fc /= scalar(k);
+7175:     vector sumN = vector::zero;
+7176:     vector sumAc = vector::zero;
+7177:     scalar sumA = 0;
+7178:     for (label i = 0; i < k; ++i)
+7179:     {
+7180:         const point& p = pts[poly[i]];
+7181:         const point& q = pts[poly[(i + 1) % k]];
+7182:         const vector n = (q - p) ^ (fc - p);
+7183:         const scalar a = mag(n);
+7184:         sumN += n;
+7185:         sumA += a;
+7186:         sumAc += a * (p + q + fc);
+7187:     }
+7188:     if (sumA < ROOTVSMALL)
+7189:     {
+7190:         C = fc;
+7191:         return;
+7192:     }
+7193:     // Match primitiveMeshTools operation order, including rounding at the
+7194:     // strict skewness limit. Algebraically equivalent expressions can fall
+7195:     // on opposite sides of checkMesh's boundary threshold.
+7196:     C = (1.0 / 3.0) * sumAc / sumA;
+7197:     A = 0.5 * sumN;
+7198: }

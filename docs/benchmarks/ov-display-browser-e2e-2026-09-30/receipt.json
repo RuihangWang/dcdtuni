@@ -1,0 +1,49 @@
+{
+  "campaign": "OV display (React <-> Omniverse), Stage 5 browser E2E",
+  "date": "2026-09-30 (SGT); 40901 clock 2026-09-29 UTC",
+  "machine": "40901 (8x RTX 4090); Kit on GPU0 only",
+  "code": "feat/liquid-supply-temp-mms-demo @ 20d26a32 (Kit + server), React dist from d60778c6 (later commits are Kit/Python only)",
+  "launch": "CONDA_EXE=$HOME/miniconda3/bin/conda PATH=$HOME/miniconda3/bin:$PATH CUDA_VISIBLE_DEVICES=\"\" OMP_NUM_THREADS=2 src/start_server.sh --app react --port 8390 --ov --ov-gpu 0 --case-dir <repo>/case/Base_coldAisleIso",
+  "single_listener": {"8301": 1, "kit_processes": 1},
+  "untouched": ["8360", "8361"],
+  "air": {
+    "case": "Base_coldAisleIso, run 2026-06-19-02-02-27 @ t=60",
+    "client": "headful Chromium on Xvfb :99 (40901), Playwright, logged in",
+    "scene_ack_s": 19.4,
+    "volume": {"T": {"ack_s": 7.1, "domain_K": [288.1, 295.3]}, "U": {"ack_s": 3.6, "domain_m_s": [0.0353, 5.11]}},
+    "slice_triangles": 4832,
+    "slice_drag": {"origin_before": [5, 1.425, 3], "origin_after": [5, 2.592, 3], "adopted": true, "recut_triangles": 4724,
+                   "kit_log": "slice from viewport -> origin=(5.000, 2.592, 3.000)"},
+    "streamlines": {"points": 48951, "retraced_points": 42957, "kit_log": "seed from viewport -> center=(5.000, 2.592, 3.000)",
+                    "colour_domain_K": [288.15, 295.36], "domain_rule": "p1..max",
+                    "usd_and_fabric_domain_equal": true, "Umag_trace_multicoloured": true},
+    "reconnect_ov_three_ov": {"ready_s": 16.5, "degraded": false}
+  },
+  "liquid": {
+    "case": "Shinaide_Liquid / Shinaide_liquid.cfdproj, DAE run 9c4eb1ce (181 samples, 120 % heat step at t=19 s)",
+    "client": "built-in browser pane via SSH tunnel 8390/8391/8301",
+    "scene_ack_s": 91.2,
+    "previous_air_display_cleared": true,
+    "colouring": {"load_s": 4.0, "painted": 1167, "parts": {"manifold": 28, "cdu": 1, "pipe": 2, "tee": 14, "valve": 14, "server": 56},
+                  "unmatched": 0, "fixed_scale_K": {"network": [308.7, 329.2], "chips": [313.2, 344.2]}},
+    "slider_frames_ms": {"t0": 1166, "t90": 850, "t180": 759},
+    "reconnect_ov_three_ov": {"ready_s": 101.3, "degraded": false}
+  },
+  "gpu": {"during": {"gpu0_MiB": 4171, "gpu0_apps": ["kit"]}, "after_teardown": {"gpu0_MiB": 1, "gpu0_apps": 0}},
+  "teardown": {"stopped": ["8390/8391 server + wrapper", "Kit (8301)", "8395/8396 Stage 2 leftover backend"],
+               "listeners_after": 0, "kit_after": 0, "at_utc": "2026-09-29T21:48:12Z"},
+  "regression": {"vitest": "302 files / 3092 tests", "tsc": "clean", "vite_build": "ok",
+                 "pytest_cfd_demo": 174, "pytest_server": 61, "pytest_dae_experiment_runtime_actuators": 35},
+  "defects_fixed_during_stage5": [
+    "lost Kit acks (NVST_R_BUSY) failed whole scene transfers: progress re-asked, scene ack recovered from getViewState (1038a948)",
+    "return to Three.js crashed with liquid results loaded: carb payload turns [] into {} and drops None (d60778c6)",
+    "streamlines always magenta: domain pinned before first trace; top extended to dataset max (83388f47, f8a05a3f)",
+    "air result display survived a scene load for another project (20d26a32)",
+    "OV panel covered the viewport's left side: docked right (1038a948)"
+  ],
+  "open": [
+    "0.37-opacity raised floor still blurs under-floor pipework in RTX (glow 0.35 helps; hiding the floor shows it crisply)",
+    "each Shinaide scene sync spends ~50 s before Kit starts authoring plus ~65 s authoring",
+    "the probe's gizmo colour detector misses the pale Y arrow under the slice; pivots were passed explicitly"
+  ]
+}

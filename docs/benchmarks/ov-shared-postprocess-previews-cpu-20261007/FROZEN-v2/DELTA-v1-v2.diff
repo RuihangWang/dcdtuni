@@ -1,0 +1,39 @@
+--- v1/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/postprocess_preview_viewport.py
++++ v2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/postprocess_preview_viewport.py
+@@ -165,6 +165,8 @@
+                 producer._changed(handle, self.raw_input, ended=False)
+             def on_ended(self):
+                 producer._changed(handle, self.raw_input, ended=True)
++            def on_canceled(self):
++                producer._cancel_drag()
+         return PreviewDrag(mouse_button=0, check_mouse_moved=True)
+ 
+     def _began(self, handle, raw):
+--- v1/src/frontend/omniverse/cfd_demo/tests/test_common_postprocess_previews.py
++++ v2/src/frontend/omniverse/cfd_demo/tests/test_common_postprocess_previews.py
+@@ -303,3 +303,25 @@
+     ack = r.controller.install(value, r.factory)
+     assert ack['packet'] == value and ack['ready'] is True and not r.producers
+     assert not r.controller._emit(r.controller._active, 'seed', 9, (1,2,3)) and not r.events
++
++
++@pytest.mark.parametrize('kind', ['ring', 'seed'])
++def test_public_cancel_callback_restores_retires_drag_and_late_end_then_reinstall(kind):
++    r = rig(); value = packet(); saved = copy.deepcopy(value); grant = copy.deepcopy(r.grant)
++    r.controller.install(value, r.factory); producer = r.producers[0]
++    gesture = producer.gestures[kind]; original = copy.deepcopy(producer.shapes[kind].positions)
++    gesture.raw_input = raw(); gesture.on_began()
++    gesture.raw_input = raw(1, 2); gesture.on_changed()
++    assert producer.drag is not None and producer.shapes[kind].positions != original
++    # Invoke the pinned SDK's public cancellation callback, not a private helper.
++    gesture.on_canceled()
++    assert producer.drag is None and producer.shapes[kind].positions == original and not r.events
++    gesture.on_canceled(); gesture.on_ended()
++    assert producer.drag is None and producer.shapes[kind].positions == original and not r.events
++    assert value == saved and r.grant == grant and producer.ready()
++    r.controller.install(value, r.factory)
++    assert producer.closed and len(r.producers) == 2
++    drag(r.producers[1], kind, raw(), raw(2, 3))
++    assert len(r.events) == 1 and r.events[0]['setId'] == (42 if kind == 'ring' else 9)
++    assert r.events[0]['position'] == ([2, 0, 0] if kind == 'ring' else [2, 3, 0])
++    assert value == saved and r.grant == grant

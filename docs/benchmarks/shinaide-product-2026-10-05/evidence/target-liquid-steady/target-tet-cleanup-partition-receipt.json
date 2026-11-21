@@ -1,0 +1,211 @@
+{
+  "format": "air-target-tet-cleanup-and-partition-receipt/v1",
+  "scope": "Readonly saved mesh comparison and pure in-memory deterministic face partition. No C++, mesh file, executable, physical outline or solver mutation. No new native checker or product pass.",
+  "officialReportedTetEvents": {
+    "original": 35,
+    "afterCleanup": 24
+  },
+  "distinctLocalBadFaceLabels": {
+    "original": 32,
+    "afterCleanup": 21
+  },
+  "counterCorrection": {
+    "supersedes": "geometry-cone-audit-v2-receipt.json limits[0] explanation",
+    "explanation": "checkFaceTets increments separate owner-centroid, neighbour-centroid and original-vertex-base failure events; labelHashSet records a face once. Original32 and remaining21 contain no coupled faces. Coupled duplication does not explain35/32 or24/21. Original raw results/logs retained.",
+    "originalEventBreakdown": {
+      "ownerCentroid": 21,
+      "neighbourCentroid": 3,
+      "originalVertexBase": 11
+    },
+    "afterEventBreakdown": {
+      "ownerCentroid": 21,
+      "neighbourCentroid": 3,
+      "originalVertexBase": 0
+    }
+  },
+  "comparison": {
+    "originalPatchTypes": {
+      "wall": 23,
+      "internal": 6,
+      "patch": 3
+    },
+    "remainingPatchTypes": {
+      "wall": 17,
+      "internal": 3,
+      "patch": 1
+    },
+    "newBadFaces": 0,
+    "allRanksAddressingLabelArraysUnchanged": true,
+    "remainingFaceCoordinatesAreasAndCentresUnchanged": true,
+    "old32SavedInputFanReplayMaximumAbsoluteDifference": 0.0,
+    "headerLimit": "Owner/neighbour file bytes differ after written point-count note changes. Parsed addressing label arrays, face owner/neighbour/patch identities and retained coordinates were separately compared; byte identity is not claimed."
+  },
+  "partitionModes": {
+    "triangles": {
+      "originalFaces": 21,
+      "partitionFaces": 123,
+      "affectedCells": 24,
+      "allOutlinesAndVerticesPreserved": true,
+      "allReversalInvariant": true,
+      "allPiecesConvex": true,
+      "allAffectedCellsDirectedEdgesClosed": true,
+      "minimumTetQualityUsingOriginalCentres": 6.075240437363366e-11,
+      "minimumTetQualityUsingRecomputedCentres": 6.075103401289913e-11,
+      "failedChildFanEventsAt1e-15": {
+        "owner": 0,
+        "neighbour": 0,
+        "originalVertex": 0
+      },
+      "minimumChildOwnerPyramidM3": 9.068201480574215e-10,
+      "minimumChildNeighbourPyramidM3": 2.5212558360438026e-08,
+      "maximumRelativeAffectedCellVolumeChange": 2.5296220869235954e-14,
+      "maximumAffectedCellCentreShiftM": 0.00010469954589151699,
+      "maximumPartitionAreaWeightedCentreShiftM": 0.0017344083412149107,
+      "maximumRelativeAreaVectorError": 1.5793035362305001e-16,
+      "affectedCellsWithAnyStrictFaceCentreTriggerBefore": 24,
+      "affectedCellsWithAnyStrictFaceCentreTriggerAfter": 24,
+      "affectedCellCheckerTriggerPairsBefore": {
+        "coplanar": 72,
+        "positiveOutside": 76
+      },
+      "affectedCellCheckerTriggerPairsAfter": {
+        "coplanar": 916,
+        "positiveOutside": 153
+      },
+      "affectedCellClassificationAfter": {
+        "vertex-halfspace-violation": 5,
+        "convex-with-coplanar-facets": 19
+      },
+      "minimumAllAffectedCellFaceFanQuality": 6.075103401289913e-11,
+      "minimumAllAffectedCellPyramidVolumeM3": 9.068201480574215e-10
+    },
+    "convex-greedy": {
+      "originalFaces": 21,
+      "partitionFaces": 43,
+      "affectedCells": 24,
+      "allOutlinesAndVerticesPreserved": true,
+      "allReversalInvariant": true,
+      "allPiecesConvex": true,
+      "allAffectedCellsDirectedEdgesClosed": true,
+      "minimumTetQualityUsingOriginalCentres": 5.253511381446089e-08,
+      "minimumTetQualityUsingRecomputedCentres": 5.250972400364819e-08,
+      "failedChildFanEventsAt1e-15": {
+        "owner": 0,
+        "neighbour": 0,
+        "originalVertex": 0
+      },
+      "minimumChildOwnerPyramidM3": 3.93525209859662e-09,
+      "minimumChildNeighbourPyramidM3": 1.4831174157949158e-07,
+      "maximumRelativeAffectedCellVolumeChange": 3.211520214702999e-14,
+      "maximumAffectedCellCentreShiftM": 0.00010469954589029844,
+      "maximumPartitionAreaWeightedCentreShiftM": 0.0017344083412149107,
+      "maximumRelativeAreaVectorError": 1.5793035362305001e-16,
+      "affectedCellsWithAnyStrictFaceCentreTriggerBefore": 24,
+      "affectedCellsWithAnyStrictFaceCentreTriggerAfter": 24,
+      "affectedCellCheckerTriggerPairsBefore": {
+        "coplanar": 72,
+        "positiveOutside": 76
+      },
+      "affectedCellCheckerTriggerPairsAfter": {
+        "coplanar": 164,
+        "positiveOutside": 90
+      },
+      "affectedCellClassificationAfter": {
+        "vertex-halfspace-violation": 5,
+        "convex-with-coplanar-facets": 19
+      },
+      "minimumAllAffectedCellFaceFanQuality": 5.250972400364819e-08,
+      "minimumAllAffectedCellPyramidVolumeM3": 3.93525209859662e-09
+    }
+  },
+  "conclusion": "Both prototype modes remove reconstructed failure events from all21 selected faces and preserve outline/edge cycles/volume. Strict checkConcaveCells remains failed in all24 affected cells;19 have convex planar facets with coplanar interfaces,5 have true vertex-halfspace violations. No complete quality acceptance follows.",
+  "scientificLimits": [
+    "Tet event reconstruction matches observed native totals at tolerances1e-30 and1e-15. Native caller tolerance and last-bit geometry parity are not asserted.",
+    "Partition changes installed abs-weighted concave face centroid; maximum partition-area centroid change1.734408341mm, affected cell-centre change0.104699546mm. Original outline/area vector and volumes are preserved to recorded errors.",
+    "Trigger pairs differ from flagged cell counts. All24 affected cells already failed face-centre criterion and still fail; larger pair count alone does not establish more flagged cells.",
+    "Only selected face/affected-cell quality was reconstructed. Actual full checker including determinant, weights, ratios, skewness and coupled topology is still required.",
+    "Coupled partition and native integration are not implemented. Selected21 faces are all noncoupled."
+  ],
+  "execution": {
+    "CPU": "24-31",
+    "OpenBLAS/OMP": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "pytest": "8 passed in 0.54s",
+    "nativeRuns": 0
+  },
+  "officialDefinition": {
+    "polyMeshTetDecomposition.C": {
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C",
+      "completeSourceSha256": "50b2b67e249951c4ef7343655c44811351209415a4d894abcf6ac4089532180c",
+      "savedExcerpt": "tet-partition-official-polyMeshTetDecomposition.C.txt",
+      "savedExcerptSha256": "1e141313dae52abb84bbf66c81ed1aff18239c785979030614ca1e3eff52a9cb"
+    },
+    "tetrahedronI.H": {
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/tetrahedronI.H",
+      "completeSourceSha256": "46147b68744b5e0175d94b5f5e0b40dc21f89aa146a7208989aea32796ff6c46",
+      "savedExcerpt": "tet-partition-official-tetrahedronI.H.txt",
+      "savedExcerptSha256": "46147b68744b5e0175d94b5f5e0b40dc21f89aa146a7208989aea32796ff6c46"
+    },
+    "primitiveMeshCheck.C": {
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+      "completeSourceSha256": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+      "savedExcerpt": "tet-partition-official-primitiveMeshCheck.C.txt",
+      "savedExcerptSha256": "366836a03394cbc33c992f5922f5d48d4e92cba7ba3d0804058eb1190eb86f7c"
+    }
+  },
+  "sourceSha256": {
+    "tools/audit_air_tet_cleanup.py": "258fe77e670c6b47987a8d225e62a114517577988edb560cfa49fb10ed14e7e3",
+    "tools/audit_air_face_partition.py": "025c4988b8f0a1ff2c6a8d26e30d76153c7666a0787e2e50482d295449b9bc61",
+    "src/backend/tests/test_audit_air_face_partition.py": "fb8d2c26e7db8afd47b8af8bf680edd81ea54f8baaa9343b186465278acf6faf"
+  },
+  "nativeSourceLogSha256": {
+    "original": "ec5f5097a4dff397ffd8512e40d73e55aed48f930d2a508fd47316a8a2acc6ad",
+    "cleanupSSE": "e34003405913ba7a3d444589f419c56c0592db0f19e3b0c9231dd0d3c9edd1f0"
+  },
+  "files": {
+    "target-tet-cleanup-comparison.json": {
+      "bytes": 542920,
+      "sha256": "663dab854eed5a08dcaa3189380ca7d7e4b008c564018f07282155779721a8c3"
+    },
+    "target-tet-cleanup-comparison-output.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "target-tet-cleanup-initial-json-error.txt": {
+      "bytes": 1740,
+      "sha256": "2ce017a2ca7fe6e3df27d51c1fee1c99f332977daa851ad9148d00fce8e5dbeb"
+    },
+    "target-tet-quality-preliminary.json": {
+      "bytes": 20467,
+      "sha256": "dcc71881ea87ac1df34d960b0da22682d6e56582be423cc23295f911d743387c"
+    },
+    "target-concave-face-partition.json": {
+      "bytes": 342984,
+      "sha256": "bb0ba74f8b3f86a6729511a990d313376e04e3044e1952137423d4071efb2f6e"
+    },
+    "target-concave-face-partition-output.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "face-partition-pytest-output.txt": {
+      "bytes": 98,
+      "sha256": "fe0bc1dbd26fba55350e40a62414d48cf9b29e10dca5dc6faca90ea283e3ddcc"
+    },
+    "tet-cleanup-native-checker-excerpts.txt": {
+      "bytes": 664,
+      "sha256": "dc9c20a7180fae453032c1ddcfc03d20a834ab039952926f33b87a5bef010d6a"
+    },
+    "tet-partition-official-primitiveMeshCheck.C.txt": {
+      "bytes": 2490,
+      "sha256": "366836a03394cbc33c992f5922f5d48d4e92cba7ba3d0804058eb1190eb86f7c"
+    },
+    "tet-partition-official-polyMeshTetDecomposition.C.txt": {
+      "bytes": 3740,
+      "sha256": "1e141313dae52abb84bbf66c81ed1aff18239c785979030614ca1e3eff52a9cb"
+    },
+    "tet-partition-official-tetrahedronI.H.txt": {
+      "bytes": 28114,
+      "sha256": "46147b68744b5e0175d94b5f5e0b40dc21f89aa146a7208989aea32796ff6c46"
+    }
+  }
+}

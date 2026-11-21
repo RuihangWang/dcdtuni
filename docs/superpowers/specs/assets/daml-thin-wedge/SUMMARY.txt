@@ -1,0 +1,71 @@
+WP-V6: MeshGenerator S9e bandAbsorb port into dcCartMesh — DAML-Testbed
+=======================================================================
+FILES CHANGED (only the two allowed):
+  src/.../dcCartMesh/dcCartCutCells/dcCartCutCells.C  (+~274 lines: bandAbsorb round, mergeSmallCells)
+  src/.../dcCartMesh/dcCartCutCells/dcCartCutCells.H  (+ doc note on mergeSmallCells)
+  (the other 3 dirty files — dcCartMesh.C, dcCartSurfaces.C/.H — are the user's
+   pre-existing uncommitted work; NOT touched.)
+
+BUILD: ./Allwmake -j 8 --cart-only  RC=0, 0 errors, 67 pre-existing warnings
+  (none in the bandAbsorb block); libdcCartMesh.so + bin/dcCartMesh fresh.
+
+PORT (mergeSmallCells round 4, "bandAbsorb"):
+  trigger  t = V/A_iface < h_leaf/8   (A_iface = largest plain internal face,
+           h_leaf = cbrt(cellRefVol)); slabs with <5 faces skipped (MG parity).
+  hosts    most-shared-area first, then conformal neighbours in gid order
+           (MG slab=largest face + violator "absorb-into-any-conformal-nbr").
+  FOUR GATES (pure geometry => rank-invariant), on the slab+target union:
+    G1 Sigma-Sf closure |sum outward Sf| <= 1e-9*sumA   (MG baTolClose=1e-10*H^2)
+    G2 V_union > VSMALL                                  (MG polyVolumeCentroidIds)
+    G3 foamOut: max_f Sf.(C-fc)/|Sf| <= 1e-9*h_leaf      (MG foamCentroidMaxOutIds
+       <= planeTolE1=1e-9*H) = convexUnionT's centroid-inside test with the 2%
+       margin relaxed to ~0 (the gap that strands DAML's thin cells)
+    G4 skew: skewWorse/boundarySkewT <= mergeMaxSkew     (MG s9dSkewOfFace<=3.85;
+       boundarySkewT is the same formula and pre-joins coplanar boundary faces,
+       so MG's inline baUnionPass + mirror splice are unneeded -> coalesceCoplanarFaces)
+  bookkeeping: reuses absorb() (shared faces vanish, slab faces repoint to target,
+       slab dies, local.erase(gid)); pieces already geometry-keyed by rekeyPiecesByGeometry.
+  toggle: DCCART_BAND_ABSORB=0 disables (default ON); one Info line reports the count.
+
+RANK-INVARIANCE (redline, np1 vs np4-reconstructed, multi-host build):
+  nPoints 382869 = 382869 ; nFaces 953316 = 953316 ; nCells 288205 = 288205  EQUAL
+  sorted point cloud max|Delta| = 0.000e+00   (bit-identical)
+  face vertex-coordinate multiset identical = True   (decisive: same faces => same cells)
+  cell-volume multiset: total 49.197536842 both, min 1.183505e-11 both,
+     max rel delta 2.14e-14 (FP reassociation under reconstructParMesh face
+     reversal — NOT geometry; the bit-identical face multiset proves identity)
+  bandAbsorb Info identical np1==np4: rounds 4, absorbed 214, cand 734,
+     skip gates 1308 / skew 402 / target 4 / reach 478
+  => REDLINE PASS (single-host build also PASSED: absorbed 109, points Delta=0).
+
+SLIVERS (faces < 1e-6 m^2), DAML-Testbed dcCart:
+  BEFORE (np8, no bandAbsorb)      : 102   (min face 5.84e-9)   [matches task baseline]
+  AFTER  single-host (np4)         :  80   (min face 2.75e-8)   absorbed 109
+  AFTER  multi-host  (np4, FINAL)  :  61   (min face 5.81e-8)   absorbed 214
+  multi-host histogram: [1e-8,1e-7):14  [1e-7,5e-7):34  [5e-7,1e-6):13
+  -> reduced 102->61 but NOT to the single-digit target.
+
+CONVERGENCE (steady 500 steps via 8005 API, multi-host mesh): FAIL
+  k COLLAPSES to 3.46e-7 by step ~20, "No Iterations 0" (original symptom).
+  Ux oscillates 0.31-0.56, p_rgh 0.18-0.50 (no decay over 500 steps).
+  cumulative continuity error grows -2.4 (step50) -> -21 (250) -> -45.8 (500):
+     poisoned p_rgh matrix (the MG "lowWeight/lowVolRatio" signature).
+  return-air sensor plateau: sensor1 DeltaT 0.005K (ok), sensor2 0.057K > 0.01K FAIL;
+     both stuck ~295.15K (room temp) — flow/heat not developing.
+  checkMesh: Mesh OK.  Quality floor: min wall distance 1.30e-4 m, min cell volume
+     9.58e-8 of hex, min face area 5.81e-8 m^2.
+
+ROOT CAUSE of the convergence gap (bandAbsorb cannot reach it):
+  The k-collapse driver is a thin WALL wedge at min wall distance y_P=1.30e-4 m
+  (healthy meshes floor at 5.0e-4; epsilonWallFunction eps=2*k*nu/y^2 blows up
+  below it). That wedge is a bandAbsorb candidate (t<h/8) but its union with
+  EVERY neighbour is concave -> gate G3 foamOut refuses it (a concave cell would
+  fail checkMesh's face-pyramid check, so the gate is mandatory). It is too
+  voluminous to kill (V/Vref 9.6e-8..2.6e-3 vs killVolumeFraction 1e-6 path) and
+  repairThinWallCells (minWallCellDistance 4e-4) is OFF by default and documented
+  "not a win" on DAML (75 stranded, max skew 3.97->4.81, Mesh OK->Failed;
+  dcCartCutCells.H:162-179). bandAbsorb removed the tiniest faces (min face
+  5.84e-9 -> 5.81e-8) and 214 thin plates, but the specific y_P killer is
+  concave-unabsorbable. Curing it needs an upstream fix (PTWELD-style welding of
+  the near-coincident/tilted junction that creates the wedge, or surface snapping),
+  which is outside the S9e merge mechanism and outside the allowed file scope.

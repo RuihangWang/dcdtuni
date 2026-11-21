@@ -1,0 +1,341 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import * as THREE from 'three'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { CfdProject } from '../src/schema/cfdproj'
+import { createModel } from '../src/legacy/factories'
+import { stateV4 } from '../src/legacy/cfdprojModules'
+import { createSceneBuilder, emptyRegistries, type SceneHost } from '../src/interaction/sceneBuilder'
+import { applyModelOpacityState } from '../src/geometry/modelOpacity'
+import {
+  createViewFadeController,
+  reapplySceneFades,
+  reapplyViewFades,
+  type ViewFadeController,
+} from '../src/geometry/viewFades'
+import {
+  paintSelectionHighlights,
+  SOLID_HIGHLIGHT,
+  type HighlightSelection,
+} from '../src/interaction/selectionHighlight'
+
+/**
+ * What a change of either view fade does to the scene.
+ *
+ * Three defects, each found by driving the real modules in the order the user
+ * does things:
+ *
+ * 1. A U-slot selected on the geometry tab, then the mesh tab opened with a
+ *    preview loaded: the preview fade landed, the highlight effect did not
+ *    re-run (a tab switch changes none of its deps), and the slot guide —
+ *    which keeps its own opacity through a fade — stayed a 0.9 blue slab
+ *    0.8 mm in front of the mesh patch.
+ * 2. Hiding or closing the preview wrote opacity 1 onto every model mesh, so a
+ *    model the user had faded themselves (a containment baffle at 40%) came
+ *    back fully opaque until the next edit.
+ * 3. A highlight captured while the preview was up kept the preview's faded
+ *    clone as the material to restore; after the preview closed, moving the
+ *    selection on put that 30% material back on the geometry tab.
+ *
+ * The controller repaints the highlight when a fade lands and REBUILDS when a
+ * fade goes back to 1 — the legacy's mpClose -> doRebuildGeometry
+ * (STL_generate.html:26518-26525).
+ */
+
+type Std = THREE.MeshStandardMaterial
+
+function mesh(userData: Record<string, unknown> = {}, opacity = 1): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({ transparent: opacity < 1, opacity })
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat)
+  m.userData = { ...userData }
+  return m
+}
+
+const std = (m: THREE.Mesh) => m.material as Std
+
+function allMaterials(root: THREE.Object3D): Std[] {
+  const out: Std[] = []
+  root.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) out.push(mat as Std)
+  })
+  return out
+}
+
+/** A rack root with one U-slot guide (back side, slot index 17) and one surface. */
+function rackScene() {
+  const scene = new THREE.Group()
+  const root = new THREE.Group()
+  const guide = mesh({ modelId: 'r', isRackSlot: true, isRackSlotGuide: true, side: 'back', slotIndex: 17 })
+  const surface = mesh({ modelId: 'r', faceId: 'right' })
+  root.add(guide, surface)
+  scene.add(root)
+  const rootMap = new Map<string, THREE.Object3D>([['r', root]])
+  return { scene, root, guide, surface, rootMap }
+}
+
+const slotSelection: HighlightSelection = {
+  uid: 'r',
+  node: { type: 'rackSlot', uid: 'r', side: 'back', index: 17 } as HighlightSelection['node'],
+  uids: new Set(['r']),
+}
+
+function controllerFor(
+  roots: () => THREE.Object3D[],
+  scene: () => THREE.Object3D | null,
+  repaint: (ctl: ViewFadeController) => void,
+) {
+  let rebuilds = 0
+  let ctl: ViewFadeController | null = null
+  ctl = createViewFadeController({
+    roots,
+    scene,
+    rebuild: () => {
+      rebuilds += 1
+    },
+    repaint: () => repaint(ctl!),
+  })
+  return { ctl, rebuilds: () => rebuilds }
+}
+
+describe('createViewFadeController', () => {
+  it('repaints a slot highlight painted BEFORE the preview fade down to the fade', () => {
+    const { scene, root, guide, rootMap } = rackScene()
+    const paint = (ctl: ViewFadeController) =>
+      paintSelectionHighlights(rootMap, slotSelection, () => () => null, ctl.now())
+    const { ctl } = controllerFor(() => [root], () => scene, paint)
+
+    // Selected on the geometry tab: the legacy solid slab.
+    paint(ctl)
+    expect(std(guide).color.getHex()).toBe(SOLID_HIGHLIGHT.color)
+    expect(std(guide).opacity).toBeCloseTo(SOLID_HIGHLIGHT.opacity, 12)
+
+    // The mesh tab opens with a preview: __setGeometryOpacity(0.3).
+    ctl.setPreview(0.3)
+    expect(std(guide).color.getHex()).toBe(SOLID_HIGHLIGHT.color)
+    expect(std(guide).opacity).toBeLessThanOrEqual(0.3 + 1e-9)
+  })
+
+  it('repaints the highlight when the post-processing fade lands', () => {
+    const { scene, root, guide, rootMap } = rackScene()
+    const paint = (ctl: ViewFadeController) =>
+      paintSelectionHighlights(rootMap, slotSelection, () => () => null, ctl.now())
+    const { ctl } = controllerFor(() => [root], () => scene, paint)
+    paint(ctl)
+    ctl.setModel(0.15)
+    expect(std(guide).opacity).toBeLessThanOrEqual(0.15 + 1e-9)
+  })
+
+  it('rebuilds when the preview fade goes back to 1, and writes no 1 over the models', () => {
+    const { scene, root } = rackScene()
+    const own = mesh({ modelId: 'r' }, 0.4)
+    root.add(own)
+    const { ctl, rebuilds } = controllerFor(() => [root], () => scene, () => {})
+    ctl.setPreview(0.3)
+    expect(std(own).opacity).toBeCloseTo(0.3, 12)
+    ctl.setPreview(1)
+    expect(rebuilds()).toBe(1)
+    // Nothing was forced to 1: the rebuild is what gives the 40% back.
+    expect(allMaterials(root).some((m) => m.opacity >= 0.999 && !m.depthWrite)).toBe(false)
+    expect(std(own).opacity).toBeCloseTo(0.3, 12)
+  })
+
+  it('rebuilds when the post-processing fade goes back to 1 (清除全部渲染)', () => {
+    const { scene, root } = rackScene()
+    const { ctl, rebuilds } = controllerFor(() => [root], () => scene, () => {})
+    ctl.setModel(0.15)
+    ctl.setModel(1)
+    expect(rebuilds()).toBe(1)
+  })
+
+  it('does not rebuild when there is no fade to undo', () => {
+    const { scene, root } = rackScene()
+    const { ctl, rebuilds } = controllerFor(() => [root], () => scene, () => {})
+    // A tab switch with no preview loaded, a clear with nothing shown.
+    ctl.setPreview(1)
+    ctl.setModel(1)
+    expect(rebuilds()).toBe(0)
+  })
+
+  it('a slider move between two fades re-fades, it does not rebuild', () => {
+    const { scene, root, surface } = rackScene()
+    const { ctl, rebuilds } = controllerFor(() => [root], () => scene, () => {})
+    ctl.setPreview(0.3)
+    ctl.setPreview(0.5)
+    expect(rebuilds()).toBe(0)
+    expect(std(surface).opacity).toBeCloseTo(0.5, 12)
+  })
+
+  it('keeps the preview on top when the post-processing fade moves under it', () => {
+    const { scene, root, surface } = rackScene()
+    const { ctl } = controllerFor(() => [root], () => scene, () => {})
+    ctl.setPreview(0.3)
+    ctl.setModel(0.15)
+    expect(std(surface).opacity).toBeCloseTo(0.3, 12)
+  })
+})
+
+describe('reapplySceneFades — after a whole-scene refresh', () => {
+  it('does nothing with the preview alone up: afterBuild already faded the roots', () => {
+    const { scene, root, surface } = rackScene()
+    const before = surface.material
+    reapplySceneFades([root], { model: 1, preview: 0.3 }, scene)
+    expect(surface.material).toBe(before)
+    expect(std(surface).opacity).toBe(1)
+  })
+
+  it('puts the post-processing fade on the scene, supply streams included', () => {
+    const { scene, root } = rackScene()
+    const stream = mesh({ isSupplyFlow: true })
+    scene.add(stream)
+    reapplySceneFades([root], { model: 0.15, preview: 1 }, scene)
+    expect(std(stream).opacity).toBeCloseTo(0.15, 12)
+  })
+
+  it('lets the preview win on the roots when both are up', () => {
+    const { scene, root, surface } = rackScene()
+    reapplySceneFades([root], { model: 0.15, preview: 0.3 }, scene)
+    expect(std(surface).opacity).toBeCloseTo(0.3, 12)
+  })
+})
+
+/**
+ * jsdom has no 2D canvas, and the PBR path draws procedural textures on one.
+ * A context that accepts every call is enough: nothing here looks at pixels.
+ */
+function stub2dCanvas(): () => void {
+  const proto = HTMLCanvasElement.prototype as unknown as { getContext: unknown }
+  const original = proto.getContext
+  const image = (w = 1, h = 1) => ({ data: new Uint8ClampedArray(Math.max(1, w * h) * 4), width: w, height: h })
+  const ctx = new Proxy(
+    {},
+    {
+      get: (_t, key) => {
+        if (key === 'getImageData') return (_x: number, _y: number, w: number, h: number) => image(w, h)
+        if (key === 'createImageData') return (w: number, h: number) => image(w, h)
+        if (key === 'measureText') return () => ({ width: 0 })
+        if (key === 'createLinearGradient' || key === 'createRadialGradient' || key === 'createPattern') {
+          return () => ({ addColorStop() {} })
+        }
+        return () => {}
+      },
+      set: () => true,
+    },
+  )
+  proto.getContext = function (type: string) {
+    return type === '2d' ? ctx : null
+  }
+  return () => {
+    proto.getContext = original
+  }
+}
+
+/** The real builder: the rebuild is what gives each model its own opacity back. */
+describe('closing the preview over a real scene', () => {
+  let restoreCanvas: (() => void) | null = null
+  beforeEach(() => {
+    restoreCanvas = stub2dCanvas()
+  })
+  afterEach(() => {
+    restoreCanvas?.()
+  })
+
+  function projectWithFadedBox(): { project: CfdProject; uid: string } {
+    const project = stateV4().getInitialStateV4() as unknown as CfdProject
+    const created = createModel(project, 'box')
+    applyModelOpacityState(created.model, 40)
+    ;(stateV4() as unknown as { addConstruction(p: unknown, m: unknown): void }).addConstruction(
+      project,
+      created.model,
+    )
+    return { project, uid: created.model.uid }
+  }
+
+  it('gives a model faded to 40% by the user its 40% back, not 100%', () => {
+    const { project, uid } = projectWithFadedBox()
+    const globalGroup = new THREE.Group()
+    const wrapperGroup = new THREE.Group()
+    wrapperGroup.add(globalGroup)
+    const registries = emptyRegistries()
+    let ctl: ViewFadeController | null = null
+    const host: SceneHost = {
+      globalGroup,
+      wrapperGroup,
+      registries,
+      selectedUid: () => null,
+      project: () => project,
+      // The PBR path: the one that reads each face's opacity from the project
+      // (the no-WebGL fallback draws every face at 1).
+      webglAvailable: true,
+      afterBuild: (roots) => reapplyViewFades(roots, ctl!.now()),
+    }
+    const builder = createSceneBuilder(host)
+    ctl = createViewFadeController({
+      roots: () => registries.renderRoots,
+      scene: () => globalGroup,
+      rebuild: () => builder.rebuild(),
+      repaint: () => {},
+    })
+    builder.rebuild()
+    const opacities = () => allMaterials(registries.renderRootMap.get(uid)!).map((m) => m.opacity)
+    const own = opacities()
+    expect(own.length).toBeGreaterThan(0)
+    expect(own.every((o) => Math.abs(o - 0.4) < 1e-9)).toBe(true)
+
+    ctl.setPreview(0.3)
+    expect(opacities().every((o) => Math.abs(o - 0.3) < 1e-9)).toBe(true)
+
+    ctl.setPreview(1)
+    expect(opacities().every((o) => Math.abs(o - 0.4) < 1e-9)).toBe(true)
+  })
+})
+
+/**
+ * The viewport's side, pinned in the source for the reason in
+ * `ppLightIntensity.test.ts`: the effects need a WebGL context jsdom cannot
+ * give. Each assertion fails if the wiring goes back to what was measured
+ * broken.
+ */
+describe('the viewport routes both fades through the controller', () => {
+  const viewport = readFileSync(join(__dirname, '..', 'src', 'components', 'Viewport.tsx'), 'utf8')
+
+  const block = (startMarker: string, endMarker: string) => {
+    const start = viewport.indexOf(startMarker)
+    expect(start).toBeGreaterThan(0)
+    return viewport.slice(start, viewport.indexOf(endMarker, start))
+  }
+
+  it('the preview fade goes through setPreview — no direct write of the opacity', () => {
+    const body = block('w.__setGeometryOpacity = (v: number) => {', '\n    }\n')
+    expect(body).toContain('fadeCtl.setPreview(v)')
+    expect(body).not.toContain('applyOpacityToMeshes(')
+  })
+
+  it('the post-processing fade goes through setModel', () => {
+    const body = block('setModelOpacity(value: number) {', '\n      },')
+    expect(body).toContain('fadeCtl.setModel(value)')
+    expect(body).not.toContain('applyOpacity(')
+  })
+
+  it('the controller repaints through the highlight pass and rebuilds through the scene refresh', () => {
+    const body = block('createViewFadeController({', '})')
+    expect(body).toMatch(/rebuild: \(\) => rebuildSceneRef\.current\?\.\(\)/)
+    expect(body).toMatch(/repaint: \(\) => paintHighlightsRef\.current\?\.\(\)/)
+  })
+
+  it('the highlight effect publishes the pass it runs, fed with the live fades', () => {
+    const body = block('// --- highlight the selection', '}, [selectedUid, selectedUids, selectedNode, project, sceneVersion])')
+    expect(body).toMatch(/paintHighlightsRef\.current = \(\) =>\s*paintSelectionHighlights\(\s*registriesRef\.current\.renderRootMap,\s*selection,\s*spanFor,\s*viewFadesNow\(\),/)
+    expect(body).toContain("uid => String(registriesRef.current.modelMap.get(uid)?.kind ?? '')")
+    expect(body).toContain('paintHighlightsRef.current()')
+  })
+
+  it('the project effect publishes the same whole-scene refresh it runs', () => {
+    expect(viewport).toMatch(/rebuildSceneRef\.current = \(\) => \{\s*try \{\s*rebuildWholeScene\(\)/)
+    const body = block('const rebuildWholeScene = () => {', '\n    }\n')
+    expect(body).toContain('builderRef.current!.rebuild()')
+    expect(body).toContain('setSceneMeshes(')
+    expect(body).toContain('reapplySceneFades(')
+  })
+})

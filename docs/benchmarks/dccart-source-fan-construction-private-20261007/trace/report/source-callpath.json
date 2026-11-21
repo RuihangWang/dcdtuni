@@ -1,0 +1,72 @@
+[
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      7141,
+      7198
+    ],
+    "label": "original shared numeric helper",
+    "text": "7141: //- Face area vector and centre as OpenFOAM computes them\n7142: //  (primitiveMeshTools::makeFaceCentresAndAreas: a fan of triangles about\n7143: //  the vertex average, the centre weighted by the triangle areas). checkMesh\n7144: //  measures face pyramids and skewness with these. polygonNormalCentre's\n7145: //  vertex mean is NOT the centroid of a face that carries hanging vertices\n7146: //  along one edge, and a cell centre built from vertex means sits\n7147: //  millimetres off checkMesh's.\n7148: inline void faceAreaCentreOF\n7149: (\n7150:     const std::vector<Foam::point>& pts,\n7151:     const std::vector<Foam::label>& poly,\n7152:     Foam::vector& A,\n7153:     Foam::point& C\n7154: )\n7155: {\n7156:     using namespace Foam;\n7157:     A = vector::zero;\n7158:     C = point::zero;\n7159:     const label k = label(poly.size());\n7160:     if (k < 3)\n7161:     {\n7162:         for (label v : poly) { C += pts[v]; }\n7163:         if (k) { C /= scalar(k); }\n7164:         return;\n7165:     }\n7166:     if (k == 3)\n7167:     {\n7168:         C = (pts[poly[0]] + pts[poly[1]] + pts[poly[2]]) / 3.0;\n7169:         A = 0.5 * ((pts[poly[1]] - pts[poly[0]]) ^ (pts[poly[2]] - pts[poly[0]]));\n7170:         return;\n7171:     }\n7172:     point fc = point::zero;\n7173:     for (label i = 0; i < k; ++i) { fc += pts[poly[i]]; }\n7174:     fc /= scalar(k);\n7175:     vector sumN = vector::zero;\n7176:     vector sumAc = vector::zero;\n7177:     scalar sumA = 0;\n7178:     for (label i = 0; i < k; ++i)\n7179:     {\n7180:         const point& p = pts[poly[i]];\n7181:         const point& q = pts[poly[(i + 1) % k]];\n7182:         const vector n = (q - p) ^ (fc - p);\n7183:         const scalar a = mag(n);\n7184:         sumN += n;\n7185:         sumA += a;\n7186:         sumAc += a * (p + q + fc);\n7187:     }\n7188:     if (sumA < ROOTVSMALL)\n7189:     {\n7190:         C = fc;\n7191:         return;\n7192:     }\n7193:     // Match primitiveMeshTools operation order, including rounding at the\n7194:     // strict skewness limit. Algebraically equivalent expressions can fall\n7195:     // on opposite sides of checkMesh's boundary threshold.\n7196:     C = (1.0 / 3.0) * sumAc / sumA;\n7197:     A = 0.5 * sumN;\n7198: }"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      12630,
+      12672
+    ],
+    "label": "immutable old sources and coordinate-canonical cycle",
+    "text": "12630:     const label oldCells=m.nCells,oldFaces=label(m.faces.size());\n12631:     // Source-only state. No cavity is replaced/enabled by this setup.\n12632:     // Origins are fixed before any cone appends or accepted union changes.\n12633:     auto cavityAvailable=[&]()\n12634:     {\n12635:         if (!cavityAuthority.ready()) return false;\n12636:         const scalar seconds=cavityAuthority.remainingSeconds();\n12637:         return std::isfinite(seconds) && seconds>0;\n12638:     };\n12639:     if (cavityAuthority.ready())\n12640:         m.completeCavityLineage.initialize\n12641:             (std::size_t(oldCells),cavityAuthority.recordedParent,cavityAvailable);\n12642:     std::vector<std::vector<label>> cf;buildCellFaces(m,cf);\n12643:     std::vector<vector> areas(oldFaces,vector::zero);\n12644:     std::vector<point> centres(oldFaces,point::zero),apex(oldCells,point::zero);\n12645:     std::vector<scalar> parentVolume(oldCells,0);\n12646:     std::vector<bool> marked(oldCells,false),splitFace(oldFaces,false),coupled(oldFaces,false),badFace(oldFaces,false);\n12647:     std::vector<std::vector<label>> canonical(oldFaces);\n12648:     std::vector<label> badReason(oldFaces,0);std::vector<scalar> offPlane(oldFaces,0);\n12649:     std::vector<std::string> keys(oldFaces);\n12650:     label unsupportedFaces=0,seeded=0,closureWaves=0;\n12651:     auto lessPoint=[&](label a,label b)\n12652:     {\n12653:         const point& x=m.points[a];const point& y=m.points[b];\n12654:         if (x.x()!=y.x()) { return x.x()<y.x(); }\n12655:         if (x.y()!=y.y()) { return x.y()<y.y(); }\n12656:         return x.z()<y.z();\n12657:     };\n12658:     auto canonicalCycle=[&](const std::vector<label>& poly)\n12659:     {\n12660:         // Compare the same ordered rotations through views. Only the selected\n12661:         // cycle allocates storage; coordinate comparison and tie order stay exact.\n12662:         label bestStart=0,bestDirection=1;\n12663:         bool haveBest=false;\n12664:         for (label direction:{label(1),label(-1)}) for (label start=0;start<label(poly.size());++start)\n12665:         {\n12666:             bool better=false;\n12667:             if (haveBest) for (label j=0;j<label(poly.size());++j)\n12668:             {\n12669:                 const label candidate=poly[(start+direction*j+label(poly.size())*2)%poly.size()];\n12670:                 const label current=poly[(bestStart+bestDirection*j+label(poly.size())*2)%poly.size()];\n12671:                 if (lessPoint(candidate,current)) { better=true;break; }\n12672:                 if (lessPoint(current,candidate)) { break; }"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      12936,
+      12961
+    ],
+    "label": "actual point insertion or exact reuse",
+    "text": "12936:     // Spatial guard includes every existing AND every newly inserted point.\n12937:     // This prevents the writer's 1-micrometre canonicalization changing bases.\n12938:     struct gridKey { long long x,y,z;bool operator==(const gridKey& b) const { return x==b.x&&y==b.y&&z==b.z; } };\n12939:     struct gridHash { size_t operator()(const gridKey& q) const { return splitMix64(uint64_t(q.x)^splitMix64(uint64_t(q.y))^splitMix64(uint64_t(q.z))); } };\n12940:     std::unordered_map<gridKey,std::vector<label>,gridHash> pointGrid;\n12941:     auto gridOf=[](const point& p) { return gridKey{(long long)std::floor(p.x()/3e-6),(long long)std::floor(p.y()/3e-6),(long long)std::floor(p.z()/3e-6)}; };\n12942:     for (label p=0;p<label(m.points.size());++p) { pointGrid[gridOf(m.points[p])].push_back(p); }\n12943:     auto insertPoint=[&](const point& p,bool allowExact) -> label\n12944:     {\n12945:         const gridKey q=gridOf(p);label exact=-1;\n12946:         for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)\n12947:         {\n12948:             auto found=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (found==pointGrid.end()) { continue; }\n12949:             for (label old:found->second)\n12950:             {\n12951:                 const scalar d=magSqr(p-m.points[old]);\n12952:                 if (d<=9e-12)\n12953:                 {\n12954:                     if (allowExact && d==0) { exact=old; }\n12955:                     else { return -1; }\n12956:                 }\n12957:             }\n12958:         }\n12959:         if (exact>=0) { return exact; }\n12960:         const label id=m.points.size();m.points.push_back(p);pointGrid[q].push_back(id);return id;\n12961:     };"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      13014,
+      13019
+    ],
+    "label": "normal source-facet ancestry",
+    "text": "13014:     // Source-facet lineage is algorithm state, never optional trace state.\n13015:     std::vector<label> unionBase;\n13016:     if (samePhysicalRole)\n13017:     {\n13018:         unionBase.resize(oldFaces);std::iota(unionBase.begin(),unionBase.end(),label(0));\n13019:     }"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      13448,
+      13481
+    ],
+    "label": "actual convex source-face centre fan creation",
+    "text": "13448:         if (!m.faceAlive[f]) { continue; }\n13449:         const label o=m.owner[f],n=m.neighbour[f];\n13450:         const bool used=marked[o] || (n>=0 && marked[n]);\n13451:         if (!used || !splitFace[f]) { piecesOf[f].push_back(f);continue; }\n13452:         std::vector<label> poly=canonical[f];vector av;point fc;faceAreaCentreOF(m.points,poly,av,fc);\n13453:         const vector normal=av/mag(av);bool convex=true;\n13454:         for (size_t j=0;j<poly.size();++j)\n13455:         {\n13456:             const vector edge=m.points[poly[(j+1)%poly.size()]]-m.points[poly[j]];\n13457:             const scalar len=mag(edge);\n13458:             for (label q:poly) if ((((edge^(m.points[q]-m.points[poly[j]]))&normal)/len)<-1e-12*std::sqrt(mag(av))) { convex=false; }\n13459:         }\n13460:         std::vector<std::vector<label>> pieces;\n13461:         if (convex)\n13462:         {\n13463:             if (getenv(\"DCCART_CONES_PREFER_VERTEX_FAN\")!=nullptr) for (size_t k=0;k<poly.size();++k)\n13464:             {\n13465:                 std::vector<std::vector<label>> trial;bool positive=true;\n13466:                 for (size_t j=1;j+1<poly.size();++j)\n13467:                 {\n13468:                     const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];\n13469:                     const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;\n13470:                     if (!std::isfinite(area) || area<=1e-15*mag(av)\n13471:                      || !writablePolygon({a,b,c})) { positive=false;break; }trial.push_back({a,b,c});\n13472:                 }\n13473:                 if (positive) { pieces=std::move(trial);break; }\n13474:             }\n13475:             if (!pieces.empty()) { ++anchorFan; }\n13476:             else\n13477:             {\n13478:                 const label q=insertPoint(fc,true);if (q<0) { ++closePoints;continue; }\n13479:                 for (size_t j=0;j<poly.size();++j) { pieces.push_back({poly[j],poly[(j+1)%poly.size()],q}); }\n13480:                 ++faceFan;\n13481:             }"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      13610,
+      13627
+    ],
+    "label": "outward orientation and new facet sourceBase inheritance",
+    "text": "13610:         const bool reverse=(av&areas[f])<0;\n13611:         for (size_t j=0;j<pieces.size();++j)\n13612:         {\n13613:             // Keep the shared canonical vertex zero when flipping outward\n13614:             // orientation; cyclic addressing reverses the remaining cycle.\n13615:             if (reverse) { std::reverse(pieces[j].begin()+1,pieces[j].end()); }\n13616:             label id=f;\n13617:             if (j)\n13618:             {\n13619:                 id=m.faces.size();m.faces.push_back(pieces[j]);m.owner.push_back(o);m.neighbour.push_back(n);\n13620:                 m.patch.push_back(m.patch[f]);m.zone.push_back(m.zone[f]);m.faceAlive.push_back(true);\n13621:                 if (traceCones) { m.coneEvidenceBase.push_back(f); }\n13622:                 if (samePhysicalRole) { unionBase.push_back(f); }\n13623:             }\n13624:             else { m.faces[f]=pieces[j]; }\n13625:             piecesOf[f].push_back(id);\n13626:         }\n13627:         ++partitioned;"
+  },
+  {
+    "file": "source/dcCartCutCells.C",
+    "normalSHA": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "range": [
+      14209,
+      14224
+    ],
+    "label": "cone child/source-parent ancestry",
+    "text": "14209:         for (label f:bases[c])\n14210:         {\n14211:             const bool own=m.owner[f]==c;\n14212:             if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<\"conforming base lost parent incidence\"<<exit(FatalError); }\n14213:             vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);\n14214:             const scalar v=((own ? area : -area)&(centre-apex[c]))/3;\n14215:             if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;\n14216:             const label child=first ? c : m.nCells++;\n14217:             if (!first)\n14218:             {\n14219:                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);\n14220:                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;\n14221:                 if (traceCones) { m.coneEvidenceParent.push_back(c); }\n14222:                 if (literalUnions) { unionParent.push_back(c); }\n14223:                 m.completeCavityLineage.inherit(child,c,cavityAvailable);\n14224:             }"
+  }
+]

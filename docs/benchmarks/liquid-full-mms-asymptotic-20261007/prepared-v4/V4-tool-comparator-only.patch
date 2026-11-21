@@ -1,0 +1,116 @@
+--- v3/fine.test.ts
++++ v4/fine.test.ts
+@@ -1,5 +1,7 @@
+ import {it,expect} from 'vitest'
+ import {readFileSync,writeFileSync} from 'node:fs'
++import {independentProjectFingerprint} from './independent_project_fingerprint.cjs'
++import fingerprintRegistry from './VARIANT/src/frontend/shared/transient/transient_params.json'
+ import {compileSavedExperiment} from './VARIANT/src/frontend/react/src/liquid/liquidExperiment'
+ import {reviveKinds,schema} from './VARIANT/src/frontend/react/src/legacy/cfdprojModules'
+ import {serializeProjectState} from './VARIANT/src/frontend/react/src/io/projectFiles'
+@@ -17,9 +19,22 @@
+   expect(built.schemaVersion).toBe(4)
+   const old=JSON.parse(readFileSync(T+'/results/original-anchor-0p0625.liquidrun','utf8'))
+   expect(built.manufactured_benchmark.initial_state).toEqual(old.manufactured_benchmark.initial_state)
+-  const restored=JSON.parse(JSON.stringify(built));delete restored.manufactured_benchmark;delete old.manufactured_benchmark
+-  restored.dt=old.dt;restored.N_t=old.N_t
+-  expect(restored).toEqual(old)
++  const expectedGrid=tag==='0p03125'?{dt_s:0.03125,N_t:257}:{dt_s:0.015625,N_t:513}
++  expect(built.time).toEqual({...old.time,...expectedGrid})
++  expect((built.time.N_t-1)*built.time.dt_s).toBe(8)
++  // Hash the actual new saved project independently; never discard source identity.
++  expect(built.source_project.sha256).toBe(independentProjectFingerprint(p,fingerprintRegistry))
++  const anchorProject=JSON.parse(JSON.stringify(p))
++  anchorProject.runDefaults.liquid.experiment.dt_s=old.time.dt_s
++  anchorProject.runDefaults.liquid.experiment.dae.manufactured_benchmark=old.manufactured_benchmark
++  anchorProject.transient.gridS=old.time.dt_s
++  expect(independentProjectFingerprint(anchorProject,fingerprintRegistry)).toBe(old.source_project.sha256)
++  const restored=JSON.parse(JSON.stringify(built)),anchor=JSON.parse(JSON.stringify(old))
++  delete restored.manufactured_benchmark;delete anchor.manufactured_benchmark
++  // These three independently checked leaf differences alone reflect refinement.
++  restored.time.dt_s=old.time.dt_s;restored.time.N_t=old.time.N_t
++  restored.source_project.sha256=old.source_project.sha256
++  expect(restored).toEqual(anchor)
+   expect(built.analysis).toEqual({mode:'transient',initialization:'consistent'})
+   expect(serializeProjectState(p)).toBe(before)
+   expect(compileSavedExperiment(reviveKinds(JSON.parse(before))).liquidrun).toEqual(built)
+--- v3/RUN_ASYMPTOTIC_CONTINUATION.py
++++ v4/RUN_ASYMPTOTIC_CONTINUATION.py
+@@ -92,7 +92,7 @@
+  source_rows=[r for r in copies if r['path'].startswith('after/')]
+  extraction=json.loads((HERE/'archive-extraction-spec.json').read_text())['requiredOriginals']
+  ex={r['original_path']:r for r in extraction}
+- workers=('generate_asymptotic.py','newton_asymptotic.py','independent_asymptotic_recurrence.py','independent_trajectory.py','fine.test.ts','vitest.fine.config.ts')
++ workers=('generate_asymptotic.py','newton_asymptotic.py','independent_asymptotic_recurrence.py','independent_trajectory.py','fine.test.ts','vitest.fine.config.ts','independent_project_fingerprint.cjs')
+  outcomes=[];failure=None
+  try:
+   for tag,dt,n in LEVELS:
+--- /dev/null
++++ v4/independent_project_fingerprint.cjs
+@@ -0,0 +1,66 @@
++"use strict";
++// TOOL-ONLY independent implementation of the audited disk-project fingerprint recipe.
++// Does not import product canonicalization, graph, hash, React, generator or solver code.
++const crypto = require("node:crypto");
++function locateLeaf(root, pieces, targetValues, at=0, valueAt=0) {
++  if (root === null || typeof root !== "object") return null;
++  const part = pieces[at];
++  if (at === pieces.length - 1) {
++    if (!/^\w+$/.test(part)) throw new Error("unsupported fingerprint registry leaf");
++    return [root, part];
++  }
++  if (part === "*") {
++    for (const key of Object.keys(root)) {
++      const hit = locateLeaf(root[key], pieces, targetValues, at + 1, valueAt);
++      if (hit) return hit;
++    }
++    return null;
++  }
++  if (/^\{\w+\}$/.test(part)) {
++    const key = targetValues[valueAt];
++    const value = Array.isArray(root) ? root[Number(key)] : root[key];
++    return locateLeaf(value, pieces, targetValues, at + 1, valueAt + 1);
++  }
++  const match = /^(\w+)\[id=\{\w+\}\]$/.exec(part);
++  if (match) {
++    const list = Array.isArray(root[match[1]]) ? root[match[1]] : [];
++    const chosen = list.find(row => row && String(row.id) === targetValues[valueAt]);
++    return locateLeaf(chosen, pieces, targetValues, at + 1, valueAt + 1);
++  }
++  if (!/^\w+$/.test(part)) throw new Error("unsupported fingerprint registry segment");
++  return locateLeaf(root[part], pieces, targetValues, at + 1, valueAt);
++}
++function canonicalDiskProject(project, registry) {
++  const copy = JSON.parse(JSON.stringify(project));
++  const tracks = copy.transient && copy.transient.tracks;
++  if (!Array.isArray(tracks) || !tracks.length) return copy;
++  if (!registry || !Array.isArray(registry.params)) throw new Error("fingerprint requires audited registry");
++  const models = new Map();
++  for (const items of Object.values(copy.constructions || {})) {
++    if (items === null || typeof items !== "object") continue;
++    for (const [uid, model] of Object.entries(items)) if (model && typeof model === "object") models.set(uid, model);
++  }
++  for (const track of tracks) {
++    const model = models.get(track.modelUid);
++    const entry = registry.params.find(row => row.key === track.param);
++    if (!model || !entry || typeof entry.path !== "string") throw new Error("unresolved tracked fingerprint field");
++    const target = track.target === "" ? [] : String(track.target).split("/");
++    const leaf = locateLeaf(model, entry.path.split("."), target);
++    if (leaf) delete leaf[0][leaf[1]];
++  }
++  return copy;
++}
++function sortOwnJSON(value) {
++  if (Array.isArray(value)) return value.map(sortOwnJSON);
++  if (value && typeof value === "object") {
++    const result = Object.create(null);
++    for (const key of Object.keys(value).sort()) result[key] = sortOwnJSON(value[key]);
++    return result;
++  }
++  return value;
++}
++function independentProjectFingerprint(project, registry) {
++  const text = JSON.stringify(sortOwnJSON(canonicalDiskProject(project, registry)));
++  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
++}
++exports.independentProjectFingerprint = independentProjectFingerprint;

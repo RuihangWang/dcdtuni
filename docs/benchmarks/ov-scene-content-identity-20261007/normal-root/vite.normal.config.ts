@@ -1,0 +1,3 @@
+import base from "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/vite.config.ts"
+import {defineConfig} from 'vite'
+export default defineConfig({...base,root:"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",cacheDir:"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-scene-content-identity-normal-root-20261007/cache/vite",build:{...base.build,outDir:"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-scene-content-identity-normal-root-20261007/dist",emptyOutDir:true},test:{...base.test,cache:false,pool:'threads',poolOptions:{threads:{singleThread:true}},maxWorkers:1,minWorkers:1}})

@@ -1,0 +1,70 @@
+{
+  "date_sgt": "2026-09-27",
+  "status": "isolated_fail_closed_diagnostic_not_mesh_repair",
+  "host": "NTU-Litianyu-40901",
+  "base_commit": "09c6c238",
+  "source_inputs": {
+    "prepared_stl_files": 13,
+    "all_13_stl_bytes_equal_archived_uid_input": true,
+    "snappy_hex_mesh_dict_sha256": "765adcf82500b8cf475264f84363c64f74241119f8da788cb61335323f0d3a1e",
+    "merged_wall_baffle_stl_sha256": "9b48e16ecad23606bbd44fb0a1298e4547820ed14cb3558251df5fd19d12e149",
+    "raised_floor_stl_sha256": "2dab439e94d675195ef8505703409ce5ffd01dad58281056920ea842dba652bf",
+    "source_surface_uid_records": 354
+  },
+  "resources": {
+    "gpu_used": false,
+    "cpu_affinity": "0-7",
+    "max_cpu_cores": 8,
+    "mpi_ranks": 8,
+    "nice": 10,
+    "openmp_blas_threads_per_rank": 1
+  },
+  "source_matched_baseline": {
+    "worktree": "/mnt/lv/home/litianyu/benchmarks/dccart_residual_baseline_worktree_20260927",
+    "binary_sha256": "cb05bd466a28c8d5fbfe74612f96fc4d56997f666a074607c1b34546cd511355",
+    "scratch": "/mnt/lv/home/litianyu/benchmarks/dccart_residual_quality_trial_20260927/shinaide-baseline-8rank",
+    "cells": 371843,
+    "mesh_seconds": 18.6,
+    "strict_check_mesh_failed_checks": 6,
+    "strict_check_mesh_report": {
+      "high_aspect_ratio_cells": 15,
+      "max_aspect_ratio": 4166.67,
+      "low_quality_face_tets": 294,
+      "low_determinant_cells": 76,
+      "concave_or_planar_cells": 34727,
+      "low_interpolation_weight_faces": 295,
+      "low_volume_ratio_faces": 609
+    },
+    "binary_format_conversion_changed_quality_counts": false,
+    "source_support_probe_rank0_mapped_faces": 6,
+    "source_support_probe_rank0_unsupported_face_centroids": 4,
+    "cfd_solve_run": false
+  },
+  "minimal_native_source_support": {
+    "legacy_control": "passed",
+    "legacy_near_grid": "RED at 02baffles; source support left",
+    "legacy_stage_json_same_before_after_candidate_except_absolute_path": true,
+    "uid_guard_test_red_before_change": "near-grid mesher returned 0 although source tangent support changed",
+    "uid_guard_test_green_after_change": "2 passed: near-grid rejects, far-grid and pure-normal alignment pass",
+    "identity_parser_regression": "13 passed"
+  },
+  "candidate_guard": {
+    "worktree": "/mnt/lv/home/litianyu/benchmarks/dccart_residual_quality_worktree_20260927",
+    "binary_sha256": "ee611ae2bf4c45aaddf22aa651eff5fe7bd99169215678cfc8f4f36a3d89df6a",
+    "library_sha256": "689ae9d4eaf8f19b040cc36ddf2f63a65c8965f354f9a1b1698f76b4ecd81663",
+    "trigger": "annotated internalBaffle zeroThicknessSheet vertex moves tangentially to original STL triangle farther than max(4*coordSnapTol, 1e-6) m",
+    "legacy_input_without_uid_unmodified": true,
+    "real_shinaide_8_rank_result": "rejected_before_cell_cutting",
+    "first_reported_source_face_uid": "proj_Shinaide/m_1/blanking/front/u1-u3/source-sheet",
+    "first_reported_in_plane_displacement_m": 0.00399641,
+    "allowance_m": 0.0000166667,
+    "strict_mesh_success": false,
+    "source_support_success": false
+  },
+  "rejected_hypothesis": {
+    "trial": "opt-in skip all G1 coordinate classes tangent to any zero-thickness baffle",
+    "result": "near-grid wall baffle coverage fell to 0.00082142/0.0064 = 0.128347; mesher refused to write mesh",
+    "code_kept": false
+  },
+  "remaining_work": "Explicit source-component/edge-contact and wall-pair relations, full polygon/rank support validation, and separate safe remedies for face-tet, real concavity, interpolation weight and volume ratio. No OpenFOAM CFD solve is admissible."
+}

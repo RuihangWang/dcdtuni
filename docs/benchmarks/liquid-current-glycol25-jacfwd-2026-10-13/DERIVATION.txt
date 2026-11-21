@@ -1,0 +1,101 @@
+Current Shinaide Glycol25 complete-graph MMS derivation (2026-10-12)
+
+Scope and provenance
+The physical data are the actual current React Baseline canonical project
+2e7f5106e9589bb76cb15395eb30c57d1f051297a647772c1f64b9f79bcdcd41,
+bound to the actual ordinary GUI executed input
+325783e4b32c943fbfdadd02f9d41318a48f6509da13045b71514d086bdcf4a7.
+Secondary fluid rho=1032 kg/m^3, cp=3850 J/(kg K), mu=.0018 Pa s,
+k=.48 W/(m K). All other physical coefficients, BCs, geometry, topology,
+mock equipment provenance, and constant controls are held by PREPARED-IDENTITIES.json.
+This is manufactured numerical verification, not measured/calibrated equipment data.
+The manufactured reference is independently constructed, not the ordinary solved output.
+Current numerical results are pending until the registered study and review finish.
+
+Full state and algebraic constraints
+There are 229 nodes, 286 edges, 892 coolant storage cells, 56 solid temperatures,
+and one secondary plus one primary HX storage temperature. One pressure datum is
+fixed, so the 1693 unknowns are 228 free pressures +286 flows +229 node temperatures
++892 water temperatures +56 solid temperatures +2 HX temperatures. Manufactured
+input records also retain the fixed pressure ID: every physical graph/storage ID is
+covered exactly once, with actual native compiled ordering and explicit positive initial T.
+B has +1 at each edge's from node and -1 at its to node. A deterministic spanning-tree
+cycle matrix C is integer-valued and B C=0 exactly. Independent linprog constructs a
+nonzero-flow initial cycle vector, with the existing fixed seed 20261006 and sign-margin
+checks. Set m*(t)=C[a0+A sin(omega t+phi)], omega=2 pi/32 s^-1. Hence
+B m*(t)=0 and B dm*/dt=0 without manufacturing a mass source. Ordinary open elements,
+connected graph, nonzero fixed signs, no held-flow/HX-setpoint/CP-rise mode are required;
+the original validator guards remain active.
+
+Pressure and momentum forcing
+Free-node p*_n(t)=p_datum+1000 n/(N-1)+200 sin(omega t+.193 n), with actual
+pressure boundary values restored exactly on datum nodes. Let L_e(m;theta) be the
+independent manual head-loss law in tools/independent_trajectory.py: the same physical
+pipe friction and regularized signed quadratic losses, pump head, valve characteristic,
+CP/HX linear plus quadratic loss, and elevation terms, using current held coefficients.
+No product residual/Newton function constructs it. Define
+s_momentum,e(t)=L_e(m*(t);theta)-p*from(e)(t)+p*to(e)(t).
+Thus the complete 286-edge momentum residual is zero under the manufactured forcing.
+
+Storage trajectory and node mixing
+Order the storage vector x*=(water892, solid56, secondary1, primary1). Set
+x*_i(t)=b_i+A_i sin(omega t+.317 i),
+A_i=.5+.25 sin(.113 i)^2,
+b_water,j=294+.1 sin(j), b_solid,j=302+.3 sin(j), b_secondary=295, b_primary=294 K.
+The continuous rate is dx*_i/dt=A_i omega cos(omega t+.317 i).
+For each edge, up/down follows its fixed signed flow and w=|m*|.
+Pipe outlet temperature is its last upwind storage cell; CP outlet is
+T_out=T_node,up+epsilon(T_solid-T_node,up), epsilon=1-exp[-UA/(w cp)];
+HX secondary outlet is T_secondary; nonstorage devices transmit T_node,up.
+At every unprescribed node, sum_in w cp(T_node-T_out)=0. Prescribed temperature
+nodes retain their actual BC exactly. The independent mixing linear system determines
+all 229 node temperatures, rather than adding an artificial mixing source.
+
+Four thermal source families
+These are residuals of continuous storage equations evaluated at the independent
+trajectory; every storage/edge ID and every registered time sample is covered.
+For a water cell c on edge e, with its physical cell source q_cell and upwind T_u:
+ s_water,c = rho cp V_c dT*_c/dt - w_e cp(T*_u-T*_c) - q_cell,c.
+For CP j, Q_cool,j=w_j cp epsilon_j(T*_solid,j-T*_node,up):
+ s_solid,j = Csolid_j dT*_solid,j/dt - Q_IT,j + Q_cool,j.
+For HX k, Q_exchange,k=UA_k(T*_secondary,k-T*_primary,k):
+ s_secondary,k = rho cp Vsec,k dT*_secondary,k/dt
+                 - w_k cp(T*_node,up-T*_secondary,k) + Q_exchange,k.
+ s_primary,k = rho_primary,k cp_primary,k Vprimary,k dT*_primary,k/dt
+               - m_primary,k cp_primary,k(T_primary,in,k-T*_primary,k)
+               - Q_exchange,k.
+All primary physical parameters and boundary schedules come from the actual current
+compiled input, not an assumed secondary-fluid substitution. Combined conservation
+is checked independently as physical heat + manufactured source + thermal boundary
+input - storage rate - primary heat rejection =0. Nodes enforce mixing and mass,
+and pressure/flow remain algebraic; their errors are reported without time-order claims.
+
+Explicit initial state and actual product chain
+All seven initial state families and four storage-rate families at t=0 are declared
+by exact native IDs. Their binding reproduces all 1693 reference state bits, including
+the pressure datum, before any solve. The reference rates are continuous derivatives.
+Two real .cfdproj inputs use T=8 s and dt=1/32 or1/64 s, with fresh manufacturing
+source hashes and actual current React compileSavedExperiment output. The original
+product consistent initialization, backward-Euler/Newton tolerances, positive-state,
+fixed-sign, energy and commit gates are not modified. Source endpoint samples equal
+the admitted time grid exactly. Exact graph/source hashes appear in PREPARED-IDENTITIES.json.
+
+Independent backward-Euler error recurrence
+At each reference time, the independently assembled thermal operator D_i and diagonal
+storage capacity C_T satisfy D_i x*_i+C_T xdot*_i=b_i+s_i. Let e_i=x_product,i-x*_i.
+For the same endpoint physical flow, the linear thermal BE error obeys
+ (D_i+C_T/dt)e_i = (C_T/dt)e_(i-1)
+                  - C_T[(x*_i-x*_(i-1))/dt-xdot*_i], e_0=0.
+The independent sparse recurrence separates the four storage-defect contributions and
+predicts all1179 thermal variables (229 nodes+950 storage), independently of Newton.
+Product-vs-recurrence L-infinity tolerance is the preregistered1e-7 K. Product raw arrays
+are compared only after both runs; they are never used to construct the manufacturing.
+
+Registered convergence assessment
+The preregistered metric is L-infinity over every retained time and every state in each
+of five thermal blocks. For each block, p=log2(E_dt/E_dt/2), required in [.85,1.15].
+Final-time error/order is reported separately; a good whole-trajectory result cannot
+replace a failed final-time assessment. The previous different-fluid coarse HXsecondary
+failure and old finer results remain intact and do not count as this current-case result.
+Protocol/hash: PREREGISTRATION.json SHA256
+7b49f0cf64cb5374e40e2168d0b3cbd49129ddbb572cbf9cb5cb987287ba3d7b.

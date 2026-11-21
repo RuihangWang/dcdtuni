@@ -1,0 +1,67 @@
+/* Liquid solver sections, readiness checklist and the hybrid workflow (C2). */
+#liquid-experiment-panel > details.lq-section {
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-input);
+}
+#liquid-experiment-panel > details.lq-section > summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--text);
+  line-height: 1.6;
+}
+#liquid-experiment-panel > details.lq-section[data-state="error"] > summary { color: #ef6b73; }
+#liquid-experiment-panel > details.lq-section > fieldset { border: 0; margin: 6px 0 0; padding: 0; min-width: 0; }
+#liquid-experiment-panel > details.lq-section > fieldset > legend { font-weight: 600; padding: 6px 0 2px; }
+.lq-section-badge { float: right; font-weight: 500; font-size: 11px; }
+.liquid-readiness li + li { border-top: 1px dashed rgba(255, 255, 255, 0.06); padding-top: 2px; }
+.lq-run-history { width: 100%; border-collapse: collapse; font-size: 11px; }
+.lq-run-history td { padding: 2px 3px; vertical-align: top; overflow-wrap: anywhere; }
+.lq-run-history tr[data-current="true"] td { color: #7fd18b; }
+.hybrid-workflow-popover {
+  position: fixed;
+  z-index: 1000;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid #3f6f78;
+  border-radius: 8px;
+  background: var(--bg-panel, #1e1f22);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+/* A status of the project, not a mode to switch to: never dimmed like the inactive mode buttons. */
+.hybrid-mode-btn { border-color: #3f8a95 !important; color: #56b6c2 !important; opacity: 1 !important; filter: none !important; }
+.hybrid-mode-btn[data-done="5"] { color: #7fd18b !important; }
+.lq-monitor-table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.lq-monitor-table th { text-align: right; font-weight: 600; color: var(--text-dim, #aaa); padding: 2px 3px; position: sticky; top: 0; background: var(--bg-input, #252526); }
+.lq-monitor-table th:first-child, .lq-monitor-table td:first-child { text-align: left; }
+.lq-monitor-table td { text-align: right; padding: 2px 3px; cursor: pointer; }
+.lq-monitor-table tr[aria-selected="true"] td { background: rgba(97, 175, 239, 0.16); }
+.lq-monitor-table-wrap { max-height: 260px; overflow: auto; border: 1px solid var(--border, #555); border-radius: 5px; }
+.lq-toolbar-hint { font-size: 10.5px; line-height: 1.5; color: var(--text-dim, #aaa); margin: 3px 4px; }
+.lq-ctx-tag { display: block; font-size: 10px; opacity: 0.75; }
+.hybrid-workflow-fold { margin: 6px 0; padding: 6px 10px; border: 1px solid #3f6f78; border-radius: 7px; background: rgba(86, 182, 194, 0.06); }
+.hybrid-workflow-fold > summary { cursor: pointer; font-size: 12px; line-height: 1.6; }
+.hybrid-fold-next { display: block; font-size: 11px; color: var(--text-dim, #aaa); }
+
+/* The run action pinned at the top of the liquid panel while it scrolls. */
+#liquid-experiment-panel > .lq-quick-run {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  margin: 6px 0 10px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-panel, #161b22);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .25);
+}
+#liquid-experiment-panel > .lq-quick-run .lq-quick-run-state { flex: 1 1 100%; font-size: 12px; color: #6fd29a; }
+#liquid-experiment-panel > .lq-quick-run .lq-quick-run-state[data-state="error"] { color: #ef6b73; }
+#liquid-experiment-panel > .lq-quick-run .btn { margin: 0; }
+#liquid-experiment-panel > .lq-quick-run .lq-quick-run-progress { flex: 1 1 80px; height: 8px; }
+#liquid-experiment-panel > .lq-quick-run .lq-quick-run-more {
+  margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--text-dim);
+}
+#liquid-experiment-panel > .lq-quick-run .lq-quick-run-more:hover { color: var(--highlight); }

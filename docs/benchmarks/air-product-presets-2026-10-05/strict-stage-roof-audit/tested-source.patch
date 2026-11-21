@@ -1,0 +1,277 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+index 7cd65075..e337b2af 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -2780,6 +2780,20 @@ int main(int argc, char *argv[])
+             budgetCheck("redundant-edge-point-experiment");
+         }
+ 
++        if (getenv("DCCART_TRANSITION_ROOF_AUDIT") != nullptr)
++        {
++            boolList protectedPatch(patchTypes.size(),false);
++            forAll(patchTypes,pi)
++            {
++                const word& type=patchTypes[pi];
++                protectedPatch[pi]=type.find("cyclic")==0
++                 || type.find("processor")==0 || type.find("mapped")==0
++                 || type.find("AMI")!=std::string::npos;
++            }
++            dcCartCutCells::auditRegularTransitionRoofs(m,protectedPatch);
++            budgetCheck("transition-roof-readonly-audit");
++        }
++
+         // The census: the three numbers that separate a mesh the steady RAS
+         // solve converges on from one it does not, printed on every run so a
+         // regression shows up at mesh time instead of three days later at
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 9e648da3..f76cc18e 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -11703,6 +11703,233 @@ void Foam::dcCartCutCells::coalesceCoplanarFaces
+ }
+ 
+ 
++
++Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
++(
++    cutMesh& m, const boolList& coupledPatch
++)
++{
++    // Diagnostic only: proposed displacements are restored before returning.
++    // Strict regular 2x2, no geometry smoothing or quality authorization.
++    std::vector<std::vector<label>> cf;
++    buildCellFaces(m,cf);
++    std::vector<unsigned char> protectedPoint(m.points.size(),0);
++    for (label f=0; f<label(m.faces.size()); ++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        unsigned char mask=m.zone[f]>=0 ? 4 : 0;
++        const label patch=m.patch[f];
++        if (patch>=0)
++        {
++            mask |= patch<coupledPatch.size() && coupledPatch[patch] ? 2 : 1;
++        }
++        if (mask) { for (label p:m.faces[f]) { protectedPoint[p] |= mask; } }
++    }
++    auto bounds = [&](label c, point& lo, point& hi)
++    {
++        lo=point(GREAT,GREAT,GREAT); hi=point(-GREAT,-GREAT,-GREAT);
++        for (label f:cf[c]) for (label p:m.faces[f])
++        { lo=min(lo,m.points[p]); hi=max(hi,m.points[p]); }
++    };
++    auto regularFaces = [&](label c, const point& lo, const point& hi,
++                            scalar tol, std::vector<label> groups[6]) -> bool
++    {
++        for (label f:cf[c])
++        {
++            label which=-1;
++            for (label d=0;d<3;++d) for (label side=0;side<2;++side)
++            {
++                bool on=true;
++                const scalar plane=side ? hi[d] : lo[d];
++                for (label p:m.faces[f])
++                { if (mag(m.points[p][d]-plane)>tol) { on=false; break; } }
++                if (on) { if (which>=0) { return false; } which=2*d+side; }
++            }
++            if (which<0) { return false; }
++            groups[which].push_back(f);
++        }
++        return true;
++    };
++    struct packet
++    {
++        label cell, axis; scalar sign, size;
++        std::vector<label> points;
++        std::vector<vector> displacement;
++        std::set<label> star;
++        bool overlap=false;
++    };
++    std::vector<packet> packets;
++    label detected=0,physical=0,coupled=0,zone=0;
++    for (label c=0;c<m.nCells;++c)
++    {
++        if (!m.cellAlive[c] || cf[c].size()!=9) { continue; }
++        point lo,hi; bounds(c,lo,hi);
++        const scalar h=hi.x()-lo.x(), tol=1e-10*h;
++        if (!std::isfinite(lo.x()) || !std::isfinite(lo.y()) || !std::isfinite(lo.z())
++         || !std::isfinite(hi.x()) || !std::isfinite(hi.y()) || !std::isfinite(hi.z())
++         || !std::isfinite(h) || h<=1e-6
++         || mag((hi.y()-lo.y())-h)>tol || mag((hi.z()-lo.z())-h)>tol)
++        { continue; }
++        std::vector<label> groups[6];
++        if (!regularFaces(c,lo,hi,tol,groups)) { continue; }
++        label side=-1; bool regular=true;
++        for (label j=0;j<6;++j)
++        {
++            if (groups[j].size()==4) { if (side>=0) { regular=false; } side=j; }
++            else if (groups[j].size()!=1) { regular=false; }
++        }
++        if (!regular || side<0) { continue; }
++        const label axis=side/2, u=(axis+1)%3, v=(axis+2)%3;
++        const scalar sign=side%2 ? 1 : -1;
++        const scalar plane=side%2 ? hi[axis] : lo[axis];
++        label grid[9]; std::fill(grid,grid+9,-1);
++        std::set<label> fine;
++        for (label f:groups[side])
++        {
++            if (m.faces[f].size()!=4 || m.neighbour[f]<0 || m.patch[f]>=0)
++            { regular=false; break; }
++            const label n=m.owner[f]==c ? m.neighbour[f] : m.owner[f];
++            if (n<0 || !m.cellAlive[n] || cf[n].size()!=6 || !fine.insert(n).second)
++            { regular=false; break; }
++            point nlo,nhi; bounds(n,nlo,nhi);
++            for (label d=0;d<3;++d)
++            { if (mag((nhi[d]-nlo[d])-.5*h)>tol) { regular=false; } }
++            if (mag((sign>0 ? nlo[axis] : nhi[axis])-plane)>tol)
++            { regular=false; }
++            std::vector<label> ng[6];
++            if (!regularFaces(n,nlo,nhi,tol,ng)) { regular=false; }
++            for (label d=0;d<6;++d) { if (ng[d].size()!=1) { regular=false; } }
++            label minI=2,maxI=0,minJ=2,maxJ=0;
++            std::set<label> tile;
++            for (label p:m.faces[f])
++            {
++                const scalar s=2*(m.points[p][u]-lo[u])/h;
++                const scalar t=2*(m.points[p][v]-lo[v])/h;
++                if (!std::isfinite(s) || !std::isfinite(t)) { regular=false;break; }
++                const label i=label(std::lround(s)),j=label(std::lround(t));
++                if (i<0 || i>2 || j<0 || j>2
++                 || mag(s-i)>1e-10 || mag(t-j)>1e-10)
++                { regular=false; break; }
++                label& node=grid[3*i+j];
++                if (node>=0 && node!=p) { regular=false; break; }
++                node=p;tile.insert(3*i+j);minI=min(minI,i);maxI=max(maxI,i);
++                minJ=min(minJ,j);maxJ=max(maxJ,j);
++            }
++            if (tile.size()!=4 || maxI-minI!=1 || maxJ-minJ!=1) { regular=false; }
++            if (!regular) { break; }
++        }
++        for (label j=0;j<9;++j) { if (grid[j]<0) { regular=false; } }
++        if (!regular) { continue; }
++        ++detected;
++        packet p; p.cell=c;p.axis=axis;p.sign=sign;p.size=h;
++        unsigned char mask=0;
++        for (label i=0;i<3;++i) for (label j=0;j<3;++j)
++        {
++            const scalar fraction=(i==1 ? .5 : 0)+(j==1 ? .5 : 0);
++            if (!fraction) { continue; }
++            const label node=grid[3*i+j];mask |= protectedPoint[node];
++            vector delta(vector::zero);delta[axis]=sign*(5e-4*h)*fraction;
++            p.points.push_back(node);p.displacement.push_back(delta);
++        }
++        if (mask)
++        {
++            physical+=(mask&1)!=0;coupled+=(mask&2)!=0;zone+=(mask&4)!=0;
++            continue;
++        }
++        packets.push_back(std::move(p));
++    }
++    // A packet's full point star includes cells outside its five boxes.
++    std::unordered_map<label,std::vector<label>> atPoint;
++    for (label k=0;k<label(packets.size());++k)
++    { for (label p:packets[k].points) { atPoint[p].push_back(k); } }
++    for (label f=0;f<label(m.faces.size());++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        for (label p:m.faces[f])
++        {
++            const auto found=atPoint.find(p);if (found==atPoint.end()) { continue; }
++            for (label k:found->second)
++            {
++                packets[k].star.insert(m.owner[f]);
++                if (m.neighbour[f]>=0) { packets[k].star.insert(m.neighbour[f]); }
++            }
++        }
++    }
++    std::unordered_map<label,label> cellPacket;
++    for (label k=0;k<label(packets.size());++k)
++    {
++        for (label c:packets[k].star)
++        {
++            auto inserted=cellPacket.emplace(c,k);
++            if (!inserted.second)
++            { packets[k].overlap=true;packets[inserted.first->second].overlap=true; }
++        }
++    }
++    label overlap=0,planarity=0,facePlane=0,geometricCandidates=0;
++    for (packet& p:packets)
++    {
++        if (p.overlap) { ++overlap;continue; }
++        std::vector<point> saved;
++        for (size_t i=0;i<p.points.size();++i)
++        { saved.push_back(m.points[p.points[i]]);m.points[p.points[i]]+=p.displacement[i]; }
++        bool planar=true,strict=true;
++        for (label c:p.star)
++        {
++            std::vector<vector> areas;std::vector<point> centres;
++            std::set<label> vertices;scalar span=p.size;
++            for (label f:cf[c])
++            {
++                vector a;point fc;faceAreaCentreOF(m.points,m.faces[f],a,fc);
++                if (m.owner[f]!=c) { a=-a; }
++                const scalar ar=mag(a);
++                if (!std::isfinite(ar) || ar<=VSMALL) { planar=false;strict=false;break; }
++                const vector n=a/ar;
++                for (label q:m.faces[f])
++                {
++                    vertices.insert(q);
++                    const scalar off=mag((m.points[q]-fc)&n);
++                    if (!std::isfinite(off) || off>1e-10*span) { planar=false; }
++                }
++                areas.push_back(n);centres.push_back(fc);
++            }
++            if (!planar) { break; }
++            for (size_t i=0;i<centres.size();++i)
++            {
++                for (label q:vertices)
++                {
++                    const scalar off=(m.points[q]-centres[i])&areas[i];
++                    if (!std::isfinite(off) || off>1e-10*span) { strict=false; }
++                }
++                for (size_t j=0;j<centres.size();++j)
++                {
++                    if (i==j) { continue; }
++                    const vector d=centres[j]-centres[i];
++                    const scalar angle=(d&areas[i])/max(mag(d),VSMALL);
++                    if (!std::isfinite(angle) || angle>=-1.0001e-6) { strict=false; }
++                }
++            }
++            if (!strict) { break; }
++        }
++        // Restoration uses saved coordinates, not subtracting rounded deltas.
++        for (size_t i=0;i<p.points.size();++i) { m.points[p.points[i]]=saved[i]; }
++        if (!planar) { ++planarity; }
++        else if (!strict) { ++facePlane; }
++        else { ++geometricCandidates; }
++    }
++    detected=returnReduce(detected,sumOp<label>());
++    physical=returnReduce(physical,sumOp<label>());coupled=returnReduce(coupled,sumOp<label>());
++    zone=returnReduce(zone,sumOp<label>());overlap=returnReduce(overlap,sumOp<label>());
++    planarity=returnReduce(planarity,sumOp<label>());facePlane=returnReduce(facePlane,sumOp<label>());
++    geometricCandidates=returnReduce(geometricCandidates,sumOp<label>());
++    Info<< "Transition roof audit (no mutation): regular 2x2 candidates "<<detected
++        << "; physical veto "<<physical<<", coupled veto "<<coupled<<", zone veto "<<zone
++        << "; overlap/full-star intersection veto "<<overlap
++        << "; full-star planarity veto "<<planarity<<", face-plane veto "<<facePlane
++        << "; geometry-only survivors "<<geometricCandidates
++        << " (not quality-authorized; determinant/tet/weight/ratio still required)"<<nl;
++    return geometricCandidates;
++}
++
+ Foam::label Foam::dcCartCutCells::removeRedundantEdgePoints
+ (
+     cutMesh& m, const boolList& coupledPatch
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+index cccb3f4c..0e5096e2 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -694,6 +694,9 @@ public:
+         //  owned cell and a halo cell becomes a processor-patch face
+         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
+         //- Opt-in exact-outline cleanup with all-incidence and coupled veto.
++        //- Read-only, opt-in regular transition candidate audit.
++        static label auditRegularTransitionRoofs(cutMesh& m, const boolList& coupledPatch);
++
+         static label removeRedundantEdgePoints(cutMesh& m, const boolList& coupledPatch);
+ 
+         static void dropGhostCells

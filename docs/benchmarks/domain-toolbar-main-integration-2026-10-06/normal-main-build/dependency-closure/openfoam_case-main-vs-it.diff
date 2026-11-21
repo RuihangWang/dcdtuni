@@ -1,0 +1,49 @@
+--- MAIN/src/backend/aircooling/runner/openfoam_case.py
++++ IT/src/backend/aircooling/runner/openfoam_case.py
+@@ -408,10 +408,44 @@
+     logger.info(f"Gravity: ({gx}, {gy}, {gz})")
+ 
+ 
++def resolve_global_air_material(simulation_config: Dict[str, Any]) -> Dict[str, Any]:
++    """Pure shared producer for the supported one-material Boussinesq air run.
++    This establishes material equality, never per-cell geometry ownership.
++    Unsupported override models or legacy nonempty thermophysical input refuse.
++    """
++    from backend.aircooling.utils.const import rho_air, air_specific_heat
++    import math
++    sc = simulation_config or {}
++    if not isinstance(sc, dict):
++        raise ValueError("unknown global air config")
++    mode = sc.get("solverType", "steady") or "steady"
++    if mode not in ("steady", "transient"):
++        raise ValueError("unsupported solver mode")
++    supported = ("buoyantBoussinesqSimpleFoam_new" if mode == "steady"
++                 else "buoyantBoussinesqPimpleFoam_new")
++    solver = sc.get("solverName") or supported
++    if solver != supported:
++        raise ValueError("unsupported single-phase air solver")
++    if sc.get("physical_properties", {}):
++        raise ValueError("unreviewed legacy physical-property override")
++    room = float(22.0 if sc.get("roomTemperature") is None else sc["roomTemperature"])
++    tref = room + 273.15
++    if not math.isfinite(tref) or tref <= 0:
++        raise ValueError("invalid air reference temperature")
++    return dict(model="singlePhaseBoussinesqAir", transportModel="Newtonian",
++                densityRefKgM3=float(rho_air), heatCapacityJKgK=float(air_specific_heat),
++                nuM2S=1.513e-05, Pr=0.696, Prt=0.85, TRefK=tref,
++                betaPerK=float(f"{1.0/tref:.6e}"), thermoMixture="pureMixture",
++                thermoTransport="const", thermoType="hConst", equationOfState="perfectGas",
++                molWeight=28.9, muPaS=1.8e-05, HfJKg=0.0)
++
++
+ def _write_transport_properties(constant_dir: Path, room_temperature_c: float) -> None:
+     """Write transportProperties with TRef derived from room temperature."""
+-    t_ref_k = room_temperature_c + 273.15
+-    beta = 1.0 / t_ref_k
++    # Same pure resolver is consumed by the fresh source-role proof.
++    material = resolve_global_air_material({"roomTemperature": room_temperature_c})
++    t_ref_k = material["TRefK"]
++    beta = material["betaPerK"]
+     tp_content = f"""\
+ /*--------------------------------*- C++ -*----------------------------------*\\
+ | =========                 |                                                 |

@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_postcheck_identity_work_cannot_exceed_whole_job_budget __________
+
+route = <module 'quality_check_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-budget-before/test_postcheck_identity_work_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2cd5784c70>
+
+    def test_postcheck_identity_work_cannot_exceed_whole_job_budget(route,tmp_path,monkeypatch):
+        mesh(tmp_path)
+        clock=iter([0,0,301])
+        monkeypatch.setattr(route.time,"monotonic",lambda:next(clock))
+        _,(code,body)=invoke(route,monkeypatch)
+        assert code==200
+        job=route.JOBS[body["jobId"]]
+>       assert job["returncode"]==124 and not job["checkMeshOk"]
+E       assert (0 == 124)
+
+src/server/tests/test_check_mesh_quality.py:128: AssertionError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_check_mesh_quality.py::test_postcheck_identity_work_cannot_exceed_whole_job_budget
+1 failed, 8 deselected in 0.35s

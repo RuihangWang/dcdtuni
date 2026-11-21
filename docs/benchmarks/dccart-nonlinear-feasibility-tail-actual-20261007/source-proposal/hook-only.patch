@@ -1,0 +1,47 @@
+--- before-hook/dcCartFinitePointRepair.H
++++ after/dcCartFinitePointRepair.H
+@@ -334,6 +334,7 @@
+ {
+     unsigned dimension,n,evalCalls,evalValid,firstInvalid,requests,iterations,projectionUpdates;
+     unsigned improved,bestHardImproved,requestCap,timeCap,breakReason;
++    unsigned restorationAttempts,restorationRequests; // Two scalars, same record slots/caps.
+     std::int64_t moving[3];std::uint64_t oldPoint[9],firstObjective,lastObjective,firstHard,lastHard,parameters[9],bestParameters[9];
+     DWObservedSummary before;
+ };
+@@ -365,6 +366,7 @@
+     {
+         if(!enabled||at<0)return;auto& p=proposals[at];p.requests=s.requests;p.iterations=s.iterations;p.projectionUpdates=s.projectionUpdates;
+         p.improved=s.improved;p.bestHardImproved=s.bestHardImproved;p.requestCap=s.stoppedByRequestCap;p.timeCap=s.stoppedByTimeBudget;
++        p.restorationAttempts=s.restorationAttempts;p.restorationRequests=s.restorationRequests;
+         if(s.parameters.size()>9||s.bestHardParameters.size()>9){incomplete=true;return;}
+         for(unsigned j=0;j<s.parameters.size();++j)p.parameters[j]=observationBits(s.parameters[j]);
+         for(unsigned j=0;j<s.bestHardParameters.size();++j)p.bestParameters[j]=observationBits(s.bestHardParameters[j]);
+@@ -400,7 +402,8 @@
+              <<",\"firstHardBits\":"<<p.firstHard<<",\"lastHardBits\":"<<p.lastHard
+              <<",\"requests\":"<<p.requests<<",\"iterations\":"<<p.iterations<<",\"projectionUpdates\":"<<p.projectionUpdates
+              <<",\"improved\":"<<p.improved<<",\"bestHardImproved\":"<<p.bestHardImproved<<",\"requestCap\":"<<p.requestCap
+-             <<",\"timeCap\":"<<p.timeCap<<",\"breakReason\":"<<p.breakReason<<",\"parametersBits\":[";
++             <<",\"timeCap\":"<<p.timeCap<<",\"breakReason\":"<<p.breakReason
++             <<",\"restorationAttempts\":"<<p.restorationAttempts<<",\"restorationRequests\":"<<p.restorationRequests<<",\"parametersBits\":[";
+             for(unsigned j=0;j<p.dimension;++j)o<<(j?",":"")<<p.parameters[j];o<<"],\"bestParametersBits\":[";
+             for(unsigned j=0;j<p.dimension;++j)o<<(j?",":"")<<p.bestParameters[j];o<<"],\"before\":";summary(p.before);o<<"}";
+         }
+@@ -1621,6 +1624,8 @@
+     observation.enabled=!Pstream::parRun() && observationFlag && std::strcmp(observationFlag,"1")==0;
+     const bool widerDWeightSearch=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
+         (std::getenv("DCCART_PRIVATE_DW_WIDER_SEARCH"),Pstream::parRun());
++    const bool nonlinearFeasibilityTail=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
++        (std::getenv("DCCART_PRIVATE_DW_NONLINEAR_FEASIBILITY_TAIL"),Pstream::parRun());
+     if (widerDWeightSearch)
+         Pout<< "PRIVATE wider DW search policy: trustBox=.2 radiusFactor=5"
+             << " requestsCap=256 iterationsCap=32 stageCap=20; actual guards retained" << nl;
+@@ -1856,7 +1861,8 @@
+             else observation.incomplete=true;
+         }
+         const auto search=dcCartFiniteRepairKernel::propose
+-            (proposal.dimension,evaluate,available,proposal.kind,dw && widerDWeightSearch);
++            (proposal.dimension,evaluate,available,proposal.kind,dw && widerDWeightSearch,
++             dw && nonlinearFeasibilityTail);
+         if(observation.enabled&&dw)observation.search(observationIndex,search);
+         result.requests+=search.requests;
+         if (search.stoppedByRequestCap) ++result.requestCapStopped;

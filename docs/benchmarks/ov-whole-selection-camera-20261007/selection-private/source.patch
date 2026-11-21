@@ -1,0 +1,785 @@
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -196,11 +196,20 @@
+             print(f"[dc.cfd_bridge] hide_ui: hud settings failed: {e}")
+ 
+         # Hide the viewport's own menubar layer (without the window-flag changes
+-        # that break the render). The Axis orientation gizmo is kept on purpose
+-        # — it is a useful render-view orientation aid, not editor chrome.
++        # that break the render). React owns the shared axis and orientation cube.
+         try:
+             from omni.kit.viewport.window import get_viewport_window_instances
+             for vw in get_viewport_window_instances():
++                try:
++                    viewport_id = vw.viewport_api.id
++                    if (isinstance(viewport_id, str) and viewport_id
++                            and len(viewport_id.encode("utf-8")) <= 128):
++                        carb.settings.get_settings().set(
++                            f"/persistent/app/viewport/{viewport_id}/guide/axis/visible", False)
++                    else:
++                        print("[dc.cfd_bridge] native axis setting unavailable")
++                except Exception:
++                    print("[dc.cfd_bridge] native axis setting unavailable")
+                 for name, cat in (("Menubar", "menubar"),):
+                     try:
+                         layer = vw._find_viewport_layer(name, cat)
+@@ -685,10 +694,23 @@
+             if viewport:
+                 viewport.camera_path = render_scene.CAMERA
+         ctx = omni.usd.get_context()
+-        paths = [path for uid in view['selectedUids'] for path in self._render_uid_paths.get(uid, [])]
++        from pxr import UsdGeom
++        # Hidden source children must not contaminate a later native Shift hit.
++        visible_paths = {}
++        for uid in view['selectedUids']:
++            visible_paths[uid] = []
++            for path in self._render_uid_paths.get(uid, ()):
++                prim = stage.GetPrimAtPath(path)
++                if prim and UsdGeom.Imageable(prim).ComputeVisibility() != UsdGeom.Tokens.invisible:
++                    visible_paths[uid].append(path)
++        paths = [path for children in visible_paths.values() for path in children]
+         self._suppress_ov_pick = True
+         try:
+             ctx.get_selection().set_selected_prim_paths(paths, True)
++            # Native notifications can arrive after this call returns. Remember
++            # the complete successfully applied UID set, not its first primitive.
++            self._last_ov_pick = (self._scene_revision, tuple(sorted(
++                uid for uid, children in visible_paths.items() if children)))
+         finally:
+             self._suppress_ov_pick = False
+         self._prepare_output_layout(stage)
+@@ -736,38 +758,59 @@
+         self._emit_source_pick()
+ 
+     def _emit_source_pick(self):
+-        """Publish only a selected, acknowledged source-geometry primitive."""
++        """Publish the complete visible source-object selection, including clear.
++
++        Kit Shift adds USD primitives. React owns whole-object highlighting, so
++        deduplicate their acknowledged model UIDs without discarding later hits.
++        Native Ctrl primitive inversion is not inferred to be a UID toggle.
++        """
+         if self._suppress_ov_pick or not self._render_project_hash:
+             return
++        from pxr import UsdGeom
+         ctx = omni.usd.get_context()
+         stage = ctx.get_stage()
+         if stage is None:
+             return
+-        for path in ctx.get_selection().get_selected_prim_paths():
+-            if not path.startswith('/World/RenderScene/Geometry/'):
+-                continue
++        paths = ctx.get_selection().get_selected_prim_paths()
++        if len(paths) > 65536:
++            return
++        selected = {}
++        for path in paths:
++            # A mixed/unknown/hidden native selection is unresolved, never a clear
++            # or a partial snapshot of the remaining valid objects.
++            if not isinstance(path, str) or not path.startswith('/World/RenderScene/Geometry/'):
++                return
+             prim = stage.GetPrimAtPath(path)
+-            if not prim:
+-                continue
++            if not prim or UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible:
++                return
+             prim_id = prim.GetCustomDataByKey('dcdtuni:primitiveId')
+             model_uid = prim.GetCustomDataByKey('dcdtuni:modelUid')
+-            if self._render_primitive_ids.get(prim_id) != model_uid or not model_uid:
+-                continue
+-            identity = (self._scene_revision, prim_id)
+-            if identity == self._last_ov_pick:
+-                return
+-            self._last_ov_pick = identity
+-            signal = carb.events.type_from_string('dcdtuni:ovEditEvent')
+-            omni.kit.app.get_app().get_message_bus_event_stream().push(signal, payload={
+-                'schema': 'dcdtuni.ov-edit/v1',
+-                'sceneRevision': self._scene_revision,
+-                'projectHash': self._render_project_hash,
+-                'primId': prim_id, 'modelUid': model_uid,
+-                'coordinateSystem': {'upAxis': 'Y', 'handedness': 'right', 'metersPerUnit': 1},
+-                'action': {'type': 'pick'},
+-            })
+-            return
+-        self._last_ov_pick = None
++            if (not isinstance(prim_id, str) or not 1 <= len(prim_id) <= 1024
++                    or not isinstance(model_uid, str) or not 1 <= len(model_uid) <= 256
++                    or self._render_primitive_ids.get(prim_id) != model_uid
++                    or path not in self._render_uid_paths.get(model_uid, ())):
++                return
++            selected[model_uid] = min(prim_id, selected.get(model_uid, prim_id))
++        if len(selected) > 1024:
++            return
++        identity = (self._scene_revision, tuple(sorted(selected)))
++        if identity == self._last_ov_pick:
++            return
++        payload = {
++            'schema': 'dcdtuni.ov-edit/v1',
++            'sceneRevision': self._scene_revision,
++            'projectHash': self._render_project_hash,
++            'coordinateSystem': {'upAxis': 'Y', 'handedness': 'right', 'metersPerUnit': 1},
++            'action': {'type': 'selection'},
++            # Keep native first-seen order so a Shift-appended object remains
++            # the common driver's last (active) UID; set identity stays order-free.
++            'selection': [{'primId': prim_id, 'modelUid': uid} for uid, prim_id in selected.items()],
++        }
++        if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > 65536:
++            return
++        self._last_ov_pick = identity
++        signal = carb.events.type_from_string('dcdtuni:ovEditEvent')
++        omni.kit.app.get_app().get_message_bus_event_stream().push(signal, payload=payload)
+ 
+     def _route_render_command(self, command, message):
+         from . import render_scene
+--- a/src/frontend/omniverse/cfd_demo/tests/test_source_selection.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_source_selection.py
+@@ -0,0 +1,227 @@
++"""Real source methods and CPU USD; controlled Kit event/selection carriers.
++
++These tests prove the source-to-UID contract, not streamed pixel picking.
++"""
++import ast
++import json
++from pathlib import Path
++import sys
++import types
++import unittest
++from pxr import Usd, UsdGeom
++
++BRIDGE = Path(__file__).resolve().parents[1] / "kit/extensions/dc.cfd_bridge/dc/cfd_bridge"
++
++
++def harness(source=None):
++    stage = Usd.Stage.CreateInMemory()
++    paths = {uid: [f"/World/RenderScene/Geometry/{uid}/face{i}" for i in range(2)]
++             for uid in ("UPS_Rack", "CDU_1")}
++    primitive_ids = {}
++    for uid, children in paths.items():
++        UsdGeom.Xform.Define(stage, children[0].rsplit("/", 1)[0])
++        for i, path in enumerate(children):
++            prim = UsdGeom.Mesh.Define(stage, path).GetPrim()
++            prim.SetCustomDataByKey("dcdtuni:primitiveId", f"{uid}-face{i}")
++            prim.SetCustomDataByKey("dcdtuni:modelUid", uid)
++            primitive_ids[f"{uid}-face{i}"] = uid
++    selection = types.SimpleNamespace(paths=[])
++    selection.get_selected_prim_paths = lambda: list(selection.paths)
++    selection.set_selected_prim_paths = lambda value, _expand: setattr(selection, "paths", list(value))
++    context = types.SimpleNamespace(get_stage=lambda: stage, get_selection=lambda: selection)
++    events = []
++    bus = types.SimpleNamespace(push=lambda _signal, payload: events.append(payload))
++    omni = types.SimpleNamespace(usd=types.SimpleNamespace(get_context=lambda: context),
++        kit=types.SimpleNamespace(app=types.SimpleNamespace(get_app=lambda:
++            types.SimpleNamespace(get_message_bus_event_stream=lambda: bus))))
++    carb = types.SimpleNamespace(events=types.SimpleNamespace(type_from_string=lambda name: name))
++    package = types.ModuleType("selection_test_bridge")
++    module = types.ModuleType("selection_test_bridge.render_scene")
++    module.CAMERA = "/World/RenderCamera"
++    sys.modules[package.__name__] = package
++    sys.modules[module.__name__] = module
++    namespace = {"__package__": package.__name__, "json": json, "omni": omni, "carb": carb}
++    tree = ast.parse(Path(source or BRIDGE / "extension.py").read_text())
++    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "CfdBridgeExtension")
++    methods = [n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
++               and n.name in ("_emit_source_pick", "_apply_render_view")]
++    unit = ast.Module(body=[ast.ClassDef(name="Extension", bases=[], keywords=[],
++        body=methods, decorator_list=[])], type_ignores=[])
++    exec(compile(ast.fix_missing_locations(unit), str(source or BRIDGE / "extension.py"), "exec"), namespace)
++    extension = namespace["Extension"]()
++    extension.__dict__.update(_suppress_ov_pick=False, _render_project_hash="a" * 64,
++        _scene_revision=7, _last_ov_pick=None, _render_uid_paths=paths,
++        _render_primitive_ids=primitive_ids)
++    extension._prepare_output_layout = lambda _stage: None
++    extension._observe_grid_viewport = lambda: None
++    extension._ensure_grid_raster = lambda: types.SimpleNamespace(receipt={}, offer=lambda *_args: None)
++    return extension, selection, stage, paths, events
++
++
++def emitted_uids(event):
++    if event["action"]["type"] == "selection":
++        return [item["modelUid"] for item in event["selection"]]
++    return [event["modelUid"]]
++
++
++class SourceSelectionTests(unittest.TestCase):
++    def test_shift_append_after_the_same_first_primitive_reaches_both_whole_uids(self):
++        ext, selection, _stage, paths, events = harness()
++        selection.paths = paths["UPS_Rack"][:]
++        ext._emit_source_pick()
++        selection.paths.append(paths["CDU_1"][0])
++        ext._emit_source_pick()
++        self.assertEqual(set(emitted_uids(events[-1])), {"UPS_Rack", "CDU_1"})
++        self.assertEqual(len(events), 2)
++        self.assertEqual(emitted_uids(events[-1]), ["UPS_Rack", "CDU_1"])
++
++    def test_real_native_empty_selection_is_forwarded_as_clear(self):
++        ext, selection, _stage, paths, events = harness()
++        selection.paths = paths["UPS_Rack"][:]
++        ext._emit_source_pick()
++        selection.paths = []
++        ext._emit_source_pick()
++        self.assertEqual(emitted_uids(events[-1]), [])
++
++    def test_complete_uid_set_deduplicates_faces_and_order(self):
++        ext, selection, _stage, paths, events = harness()
++        selection.paths = paths["UPS_Rack"] + paths["CDU_1"]
++        ext._emit_source_pick()
++        self.assertEqual(len(events[0]["selection"]), 2)
++        selection.paths.reverse()
++        ext._emit_source_pick()
++        self.assertEqual(len(events), 1)
++
++    def test_delayed_programmatic_echo_is_suppressed_by_the_complete_applied_set(self):
++        ext, _selection, stage, _paths, events = harness()
++        ext._apply_render_view(stage, {"selectedUids": ["UPS_Rack", "CDU_1"]})
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++        ext._apply_render_view(stage, {"selectedUids": []})
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++
++    def test_programmatic_fourteen_object_locate_echo_does_not_collapse_to_first(self):
++        ext, selection, stage, _paths, events = harness()
++        uids = [f"Rack_A_{i:02}" for i in range(1, 15)]
++        for uid in uids:
++            path = f"/World/RenderScene/Geometry/{uid}/face0"
++            prim = UsdGeom.Mesh.Define(stage, path).GetPrim()
++            prim.SetCustomDataByKey("dcdtuni:primitiveId", uid + "-face0")
++            prim.SetCustomDataByKey("dcdtuni:modelUid", uid)
++            ext._render_uid_paths[uid] = [path]
++            ext._render_primitive_ids[uid + "-face0"] = uid
++        ext._apply_render_view(stage, {"selectedUids": uids})
++        ext._emit_source_pick()
++        self.assertEqual(len(selection.paths), 14)
++        self.assertEqual(events, [])
++
++    def test_native_add_after_programmatic_selection_is_not_suppressed(self):
++        ext, selection, stage, paths, events = harness()
++        ext._apply_render_view(stage, {"selectedUids": ["UPS_Rack"]})
++        selection.paths.append(paths["CDU_1"][1])
++        ext._emit_source_pick()
++        self.assertEqual(set(emitted_uids(events[0])), {"UPS_Rack", "CDU_1"})
++
++    def test_programmatic_hidden_children_do_not_block_later_shift_hit(self):
++        ext, selection, stage, paths, events = harness()
++        UsdGeom.Imageable(stage.GetPrimAtPath(paths["UPS_Rack"][1])).MakeInvisible()
++        ext._apply_render_view(stage, {"selectedUids": ["UPS_Rack"]})
++        self.assertEqual(selection.paths, [paths["UPS_Rack"][0]])
++        selection.paths.append(paths["CDU_1"][0])
++        ext._emit_source_pick()
++        self.assertEqual(set(emitted_uids(events[0])), {"UPS_Rack", "CDU_1"})
++
++    def test_failed_programmatic_set_does_not_poison_the_last_native_snapshot(self):
++        ext, selection, stage, _paths, _events = harness()
++        def refuse(*_args):
++            raise RuntimeError("controlled refusal")
++        selection.set_selected_prim_paths = refuse
++        with self.assertRaises(RuntimeError):
++            ext._apply_render_view(stage, {"selectedUids": ["UPS_Rack"]})
++        self.assertIsNone(ext._last_ov_pick)
++        self.assertFalse(ext._suppress_ov_pick)
++
++    def test_parent_visibility_is_computed_by_actual_cpu_usd(self):
++        ext, selection, stage, paths, events = harness()
++        selection.paths = paths["UPS_Rack"] + [paths["CDU_1"][0]]
++        parent = stage.GetPrimAtPath(paths["CDU_1"][0].rsplit("/", 1)[0])
++        UsdGeom.Imageable(parent).MakeInvisible()
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++
++    def test_unknown_mixed_path_does_not_emit_partial_selection_or_clear(self):
++        ext, selection, _stage, paths, events = harness()
++        for unknown in ("/World/CAE/result", "/World/RenderScene/Geometry/missing"):
++            selection.paths = [paths["UPS_Rack"][0], unknown]
++            ext._emit_source_pick()
++            self.assertEqual(events, [])
++
++    def test_forged_tags_outside_the_accepted_path_map_are_rejected(self):
++        ext, selection, stage, _paths, events = harness()
++        prim = UsdGeom.Mesh.Define(stage, "/World/RenderScene/Geometry/forged").GetPrim()
++        prim.SetCustomDataByKey("dcdtuni:primitiveId", "UPS_Rack-face0")
++        prim.SetCustomDataByKey("dcdtuni:modelUid", "UPS_Rack")
++        selection.paths = [str(prim.GetPath())]
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++
++    def test_scene_revision_changes_retire_previous_set_identity(self):
++        ext, selection, _stage, paths, events = harness()
++        selection.paths = [paths["UPS_Rack"][0]]
++        ext._emit_source_pick()
++        ext._scene_revision += 1
++        ext._emit_source_pick()
++        self.assertEqual([event["sceneRevision"] for event in events], [7, 8])
++
++    def test_overlong_or_mismatched_source_identity_is_not_partial(self):
++        ext, selection, stage, paths, events = harness()
++        selection.paths = paths["UPS_Rack"] + [paths["CDU_1"][0]]
++        prim = stage.GetPrimAtPath(paths["CDU_1"][0])
++        for value in ("bad", "x" * 1025):
++            prim.SetCustomDataByKey("dcdtuni:primitiveId", value)
++            ext._emit_source_pick()
++            self.assertEqual(events, [])
++
++    def test_path_count_cap_does_not_clear(self):
++        ext, selection, _stage, paths, events = harness()
++        selection.paths = [paths["UPS_Rack"][0]] * 65537
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++
++    def test_unicode_source_uid_round_trips_inside_utf8_cap(self):
++        ext, selection, _stage, paths, events = harness()
++        uid = "液" * 256
++        children = paths["CDU_1"][:]
++        ext._render_uid_paths[uid] = ext._render_uid_paths.pop("CDU_1")
++        for path in children:
++            prim = _stage.GetPrimAtPath(path)
++            prim.SetCustomDataByKey("dcdtuni:modelUid", uid)
++            ext._render_primitive_ids[prim.GetCustomDataByKey("dcdtuni:primitiveId")] = uid
++        # A genuine bounded single Unicode UID still fits and round trips.
++        selection.paths = children
++        ext._emit_source_pick()
++        self.assertEqual(emitted_uids(events[0]), [uid])
++
++    def test_payload_byte_cap_refuses_the_whole_snapshot(self):
++        ext, selection, stage, _paths, events = harness()
++        for i in range(70):
++            uid = str(i) + "u" * 250
++            prim_id = str(i) + "p" * 1010
++            path = f"/World/RenderScene/Geometry/p{i}"
++            prim = UsdGeom.Mesh.Define(stage, path).GetPrim()
++            prim.SetCustomDataByKey("dcdtuni:primitiveId", prim_id)
++            prim.SetCustomDataByKey("dcdtuni:modelUid", uid)
++            ext._render_primitive_ids[prim_id] = uid
++            ext._render_uid_paths[uid] = [path]
++            selection.paths.append(path)
++        ext._emit_source_pick()
++        self.assertEqual(events, [])
++        self.assertIsNone(ext._last_ov_pick)
++        selection.paths = selection.paths[:1]
++        ext._emit_source_pick()
++        self.assertEqual(len(events), 1)
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/src/frontend/react/src/renderer/ovEditBridge.ts
++++ b/src/frontend/react/src/renderer/ovEditBridge.ts
+@@ -13,18 +13,27 @@
+ type Axis = 'x' | 'y' | 'z'
+ type Quaternion = { x: number; y: number; z: number; w: number }
+ type Vec = { x: number; y: number; z: number }
+-export interface OvEditEvent {
++interface OvEventIdentity {
+   schema: 'dcdtuni.ov-edit/v1'
+   sceneRevision: number
+   projectHash: string
++  coordinateSystem: { upAxis: 'Y'; handedness: 'right'; metersPerUnit: 1 }
++}
++interface OvModelEditEvent extends OvEventIdentity {
+   primId: string
+   modelUid: string
+-  coordinateSystem: { upAxis: 'Y'; handedness: 'right'; metersPerUnit: 1 }
+   action: { type: 'pick' } | { type: 'translate' } | { type: 'rotate'; axis: Axis; degrees: number }
+   worldTransform?: { positionMeters: [number, number, number]; quaternion: [number, number, number, number]; scale: [number, number, number] }
+ }
++interface OvSelectionEvent extends OvEventIdentity {
++  action: { type: 'selection' }
++  selection: {primId: string; modelUid: string}[]
++}
++export type OvEditEvent = OvModelEditEvent | OvSelectionEvent
++function isSelectionEvent(event: OvEditEvent): event is OvSelectionEvent { return event.action.type === 'selection' }
+ export type OvEditResult =
+-  | { ok: true; action: OvEditEvent['action']['type']; modelUid: string }
++  | { ok: true; action: 'selection'; modelUids: string[] }
++  | { ok: true; action: OvModelEditEvent['action']['type']; modelUid: string }
+   | { ok: false; reason: 'invalid_event' | 'stale_scene' | 'stale_project' |
+       'unknown_primitive' | 'not_editable' | 'model_mismatch' | 'unsupported_model' |
+       'axis_locked' | 'transform_mismatch' | 'no_change' | 'rejected_by_project' | 'editing_disabled' }
+@@ -79,7 +88,7 @@
+   for (const id of pickable) if (!primitives.has(id)) throw new Error(`Pickable OV primitive is absent from scene: ${id}`)
+ 
+   function apply(raw: unknown): OvEditResult {
+-    if (!validate(raw) || (raw.worldTransform && !normalized(raw.worldTransform.quaternion))) {
++    if (!validate(raw) || (!isSelectionEvent(raw) && raw.worldTransform && !normalized(raw.worldTransform.quaternion))) {
+       return { ok: false, reason: 'invalid_event' }
+     }
+     const event = raw
+@@ -92,6 +101,22 @@
+       return { ok: false, reason: 'stale_project' }
+     }
+     if (!options.canEdit()) return { ok: false, reason: 'editing_disabled' }
++    if (isSelectionEvent(event)) {
++      const uids: string[] = []
++      for (const item of event.selection) {
++        const primitive = primitives.get(item.primId)
++        if (!primitive) return { ok: false, reason: 'unknown_primitive' }
++        if (!pickable.has(item.primId) || !primitive.visible) return { ok: false, reason: 'not_editable' }
++        if (primitive.modelUid !== item.modelUid || uids.includes(item.modelUid)) return { ok: false, reason: 'model_mismatch' }
++        const hit = store.findConstruction(live, item.modelUid)
++        if (!hit || hit.model.uid !== item.modelUid) return { ok: false, reason: 'model_mismatch' }
++        uids.push(item.modelUid)
++      }
++      // Apply only after every item validates: a malformed mixed event must not
++      // silently clear or partially replace the common React selection.
++      options.onSelection(uids)
++      return { ok: true, action: 'selection', modelUids: uids }
++    }
+     const primitive = primitives.get(event.primId)
+     if (!primitive) return { ok: false, reason: 'unknown_primitive' }
+     if (event.action.type === 'pick' ? !pickable.has(event.primId) : !editable.has(event.primId)) {
+--- a/src/frontend/react/test/ovWholeSelection.test.tsx
++++ b/src/frontend/react/test/ovWholeSelection.test.tsx
+@@ -0,0 +1,74 @@
++import * as THREE from 'three'
++import {act,useEffect,useState} from 'react'
++import {createRoot,type Root} from 'react-dom/client'
++import {afterEach,beforeEach,expect,it,vi} from 'vitest'
++import type {CfdProject} from '../src/schema/cfdproj'
++import * as store from '../src/projectStore'
++import {cfdrunExport} from '../src/legacy/cfdrunBuild'
++import {buildSceneSnapshot,type SceneSnapshot} from '../src/renderer/sceneSnapshot'
++import {RendererControl} from '../src/renderer/RendererControl'
++import {createOvEditBridge} from '../src/renderer/ovEditBridge'
++import {OvCommandClient} from '../src/renderer/ovProtocol'
++import {setOvSession} from '../src/renderer/ovSession'
++
++// Only the transport/native-window carrier is controlled. RendererControl,
++// onEditEvent decoding, schema, project hash, whitelist and selection bridge run.
++const f=vi.hoisted(()=>({client:null as unknown,packet:null as unknown,camera:null as unknown}))
++vi.mock('../src/viewportBus',()=>({getViewportHandle:()=>({camera:f.camera,controls:{target:new THREE.Vector3(),update(){}}}),subscribeCameraSettled:()=>()=>{}}))
++vi.mock('../src/renderer/useSharedPostprocessRenderer',()=>({useSharedPostprocessRenderer(){}}))
++vi.mock('../src/renderer/OvViewport',()=>({OvViewport:(props:{onReady:(value:unknown,ack:unknown,packet:unknown)=>void})=>{
++ useEffect(()=>{const project=store.getProject()!;props.onReady(f.client,{ok:true,requestId:'controlled',projectHash:cfdrunExport().projectContentHashSync(project),sceneRevision:7},f.packet)},[])
++ return <div data-controlled-video-carrier="true"/>
++}}))
++let host:HTMLDivElement,root:Root,client:OvCommandClient,packet:SceneSnapshot,project:CfdProject
++function payload(selection:{primId:string;modelUid:string}[],extra:Record<string,unknown>={}){
++ return {schema:'dcdtuni.ov-edit/v1',sceneRevision:7,projectHash:cfdrunExport().projectContentHashSync(store.getProject()),coordinateSystem:{upAxis:'Y',handedness:'right',metersPerUnit:1},action:{type:'selection'},selection,...extra}
++}
++const ups={primId:'UPS_Rack-face0',modelUid:'UPS_Rack'},cdu={primId:'CDU_1-face0',modelUid:'CDU_1'}
++function CommonSelection(){
++ const [uids,setUids]=useState(['UPS_Rack'])
++ return <><RendererControl project={project} selectedUids={uids} onSelection={setUids} activeTab="geometry" airMode={false}/><output data-common-selection="true">{uids.join(',')}</output></>
++}
++beforeEach(()=>{
++ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true)
++ project={uid:'selection-project',constructions:{racks:{UPS_Rack:{uid:'UPS_Rack',meta:{name:'UPS'},geometry:{location:{x:0,y:0,z:0},size:{x:1,y:1,z:1}}}},cdus:{CDU_1:{uid:'CDU_1',meta:{name:'CDU'},geometry:{location:{x:2,y:0,z:0},size:{x:1,y:1,z:1}}}}}} as CfdProject
++ store.loadProject(project,null);project=store.getProject()!
++ const group=new THREE.Group()
++ for(const uid of ['UPS_Rack','CDU_1']){const model=new THREE.Group();model.userData.modelId=uid;for(let i=0;i<2;i++)model.add(new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial()));group.add(model)}
++ packet=buildSceneSnapshot({root:group,project});packet.primitives.forEach((p,i)=>p.id=p.modelUid+'-face'+(i%2))
++ f.packet=packet;f.camera=new THREE.PerspectiveCamera();(window as unknown as {globalGroup:unknown}).globalGroup=group
++ client=new OvCommandClient(async()=>{})
++ vi.spyOn(client,'updateView').mockResolvedValue({ok:true,requestId:'controlled',gridDisplay:{phase:'unsupported',reason:'stream-layout-unresolved'}} as Awaited<ReturnType<OvCommandClient['updateView']>>)
++ f.client=client;setOvSession({mode:'three',ready:false,degraded:false,client:null,liquidActive:false,sceneIdle:null,projectUid:null,projectContentSha256:null,sceneRevision:null})
++ host=document.createElement('div');document.body.append(host);root=createRoot(host)
++})
++afterEach(async()=>{await act(async()=>{root.unmount();client.dispose();await Promise.resolve()});setOvSession({mode:'three',ready:false,degraded:false,client:null,liquidActive:false,sceneIdle:null,projectUid:null,projectContentSha256:null,sceneRevision:null});host.remove();delete(window as {globalGroup?:unknown}).globalGroup;vi.restoreAllMocks();vi.unstubAllGlobals()})
++async function mount(){
++ await act(async()=>root.render(<CommonSelection/>))
++ const select=host.querySelector<HTMLSelectElement>('select')!
++ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value')!.set!.call(select,'ov');select.dispatchEvent(new Event('change',{bubbles:true}))})
++}
++async function receive(value:unknown){await act(async()=>{client.receive({event_type:'dcdtuni:ovEditEvent',payload:value});await Promise.resolve()})}
++it('mounted native Shift snapshot reaches both whole objects with unsupported grid proof',async()=>{
++ await mount();await receive(payload([ups,cdu]));expect(host.querySelector('output')!.textContent).toBe('UPS_Rack,CDU_1');expect(store.undoDepth()).toBe(0)
++})
++it('mounted native empty snapshot clears common selection',async()=>{
++ await mount();await receive(payload([]));expect(host.querySelector('output')!.textContent).toBe('')
++})
++it('mounted invalid/stale mixed snapshots never partially select or clear',async()=>{
++ await mount()
++ for(const value of [payload([ups,{primId:'unknown',modelUid:'CDU_1'}]),payload([cdu],{sceneRevision:6}),payload([cdu],{projectHash:'0'.repeat(64)}),payload([ups,ups]),payload([cdu],{extra:true})]){await receive(value);expect(host.querySelector('output')!.textContent).toBe('UPS_Rack')}
++})
++it('keeps legacy single pick compatibility through the mounted common driver',async()=>{
++ await mount();const {selection:_,...event}=payload([]);await receive({...event,primId:cdu.primId,modelUid:cdu.modelUid,action:{type:'pick'}});expect(host.querySelector('output')!.textContent).toBe('CDU_1')
++})
++it('rejects a hidden source, bad UID, excessive list and frozen host before common selection',()=>{
++ const selected=vi.fn(),options={snapshot:packet,sceneRevision:7,currentSceneRevision:()=>7,pickablePrimitiveIds:new Set(packet.primitives.map(p=>p.id)),editablePrimitiveIds:new Set<string>(),canEdit:()=>true,onSelection:selected}
++ packet.primitives.find(p=>p.id===cdu.primId)!.visible=false
++ const bridge=createOvEditBridge(options)
++ expect(bridge.apply(payload([cdu]))).toMatchObject({ok:false,reason:'not_editable'})
++ expect(bridge.apply(payload([{...ups,modelUid:'CDU_1'}]))).toMatchObject({ok:false,reason:'model_mismatch'})
++ expect(bridge.apply(payload(Array.from({length:1025},()=>ups)))).toMatchObject({ok:false,reason:'invalid_event'})
++ expect(createOvEditBridge({...options,canEdit:()=>false}).apply(payload([]))).toMatchObject({ok:false,reason:'editing_disabled'})
++ expect(selected).not.toHaveBeenCalled();expect(store.undoDepth()).toBe(0)
++})
+--- a/src/frontend/shared/schema/ov-edit-event.schema.json
++++ b/src/frontend/shared/schema/ov-edit-event.schema.json
+@@ -2,45 +2,251 @@
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "$id": "https://dcdtuni.local/schema/ov-edit-event-v1",
+   "title": "Omniverse editor interaction event V1",
+-  "description": "One committed model-anchor action in the source .cfdproj coordinate system. A result prim is never an edit target.",
++  "description": "Scene-bound source model actions and complete visible source-object selection. Result primitives never authorize source selection or motion.",
+   "type": "object",
+   "additionalProperties": false,
+-  "required": ["schema", "sceneRevision", "projectHash", "primId", "modelUid", "coordinateSystem", "action"],
+-  "allOf": [{
+-    "if": { "type": "object", "properties": { "action": { "type": "object", "properties": { "type": { "enum": ["translate", "rotate"] } } } } },
+-    "then": { "type": "object", "properties": { "worldTransform": {} }, "required": ["worldTransform"] }
+-  }],
++  "required": [
++    "schema",
++    "sceneRevision",
++    "projectHash",
++    "coordinateSystem",
++    "action"
++  ],
++  "allOf": [
++    {
++      "if": {
++        "type": "object",
++        "properties": {
++          "action": {
++            "type": "object",
++            "properties": {
++              "type": {
++                "enum": [
++                  "translate",
++                  "rotate"
++                ]
++              }
++            }
++          }
++        }
++      },
++      "then": {
++        "type": "object",
++        "properties": {
++          "worldTransform": {}
++        },
++        "required": [
++          "worldTransform"
++        ]
++      }
++    },
++    {
++      "if": {
++        "properties": {
++          "action": {
++            "properties": {
++              "type": {
++                "const": "selection"
++              }
++            },
++            "type": "object"
++          }
++        },
++        "type": "object"
++      },
++      "then": {
++        "required": [
++          "selection"
++        ],
++        "properties": {
++          "primId": false,
++          "modelUid": false,
++          "worldTransform": false,
++          "selection": {}
++        },
++        "type": "object"
++      },
++      "else": {
++        "required": [
++          "primId",
++          "modelUid"
++        ],
++        "properties": {
++          "selection": false,
++          "primId": {},
++          "modelUid": {}
++        },
++        "type": "object"
++      }
++    }
++  ],
+   "properties": {
+-    "schema": { "const": "dcdtuni.ov-edit/v1" },
+-    "sceneRevision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+-    "projectHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+-    "primId": { "type": "string", "minLength": 1, "maxLength": 1024 },
+-    "modelUid": { "type": "string", "minLength": 1, "maxLength": 256 },
++    "schema": {
++      "const": "dcdtuni.ov-edit/v1"
++    },
++    "sceneRevision": {
++      "type": "integer",
++      "minimum": 0,
++      "maximum": 9007199254740991
++    },
++    "projectHash": {
++      "type": "string",
++      "pattern": "^[0-9a-f]{64}$"
++    },
++    "primId": {
++      "type": "string",
++      "minLength": 1,
++      "maxLength": 1024
++    },
++    "modelUid": {
++      "type": "string",
++      "minLength": 1,
++      "maxLength": 256
++    },
+     "coordinateSystem": {
+-      "type": "object", "additionalProperties": false,
+-      "required": ["upAxis", "handedness", "metersPerUnit"],
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "upAxis",
++        "handedness",
++        "metersPerUnit"
++      ],
+       "properties": {
+-        "upAxis": { "const": "Y" },
+-        "handedness": { "const": "right" },
+-        "metersPerUnit": { "const": 1 }
++        "upAxis": {
++          "const": "Y"
++        },
++        "handedness": {
++          "const": "right"
++        },
++        "metersPerUnit": {
++          "const": 1
++        }
+       }
+     },
+     "action": {
+       "oneOf": [
+-        { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "pick" } } },
+-        { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "translate" } } },
+-        { "type": "object", "additionalProperties": false, "required": ["type", "axis", "degrees"],
+-          "properties": { "type": { "const": "rotate" }, "axis": { "enum": ["x", "y", "z"] },
+-            "degrees": { "type": "number", "minimum": -360, "maximum": 360 } } }
++        {
++          "type": "object",
++          "additionalProperties": false,
++          "required": [
++            "type"
++          ],
++          "properties": {
++            "type": {
++              "const": "pick"
++            }
++          }
++        },
++        {
++          "type": "object",
++          "additionalProperties": false,
++          "required": [
++            "type"
++          ],
++          "properties": {
++            "type": {
++              "const": "translate"
++            }
++          }
++        },
++        {
++          "type": "object",
++          "additionalProperties": false,
++          "required": [
++            "type",
++            "axis",
++            "degrees"
++          ],
++          "properties": {
++            "type": {
++              "const": "rotate"
++            },
++            "axis": {
++              "enum": [
++                "x",
++                "y",
++                "z"
++              ]
++            },
++            "degrees": {
++              "type": "number",
++              "minimum": -360,
++              "maximum": 360
++            }
++          }
++        },
++        {
++          "type": "object",
++          "additionalProperties": false,
++          "required": [
++            "type"
++          ],
++          "properties": {
++            "type": {
++              "const": "selection"
++            }
++          }
++        }
+       ]
+     },
+     "worldTransform": {
+-      "type": "object", "additionalProperties": false,
+-      "required": ["positionMeters", "quaternion", "scale"],
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "positionMeters",
++        "quaternion",
++        "scale"
++      ],
+       "properties": {
+-        "positionMeters": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+-        "quaternion": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } },
+-        "scale": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
++        "positionMeters": {
++          "type": "array",
++          "minItems": 3,
++          "maxItems": 3,
++          "items": {
++            "type": "number"
++          }
++        },
++        "quaternion": {
++          "type": "array",
++          "minItems": 4,
++          "maxItems": 4,
++          "items": {
++            "type": "number"
++          }
++        },
++        "scale": {
++          "type": "array",
++          "minItems": 3,
++          "maxItems": 3,
++          "items": {
++            "type": "number"
++          }
++        }
++      }
++    },
++    "selection": {
++      "type": "array",
++      "maxItems": 1024,
++      "uniqueItems": true,
++      "items": {
++        "type": "object",
++        "additionalProperties": false,
++        "required": [
++          "primId",
++          "modelUid"
++        ],
++        "properties": {
++          "primId": {
++            "type": "string",
++            "minLength": 1,
++            "maxLength": 1024
++          },
++          "modelUid": {
++            "type": "string",
++            "minLength": 1,
++            "maxLength": 256
++          }
++        }
+       }
+     }
+   }

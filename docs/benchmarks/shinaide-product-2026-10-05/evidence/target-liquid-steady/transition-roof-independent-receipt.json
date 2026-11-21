@@ -1,0 +1,231 @@
+{
+  "format": "air-roof-transition-independent-receipt/v2",
+  "status": "buffered-analytic-diagnostic-full-check-passed-product-acceptance-unproved",
+  "sourceSha256": {
+    "tools/audit_air_transition_roof.py": "9b7679313e737d9f843fe313b1d97cab345441b60e89fe1b373e69267fda9e82",
+    "src/backend/tests/test_air_transition_roof_audit.py": "1f77264a0bc19eaf6f268a6fe555620e9ca3a671b671190e73c03318079a6b6f",
+    "tools/audit_air_mesh_geometry.py": "9f973fa74084aa0f007958666dfae61dcb990e4c6d430c1db0f5a13a8464fec6"
+  },
+  "primaryAirSource": {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/tools/air_transition_roof_probe.py",
+    "commit": "10a75645",
+    "sha256": "3defc26972d22343c9753130a9cb801fa86cb764d3b98ce5f02fd062e05e4bb7",
+    "snapshot": "transition-roof-air-original-source.py"
+  },
+  "installedDefinitionSha256": {
+    "primitiveMeshTools.C": "db2868dc5ccb66f8e3e8c4b919afb8abf8bb3b0fc290c704f9ad4c65b645a712",
+    "primitiveMeshCheck.C": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+    "polyMeshTools.C": "73a36732d9b4ea615fb2c2b16b2faa818caa1dc97f155ea1b45918fd19d0feef",
+    "polyMeshTetDecomposition.C": "50b2b67e249951c4ef7343655c44811351209415a4d894abcf6ac4089532180c",
+    "tetrahedronI.H": "46147b68744b5e0175d94b5f5e0b40dc21f89aa146a7208989aea32796ff6c46"
+  },
+  "originalFiveCellFailure": {
+    "cells": 5,
+    "nativeExitCode": 0,
+    "failedChecks": 1,
+    "reason": "Only four nearly parallel roof faces enter coarse internalOrCoupled area tensor; physical boundary faces excluded. min determinant4.99999e-13 below .001, despite faceTets and concavity passing.",
+    "definition": "primitiveMeshTools.C829-931: avgArea=mean(|Sf|) on internal/coupled faces; areaTensor=sum outer(Sf/avgArea); abs(det(areaTensor))/8 in 3D.",
+    "exactCoarseDeterminant": "8*epsilon^4/(1+2*epsilon^2)^3",
+    "epsilonMetres": 0.0005,
+    "exactValue": 4.9999925000075e-13
+  },
+  "bufferedHypothesis": {
+    "construction": "3x3 translated exact air five-cell packets in y/z(-1,0,1), plus3x3 regular h=1 coarse cubes x[-1,0]; all shared coordinates and face orientations equal. Original central five cells unchanged.",
+    "points": 130,
+    "cells": 54,
+    "globalFaces": 222,
+    "globalInternalFaces": 129,
+    "domain": {
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1.5,
+        2,
+        2
+      ]
+    },
+    "totalVolumeM3": 22.499999999999986,
+    "expectedVolumeM3": 22.5,
+    "minimumTensorDeterminant": 0.1249998905547024,
+    "minimumTetFanQuality": 0.11648594782965437,
+    "minimumAllInternalWeight": 0.33305565969349343,
+    "minimumAllInternalVolumeRatio": 0.12490627343164207
+  },
+  "nativeBufferedChecker": {
+    "platform": "OpenFOAM v2412 MPICH float64 Int32",
+    "mpiRanks": 2,
+    "decomposition": "manual18coarse onrank0/36fine onrank1",
+    "command": "mpirun -np2 taskset -c24-27 checkMesh -constant -allTopology -allGeometry -parallel -case <repo-local diagnostic>",
+    "nativeExitCode": 0,
+    "meshOK": true,
+    "failedChecks": 0,
+    "reported": {
+      "minimumCellDeterminant": 0.125,
+      "maximumNonorthogonality": 25.2007,
+      "maximumSkewness": 0.333,
+      "minimumInterpolationWeight": 0.333056,
+      "minimumVolumeRatio": 0.124906,
+      "minimumFaceFlatness": 1,
+      "totalVolumeM3": 22.5
+    },
+    "wholeOriginalSerialMeshUnchangedByDecompositionAndChecker": true
+  },
+  "tests": "6 passed in4.00s; genuine two-rank checker run included. Old5cell rejection and first invalid decompose option preserved.",
+  "scope": [
+    "Tiny mathematical checker diagnostic only; no native mesher/solver/sourceSTL/default/quality threshold modification.",
+    "No user case accepted or transient seed authorized by this receipt.",
+    "Regular uncut axis-aligned h/h2 2x2 packets only; absent proof for irregular/clipped/curved/baffle/zone/coupled/overlapping transitions.",
+    "Entire moved point star, full surrounding mesh and source geometry/physical patch partition must be checked before any actual shaping.",
+    "The necessary epsilon interval1e-6/sqrt(1-2e-12)<epsilon/h<.5 is not sufficient for full quality; selected.0005 passed this buffered fixture only."
+  ],
+  "files": {
+    "transition-roof-independent-audit.json": {
+      "bytes": 829232,
+      "sha256": "2c37032bdb5918f5fbc5cf541f5e37bbeb699dadc89509c8b0280b7a7b6c14f4"
+    },
+    "transition-roof-independent-audit-v2.json": {
+      "bytes": 1394389,
+      "sha256": "644d6850e16648454868f9ec193247ef913dd8b8e5b612e089242e27040e5bf2"
+    },
+    "transition-roof-independent-source-before-buffer.py": {
+      "bytes": 10813,
+      "sha256": "6684905d51dab1e6d79c1ad2ffe1c4061c5b744e56b9ee0489a8355ff942bf1a"
+    },
+    "transition-roof-air-original-source.py": {
+      "bytes": 5163,
+      "sha256": "3defc26972d22343c9753130a9cb801fa86cb764d3b98ce5f02fd062e05e4bb7"
+    },
+    "transition-roof-five-cell-checkMesh.log": {
+      "bytes": 4654,
+      "sha256": "e2218c7707d2563ac16fc8b062803838efb4bf91286cc4b3a8c40d281c1c5099"
+    },
+    "transition-roof-five-cell-decomposePar.log": {
+      "bytes": 2374,
+      "sha256": "f9e29f0d3e0bd6b95e109f665c4e42a322a2d68912434f5d13b64158c849dc1e"
+    },
+    "transition-roof-five-cell-pytest-rejection.txt": {
+      "bytes": 8729,
+      "sha256": "efa6adaa37b908582332526d2a7ee398e3b038cb8cc28575168d20253f2fa5dc"
+    },
+    "transition-roof-buffer-checkMesh.log": {
+      "bytes": 4397,
+      "sha256": "f86f0875238a840521916aa681b32badc0b639d278b0ddb843549103f1d61183"
+    },
+    "transition-roof-buffer-decomposePar.log": {
+      "bytes": 2406,
+      "sha256": "23197eaf38ea0ae81b9d79ed87aa4b1962ddeeb57507d0b280d7db72a2470a2f"
+    },
+    "transition-roof-buffer-pytest-output.txt": {
+      "bytes": 98,
+      "sha256": "d4c7629ce2aaf5c3ef5898ea3841b2befb798f100662abcdb26e8efba250a521"
+    },
+    "transition-roof-initial-invalid-decompose-option.txt": {
+      "bytes": 2093,
+      "sha256": "7c9863671037ec836b5ef8f07ac276f2c7fc7bc00e689aafb3bc3ac9d90c5f38"
+    },
+    "transition-roof-independent-output.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transition-roof-independent-buffer-output.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transition-roof-test-source-at-buffer-run.py": {
+      "bytes": 4891,
+      "sha256": "a4dd679bf6d793d30b594aab1ecc69bcdc1e4fb60f1a966cde4b155678ae1b1b"
+    },
+    "transition-roof-final-math-pytest-output.txt": {
+      "bytes": 109,
+      "sha256": "35b2873e5fc7ec3b5c889c624f00de4b13f2a82ebdfbfc6eb64250ab0c128535"
+    }
+  },
+  "fixtureFiles": {
+    "roof-five-cell-fixture/system/controlDict": {
+      "bytes": 199,
+      "sha256": "c3ad2650d5fe6f9e58d7abc7a5f3fb7273952c7dbed7c03bd18acc20a1d7b048"
+    },
+    "roof-five-cell-fixture/system/fvSchemes": {
+      "bytes": 286,
+      "sha256": "4ebe8c61637c62435962d5f8eaeeeb1de59476ab5f05084c3896fb4c88ed9056"
+    },
+    "roof-five-cell-fixture/system/decomposeParDict": {
+      "bytes": 147,
+      "sha256": "264344c0373f204eb696dfbc1d72ed1c7ba8b788b6cce7dada30e9c92e47d7b3"
+    },
+    "roof-five-cell-fixture/system/fvSolution": {
+      "bytes": 81,
+      "sha256": "38bce4c1d81d57e5cfd7be613759a5ed7272d5de7eaa84c8dc7726fd69188d50"
+    },
+    "roof-five-cell-fixture/constant/cellDecomp": {
+      "bytes": 85,
+      "sha256": "cd7412451bc6fc200acbbb76c29c4fa70421c6bc8e1060647bd4f954f7da4eff"
+    },
+    "roof-five-cell-fixture/constant/polyMesh/neighbour": {
+      "bytes": 92,
+      "sha256": "634e8d9cd24ecd9b47ffcefab32355a1afcc68abd1f0e293abac515cd1320eda"
+    },
+    "roof-five-cell-fixture/constant/polyMesh/owner": {
+      "bytes": 123,
+      "sha256": "c14505cff8a34e6f6a723aa3ed285cd6721321ceadb5bc505071fb4d82ac2d4f"
+    },
+    "roof-five-cell-fixture/constant/polyMesh/points": {
+      "bytes": 379,
+      "sha256": "7855cd0af789d3b7567294c1d5d070ecf0853a671f42852d06dc6285e7845359"
+    },
+    "roof-five-cell-fixture/constant/polyMesh/boundary": {
+      "bytes": 123,
+      "sha256": "d9c70a0df320082cad5720ac62b303f7debc4f36a4c654dcfbd1b56ec4d952dd"
+    },
+    "roof-five-cell-fixture/constant/polyMesh/faces": {
+      "bytes": 415,
+      "sha256": "9ced6886f6dff2dcdf665e17909e77d74e64c14fcafe603abea9c5aee7c470f8"
+    },
+    "roof-buffer-fixture/system/controlDict": {
+      "bytes": 199,
+      "sha256": "c3ad2650d5fe6f9e58d7abc7a5f3fb7273952c7dbed7c03bd18acc20a1d7b048"
+    },
+    "roof-buffer-fixture/system/fvSchemes": {
+      "bytes": 286,
+      "sha256": "4ebe8c61637c62435962d5f8eaeeeb1de59476ab5f05084c3896fb4c88ed9056"
+    },
+    "roof-buffer-fixture/system/decomposeParDict": {
+      "bytes": 147,
+      "sha256": "264344c0373f204eb696dfbc1d72ed1c7ba8b788b6cce7dada30e9c92e47d7b3"
+    },
+    "roof-buffer-fixture/system/fvSolution": {
+      "bytes": 81,
+      "sha256": "38bce4c1d81d57e5cfd7be613759a5ed7272d5de7eaa84c8dc7726fd69188d50"
+    },
+    "roof-buffer-fixture/constant/cellDecomp": {
+      "bytes": 184,
+      "sha256": "abade89851fecbca226d14de211b2c2d56163e698878ab10d29ce12a241597db"
+    },
+    "roof-buffer-fixture/constant/polyMesh/neighbour": {
+      "bytes": 446,
+      "sha256": "9e008cb9e607e8d8744c4d720e6315b01870c2d39c667ab7e01838d945e586ae"
+    },
+    "roof-buffer-fixture/constant/polyMesh/owner": {
+      "bytes": 693,
+      "sha256": "4f5b464afbaecdb8eee0b3927e2df5613faa6d7cdd60d96ed5ce8d532a6274d4"
+    },
+    "roof-buffer-fixture/constant/polyMesh/points": {
+      "bytes": 2032,
+      "sha256": "86a8d330a4582db1f03084a488ee45a145f045c2b30b77cb0b65ab0c02243a17"
+    },
+    "roof-buffer-fixture/constant/polyMesh/boundary": {
+      "bytes": 125,
+      "sha256": "e7144dbee007652a4b5fb2ea5005b31aab47fda9af06db253493e13f2c1d7b17"
+    },
+    "roof-buffer-fixture/constant/polyMesh/faces": {
+      "bytes": 3563,
+      "sha256": "6149f23d4398d43c127008b89830fcdb602c68e337d11c3a8b3e5a19f5aada55"
+    }
+  },
+  "testSourcePostRunChange": "Only analytic source lookup defaults: prefer retained canonical tools path after worktree merge, otherwise current sibling air source. Numerical/checker assertions unchanged.",
+  "actualBufferedRunTestSourceSha256": "a4dd679bf6d793d30b594aab1ecc69bcdc1e4fb60f1a966cde4b155678ae1b1b",
+  "finalTestSourceVerification": "5 passed, 1 skipped in 1.52s; checker intentionally not repeated after source lookup-only change."
+}

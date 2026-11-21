@@ -1,0 +1,81 @@
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H SHA256 c9e1fe1b9654dc0fc355c208818b78a037d75d4386d0b2f46ba653762eb85003
+118:     for (std::size_t i=0; i<a.size(); ++i)
+119:         if (dot(a[i],out.step)+b[i]<-2e-8) out.feasible=false;
+120:     return out;
+121: }
+122: enum class ObjectiveKind { Ratio, DWeightCount };
+123: 
+124: struct Evaluation
+125: {
+126:     double objective=0;
+127:     Row constraints;
+128:     bool valid=false;
+129:     double hardDW=-1; // Optional exact nonnegative count; unset keeps R behavior.
+130: };
+131: inline bool validHardDW(double n)
+132: {
+133:     return std::isfinite(n) && n>=0 && n<=std::numeric_limits<unsigned>::max()
+134:         && std::floor(n)==n;
+135: }
+136: struct Search
+137: {
+138:     Row parameters, bestHardParameters;
+139:     double bestHardDW=-1;
+140:     bool bestHardImproved=false;
+141:     unsigned requests=0, iterations=0, projectionUpdates=0;
+142:     bool improved=false, stoppedByBudget=false;
+143:     bool stoppedByRequestCap=false,stoppedByTimeBudget=false;
+144: };
+145: inline Search propose
+146: (
+147:     unsigned dimension,
+148:     const std::function<Evaluation(const Row&)>& evaluate,
+149:     const std::function<bool()>& available,
+150:     ObjectiveKind objectiveKind=ObjectiveKind::Ratio
+151: )
+152: {
+153:     Search out; out.parameters.assign(dimension,0);
+154:     if ((objectiveKind==ObjectiveKind::Ratio && dimension!=3 && dimension!=4)
+155:      || (objectiveKind==ObjectiveKind::DWeightCount && dimension!=3 && dimension!=9)) return out;
+156:     auto request=[&](const Row& q, Evaluation& e)
+157:     {
+158:         if (out.requests>=256)
+159:         { out.stoppedByBudget=true;out.stoppedByRequestCap=true;return false; }
+160:         if (!available())
+161:         { out.stoppedByBudget=true;out.stoppedByTimeBudget=true;return false; }
+162:         ++out.requests; e=evaluate(q);
+163:         return e.valid && std::isfinite(e.objective)
+164:             && !e.constraints.empty() && finite(e.constraints);
+165:     };
+166:     Row q(dimension,0); Evaluation current;
+167:     if (!request(q,current)) return out;
+168:     const double initialHardDW=current.hardDW;
+220:                     out.parameters=q; out.improved=true;
+221:                     // Reuse the already-evaluated accepted feasible iterate.
+222:                     // Soft trajectory and request accounting stay unchanged.
+223:                     if (objectiveKind==ObjectiveKind::DWeightCount
+224:                      && validHardDW(initialHardDW) && validHardDW(current.hardDW)
+225:                      && current.hardDW<initialHardDW
+226:                      && (!out.bestHardImproved || current.hardDW<out.bestHardDW))
+227:                     {
+228:                         out.bestHardParameters=q;out.bestHardDW=current.hardDW;
+229:                         out.bestHardImproved=true;
+230:                     }
+231:                     break;
+232:                 }
+233:             }
+234:             if (!valid || accepted) break;
+235:         }
+236:         ++out.iterations;
+237:         if (!valid || !accepted
+238:          || (objectiveKind==ObjectiveKind::Ratio && -current.objective*.01>=.0105)) break;
+239:     }
+240:     return out;
+241: }
+242: 
+243: using XYZ = std::array<double,3>;
+244: inline bool same(double a,double b) { return std::memcmp(&a,&b,sizeof(double))==0; }
+245: struct Face
+246: {
+247:     std::vector<int> points;
+248:     bool protectedFace=false;

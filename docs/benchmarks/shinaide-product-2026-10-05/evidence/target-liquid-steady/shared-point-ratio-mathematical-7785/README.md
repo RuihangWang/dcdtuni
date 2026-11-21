@@ -1,0 +1,7 @@
+# Frozen 11-point mathematical candidate and finite cavity design
+
+This archive preserves manifest-selected raw payloads from the ratio candidate and the independent finite-agglomeration design. Every member's size/SHA was checked before archiving and after decompressing; no native process, source mutation or mesh rewrite is implied.
+
+The bounded r3 apex proposal clears its local old ratio failure while reducing D/W. The r1 apex-only family did not clear its remaining ratio failure and was rejected. Combined with the earlier ten-point candidate, the eleven-point mathematical audit covers 304 complete core cells/209 outside guards and reports D39->14, W15->1, R1->0, S0, with no formerly passing hard role lost. Exact rational core V/M1 and unchanged outside cell geometry, physical outer footprint, coupled interface, and actual binary64 points roundtrip were checked. Installed native geometry/checkMesh acceptance is still required; the full Shinaide case remains Failed 3 checks.
+
+The separately preserved two literal union-pair audits improve D but produce genuine stock face-centred concavity or negative pyramids and degraded exterior quality. Neither pair is accepted. A finite cavity mechanism must preserve complete exterior roles and may need to expand the cavity or repartition internally; it cannot merely remove a stronger optional all-vertex filter. The design is a proposal, not production code. Original failed scratch syntax attempts remain in the manifest.

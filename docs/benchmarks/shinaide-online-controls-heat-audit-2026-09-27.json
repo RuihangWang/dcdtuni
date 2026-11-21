@@ -1,0 +1,48 @@
+{
+  "scope": "CPU-only v3 DAE online heat, pump and positive-valve input acceptance plus liquid heat-ledger verification; no air coupling",
+  "source_run": {
+    "project_uid": "proj_Shinaide",
+    "archived_run_id": "737a0ecc25e342acb7932356222e566f",
+    "input_liquidrun_sha256": "11b503d7a1fae9241158ff05e96106f949b31e834769e37b1f98dab13dca22e1",
+    "project_source_unchanged_sha256": "cff178754280c22f4aacae181224c6e2292a18819841e41479fbb39aa04de662"
+  },
+  "execution": {
+    "host": "NTU-Litianyu-40901",
+    "cpu_affinity": [0, 1, 2, 3],
+    "numeric_threads": 2,
+    "cuda_visible_devices": "",
+    "dtype": "float64",
+    "state_size": 1096,
+    "accepted_step_s": 20,
+    "queued_heat_multiplier": 1.2,
+    "queued_pump": {"edge_id": "m_30_pump", "rpm_ratio": 0.9},
+    "queued_valve": {"edge_id": "m_32_control_valve_1778059294098", "opening": 0.7},
+    "baseline_valve_flow_kg_s": -0.03531008463368014,
+    "controlled_valve_flow_kg_s": -0.031620893368924055,
+    "baseline_primary_return_K": 298.1739234471478,
+    "controlled_primary_return_K": 298.1627046437181,
+    "primary_return_delta_K": -0.011218803429699165,
+    "controlled_energy_balance_W": -4.0381564758718014e-10,
+    "accepted_manifest_sorted_json_sha256": "953b8669ace6dd1a944f62e95eac539993803a640fc7f8c737cd8cdbcf56945d",
+    "independent_strict_v3_replay_all_seven_field_groups_exact": true
+  },
+  "archived_liquid_heat_audit": {
+    "server_count": 56,
+    "sample_count": 31,
+    "checked_server_samples": 1736,
+    "max_abs_closure_residual_W": 5.9234707805444486e-08,
+    "cold_plate_input_t0_W": 21000,
+    "cold_plate_input_t600_W": 25200,
+    "identity_verified": false,
+    "handoff_ready": false,
+    "reason": "This historical run predates runtime executed-inputs.json; its available provenance is marked posthoc. Heat closure is verified, but cryptographic cross-artifact identity and air allocation are not."
+  },
+  "verification": {
+    "backend_related_tests": "112 passed across DAE controls, schema, accepted input, audit, HTTP and manager",
+    "frontend_targeted_tests": "19 passed across real DAE panel and runtime client",
+    "frontend_full_suite": "251 files / 2598 tests passed",
+    "frontend_production_build": "passed",
+    "new_gpu_or_cfd_run": false
+  },
+  "limits": "Fixed valve active set only; no valve closure/reopening or DAE PID. Primary hydraulics remain prescribed-flow. Air residual power and OpenFOAM coupling remain unimplemented."
+}

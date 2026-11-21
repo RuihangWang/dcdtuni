@@ -1,0 +1,33 @@
+{
+  "status": "failed",
+  "threads": 2,
+  "pgmres": {
+    "restart": 30,
+    "cycles": 25,
+    "degree": 8
+  },
+  "input_sha256": "460f7e24498adb8c581b8e58034fbacf69a814352515c11f7e7a81511b2659b2",
+  "source_sha256": {
+    "dae_newton.py": "6ba45fe5972ef3c1834143e15047432e847e51b96eb92713b62bed0aff748622",
+    "equation_graph.py": "25aa8124cd9cf29db9afbcf1c95b9ca0468d4528915c4bad4080a92f13af1ce2"
+  },
+  "state_device": "cpu",
+  "dtype": "float64",
+  "stage_seconds": {
+    "steady": 124.12263431493193,
+    "step": 3.9359003009740263
+  },
+  "golden_heat_gradient": 0.19631667626512342,
+  "states": 1604,
+  "initializer": "hydraulic_predictor",
+  "steady_residual": 8.133138107442353e-12,
+  "steady_iterations": 2,
+  "steady_linear_solves": 2,
+  "steady_matvecs_total": 9223,
+  "step_residual": 7.10867657608542e-11,
+  "step_matvecs_total": 287,
+  "failed_stage": "adjoint",
+  "error_type": "RuntimeError",
+  "error": "preconditioned DAE GMRES did not converge in 6983 matvecs (25 cycles x restart 30, degree 8); true residual 0.00437987, tolerance 2.18292e-06",
+  "traceback": "Traceback (most recent call last):\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/docs/benchmarks/dae-pgmres-nv-20260928/benchmark_nv_pgmres.py\", line 127, in main\n    (gradient,) = torch.autograd.grad(objective, scale)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/torch/autograd/__init__.py\", line 496, in grad\n    result = _engine_run_backward(\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/torch/autograd/graph.py\", line 825, in _engine_run_backward\n    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/torch/autograd/function.py\", line 307, in apply\n    return user_fn(self, *args)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/torch/autograd/function.py\", line 600, in wrapper\n    outputs = fn(ctx, *args)\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 536, in backward\n    dual,_=_pgmres(transpose_matvec_pgmres,rhs.detach(),ctx.options)\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/docs/benchmarks/dae-pgmres-nv-20260928/benchmark_nv_pgmres.py\", line 69, in spy\n    x, info = original(matvec, rhs, options)\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 364, in _pgmres\n    raise RuntimeError(\nRuntimeError: preconditioned DAE GMRES did not converge in 6983 matvecs (25 cycles x restart 30, degree 8); true residual 0.00437987, tolerance 2.18292e-06\n"
+}

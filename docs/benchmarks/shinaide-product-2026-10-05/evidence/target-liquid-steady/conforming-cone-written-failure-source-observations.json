@@ -1,0 +1,42 @@
+{
+  "installedOpenFOAMSources": [
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/cyclicPolyPatch.C",
+      "sha256": "b9b23d64be6df6ce24019e6d939188b272bc02a4c9366570db7cf72a418143cb",
+      "excerpts": [
+        {
+          "firstLine": 1026,
+          "lastLine": 1076,
+          "text": "1026: const Foam::edgeList& Foam::cyclicPolyPatch::coupledPoints() const\n1027: {\n1028:     if (!coupledPointsPtr_)\n1029:     {\n1030:         const faceList& nbrLocalFaces = neighbPatch().localFaces();\n1031:         const labelList& nbrMeshPoints = neighbPatch().meshPoints();\n1032: \n1033:         // Now all we know is that relative face index in *this is same\n1034:         // as coupled face in nbrPatch and also that the 0th vertex\n1035:         // corresponds.\n1036: \n1037:         // From local point to nbrPatch or -1.\n1038:         labelList coupledPoint(nPoints(), -1);\n1039: \n1040:         forAll(*this, patchFacei)\n1041:         {\n1042:             const face& fA = localFaces()[patchFacei];\n1043:             const face& fB = nbrLocalFaces[patchFacei];\n1044: \n1045:             forAll(fA, indexA)\n1046:             {\n1047:                 label patchPointA = fA[indexA];\n1048: \n1049:                 if (coupledPoint[patchPointA] == -1)\n1050:                 {\n1051:                     label indexB = (fB.size() - indexA) % fB.size();\n1052: \n1053:                     // Filter out points on wedge axis\n1054:                     if (meshPoints()[patchPointA] != nbrMeshPoints[fB[indexB]])\n1055:                     {\n1056:                         coupledPoint[patchPointA] = fB[indexB];\n1057:                     }\n1058:                 }\n1059:             }\n1060:         }\n1061: \n1062:         coupledPointsPtr_.reset(new edgeList(nPoints()));\n1063:         auto& connected = *coupledPointsPtr_;\n1064: \n1065:         // Extract coupled points.\n1066:         label connectedI = 0;\n1067: \n1068:         forAll(coupledPoint, i)\n1069:         {\n1070:             if (coupledPoint[i] != -1)\n1071:             {\n1072:                 connected[connectedI++] = edge(i, coupledPoint[i]);\n1073:             }\n1074:         }\n1075: \n1076:         connected.setSize(connectedI);"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/globalMeshData.C",
+      "sha256": "470dd4452c248b247bca4975a4382045af0c17d18a354051389d1de2c579015f",
+      "excerpts": [
+        {
+          "firstLine": 835,
+          "lastLine": 883,
+          "text": "835: Foam::label Foam::globalMeshData::findTransform\n836: (\n837:     const labelPairList& info,\n838:     const labelPair& remotePoint,\n839:     const label localPoint\n840: ) const\n841: {\n842:     const globalIndexAndTransform& transforms = globalTransforms();\n843: \n844:     const label remoteProci = transforms.processor(remotePoint);\n845:     const label remoteIndex = transforms.index(remotePoint);\n846: \n847:     label remoteTransformI = -1;\n848:     label localTransformI = -1;\n849:     forAll(info, i)\n850:     {\n851:         label proci = transforms.processor(info[i]);\n852:         label pointi = transforms.index(info[i]);\n853:         label transformI = transforms.transformIndex(info[i]);\n854: \n855:         if (proci == Pstream::myProcNo() && pointi == localPoint)\n856:         {\n857:             localTransformI = transformI;\n858:             //Pout<< \"For local :\" << localPoint\n859:             //    << \" found transform:\" << localTransformI\n860:             //    << endl;\n861:         }\n862:         if (proci == remoteProci && pointi == remoteIndex)\n863:         {\n864:             remoteTransformI = transformI;\n865:             //Pout<< \"For remote:\" << remotePoint\n866:             //    << \" found transform:\" << remoteTransformI\n867:             //    << \" at index:\" << i\n868:             //    << endl;\n869:         }\n870:     }\n871: \n872:     if (remoteTransformI == -1 || localTransformI == -1)\n873:     {\n874:         FatalErrorInFunction\n875:             << \"Problem. Cannot find \" << remotePoint\n876:             << \" or \" << localPoint  << \" \"\n877:             << coupledPatch().localPoints()[localPoint]\n878:             << \" in \" << info\n879:             << endl\n880:             << \"remoteTransformI:\" << remoteTransformI << endl\n881:             << \"localTransformI:\" << localTransformI\n882:             << abort(FatalError);\n883:     }"
+        },
+        {
+          "firstLine": 2090,
+          "lastLine": 2135,
+          "text": "2090: const Foam::indirectPrimitivePatch& Foam::globalMeshData::coupledPatch() const\n2091: {\n2092:     if (!coupledPatchPtr_)\n2093:     {\n2094:         const polyBoundaryMesh& bMesh = mesh_.boundaryMesh();\n2095: \n2096:         label nCoupled = 0;\n2097: \n2098:         forAll(bMesh, patchi)\n2099:         {\n2100:             const polyPatch& pp = bMesh[patchi];\n2101: \n2102:             if (pp.coupled())\n2103:             {\n2104:                 nCoupled += pp.size();\n2105:             }\n2106:         }\n2107:         labelList coupledFaces(nCoupled);\n2108:         nCoupled = 0;\n2109: \n2110:         forAll(bMesh, patchi)\n2111:         {\n2112:             const polyPatch& pp = bMesh[patchi];\n2113: \n2114:             if (pp.coupled())\n2115:             {\n2116:                 label facei = pp.start();\n2117: \n2118:                 forAll(pp, i)\n2119:                 {\n2120:                     coupledFaces[nCoupled++] = facei++;\n2121:                 }\n2122:             }\n2123:         }\n2124: \n2125:         coupledPatchPtr_.reset\n2126:         (\n2127:             new indirectPrimitivePatch\n2128:             (\n2129:                 IndirectList<face>\n2130:                 (\n2131:                     mesh_.faces(),\n2132:                     coupledFaces\n2133:                 ),\n2134:                 mesh_.points()\n2135:             )"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/PrimitivePatchMeshData.C",
+      "sha256": "780cca0166cb30afe6fa388fd37a0fcbea993473039d1955a8718bba4491ca11",
+      "excerpts": [
+        {
+          "firstLine": 80,
+          "lastLine": 104,
+          "text": "80:     //forAll(pointPatch, pointi)\n81:     //{\n82:     //    markedPoints.find(pointPatch[pointi])() = pointi;\n83:     //}\n84: \n85:     //- Unsorted version:\n86:     DynamicList<label> meshPoints(2*this->size());\n87:     for (const face_type& f : *this)\n88:     {\n89:         for (const label pointi : f)\n90:         {\n91:             if (markedPoints.insert(pointi, meshPoints.size()))\n92:             {\n93:                 meshPoints.push_back(pointi);\n94:             }\n95:         }\n96:     }\n97:     // Transfer to straight list (reuses storage)\n98:     meshPointsPtr_.reset(new labelList(meshPoints, true));\n99: \n100:     // Create local faces. Deep-copy original faces to retain additional\n101:     // data (e.g. region number of labelledTri)\n102:     // The vertices will be overwritten later\n103:     localFacesPtr_.reset(new List<face_type>(*this));\n104:     auto& locFaces = *localFacesPtr_;"
+        }
+      ]
+    }
+  ]
+}

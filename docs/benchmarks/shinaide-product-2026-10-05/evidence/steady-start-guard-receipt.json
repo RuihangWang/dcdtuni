@@ -1,0 +1,73 @@
+{
+  "command": [
+    "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/python",
+    "-m",
+    "pytest",
+    "src/backend/tests/test_transient_start.py",
+    "src/backend/tests/test_convergence_transient.py",
+    "src/backend/tests/test_convergence_verdict.py",
+    "src/backend/tests/test_transient_outer_convergence.py",
+    "src/backend/tests/test_cfdrun_v3_schedules.py",
+    "-q",
+    "--basetemp=.codex-tmp/steady-start-final-regression",
+    "-o",
+    "cache_dir=.codex-tmp/pytest-cache-steady-start"
+  ],
+  "cpu_affinity": [
+    24,
+    25,
+    26,
+    27
+  ],
+  "cuda_visible_devices": "",
+  "test_returncode": 0,
+  "test_output": "docs/benchmarks/shinaide-product-2026-10-05/evidence/steady-start-guard-output.txt",
+  "test_output_sha256": "7383c6b6b4b099a8aab5655615471ac7dd6d0fa3f8e5355f5887c63509decc5a",
+  "initial_regression_tool_evidence": {
+    "description": "Actual failing test invocation occurred before implementation; tool output in active session",
+    "tests": "test_transient_start.py initial 6 tests",
+    "summary": "3 failed, 3 passed in 0.45s",
+    "failures": [
+      "serial endTime accepted without convergence",
+      "parallel endTime accepted without convergence",
+      "solver exception left modified 0/ and 0.transient"
+    ]
+  },
+  "installed_primary_source": {
+    "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/finiteVolume/lnInclude/simpleControl.C": "cc8ad93bd0b4d7c1ddb579674372bb952d6abb2275b2ae284d13c762cd08a704",
+    "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/finiteVolume/lnInclude/solutionControl.C": "d21b0bf948f4975fa5e3f5ce51b77f0a31bce1c923c86a19778284c85d17a58c"
+  },
+  "raw_nonconverged_case": {
+    "log": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/cases/Shinaide_Stable/log/2026-10-04-18-11-20_Shinaide_Stable/log.mpi_solver",
+    "sha256": "b60b8ef87ca804bb842f81c9ae7757c508290533b91a37e4b87a644f7d7b5f4e",
+    "last_completed_iteration": 2000.0,
+    "first_initial_residuals": {
+      "Ux": 0.000274943,
+      "Uy": 0.00033259,
+      "Uz": 0.000129142,
+      "T": 0.000185823,
+      "p_rgh": 0.00204921,
+      "epsilon": 0.000129232,
+      "k": 0.000277856
+    },
+    "convergence_marker": null,
+    "ended": true,
+    "guard_assessment": {
+      "verdict": "REFUSED_STEADY_START",
+      "reason": "steady start did not converge: SIMPLE residualControl was not reached (iteration limit is not convergence); p_rgh first initial residual 0.00204921 is not below residualControl 0.001. Evidence: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/cases/Shinaide_Stable/log/2026-10-04-18-11-20_Shinaide_Stable/log.mpi_solver"
+    }
+  },
+  "scope": "Mock runner tests and read-only verdict on actual existing SIMPLE stdout; no new CFD solver invocation. Uniform-field generator verified in existing schedules test.",
+  "source_files": {
+    "src/backend/aircooling/runner/transient_start.py": "dc0b1bec0d65fa81a96f126cd0d1b75f343df4c291499cc6cbe1879fd2d5f5d9",
+    "src/backend/aircooling/runner/stlgen_runner.py": "689512d76fa99b80dd4d2c9fcfda9bc6b49579ef3c7e1d2ec891ba5f5d108b59",
+    "src/backend/tests/test_transient_start.py": "f407460ca443662f6f30ccd8956aeb38c17b7d0dc65f35850e738716b117f8ad"
+  },
+  "test_output_capture": "Exact stdout transcript from the final exec_command tool result; no solver invocation.",
+  "test_summary": "74 passed in 2.40s",
+  "additional_pre_fix_regression": {
+    "summary": "1 failed, 26 deselected in 0.67s",
+    "case": "redecomposition deleted processor-local 0.transient; FileNotFoundError masked original decomposition failure"
+  },
+  "rollback_storage": "run_dir/.steady-start-backup outside processor*; original zeros restored on solver/validation/seeding/repartition errors and backup removed after completion"
+}

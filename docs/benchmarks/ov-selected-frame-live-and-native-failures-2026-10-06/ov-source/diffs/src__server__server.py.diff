@@ -1,0 +1,50 @@
+--- src/server/server.py
++++ src/server/server.py
+@@ -3079,8 +3079,12 @@
+         if log_dir.exists():
+             for d in sorted(log_dir.iterdir(), reverse=True):
+                 if d.is_dir() and not d.name.startswith("."):
++                    from backend.aircooling.runner.mesh_layout import available_result_times
++                    from backend.aircooling.runner.convergence import run_is_transient
+                     runs.append({"name": d.name, "path": str(d.relative_to(cd)),
+-                                 "runId": hashlib.sha256(str(d.resolve()).encode("utf-8")).hexdigest()})
++                                 "runId": hashlib.sha256(str(d.resolve()).encode("utf-8")).hexdigest(),
++                                 "timesteps": [t for t in available_result_times(d) if t > 0],
++                                 "transient": run_is_transient(d)})
+         _send_json(handler, 200, {"runs": runs})
+     except Exception as e:
+         _send_json(handler, 500, {"error": str(e)})
+@@ -4220,10 +4224,12 @@
+             raise ValueError('request body too large')
+         raw = handler.rfile.read(length)
+         body = json.loads(raw) if raw else {}
+-        if not isinstance(body, dict) or set(body) != {'runId'}:
+-            raise ValueError('body must be exactly {"runId": <64-hex>}')
++        if not isinstance(body, dict) or set(body) not in ({'runId'}, {'runId', 'time'}):
++            raise ValueError('body must be {runId} or {runId, time}')
++        if 'time' in body:
++            ovd.validate_frame_time(body['time'])
+         with CASE_DIR_LOCK:
+-            captured = CASE_DIR
++            captured, captured_version = CASE_DIR, CASE_DIR_VERSION
+         if captured is None:
+             _send_json(handler, 400, {'code': 'case_not_selected', 'error': 'No case directory set'})
+             return
+@@ -4234,8 +4240,15 @@
+             return
+         from backend.aircooling.runner.postprocess import _foam_source_prefix
+         run = ovd.find_run(Path(captured), body['runId'])
+-        prepared = ovd.prepare_ensight(run, ovd.foam_to_ensight(_foam_source_prefix()))
+-        grant = ovd.issue_grant(prepared, run, body['runId'], key)
++        with CASE_DIR_LOCK:
++            if CASE_DIR != captured or CASE_DIR_VERSION != captured_version:
++                raise ovd.DatasetError(409, 'case_changed', 'Selected case changed before conversion')
++        options = {'time_value': body['time']} if 'time' in body else {}
++        prepared = ovd.prepare_ensight(run, ovd.foam_to_ensight(_foam_source_prefix()), **options)
++        with CASE_DIR_LOCK:
++            if CASE_DIR != captured or CASE_DIR_VERSION != captured_version:
++                raise ovd.DatasetError(409, 'case_changed', 'Selected case changed during conversion')
++            grant = ovd.issue_grant(prepared, run, body['runId'], key)
+         _send_json(handler, 200, {'grant': grant, 'run': run.name, 'time': prepared['time'],
+                                   'fields': prepared['fields'], 'cached': prepared['cached'],
+                                   'format': 'ensight'})

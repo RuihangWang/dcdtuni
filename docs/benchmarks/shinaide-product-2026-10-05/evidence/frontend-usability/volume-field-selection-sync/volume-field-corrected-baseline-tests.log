@@ -1,0 +1,120 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/PostprocessVolumeField.test.tsx (3 tests | 3 failed) 399ms
+   × removes a previous field and its limits until the newly selected volume is applied 233ms
+     → expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+   × shows small velocity limits and preserves their raw precision on focus and blur 82ms
+     → expected 0 to be greater than 0.004
+   × does not apply a late response range to a different selected field 82ms
+     → expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > removes a previous field and its limits until the newly selected volume is applied
+AssertionError: expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+
+- Expected: 
+null
+
++ Received: 
+<div
+  class="pp-colorbar"
+  id="pp-colorbar-volume"
+  style="right: 410px; top: 50%; transform: translateY(-50%);"
+>
+  <div
+    class="pp-colorbar-field"
+    title="Umag (m/s)"
+  >
+    Umag (m/s)
+  </div>
+  <div
+    class="pp-colorbar-max"
+  >
+    305.1
+  </div>
+  <canvas
+    height="196"
+    width="26"
+  />
+  <div
+    class="pp-colorbar-min"
+  >
+    295.1
+  </div>
+</div>
+
+ ❯ test/components/PostprocessVolumeField.test.tsx:92:57
+     90|   expect(apply.mock.lastCall![0].volume.payload).not.toBeNull()
+     91|   selectField('Umag')
+     92|   expect(document.querySelector('#pp-colorbar-volume')).toBeNull()
+       |                                                         ^
+     93|   expect(apply.mock.lastCall![0].volume.payload).toBeNull()
+     94|   expect(input('pp-vol-clim-min').value).toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > shows small velocity limits and preserves their raw precision on focus and blur
+AssertionError: expected 0 to be greater than 0.004
+ ❯ test/components/PostprocessVolumeField.test.tsx:106:29
+    104|   await act(async () => host.querySelector<HTMLButtonElement>('#pp-app…
+    105|   const max = input('pp-vol-clim-max')
+    106|   expect(Number(max.value)).toBeGreaterThan(0.004)
+       |                             ^
+    107|   expect(Number(max.step)).toBeLessThan(0.0001)
+    108|   const before = apply.mock.lastCall![0].volume.clim[1]
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > does not apply a late response range to a different selected field
+AssertionError: expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+
+- Expected: 
+null
+
++ Received: 
+<div
+  class="pp-colorbar"
+  id="pp-colorbar-volume"
+  style="right: 410px; top: 50%; transform: translateY(-50%);"
+>
+  <div
+    class="pp-colorbar-field"
+    title="T (K)"
+  >
+    T (K)
+  </div>
+  <div
+    class="pp-colorbar-max"
+  >
+    0.00600
+     K
+  </div>
+  <canvas
+    height="196"
+    width="26"
+  />
+  <div
+    class="pp-colorbar-min"
+  >
+    0.00200
+     K
+  </div>
+</div>
+
+ ❯ test/components/PostprocessVolumeField.test.tsx:122:57
+    120|   selectField('T')
+    121|   await act(async () => resolve(payload('Umag')))
+    122|   expect(document.querySelector('#pp-colorbar-volume')).toBeNull()
+       |                                                         ^
+    123|   expect(apply.mock.lastCall![0].volume.payload).toBeNull()
+    124|   expect(input('pp-vol-clim-min').value).toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  00:57:53
+   Duration  5.23s (transform 1.71s, setup 0ms, collect 3.68s, tests 399ms, environment 808ms, prepare 70ms)
+

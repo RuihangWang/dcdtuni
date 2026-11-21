@@ -1,0 +1,36 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/liquidDefaultNewton.test.tsx test/researchLiquidrunCompiler.test.ts --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidDefaultNewton.test.tsx (15 tests | 1 failed) 900ms
+   × canonical and default Newton entry > marked stale-mode UI displays the same effective domain mode as export, without writing it 34ms
+     → expected 'Transient · load responsethe DAE marc…' to contain 'Steady · one operating point'
+ ✓ test/researchLiquidrunCompiler.test.ts (2 tests) 7205ms
+   ✓ CLI emits one deterministic v3 manifest with separate file, project and output hashes 7110ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > marked stale-mode UI displays the same effective domain mode as export, without writing it
+AssertionError: expected 'Transient · load responsethe DAE marc…' to contain 'Steady · one operating point'
+
+Expected: "Steady · one operating point"
+Received: "Transient · load responsethe DAE marches on the experiment's own duration, not the timeline keyframes; choose Transient in the top bar (liquid view) to follow the timeline, Steady for a single operating point"
+
+ ❯ test/liquidDefaultNewton.test.tsx:138:67
+    136|     p.runDefaults.liquid.experiment.dae.analysis={mode:'transient',ini…
+    137|     const host=await panel(p,true)
+    138|     expect(host.querySelector('#lce-analysis-mode')?.textContent).toCo…
+       |                                                                   ^
+    139|     expect(host.querySelector('#lce-analysis-mode')?.textContent).not.…
+    140|     expect([...host.querySelectorAll('input')].some(el=>el.getAttribut…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 16 passed (17)
+   Start at  09:47:03
+   Duration  13.66s (transform 1.36s, setup 0ms, collect 3.58s, tests 8.11s, environment 1.39s, prepare 138ms)
+

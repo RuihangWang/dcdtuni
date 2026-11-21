@@ -1,0 +1,312 @@
+SOURCE src/backend/aircooling/third_parties/meshgenerator/source/cli/main.cpp SHA c517355861137b7d571189b9e4ca974d1c7e16af39770b6a19919c73fd3e3dae
+  558: void writeDcReportSidecar(const CartesianConfig& cfg, const CartesianResult& res,
+  559:                           const std::string& exportDir) {
+  560:     if (!cfg.dcMode || res.dcReportJson.empty() || exportDir.empty()) return;
+  561:     CART_ROOT_BLOCK {
+  562:         const std::string dir = parentDir(exportDir);
+  563:         std::error_code ec;
+  564:         fs::create_directories(dir, ec);
+  565:         const std::string rp = dir + "/dc_report.json";
+  566:         std::ofstream rf(rp);
+  567:         if (rf) {
+  568:             rf << res.dcReportJson;
+  569:             std::printf("[dc] S7 报告 → %s\n", rp.c_str());
+  570:         } else {
+  571:             std::fprintf(stderr, "[dc] warn: 无法写 S7 报告 %s\n", rp.c_str());
+  1698:         // 报告路径缺省：case/logger/dc17_ingest/<清单茎>_mapping.json
+  1699:         std::string rp = reportPath;
+  1700:         if (rp.empty()) {
+  1701:             std::string stem = cfdrunPath;
+  1702:             const size_t sl = stem.find_last_of('/');
+  1703:             if (sl != std::string::npos) stem = stem.substr(sl + 1);
+  1704:             const size_t dot = stem.find('.');
+  1705:             if (dot != std::string::npos) stem = stem.substr(0, dot);
+  1706:             rp = "case/logger/dc17_ingest/" + stem + "_mapping.json";
+  1707:         }
+  1708:         std::string werr;
+  1709:         if (!writeDcRawMappingJson(map, rp, werr)) {
+  1710:             CART_ROOT_BLOCK std::cerr << werr << "\n";
+  1711:             return 1;
+  1712:         }
+  1861:             CartesianResult resR;
+  1862:             std::string rerr;
+  1863:             if (!generateCartesian(surfRaw, cfgR, resR, rerr)) {
+  1864:                 writeDcReportSidecar(cfgR, resR, exportDir);  // 失败路径也落报告（证据链）
+  1865:                 CART_ROOT_BLOCK std::cerr << rerr << "\n";
+  1866:                 return 1;
+  1867:             }
+  1868:             writeDcReportSidecar(cfgR, resR, exportDir);
+  1869:             CART_ROOT_BLOCK {
+  1870:                 std::printf("[cfdrun] name=%s 叶=%d 切割=%d 流体=%d 内部面=%d 耗时=%.1fms\n",
+  1871:                             map.name.c_str(), resR.nLeaves, resR.nCut, resR.nFluid,
+  1872:                             resR.mesh.nInternal, resR.genMs);
+  1873:                 if (!writePolyMeshFoam(resR.mesh, exportDir, rerr,
+  1874:                                        patchTypeMap(cfgR.patchTypes))) {
+  1875:                     std::cerr << rerr << "\n";
+  1876:                     return 1;
+  1877:                 }
+  1878:                 if (!writeCartesianAmrFiles(resR, exportDir, rerr)) {
+  1879:                     std::cerr << rerr << "\n";
+  1880:                     return 1;
+  1881:                 }
+  1882:                 std::printf("[cfdrun] 导出 OpenFOAM polyMesh → %s\n", exportDir.c_str());
+SOURCE src/backend/aircooling/runner/stlgen_runner.py SHA ff8687979df7b398851804210c2116459163eda943e8eed55a4dd6050b8a2667
+  89: def _case_locked(method):
+  90:     """Hold the same per-case lock as browser uploads for the entire operation.
+  91: 
+  92:     Unit fixtures that intentionally construct an incomplete runner with
+  93:     ``__new__`` have no lock flag; every normally constructed runner has it.
+  94:     """
+  95:     @functools.wraps(method)
+  96:     def run(self, *args, **kwargs):
+  97:         if not getattr(self, "_case_lock_enabled", False):
+  98:             return method(self, *args, **kwargs)
+  99:         from backend.aircooling.runner.case_execution_lock import case_execution_lock
+  100: 
+  101:         with case_execution_lock(self.case_dir, blocking=False):
+  102:             payload = self._source_cfdrun_bytes()
+  103:             actual = hashlib.sha256(payload).hexdigest()
+  104:             expected = self._expected_cfdrun_sha256
+  105:             if expected is not None and actual != expected:
+  106:                 raise RuntimeError(
+  107:                     ".cfdrun input hash changed after upload; prepare the case again "
+  108:                     f"(expected {expected}, found {actual})"
+  109:                 )
+  110:             snapshot = getattr(self, "_input_snapshot", None)
+  111:             if snapshot is not None:
+  112:                 expected_batch = snapshot.stl_batch_sha256
+  113:                 if expected_batch is None:
+  114:                     raise RuntimeError(
+  115:                         "RAM .cfdrun snapshot is missing physical STL batch identity; "
+  116:                         "prepare the case again"
+  117:                     )
+  118:                 from backend.aircooling.runner.cfdrun_stl_identity import surface_batch_sha256
+  119:                 current_batch = surface_batch_sha256(self.case_dir)
+  120:                 if current_batch != expected_batch:
+  121:                     raise RuntimeError(
+  122:                         "physical STL batch changed after RAM input publication; "
+  123:                         f"prepare the case again (expected {expected_batch}, found {current_batch})"
+  124:                     )
+  125:             self._execution_cfdrun_sha256 = actual
+  126:             try:
+  127:                 return method(self, *args, **kwargs)
+  128:             finally:
+  129:                 self._execution_cfdrun_sha256 = None
+  1940:     @contextmanager
+  1941:     def _cfdrun_command_path(self):
+  1942:         """Hold sealed RAM bytes for a path-only native child without spooling."""
+  1943:         if getattr(self, "_input_snapshot", None) is None:
+  1944:             yield self.cfdrun_path
+  1945:             return
+  1946:         if not hasattr(os, "memfd_create"):
+  1947:             raise RuntimeError("snapshot native input requires Linux sealed memfd")
+  1948:         import fcntl
+  1949: 
+  1950:         fd = os.memfd_create("dcdtuni-cfdrun", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+  1951:         try:
+  1952:             view = memoryview(self._read_cfdrun_bytes())
+  1953:             while view:
+  1954:                 written = os.write(fd, view)
+  1955:                 if written <= 0:
+  1956:                     raise OSError("failed to write owned cfdrun memfd")
+  1957:                 view = view[written:]
+  1958:             os.lseek(fd, 0, os.SEEK_SET)
+  1959:             fcntl.fcntl(fd, fcntl.F_ADD_SEALS,
+  1960:                         fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW |
+  1961:                         fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL)
+  1962:             # /proc/self would refer to the shell/child. Keep the owning
+  1963:             # runner alive and this descriptor open through normal completion.
+  1964:             yield Path(f"/proc/{os.getpid()}/fd/{fd}")
+  1965:         finally:
+  1966:             os.close(fd)
+  7860:     # ------------------------------------------------------------------
+  7861: 
+  7862:     #: future vendor location (third_parties/meshgenerator/deploy.sh output),
+  7863:     #: same non-destructive platforms/<tag>/bin/ convention as dcCartMesh/foam.
+  7864:     _MESHGEN_VENDOR_DIR = (
+  7865:         Path(__file__).resolve().parents[1] / "third_parties" / "meshgenerator" / "platforms"
+  7866:     )
+  7867:     #: dev fallback: the sibling checkout the dc17 campaign measures against
+  7868:     #: (bench/mg --mg-root Ref_code/MeshGenerator).
+  7869:     _MESHGEN_DEV_BIN = (
+  7870:         Path(__file__).resolve().parents[4]
+  7871:         / "Ref_code" / "MeshGenerator" / "build" / "cli" / "meshgen-cli"
+  7872:     )
+  7873: 
+  7874:     #: Assembly contract shared with the dc17 campaign driver
+  7875:     #: (bench/mg/mg_mesh_case.py header): keep ONLY these polyMesh files,
+  7876:     #: never let MG's AMR extras reach a DC case tree.
+  7877:     _MESHGEN_POLYMESH_KEEP = (
+  7878:         "points", "faces", "owner", "neighbour", "boundary",
+  7879:         "cellZones", "faceZones", "pointZones",
+  7880:     )
+  7881:     _MESHGEN_POLYMESH_REQUIRED = ("points", "faces", "owner", "neighbour", "boundary")
+  7882:     _MESHGEN_AMR_EXTRAS = ("cellLevel", "pointLevel", "level0Edge", "refinementHistory")
+  7883:     #: DEGENERATE floor (bench/mg): rc=0 with fewer fluid cells than this is a
+  7884:     #: refusal dressed as success (dc-mode converts the S7 watertight refusal
+  7885:     #: into a report and still exports a 1-cell mesh). Smallest legitimate
+  7886:     #: fleet mesh is SingleRack (~17k cells), so 1000 is conservative.
+  7887:     _MESHGEN_MIN_CELLS = 1000
+  7888:     #: production posture (MG docs 31_dc17_mpi_hardening.md): single process,
+  8199:         """
+  8200:         import shlex
+  8201: 
+  8202:         self._start_mesh_budget()
+  8203:         self._ensure_mesh_system_files()
+  8204:         case_dir = self.mesh_dir
+  8205:         total_steps = 3  # meshgen-cli + assemble + checkMesh
+  8206:         step = 0
+  8207: 
+  8208:         binary = self._resolve_meshgen_binary()
+  8209:         # scratch lives UNDER Mesh/ (always gitignored via case/*/Mesh) so a
+  8210:         # failed run never leaves an untracked dir at a golden case/<name>/ top
+  8211:         # level; it is removed on success and kept for inspection on refusal.
+  8212:         scratch = self.mesh_dir / ".meshgen_scratch"
+  8213:         if scratch.exists():
+  8214:             shutil.rmtree(scratch, ignore_errors=True)
+  8215:         out_poly = scratch / "constant" / "polyMesh"
+  8216:         out_poly.mkdir(parents=True, exist_ok=True)
+  8217:         report = scratch / "dc_report.json"
+  8218: 
+  8219:         # Editor-only export buckets (is_editor_only_stl) do not count as
+  8220:         # "STLs present" — meshgen would have nothing to mesh without them.
+  8221:         if not self.tri_surface_dir.is_dir() or not any(
+  8222:             not is_editor_only_stl(p.name) for p in self.tri_surface_dir.glob("*.stl")
+  8223:         ):
+  8224:             raise RuntimeError(
+  8225:                 f"meshgen needs the browser-exported STLs in {self.tri_surface_dir}; "
+  8226:                 "no *.stl found. Re-export from the frontend (Export STL) first."
+  8227:             )
+  8228: 
+  8229:         step += 1
+  8230:         logger.info(f"Step {step}/{total_steps}: meshgen-cli cfdrun (dc-mode, raw geometry, seeds pre)")
+  8231:         try:
+  8232:             with self._cfdrun_command_path() as native_input:
+  8233:                 cmd = (
+  8234:                     self._meshgen_thread_prefix()
+  8235:                     + f"{shlex.quote(binary)} cfdrun {shlex.quote(str(native_input))}"
+  8236:                     + f" --surface-dir {shlex.quote(str(self.tri_surface_dir))}"
+  8237:                     + " --dc-mode --dc-raw --dc-seeds pre"
+  8238:                     + f" --export-foam {shlex.quote(str(out_poly))}"
+  8239:                     + f" --report {shlex.quote(str(report))}"
+  8240:                 )
+  8241:                 self._run_cmd(cmd, scratch)
+  8242:         except MeshTimeoutError:
+  8243:             self._log_meshgen_report(report)
+  8244:             raise
+  8245:         except RuntimeError as exc:
+  8246:             # _run_cmd already streamed the stderr tail into the job log; add
+  8247:             # the engine's own verdict so the failure is legible at a glance.
+  8248:             self._log_meshgen_report(report)
+  8249:             raise RuntimeError(
+  8250:                 f"meshgen-cli refused the mesh ({exc}). dc_report: {report}; "
+  8251:                 f"scratch output kept at {scratch} for inspection."
+  8252:             ) from exc
+  8253: 
+  8254:         step += 1
+  8255:         logger.info(f"Step {step}/{total_steps}: assemble Mesh/ from meshgen output (dc17 contract)")
+  8256:         self._assemble_meshgen_polymesh(case_dir, out_poly, scratch)
+  8271:     def _log_meshgen_report(self, report: Path) -> None:
+  8272:         """Surface the dc_report.json verdict (stage/mode/problem shells) in the job log."""
+  8273:         if not report.is_file():
+  8274:             logger.error("meshgen wrote no dc_report.json — the run died before the dc-mode report stage")
+  8275:             return
+  8276:         try:
+  8277:             data = json.loads(report.read_text(encoding="utf-8"))
+  8278:         except Exception as exc:
+  8279:             logger.error(f"dc_report.json is unreadable: {exc}")
+  8280:             return
+  8281:         stage = data.get("stage")
+  8282:         mode = data.get("mode")
+  8283:         problems = data.get("problemShells") or []
+  8284:         logger.error(
+  8285:             "dc_report.json: stage={stage} mode={mode} shells={shells} "
+  8286:             "openEdgeShells={open} nonManifoldShells={nm} problemShells={np}"
+  8287:             .format(stage=stage, mode=mode, shells=data.get("shells"),
+  8288:                     open=data.get("openEdgeShells"), nm=data.get("nonManifoldShells"),
+  8289:                     np=len(problems))
+  8290:         )
+  8291:         for shell in problems[:5]:
+  8292:             logger.error(f"  problem shell: {json.dumps(shell, ensure_ascii=False)}")
+  8293:         logger.error(f"  full report: {json.dumps(data, ensure_ascii=False)[:2000]}")
+  8309:         missing = [n for n in self._MESHGEN_POLYMESH_REQUIRED
+  8310:                    if not (out_poly / n).is_file() or (out_poly / n).stat().st_size == 0]
+  8311:         if missing:
+  8312:             self._log_meshgen_report(scratch / "dc_report.json")
+  8313:             raise RuntimeError(
+  8314:                 f"meshgen exported no usable polyMesh (missing/empty: {missing}) — "
+  8315:                 "the mesh is refused, nothing was assembled into Mesh/"
+  8316:             )
+  8317: 
+  8318:         # Degenerate-output floor: rc=0 is not proof of a mesh (dc-mode reports
+  8319:         # refusals instead of failing; see bench/mg DEGENERATE class). MG's
+  8320:         # owner header carries no nCells note (plain labelList), so count via
+  8321:         # the same topology scanner the cleanup stage uses — it derives nCells
+  8322:         # from the note or from max(owner, neighbour) + 1.
+  8323:         from backend.aircooling.runner.polymesh_io import mesh_topology_summary
+  8324: 
+  8325:         summary = mesh_topology_summary(out_poly)
+  8326:         if summary is not None:
+  8327:             n_cells = summary["nCells"]
+  8328:             if n_cells < self._MESHGEN_MIN_CELLS:
+  8329:                 self._log_meshgen_report(scratch / "dc_report.json")
+  8330:                 raise RuntimeError(
+  8331:                     f"meshgen exported a DEGENERATE mesh ({n_cells} cells < "
+  8332:                     f"{self._MESHGEN_MIN_CELLS} floor) — refused, nothing assembled"
+  8333:                 )
+  8334:             logger.info(
+  8335:                 f"meshgen export: {n_cells} cells, {summary['nRegions']} region(s), "
+  8336:                 f"{summary['nIsolatedCells']} isolated cell(s)"
+  8337:             )
+  8338:         else:
+  8339:             logger.warning(
+  8340:                 "meshgen export: topology scan could not read owner/neighbour — "
+  8341:                 "degenerate floor not applied, checkMesh is the gate"
+  8342:             )
+  8343: 
+SOURCE src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp SHA 6200ab2a4c86aa8e7b69f28d630a97d79a680360e0a688c2e58ee6edd0c6e43b
+  31208:         std::atomic<long long> dcS10Cnt{0};
+  31209:         const auto dcS10T0 = cfg.dcMode ? std::chrono::steady_clock::now()
+  31210:                                         : std::chrono::steady_clock::time_point{};
+  31211:         const double tolClose = 1e-10 * c.H * c.H;
+  31212:         const double tolPyramid = 1e-8 * c.H * c.H;
+  31213:         bool anyCloseFail = false;  // 仅 CART_DBG_ALL 诊断路径使用（收集全部失败胞）
+  31214:         // PERF-R15 生产快路径：三项检查（闭合/面锥/质心终检）逐胞纯读独立 ⇒ 并行；
+  31215:         // 失败报告 = 最小 ci 的首个失败检查（与原串行"首败即返"逐点一致：原序即 ci
+  31216:         // 升序、胞内检查序 闭合→面锥→质心）。错误串用同值同 std::to_string 构造 ⇒
+  31217:         // 失败签名字节一致（四多壳拒出基线实证）。诊断/消融键（CART_DBG、
+  31218:         // CART_DBG_ALL、CART_DBG9、CART_E1_GATE_WARN_ONLY）任一置位 ⇒ 走原串行路径
+  31219:         // （打印/收集语义原样冻结）。环缓冲改线程内平面 arena 复用（消除逐胞
+  31220:         // vector<vector<Vec3>> 分配；运算次序与原逐位一致 ⇒ 浮点结果位相同）。
+  31221:         const bool fastS10 = !envDbg() && !envDbgAll() && !envE1GateWarnOnly() &&
+  31222:                              !envDbg9();
+  31223:         if (fastS10) {
+  31224:             const double gateTolF = 1e-9 * c.H;
+  31225:             struct FailRec { int kind; double val; };  // 0 无 /1 闭合 /2 面锥 /3 质心
+  32637:             size_t nGateWarn = 0;
+  32638:             for (size_t ci = 0; ci < fails.size(); ++ci) {
+  32639:                 const FailRec& fr = fails[ci];
+  32640:                 if (fr.kind == 0) continue;
+  32641:                 if (cfg.qualityGateWarn && fr.kind != 1) {
+  32642:                     std::fprintf(stderr,
+  32643:                                  "[cartesian] warn: S10 kind%d 单元 %zu val=%g（qualityGate=warn，降级告警继续导出）\n",
+  32644:                                  fr.kind, ci, fr.val);
+  32645:                     ++nGateWarn;
+  32646:                     continue;
+  32647:                 }
+  32679:                 if (fr.kind == 1)
+  32680:                     err = "S10 闭合断言失败：单元 " + std::to_string(ci) + " 的 ΣSf=" +
+  32681:                           std::to_string(fr.val) + " > 容差 " + std::to_string(tolClose) +
+  32682:                           "（开放单元，拒绝导出）";
+  32683:                 else if (fr.kind == 2)
+  32684:                     err = "S10 面锥校验失败：单元 " + std::to_string(ci) +
+  32685:                           " 存在错向面（精确局部复核确认面法向指向胞内）";
+  32686:                 else
+  32687:                     err = "S10 面锥质心终检失败：单元 " + std::to_string(ci) +
+  32688:                           "（级 " + std::to_string(cr.level) +
+  32689:                           (cr.merged ? "，合并胞" : "") +
+  32690:                           "）的 OpenFOAM 口径胞心越过面平面 " + std::to_string(fr.val) +
+  32691:                           " > 容差 " + std::to_string(gateTolF) +
+  32692:                           "（S9 无可行合并修复）——拒绝导出";
+  32693:                 return false;
+  32694:             }

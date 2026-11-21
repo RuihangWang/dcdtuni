@@ -1,0 +1,36 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T1 (cfdproj v5 core model)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-keyframes",
+  "code": "b4c1905c",
+  "machine": "40901",
+  "launch": "CONDA_EXE=$HOME/miniconda3/bin/conda PATH=$HOME/miniconda3/bin:$PATH CUDA_VISIBLE_DEVICES=\"\" OMP_NUM_THREADS=2 src/start_server.sh --app react --port 8390 --case-dir <repo>/case/Base_coldAisleIso",
+  "client": "built-in browser pane via SSH tunnel 8390/8391",
+  "tests": {
+    "node_transient_and_guard": {"passed": 25, "failed": 0},
+    "node_all_files": {"failing_files": ["test_cfdproj_migrate.mjs", "test_html_case_path_restore.mjs", "test_html_pp_patch_tree.mjs", "test_html_solve_partitions.mjs", "test_model_library.mjs", "test_patch_filter.mjs", "test_patch_selection.mjs"], "same_as_clean_main": true},
+    "vitest": {"files": 303, "tests": 3101, "failed": 0},
+    "tsc_b": "clean",
+    "vite_build": "ok (40901 --build at b4c1905c)",
+    "python_40901": {"passed": 3398, "skipped": 64, "failed": 7, "log": "evidence/pytest_40901_summary.txt",
+      "baseline": "6 FAILED reproduce identically on origin/main 00fa2cd9; the SUBFAILED test_parallel_mesh case is the dcCart memory guard reading live MemAvailable (29 GB then, needs >= 33 GB): passes 3/3 on the branch and on main once memory recovered"}
+  },
+  "smoke": {
+    "shinaide_liquid": {"schemaVersion_live": 5, "tracks": 126, "mode": "steady", "matches_disk": {"e_1_power_W": 1000, "e_2_power_W": 2000, "e_5_power_W": 1000, "cp_Q_W": [100, 110, 140], "cdu_supply_C": 35, "cdu_flow": 60, "acu_supply_C": [20, 21]}, "meshes": 800},
+    "base_coldAisleIso": {"schemaVersion_live": 5, "tracks": 7, "matches_disk": {"acu_supply_C": 15, "acu_flow_m3s": 4, "server_power_W": [150, 100, 100]}, "inspector": {"supply_C": 15, "flow_m3s": 4}, "meshes": 92},
+    "ui_edit": {"field": "ACU m_3 p_1 supply temperature", "from": 15, "to": 17, "track_t0": 17, "saved_field_stripped": true, "static_fields_kept": true},
+    "save": {"path": "/tmp/t1gate/Base_coldAisleIso.cfdproj", "case_file_untouched": true, "schemaVersion": 5, "validate_transient_errors": 0, "tracked_field_diffs_vs_v4_at_t0": ["acus.m_3 bottom p_1 temperature 15 -> 17"], "sample": "evidence/Base_coldAisleIso_saved_v5.cfdproj", "sha256_prefix": "ae54d3c8001a1b03"},
+    "reopen": {"inspector": {"supply_C": 17, "flow_m3s": 4}, "server_power_W": [150, 100, 100], "meshes": 92}
+  },
+  "defects_fixed": [
+    {"commit": "b4c1905c", "what": "off-t=0 edits to project settings (meta.casePath, runDefaults, instrumentation) were refused as static; static now means geometry + constructions only"},
+    {"commit": "3d8802ea", "what": "store test failed tsc -b under noUncheckedIndexedAccess, breaking the 40901 --build"}
+  ],
+  "out_of_plan": [
+    {"commit": "46863c20", "what": "aidesign/projcomp.py refuses a v5 template (it sums server power, which v5 keeps only in tracks)"}
+  ],
+  "incident": {"window_sgt": "10:10-10:45", "what": "40901 unresponsive (no sshd banner); user ztw's jobs held ~180 GB RSS + 51 GB swap, load 512/48 cores", "action": "killed only this session's 8390 server; per user decision no other process touched; machine recovered on its own"},
+  "teardown": "8390/8391 server stopped after the smoke"
+}

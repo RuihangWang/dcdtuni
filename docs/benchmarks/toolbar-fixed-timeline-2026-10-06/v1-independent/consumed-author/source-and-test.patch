@@ -1,0 +1,231 @@
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/src/components/Toolbar.tsx	2026-10-06 00:25:23.933582617 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/Toolbar.tsx	2026-10-06 00:26:55.320478872 +0000
+@@ -156,6 +156,7 @@
+         {collapsed ? '⌄' : '⌃'}
+       </button>
+       <div id="toolbar-content">
++        <div id="toolbar-body">
+         <div className="toolbar-primary">
+           <ModeSwitch />
+           <div id="renderer-switch-slot" />
+@@ -401,9 +402,9 @@
+             </div>
+           </section>
+         </div>
+-        {/* Last, and a full row of its own (flex-basis 100%): the transient
+-            timeline. Inside #toolbar-content so it joins the toolbar's
+-            measured height and collapses with it. */}
++        </div>
++        {/* Reserve the whole wrapped timeline below the scrolling tools.
++            It remains inside the collapse-owned content subtree. */}
+         <TimelineStrip />
+       </div>
+       {shortcutsOpen && <ShortcutSettingsDialog onClose={() => setShortcutsOpen(false)} />}
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/src/components/PanelResizers.tsx	2026-10-06 00:25:23.933582617 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/PanelResizers.tsx	2026-10-06 00:26:55.508476555 +0000
+@@ -53,6 +53,7 @@
+   const toolbarManual = useRef<number | null>(null)
+   const applyToolbar = useRef<(target: number | null) => void>(() => {})
+   const toolbarNatural = useRef(0)
++  const toolbarReserved = useRef(MIN_SIZE.toolbar)
+   const refreshA11y = useRef<() => void>(() => {})
+ 
+   const controlledId = (edge: ResizeEdge) => edge === 'toolbar' ? 'toolbar' : `${edge}-panel`
+@@ -76,7 +77,7 @@
+     const maximum = edge === 'toolbar'
+       ? Math.min(toolbarNatural.current || document.getElementById('toolbar')?.scrollHeight || MIN_SIZE.toolbar, Math.max(MIN_SIZE.toolbar, window.innerHeight * .5))
+       : Math.max(MIN_SIZE.log, window.innerHeight * .5)
+-    return { minimum: Math.min(MIN_SIZE[edge], maximum), maximum }
++    return { minimum: Math.min(edge === 'toolbar' ? toolbarReserved.current : MIN_SIZE[edge], maximum), maximum }
+   }
+   const drawnSize = (edge: ResizeEdge) => {
+     const rect = document.getElementById(controlledId(edge))?.getBoundingClientRect()
+@@ -205,12 +206,18 @@
+     let natural: number | null = null
+     let lastWidth = toolbar.offsetWidth
+     let applied: number | null = null
++    let timelineNatural = 0
++    let chrome = 0
++    let footerGap = 0
++    const bodyFloor = 32
+ 
+     // Measure without the pinned height so expanding a tool group is visible
+     // to the fit even while overflow is scrolled.
+     const measureNatural = () => {
+       const savedTransform = toolbar.style.transform
+       const savedHeight = toolbar.style.height
++      const savedFooterLimit = toolbar.style.getPropertyValue('--timeline-available-height')
++      toolbar.style.removeProperty('--timeline-available-height')
+       toolbar.style.transform = 'none'
+       toolbar.style.height = ''
+       const css = getComputedStyle(toolbar)
+@@ -220,8 +227,18 @@
+       // borders and it is integer-rounded. The unpinned rectangle preserves
+       // fractional natural border-box height when the content already fits.
+       const h = Math.max(toolbar.scrollHeight + border, toolbar.getBoundingClientRect().height)
++      chrome = border + (Number.parseFloat(css.paddingTop) || 0)
++        + (Number.parseFloat(css.paddingBottom) || 0)
++      const timeline = toolbar.querySelector<HTMLElement>('#timeline-strip')
++      timelineNatural = timeline && getComputedStyle(timeline).display !== 'none'
++        ? Math.max(timeline.scrollHeight, timeline.getBoundingClientRect().height) : 0
++      const content = document.getElementById('toolbar-content')
++      footerGap = timelineNatural && content ? Number.parseFloat(getComputedStyle(content).rowGap) || 0 : 0
++      toolbarReserved.current = toolbar.classList.contains('collapsed') ? MIN_SIZE.toolbar
++        : Math.min(h, Math.max(MIN_SIZE.toolbar, chrome + bodyFloor + timelineNatural + footerGap))
+       toolbar.style.transform = savedTransform
+       toolbar.style.height = savedHeight
++      if (savedFooterLimit) toolbar.style.setProperty('--timeline-available-height', savedFooterLimit)
+       return h
+     }
+ 
+@@ -236,7 +253,14 @@
+     const fit = (manual: number | null) => {
+       if (natural === null) natural = measureNatural()
+       toolbarNatural.current = natural
+-      const target = toolbarTargetHeight(natural, manual, window.innerHeight)
++      const target = toolbarTargetHeight(natural, manual, window.innerHeight, toolbarReserved.current)
++      // When even the wrapped footer exceeds the window cap, keep both regions
++      // bounded and keyboard-scrollable rather than letting them cover the view.
++      const available = Math.max(0, target - chrome - footerGap)
++      const drawnBodyFloor = timelineNatural ? Math.min(bodyFloor, Math.max(0, available - 32)) : Math.min(bodyFloor, available)
++      toolbar.style.setProperty('--toolbar-body-floor', `${drawnBodyFloor}px`)
++      toolbar.style.setProperty('--timeline-available-height', `${Math.max(0, available - drawnBodyFloor)}px`)
++      toolbar.dataset.footerScrollable = String(timelineNatural > available - drawnBodyFloor)
+       if (applied === null || Math.abs(applied - target) > 0.5) {
+         applied = target
+         // Keep labels readable. A constrained toolbar scrolls at its normal
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/src/ui/layoutMetrics.ts	2026-10-06 00:25:23.933582617 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/ui/layoutMetrics.ts	2026-10-06 00:26:55.340478625 +0000
+@@ -34,13 +34,13 @@
+ export const MAX_HEIGHT_FRACTION = 0.5
+ 
+ /**
+- * How much of the window a WRAPPING toolbar may take before it is scaled down.
++ * How much of the window a WRAPPING toolbar may take before its tool body scrolls.
+  *
+  * Separate from `MAX_HEIGHT_FRACTION`, which caps a deliberate DRAG: if a user
+  * drags the log dock to half the window that is their decision, but a toolbar
+  * growing to half the window is just wrapping, and nobody asked for it. Measured
+  * before this existed: 249px of a 700px-tall window at 1100 wide, 36% of the
+- * screen spent on buttons. It now scales past 28% instead of stacking further.
++ * screen spent on buttons. It now scrolls past 28% instead of stacking further.
+  */
+ export const TOOLBAR_AUTO_HEIGHT_FRACTION = 0.28
+ 
+@@ -111,21 +111,22 @@
+  *
+  * The toolbar wraps, so as the window narrows its natural height grows without
+  * bound — measured at 1245px inside a 480px-tall window, which leaves no
+- * viewport at all. It is capped at the same half-window the manual drag is
+- * capped at, and scaled down to fit rather than clipped, so every control stays
+- * on screen and reachable.
++ * viewport at all. Automatic wrapping is capped at28%, and deliberate drags
++ * at half the window. Reserve the footer and an operable tool body within
++ * that cap; unusually tall footers scroll internally at their natural text size.
+  */
+ export function toolbarTargetHeight(
+   naturalHeight: number,
+   manualHeight: number | null,
+   windowHeight: number,
++  reservedHeight = MIN_SIZE.toolbar,
+ ): number {
+   // A dragged height is the user's call and gets the generous cap; an
+   // un-dragged toolbar that merely wrapped gets the tighter one.
+   const fraction = manualHeight === null ? TOOLBAR_AUTO_HEIGHT_FRACTION : MAX_HEIGHT_FRACTION
+   const cap = Math.max(MIN_SIZE.toolbar, windowHeight * fraction)
+   const wanted = manualHeight === null ? naturalHeight : Math.min(manualHeight, naturalHeight)
+-  return Math.max(1, Math.min(wanted, naturalHeight, cap))
++  return Math.max(1, Math.min(Math.max(wanted, reservedHeight), naturalHeight, cap))
+ }
+ 
+ /**
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/src/styles.css	2026-10-06 00:25:23.933582617 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/styles.css	2026-10-06 00:26:55.544476112 +0000
+@@ -2831,14 +2831,17 @@
+ 
+ #toolbar {
+   top: 8px; padding: 9px 10px; display: grid; overflow: visible;
+-  grid-template-columns: minmax(0, 1fr) 30px; column-gap: 8px; align-items: start;
++  grid-template-columns: minmax(0, 1fr) 30px; grid-template-rows: minmax(0, 1fr); column-gap: 8px; align-items: start;
+   background: color-mix(in srgb, var(--panel) 95%, transparent);
+   border: 1px solid var(--border); border-radius: 8px; backdrop-filter: blur(8px);
+   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); transform: none;
+ }
+-#toolbar[data-scrollable="true"] { overflow-y: auto; overflow-x: hidden; }
++#toolbar[data-scrollable="true"] #toolbar-body { overflow-y: auto; overflow-x: hidden; }
++#toolbar[data-footer-scrollable="true"] #timeline-strip { overflow-y: auto; overflow-x: hidden; }
+ #toolbar.collapsed { padding: 4px; min-height: 30px; width: 40px; right: auto; grid-template-columns: 1fr; }
+-#toolbar-content { display: flex; flex-direction: column; gap: 8px; min-width: 0; grid-column: 1; grid-row: 1; }
++#toolbar-content { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; height: 100%; grid-column: 1; grid-row: 1; }
++#toolbar-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; min-height: var(--toolbar-body-floor, 32px); }
++#toolbar-content > #timeline-strip { flex: 0 0 auto; min-height: 0; max-height: var(--timeline-available-height, none); }
+ #toolbar-collapse-btn { position: static; width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1; grid-column: 2; grid-row: 1; border-radius: 5px; }
+ #toolbar-collapse-btn:hover { background: var(--bg-input); }
+ #toolbar.collapsed #toolbar-collapse-btn { grid-column: 1; }
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/test/toolbarRemeasure.test.tsx	2026-10-06 00:25:23.937582569 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/test/toolbarRemeasure.test.tsx	2026-10-06 00:27:44.867862728 +0000
+@@ -66,3 +66,43 @@
+   })
+   expect(measured).toBeGreaterThan(before)
+ })
++
++// A user can shrink the tools, but must not shrink a wrapped timeline out of view.
++it('reserves the measured timeline during keyboard resize and re-wrap', () => {
++  const body = document.createElement('div'); body.id = 'toolbar-body'
++  const timeline = document.createElement('div'); timeline.id = 'timeline-strip'
++  content.append(body, timeline)
++  let footerHeight = 120
++  Object.defineProperty(timeline, 'scrollHeight', { configurable: true, get: () => footerHeight })
++  Object.defineProperty(toolbar, 'scrollHeight', { configurable: true, get: () => 500 })
++  Object.defineProperty(toolbar, 'getBoundingClientRect', { configurable: true, value: () => ({
++    width: 700, height: Number.parseFloat(toolbar.style.height) || 500,
++    bottom: Number.parseFloat(toolbar.style.height) || 500,
++  }) })
++  act(() => root.render(<PanelResizers />))
++  const splitter = document.getElementById('toolbar-resizer')!
++  act(() => {
++    for (let step = 0; step < 3; step++) splitter.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true }))
++  })
++  expect(Number.parseFloat(toolbar.style.height)).toBe(152)
++  expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBe(120)
++  expect(splitter.getAttribute('aria-valuemin')).toBe('152')
++  footerHeight = 180
++  act(() => refitToolbar())
++  expect(Number.parseFloat(toolbar.style.height)).toBe(212)
++  expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBe(180)
++  expect(splitter.getAttribute('aria-valuemin')).toBe('212')
++})
++
++it('keeps a footer taller than the window cap reachable inside a bounded scroll region', () => {
++  const body = document.createElement('div'); body.id = 'toolbar-body'
++  const timeline = document.createElement('div'); timeline.id = 'timeline-strip'
++  content.append(body, timeline)
++  Object.defineProperty(timeline, 'scrollHeight', { configurable: true, get: () => 800 })
++  Object.defineProperty(toolbar, 'scrollHeight', { configurable: true, get: () => 1000 })
++  act(() => root.render(<PanelResizers />))
++  expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.innerHeight * .28)
++  expect(toolbar.dataset.footerScrollable).toBe('true')
++  expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBeGreaterThan(0)
++  expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBeLessThan(800)
++})
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/toolbar-fixed-timeline-implementation-20261006/before/src/frontend/react/test/layoutMetrics.test.ts	2026-10-06 00:25:23.937582569 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/test/layoutMetrics.test.ts	2026-10-06 00:25:23.937582569 +0000
+@@ -116,6 +116,18 @@
+   })
+ })
+ 
++describe('toolbar footer reservation', () => {
++  it('keeps the wrapped footer and an operable body after a small manual drag', () => {
++    expect(toolbarTargetHeight(340, 28, 720, 116)).toBe(116)
++    expect(toolbarTargetHeight(340, null, 720, 116)).toBeCloseTo(201.6)
++  })
++  it('increases the minimum when the footer wraps, without growing past either cap', () => {
++    expect(toolbarTargetHeight(340, 80, 720, 174)).toBe(174)
++    expect(toolbarTargetHeight(340, null, 720, 260)).toBeCloseTo(201.6)
++    expect(toolbarTargetHeight(500, 28, 180, 260)).toBe(90)
++  })
++})
++
+ describe('toolbarScaleStyle', () => {
+   it('writes no transform when the toolbar already fits', () => {
+     expect(toolbarScaleStyle(129, 129)).toEqual({ transform: '', height: '' })

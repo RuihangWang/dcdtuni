@@ -1,0 +1,35 @@
+{
+  "format": "seed-inspector-react-event-test-repair/v1",
+  "before": {
+    "passed": 5,
+    "failed": 2,
+    "log": "before-test.log",
+    "baselineTestSHA256": "99a81ef3b44b83f0c3923303d1a4efec3ad725d26d71fd58b6f3e36eb496a2d9"
+  },
+  "after": {
+    "passed": 7,
+    "failed": 0,
+    "log": "after-test.log",
+    "testSHA256": "967dff7f062339e1c5be78bb7bd06511f82fa098c0c5bdec507b9c8c820a0eb4"
+  },
+  "productionAllFourFilesAndActualCaseAt89ByteExact": true,
+  "cause": "Direct assignment input.value updates React value tracker, so synthetic input does not invoke onChange. NumberField edited.current stays false and intentional no-edit blur guard refuses a write.",
+  "repair": "Only test uses native HTMLInputElement.prototype.value setter, flushed real focus/input/blur sequence; no production changes.",
+  "assertionsPreserved": [
+    "offset approximately 0.2 at 1e-10 tolerance",
+    "isCustom badge changes after stored override",
+    "reset removes previously asserted .2 override"
+  ],
+  "fixture": "Actual Base_leakage case loaded with kind revival and only meshBaseSize .17 / wallBafflesRefinementLevel [1,1] pinned in-test; physics/source edits are not part of this event repair.",
+  "resources": {
+    "affinity": [
+      36,
+      37,
+      38,
+      39
+    ],
+    "workers": 2,
+    "CUDA_VISIBLE_DEVICES": ""
+  },
+  "command": "taskset -c 36-39 ./node_modules/.bin/vitest run test/components/SeedInspector.test.tsx --maxWorkers=2 --minWorkers=2"
+}

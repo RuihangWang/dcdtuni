@@ -1,0 +1,238 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class dictionary;
+    location system;
+    object snappyHexMeshDict;
+}
+
+castellatedMesh on;
+snap off;
+addLayers off;
+
+// snappyHexMesh DELETES zero-sized patches when both snap and addLayers are
+// off (snappyHexMesh.C:1833) — which is every Cartesian mode. A surface whose
+// region ends up with no exposed faces (an ACU bottom flush with the floor, a
+// pillar top against the ceiling, a rack face inside a containment) then
+// vanishes from polyMesh/boundary entirely, and the boundary condition bound
+// to it is silently lost. Keeping the empty patch costs nothing and keeps
+// every declared STL region addressable.
+keepPatches true;
+
+geometry
+{
+    merged_box.stl
+    {
+        type triSurfaceMesh;
+        name merged_box;
+        regions
+        {
+            ExplicitWallBox_Front { name ExplicitWallBox_Front; }
+            ExplicitWallBox_Back { name ExplicitWallBox_Back; }
+            ExplicitWallBox_Left { name ExplicitWallBox_Left; }
+            ExplicitWallBox_Right { name ExplicitWallBox_Right; }
+            ExplicitWallBox_Top { name ExplicitWallBox_Top; }
+            ExplicitWallBox_Bottom { name ExplicitWallBox_Bottom; }
+        }
+    }
+}
+
+dcdtuniSourceRegions
+{
+    merged_box.stl
+    {
+        ExplicitWallBox_Back
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Back";
+            sourceRegionSha256 "7a928dcacaf42311728171ddb1ef066c19b7ffd7921264a53499857dbbe98a07";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+        ExplicitWallBox_Bottom
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Bottom";
+            sourceRegionSha256 "7c41872e7acfe38aa7868d87c10a5f8f0716c04528e87277f787e3fc0d7f17f3";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+        ExplicitWallBox_Front
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Front";
+            sourceRegionSha256 "8cfca7126d832f95c5adba36ce8c17d5a26bd5bf5b39927e36e6247faf75f1d9";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+        ExplicitWallBox_Left
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Left";
+            sourceRegionSha256 "ac72c670ae7d5c35e9d908190f08e40905e028b349857bb64ad7c95eee02e8a2";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+        ExplicitWallBox_Right
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Right";
+            sourceRegionSha256 "1686f87609c17604b1e71e71e841e95a8d7b702b4ee182f08039c326d2e5292a";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+        ExplicitWallBox_Top
+        {
+            sourceEntityUid "m_1";
+            sourceRegionUid "private-app-explicit-wall-box-20261007/m_1/stl-region/ExplicitWallBox_Top";
+            sourceRegionSha256 "7dcea75c896165540f2425ffdff9ef5fa55a3820b87c02a3ce0504cd436839c8";
+            sourceFacetCount 2;
+            operation modelBoundary;
+        }
+    }
+}
+
+
+castellatedMeshControls
+{
+    maxLocalCells   10000;
+    maxGlobalCells  10000;
+    minRefinementCells 5;
+    nCellsBetweenLevels 1;
+    maxLoadUnbalance 0.5;
+    handleSnapProblems false;
+    allowFreeStandingZoneFaces true;
+    resolveFeatureAngle 30;
+
+    features
+    (
+    {
+        file "merged_box.eMesh";
+        level 2;
+    }
+    );
+
+    refinementSurfaces
+    {
+    merged_box
+    {
+        level (0 0);
+        regions
+        {
+            ExplicitWallBox_Front
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ExplicitWallBox_Back
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ExplicitWallBox_Left
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ExplicitWallBox_Right
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ExplicitWallBox_Top
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ExplicitWallBox_Bottom
+            {
+                level (0 0);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+    }
+
+    refinementRegions
+    {
+
+    }
+
+    // Use locationsInMesh with explicit cell zone assignment
+    locationsInMesh
+    (
+        (( 0.125000 0.125000 0.125000 ) none)
+    );
+}
+
+snapControls
+{
+    nSmoothPatch 1;
+    tolerance 1.5;
+    nSolveIter 20;
+    nRelaxIter 5;
+    nFeatureSnapIter 10;
+    implicitFeatureSnap true;
+    explicitFeatureSnap true;
+    multiRegionFeatureSnap true;
+    nFaceSplitInterval 5;
+    releasePoints true;
+}
+
+addLayersControls
+{
+    relativeSizes true;
+    expansionRatio 1.0;
+    finalLayerThickness 0.3;
+    minThickness 0.1;
+    nGrow 0;
+    featureAngle 60;
+    nRelaxIter 3;
+    nSmoothSurfaceNormals 1;
+    nSmoothNormals 3;
+    nSmoothThickness 10;
+    maxFaceThicknessRatio 0.5;
+    maxThicknessToMedialRatio 0.3;
+    minMedianAxisAngle 90;
+    nBufferCellsNoExtrude 0;
+    nLayerIter 50;
+    layers
+    {
+    }
+}
+
+meshQualityControls
+{
+    maxNonOrtho 60;
+    maxBoundarySkewness 20;
+    maxInternalSkewness 4;
+    maxConcave 80;
+    minFlatness 0.5;
+    minVol 1e-13;
+    minTetQuality 1e-15;
+    minArea -1;
+    minTwist 0.02;
+    minDeterminant 0.001;
+    minFaceWeight 0.05;
+    minVolRatio 0.01;
+    minTriangleTwist -1;
+    nSmoothScale 4;
+    errorReduction 0.75;
+    relaxed
+    {
+        maxNonOrtho 70;
+    }
+}
+
+writeFlags
+(
+    scalarLevels
+);
+
+mergeTolerance 1e-6;

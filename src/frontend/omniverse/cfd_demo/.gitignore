@@ -1,0 +1,37 @@
+# ── SCANO 模型 bundle（原 data/）────────────────────────────────
+# 只提交代码与配置：src/、scripts/、cases/、configs。以下一律不入库——
+#   logger/          权重 best.state 98 MB + 推理输出 365 MB
+#   *.vtu            体渲染数据集，单个 171 MB，**超过 GitHub 单文件 100 MB 硬限**
+#   C1 冻结文本 arm  367 MB，demo 已切到 A3，留着只是对照
+# 误提交任意一个 .vtu 会让整个 push 被 GitHub 拒收，且历史里清不掉。
+SCANO/**/logger/
+SCANO/GTC_TransFVGN_FronzenText/
+
+# ── 预烘焙的 CFD 结果（体渲染数据源）────────────────────────────
+# 与 SCANO 模型无关，单独放 data/。internal.vtu 有 171 MB，**超过 GitHub 单文件
+# 100 MB 硬限**，误提交会让整个 push 被拒且历史里清不掉。
+# 用 data/* 而不是 data/：目录本身不被排除，下面那条放行才生效
+# （git 规则：父目录被排除时，子文件的反向放行无效）。
+data/*
+!data/ranges.json
+node_modules/
+web/dist/
+__pycache__/
+*.pyc
+.vite/
+/tmp_screenshots/
+# Allow web/.env (contains only non-secret Vite config; root .gitignore ignores .env globally)
+!web/.env
+
+# 内容寻址的几何原型缓存（Kit 进程内生成，可随时重建）。
+# 见 docs/superpowers/plans/2026-08-06-threejs-geometry-to-usd-in-kit.md
+kit/cache/
+
+# The root .gitignore has a bare `tests/` that matches at ANY depth, so these were
+# silently dropped from a commit that described them as its verification backbone.
+!tests/
+!tests/**
+
+# Byte-compiled test caches — checked in by accident, never useful in a diff.
+__pycache__/
+*.pyc

@@ -1,0 +1,173 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ✓ test/ovStreamLease.test.ts > waits for the previous singleton viewer to terminate before reconnecting
+ ✓ test/ovStreamLease.test.ts > never connects or terminates a queued viewport cancelled before ownership
+ ✓ test/ovStreamLease.test.ts > holds the singleton across the SDK connecting cancellation until real idle
+ ✓ test/ovStreamLease.test.ts > waits for a late connect promise as well as a successful termination
+ ✓ test/ovStreamLease.test.ts > blocks queued and future connections when cancellation never confirms idle
+ × test/ovStreamLease.test.ts > does not orphan a controller by terminating before initialization finishes
+   → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ × test/ovStreamLease.test.ts > finishes stale connecting after onStart already succeeded and inProgress arrived late
+   → expected { ok: false, …(1) } to deeply equal { ok: true }
+ × test/ovStreamLease.test.ts > keeps cancellation through late init then waits for the SDK terminal callback
+   → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ × test/ovStreamLease.test.ts > does not trust none while a terminal start callback is still pending
+   → expected true to be false // Object.is equality
+ × test/ovStreamLease.test.ts > does not overlap a retry with SDK automatic termination after canceled onStart
+   → expected "spy" to be called 2 times, but got 1 times
+ ✓ test/ovStreamLease.test.ts > cleans up a rejected initialization even without an onStart receipt
+ × test/ovStreamLease.test.ts > keeps a hung initialization blocked without later destructive calls
+ × test/ovViewportLifecycle.test.tsx > records terminal SDK start after disposal without starting scene synchronization
+   → expected undefined to be defined
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 6 passed (13)
+   Start at  22:28:37
+   Duration  3.21s (transform 230ms, setup 0ms, collect 705ms, tests 184ms, environment 1.72s, prepare 141ms)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovStreamLease.test.ts [ test/ovStreamLease.test.ts ]
+Error: Invalid Chai property: asymmetricMatch
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not orphan a controller by terminating before initialization finishes
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/ovStreamLease.test.ts:115:27
+    113|     const guarded = stop.then(() => ({ok:true}), error => ({ok:false,e…
+    114|     await vi.advanceTimersByTimeAsync(20)
+    115|     expect(terminate).not.toHaveBeenCalled()
+       |                           ^
+    116|     initialized = true; status = 'connected'; startEvent.settle(); ini…
+    117|     await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/ovStreamLease.test.ts > finishes stale connecting after onStart already succeeded and inProgress arrived late
+AssertionError: expected { ok: false, …(1) } to deeply equal { ok: true }
+
+- Expected
++ Received
+
+  Object {
+-   "ok": true,
++   "error": [Error: Omniverse viewer termination did not reach idle; reload the page before reconnecting],
++   "ok": false,
+  }
+
+ ❯ test/ovStreamLease.test.ts:133:68
+    131|     const stop = terminateOvViewer(terminate, () => status === 'none',…
+    132|     const guarded = stop.then(() => ({ok:true}), error => ({ok:false,e…
+    133|     await vi.advanceTimersByTimeAsync(1100); expect(await guarded).toE…
+       |                                                                    ^
+    134|     expect(status).toBe('none'); expect(controller).toBe(false)
+    135|     expect(terminate).toHaveBeenCalledTimes(2)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/ovStreamLease.test.ts > keeps cancellation through late init then waits for the SDK terminal callback
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/ovStreamLease.test.ts:150:27
+    148|     const guarded = stop.then(() => ({ok:true}), error => ({ok:false,e…
+    149|     await vi.advanceTimersByTimeAsync(20)
+    150|     expect(terminate).not.toHaveBeenCalled()
+       |                           ^
+    151|     status = 'connecting'; initialization.resolve()
+    152|     await vi.advanceTimersByTimeAsync(20)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not trust none while a terminal start callback is still pending
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/ovStreamLease.test.ts:168:18
+    166|     const guarded = stop.then(() => ({ok:true}), error => ({ok:false,e…
+    167|     await vi.advanceTimersByTimeAsync(20)
+    168|     expect(done).toBe(false)
+       |                  ^
+    169|     startEvent.settle(); await vi.advanceTimersByTimeAsync(20); expect…
+    170|     expect(done).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not overlap a retry with SDK automatic termination after canceled onStart
+AssertionError: expected "spy" to be called 2 times, but got 1 times
+ ❯ test/ovStreamLease.test.ts:191:23
+    189|     sdkTerminating = false; status = 'none'
+    190|     await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqu…
+    191|     expect(terminate).toHaveBeenCalledTimes(2)
+       |                       ^
+    192|   } finally { vi.useRealTimers() }
+    193| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/ovViewportLifecycle.test.tsx > records terminal SDK start after disposal without starting scene synchronization
+AssertionError: expected undefined to be defined
+ ❯ test/ovViewportLifecycle.test.tsx:49:24
+     47|     expect(calls).toHaveLength(1)
+     48|     const startEvent = calls[0][5]
+     49|     expect(startEvent).toBeDefined()
+       |                        ^
+     50|     sdk.config!.onStart({status:'warning'})
+     51|     expect(startEvent!.settled).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+

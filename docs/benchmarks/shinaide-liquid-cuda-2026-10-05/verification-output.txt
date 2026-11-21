@@ -1,0 +1,146 @@
+START cpu-eager
+cpu-eager original ACCEPTED 1
+cpu-eager original ACCEPTED 2
+cpu-eager original ACCEPTED 3
+cpu-eager actuated ACCEPTED 1
+cpu-eager actuated ACCEPTED 2
+cpu-eager actuated ACCEPTED 3
+DONE cpu-eager {"heat_multiplier": 16.705769242467465, "pump_rpm_multiplier": -1.8587987666734287}
+START gpu-eager
+gpu-eager original ACCEPTED 1
+gpu-eager original ACCEPTED 2
+gpu-eager original ACCEPTED 3
+gpu-eager actuated ACCEPTED 1
+gpu-eager actuated ACCEPTED 2
+gpu-eager actuated ACCEPTED 3
+DONE gpu-eager {"heat_multiplier": 16.70576924246746, "pump_rpm_multiplier": -1.8587987666798684}
+START gpu-compiled
+gpu-compiled WARM {"n_compiled": 1, "n_eager_transform": 0, "n_eager_grad": 0, "n_eager_fallback": 0, "broken_latch": false}
+gpu-compiled original ACCEPTED 1
+gpu-compiled original ACCEPTED 2
+gpu-compiled original ACCEPTED 3
+gpu-compiled actuated ACCEPTED 1
+gpu-compiled actuated ACCEPTED 2
+gpu-compiled actuated ACCEPTED 3
+DONE gpu-compiled {"heat_multiplier": 16.70576924246746, "pump_rpm_multiplier": -1.858798766676242}
+{
+  "status": "gates_not_met",
+  "gates": {
+    "gpu_eager_vs_cpu_eager_all_states": false,
+    "gpu_eager_vs_cpu_eager_gradients": true,
+    "gpu_compiled_vs_gpu_eager_all_states": false,
+    "gpu_compiled_vs_gpu_eager_gradients": true,
+    "compiled_value_calls": true,
+    "no_unplanned_fallback": true,
+    "intentional_gradient_routing": true,
+    "finite_nonzero_gradients": true,
+    "accepted_residuals": true,
+    "state_and_theta_residency": true
+  },
+  "comparisons": {
+    "gpu_eager_vs_cpu_eager": {
+      "original": {
+        "max_all_state_absolute_difference": 4.581977464113152e-09,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 2.9103830456733704e-11,
+          "flow": 1.6653345369377348e-16,
+          "node_temperature": 4.581977464113152e-09,
+          "water_temperature": 4.581977464113152e-09,
+          "solid_temperature": 2.9307329896255396e-09,
+          "hx_secondary_temperature": 4.853291102335788e-10,
+          "primary_return_temperature": 1.5705836631241255e-10
+        },
+        "objective_absolute_difference_K": 6.324967216642108e-10
+      },
+      "actuated": {
+        "max_all_state_absolute_difference": 1.1188092230440816e-08,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 5.820766091346741e-11,
+          "flow": 2.220446049250313e-16,
+          "node_temperature": 1.1188092230440816e-08,
+          "water_temperature": 1.1188092230440816e-08,
+          "solid_temperature": 5.734932528866921e-09,
+          "hx_secondary_temperature": 5.526260338228894e-09,
+          "primary_return_temperature": 1.7884644876176026e-09
+        },
+        "objective_absolute_difference_K": 5.492836407938739e-09,
+        "first_derivatives": {
+          "heat_multiplier": {
+            "reference": 16.705769242467465,
+            "observed": 16.70576924246746,
+            "absolute_difference": 3.552713678800501e-15,
+            "relative_difference": 2.126638784025105e-16
+          },
+          "pump_rpm_multiplier": {
+            "reference": -1.8587987666734287,
+            "observed": -1.8587987666798684,
+            "absolute_difference": 6.439737632035758e-12,
+            "relative_difference": 3.4644619673049535e-12
+          }
+        }
+      }
+    },
+    "gpu_compiled_vs_gpu_eager": {
+      "original": {
+        "max_all_state_absolute_difference": 1.5452144452865468e-08,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 2.9103830456733704e-11,
+          "flow": 5.551115123125783e-17,
+          "node_temperature": 1.5452144452865468e-08,
+          "water_temperature": 1.5452144452865468e-08,
+          "solid_temperature": 7.113783340173541e-09,
+          "hx_secondary_temperature": 7.407663815683918e-09,
+          "primary_return_temperature": 2.3973143470357172e-09
+        },
+        "objective_absolute_difference_K": 4.458684088604059e-09
+      },
+      "actuated": {
+        "max_all_state_absolute_difference": 6.5820700001495425e-09,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 5.820766091346741e-11,
+          "flow": 2.220446049250313e-16,
+          "node_temperature": 6.5820700001495425e-09,
+          "water_temperature": 6.5820700001495425e-09,
+          "solid_temperature": 3.0592559596698266e-09,
+          "hx_secondary_temperature": 3.0616433832619805e-09,
+          "primary_return_temperature": 9.908376341627445e-10
+        },
+        "objective_absolute_difference_K": 3.042885055037914e-09,
+        "first_derivatives": {
+          "heat_multiplier": {
+            "reference": 16.70576924246746,
+            "observed": 16.70576924246746,
+            "absolute_difference": 0.0,
+            "relative_difference": 0.0
+          },
+          "pump_rpm_multiplier": {
+            "reference": -1.8587987666798684,
+            "observed": -1.858798766676242,
+            "absolute_difference": 3.6264324876356113e-12,
+            "relative_difference": 1.9509548600104992e-12
+          }
+        }
+      }
+    }
+  },
+  "error": null,
+  "elapsed_seconds": 109.20482531399466,
+  "gpu_preflight": {
+    "raw": "0, GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93, NVIDIA GeForce RTX 4090, 24564, 4549, 19533",
+    "index": 0,
+    "uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+    "name": "NVIDIA GeForce RTX 4090",
+    "memory_total_MiB": 24564,
+    "memory_used_MiB": 4549,
+    "memory_free_MiB": 19533
+  },
+  "gpu_postflight": {
+    "raw": "0, GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93, NVIDIA GeForce RTX 4090, 24564, 5118, 18963",
+    "index": 0,
+    "uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+    "name": "NVIDIA GeForce RTX 4090",
+    "memory_total_MiB": 24564,
+    "memory_used_MiB": 5118,
+    "memory_free_MiB": 18963
+  }
+}

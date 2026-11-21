@@ -1,0 +1,114 @@
+--- before/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ after/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -9452,6 +9452,76 @@
+     return true;
+ }
+ 
++//- Mirror the original conforming-cone base classification before a join
++//  commits. A refused proposal keeps both input faces and all their geometry.
++bool coalesceConformingBaseSupported
++(
++    const std::vector<Foam::point>& points,
++    const std::vector<Foam::label>& poly,
++    const bool keepUnsplitWarped
++)
++{
++    using namespace Foam;
++    if(poly.size()<3)return false;
++    for(label p:poly)
++    {
++        if(p<0||p>=label(points.size()))return false;
++        const point& x=points[p];
++        if(!std::isfinite(x.x())||!std::isfinite(x.y())||!std::isfinite(x.z()))return false;
++    }
++    auto lessPoint=[&](label a,label b)
++    {
++        const point& x=points[a];const point& y=points[b];
++        if(x.x()!=y.x())return x.x()<y.x();
++        if(x.y()!=y.y())return x.y()<y.y();
++        return x.z()<y.z();
++    };
++    label bestStart=0,bestDirection=1;bool haveBest=false;
++    for(label direction:{label(1),label(-1)})for(label start=0;start<label(poly.size());++start)
++    {
++        bool better=false;
++        if(haveBest)for(label j=0;j<label(poly.size());++j)
++        {
++            const label candidate=poly[(start+direction*j+label(poly.size())*2)%poly.size()];
++            const label current=poly[(bestStart+bestDirection*j+label(poly.size())*2)%poly.size()];
++            if(lessPoint(candidate,current)){better=true;break;}
++            if(lessPoint(current,candidate))break;
++        }
++        if(!haveBest||better){bestStart=start;bestDirection=direction;haveBest=true;}
++    }
++    std::vector<label> canonical;canonical.reserve(poly.size());
++    for(label j=0;j<label(poly.size());++j)
++        canonical.push_back(poly[(bestStart+bestDirection*j+label(poly.size())*2)%poly.size()]);
++    vector area,original;point centre,originalCentre;
++    faceAreaCentreOF(points,canonical,area,centre);
++    faceAreaCentreOF(points,poly,original,originalCentre);
++    if((area&original)<0)area=-area;
++    const scalar ar=mag(area);scalar span=0;
++    for(label p:poly)span=max(span,mag(points[p]-centre));
++    if(!std::isfinite(ar)||ar<=VSMALL||!std::isfinite(span)||span<=VSMALL
++      ||!std::isfinite(centre.x())||!std::isfinite(centre.y())||!std::isfinite(centre.z()))return false;
++    const vector normal=area/ar;
++    bool convex=true,collinear=false,planar=true;
++    std::set<std::tuple<scalar,scalar,scalar>> unique;
++    for(size_t j=0;j<poly.size();++j)
++    {
++        const label q=poly[j],a=poly[(j+poly.size()-1)%poly.size()],b=poly[(j+1)%poly.size()];
++        const point& x=points[q];unique.emplace(x.x(),x.y(),x.z());
++        if(mag((x-centre)&normal)>1e-10*span)planar=false;
++        const vector edge=points[b]-x;const scalar len=mag(edge);
++        if(len<=VSMALL){planar=false;break;}
++        for(label v:poly)
++            if((((edge^(points[v]-x))&normal)/len)<-1e-12*span)convex=false;
++        const vector da=points[a]-x,db=points[b]-x;
++        if((da&db)<0&&mag(da^db)<=1e-12*mag(da)*mag(db))collinear=true;
++    }
++    const bool splitFace=collinear||!convex;
++    return unique.size()==poly.size()
++        &&(planar||(keepUnsplitWarped&&!splitFace))
++        &&mag(original-area)/ar<=1e-10
++        &&mag(originalCentre-centre)/span<=1e-10;
++}
++
+ } // end anonymous namespace
+ 
+ 
+@@ -12374,6 +12444,9 @@
+     // patch NAME keeps them apart, which is what the group key below encodes.
+     const bool crossWalls =
+         plainWall && (getenv("DCCART_COOALESCE_WALLS") != nullptr);
++    const char* conformingMergeFlag=getenv("DCCART_COOALESCE_CONFORMING_BASE");
++    const bool conformingMergeGuard=conformingMergeFlag&&std::strcmp(conformingMergeFlag,"1")==0;
++    const bool keepUnsplitWarped=getenv("DCCART_CONES_KEEP_UNSPLIT_WARPED")!=nullptr;
+     mergeCoincidentPoints(m);
+     // Faces between the SAME two cells (or the same cell and the same
+     // patch / zone) that are coplanar and share an edge become one face:
+@@ -12629,6 +12702,8 @@
+                         }
+                         continue;
+                     }
++                    if(conformingMergeGuard
++                      &&!coalesceConformingBaseSupported(m.points,out,keepUnsplitWarped))continue;
+                     dcCartCapBirthObservation::coalesce(m,f1,f2,out,myRank);
+                     m.faces[f1] = out;
+                     m.faceAlive[f2] = false;
+@@ -13107,6 +13182,15 @@
+     {
+         if (!m.faceAlive[f]) { continue; }
+         const auto& poly=m.faces[f];canonical[f]=canonicalCycle(poly);
++        const char* triangleOrderFlag=getenv("DCCART_CONES_PRESERVE_PLAIN_TRIANGLE_ORDER");
++        // Unshared three-point wall bases retain the exact writer operand order.
++        // Coupled bases still use the existing common coordinate-canonical cycle.
++        const label trianglePatch=m.patch[f];
++        if(triangleOrderFlag&&std::strcmp(triangleOrderFlag,"1")==0
++          &&poly.size()==3&&m.neighbour[f]==-1&&m.zone[f]==-1
++          &&trianglePatch>=0&&trianglePatch<patchTypes.size()
++          &&patchTypes[trianglePatch]=="wall")
++        {canonical[f]=poly;}
+         faceAreaCentreOF(m.points,canonical[f],areas[f],centres[f]);
+         vector original;point originalCentre;faceAreaCentreOF(m.points,poly,original,originalCentre);
+         if ((areas[f]&original)<0) { areas[f]=-areas[f]; }

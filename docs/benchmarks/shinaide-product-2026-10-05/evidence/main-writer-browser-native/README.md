@@ -1,0 +1,25 @@
+# Main native writer and real React lifecycle — 2026-10-05
+
+The actual 40901 main service on 8390/8391 drove this small synthetic 2-rank channel through ordinary React controls. This is an engineering lifecycle witness, not the large Shinaide mesh acceptance or a cooling accuracy certificate.
+
+The native cart-only rebuild used main bcf2ba71, 79 unchanged source inputs, CPU 40–47, and eight build workers. The measured build-log last-write interval was 40.1384788 s. Main dcCartMesh executable SHA256 was 21b3b39cc820d96f2e508d728969def4703cfe9abcb6380a3a89e181c6f4c43f, and the rebuilt library was d5c34dc3eecfdd82aa9108868858532c39feb9c3e683cb79fd3f9611c43bad7e. RPATH/ldd resolved into main, the existing environment and system directories; no worktree path or missing library was accepted. The source JSON, compiler log and receipt retain the exact pairing.
+
+The normal React mesh click at 07:36:29 SGT completed at 07:36:32. Job 4bc6ab45 used dcCart, base size 0.25, two ranks and a 300 s whole-product deadline. Native checkMesh -allTopology -allGeometry -parallel accepted 511 hex cells, one connected region and 64 processor faces, with zero failed checks. The quality receipt binds mesh SHA256 eae64d9d07933f514f191f45c12455cd1ffcc788ff619fb5d934f12fc580d530. Native output retains its constant-time-selection warning. The SSE file preserves the product log events, including the full checker flags and Mesh OK; it is not claimed to be byte-identical to the checker's unprefixed stdout.
+
+The normal steady React click at 07:41:12 completed at 07:41:19. Job d9caa55c used main buoyantBoussinesqSimpleFoam_new SHA256 7932473e304c68aba242e1c9947eeb0586c1aebea911b6e567e19e3d85316257. SIMPLE converged after 337 iterations at the original residual settings. The actual written time 337 snapshot has 511 cells, T = 295.15–298.0708613 K and speed = 0.0028562–0.0057695 m/s. Both physical flow patches have 64 faces. The final steady supply/return values were -0.005 and +0.0049999995505 m³/s.
+
+The normal transient React click at 07:44:10 completed at 07:44:18. Job 11224cf9 independently performed its steady initialization, then used main buoyantBoussinesqPimpleFoam_new SHA256 b49ea3b9140e2943d0712bf021c0a9c54d40d17be64c297c4938e753903d4e3b. Euler dt=maxDt=0.01 s, maxCo=1, two pressure correctors and 20 outer correctors reached exactly 0.02 s in two steps. PIMPLE used 18 and 15 outer iterations; no step hit the cap. The unchanged Mesh seed comprises 54 byte-identical files before/after the transient product workflow. Each partition wrote 0, 0.01 and 0.02.
+
+Actual React postprocessing opened the transient record and read the common complete 0.02 snapshot: 12 patches, eight native fields, 511 cells and 11 selectable scalar/vector components. Temperature and velocity both rendered in Three.js. The UI explicitly showed result time 0.02 s with playhead 0 s. At 1280×720 document width matched scroll width; no new browser error appeared during this workflow. An earlier pointer-lock error and the intentional unavailable-OV fallback error remain historical records, not erased claims.
+
+## Scientific limitation found by this witness
+
+The transient physical supply/return values are -0.005 and +0.00500074805354 m³/s. Local per-cell divergence below 6e-14 m³/s does not prove whole-domain conservation: the written processor-interface flux is not exactly opposite on the two sides. An independent raw-phi investigation found a missing coupled velocity-cache evaluation at startup before Euler old-time initialization; its repair and fresh native product validation are still required. Consequently the completed UI/native lifecycle is not marked as a fully accepted transient conservation result.
+
+The pressure values are kinematic (m²/s²). The phi*T moments in the read-only field audit are advective contributions and exclude conduction; they are not a total thermal balance certificate. No region identity is inferred when cellToRegion is absent. This small fixture neither establishes the large Shinaide solver result nor proves that every case meets the deadline.
+
+The two deterministic tar.gz archives preserve the actual pre-transient steady and post-postprocess transient files. Every member was decompressed and matched against its original byte count/SHA256. The standalone archive-verification and member manifests make the compression reversible without changing scientific source bytes.
+
+## Follow-up: fresh repaired main product — 2026-10-05
+
+The later native rebuild and ordinary React job 3384fb53 close the demonstrated startup-interface defect for this same small fixture. All 64 interface pairs cancel exactly at both transient frames, with final physical net flow approximately -4.00e-14 m³/s. The original counterexample and archives above remain intact. Exact source/native pairing, unfiltered input and seed parity, raw log, frozen-phi audit and reversible actual written archive are in [the fresh main-product receipt](../pimple-startup-coupled-phi/main-product/README.md). The large Shinaide gate and general accuracy remain separate.

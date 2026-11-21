@@ -1,0 +1,146 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 3d9a0d28..300cf26e 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -6940,6 +6940,50 @@ Foam::label gConvexExactRejects = 0;
+ //  this one in the last digits, and a union that only just passes here
+ //  fails there. The face geometry and the neighbour centres come from the
+ //  caller's caches (the same values, computed once per round).
++// Opt-in geometric audit for merge admissions. A centroid inside every
++// face plane is only a star-shapedness test: an L-shaped union can pass it.
++// Every retained vertex must instead lie on the inner side of every
++// retained face plane. Coplanar facets are allowed here; the external strict
++// check still decides whether the final discretisation is acceptable.
++bool vertexConvexFaces
++(
++    const Foam::dcCartCutCells::cutMesh& m,
++    const std::vector<Foam::label>& fs, Foam::label c, Foam::label o = -1
++)
++{
++    using namespace Foam;
++    if (getenv("DCCART_CONVEX_MERGES") == nullptr) { return true; }
++    std::vector<label> vertices;
++    point lo(GREAT, GREAT, GREAT), hi(-GREAT, -GREAT, -GREAT);
++    for (const label f : fs)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        for (const label p : m.faces[f])
++        {
++            vertices.push_back(p);
++            lo = min(lo, m.points[p]); hi = max(hi, m.points[p]);
++        }
++    }
++    std::sort(vertices.begin(), vertices.end());
++    vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
++    if (vertices.size() < 4) { return false; }
++    const scalar tolerance = 1e-10 * max(mag(hi-lo), scalar(1e-6));
++    for (const label f : fs)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        vector a; point fc; faceAreaCentreOF(m.points, m.faces[f], a, fc);
++        const scalar ar = mag(a);
++        if (ar <= VSMALL) { return false; }
++        const bool outward = m.owner[f] == c || (o >= 0 && m.owner[f] == o);
++        const vector n = (outward ? a : vector(-a)) / ar;
++        for (const label p : vertices)
++        {
++            if (((m.points[p] - fc) & n) > tolerance) { return false; }
++        }
++    }
++    return true;
++}
++
+ template<class CentreFn, class FaceGeoFn, class FaceCtrFn>
+ bool convexUnionT
+ (
+@@ -6963,6 +7007,7 @@ bool convexUnionT
+     {
+         if (((m.owner[f] == o) ? m.neighbour[f] : m.owner[f]) != c) { fs.push_back(f); }
+     }
++    if (!vertexConvexFaces(m, fs, c, o)) { return false; }
+     const point ref = m.cellRefCentre[o];
+     std::vector<vector> fn(fs.size());
+     std::vector<point> fc(fs.size());
+@@ -7865,7 +7910,7 @@ void Foam::dcCartCutCells::mergeSmallCells
+                 {
+                     if (m.faceAlive[f] && ((m.owner[f] == o) ? m.neighbour[f] : m.owner[f]) != c) { fs.push_back(f); }
+                 }
+-                if (fs.size() < 4) { return false; }
++                if (fs.size() < 4 || !vertexConvexFaces(m, fs, c, o)) { return false; }
+                 point est = point::zero;
+                 for (label f : fs) { vector a; point fc; faceGeoOF(f, a, fc); est += fc; }
+                 est /= scalar(fs.size());
+@@ -7952,6 +7997,7 @@ void Foam::dcCartCutCells::mergeSmallCells
+                         if (unionPyramidsOk(cellFaces, c, rh.second.first)) { pick = rh.second.first; break; }
+                     }
+                     const bool inverted = (pick < 0);
++                    if (inverted && getenv("DCCART_CONVEX_MERGES") != nullptr) { continue; }
+                     if (inverted) { pick = best; }
+                     const cellGid g = gidOf(m, c), h = gidOf(m, pick);
+                     if (getenv("DCCART_DEBUG"))
+@@ -8500,7 +8546,7 @@ void Foam::dcCartCutCells::mergeSmallCells
+                 if (((m.owner[f] == c) ? m.neighbour[f] : m.owner[f]) != o) { fs.push_back(f); }
+             for (label f : cellFaces[o])
+                 if (((m.owner[f] == o) ? m.neighbour[f] : m.owner[f]) != c) { fs.push_back(f); }
+-            if (fs.size() < 4) { return false; }
++            if (fs.size() < 4 || !vertexConvexFaces(m, fs, c, o)) { return false; }
+             const point ref = m.cellRefCentre[o];
+             vector sumSf = vector::zero;
+             point  cen   = point::zero;
+@@ -8964,6 +9010,29 @@ bool mergePolygons
+         std::set<label> seen;
+         for (label v : out) { if (!seen.insert(v).second) { return false; } }
+     }
++    // Optional diagnostic gate: reject concave polygon joins while retaining
++    // all original vertices and canonicalisation. In contrast to disabling
++    // the coalescer, this preserves its coincident-point cleanup.
++    if (getenv("DCCART_CONVEX_POLYGON_JOINS") != nullptr)
++    {
++        vector a; point fc; faceAreaCentreOF(pts, out, a, fc);
++        const scalar ar = mag(a);
++        if (ar <= VSMALL) { return false; }
++        const vector n = a / ar;
++        point lo(GREAT,GREAT,GREAT), hi(-GREAT,-GREAT,-GREAT);
++        for (const label p : out) { lo = min(lo, pts[p]); hi = max(hi, pts[p]); }
++        const scalar span = max(mag(hi-lo), scalar(1e-6));
++        for (size_t i = 0; i < out.size(); ++i)
++        {
++            const point& origin = pts[out[i]];
++            const vector edge = pts[out[(i+1)%out.size()]] - origin;
++            const scalar tolerance = 1e-10 * max(mag(edge)*span, scalar(1e-24));
++            for (const label p : out)
++            {
++                if (((edge ^ (pts[p]-origin)) & n) < -tolerance) { return false; }
++            }
++        }
++    }
+     // collinear vertices are kept: a neighbour face may still reference them
+     return true;
+ }
+@@ -10130,7 +10199,7 @@ void Foam::dcCartCutCells::repairThinWallCells
+                 for (label g : aff) { if (faceOk[g]) { uni.push_back(g); } }
+                 point nc; scalar nv;
+                 cellCentreVolOF(m, h, uni, faceOk, nc, nv);
+-                bool ok = (nv > VSMALL);
++                bool ok = (nv > VSMALL) && vertexConvexFaces(m, uni, h);
+                 if (ok)
+                 {
+                     // checkMesh's other word on a reshaped cell: every face
+@@ -10271,6 +10340,9 @@ void Foam::dcCartCutCells::repairThinWallCells
+                 continue;
+             }
+ 
++            // A stricter merge refusal must not silently remove more fluid.
++            if (getenv("DCCART_CONVEX_MERGES") != nullptr) { ++nKept; continue; }
++
+             // ---- no host lifts it clear: hand it to the solid -----------
+             // The same action killExtremeSlivers takes, and the one every
+             // surveyed code takes for a small cell it cannot place: FDS blocks
+@@ -10655,6 +10727,7 @@ Foam::label Foam::dcCartCutCells::repairSkewFaces
+         //  one of its own faces, and that is "faces are incorrectly oriented".
+         auto pyramidsOk = [&](label x, const std::vector<label>& fs, const point& xc) -> bool
+         {
++            if (!vertexConvexFaces(m, fs, x)) { return false; }
+             for (label f : fs)
+             {
+                 if (!m.faceAlive[f]) { continue; }

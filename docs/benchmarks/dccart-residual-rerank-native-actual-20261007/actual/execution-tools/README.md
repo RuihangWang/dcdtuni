@@ -1,0 +1,5 @@
+# Authorized residual PRIVATE fresh paired experiment
+
+Only H17b21 to2bf2 from reviewed residual proposal; actualtail39 byvalue and sixfresh units/noobjectseeds. Genuine original12before/11after plus complete derived sourceRegion actual boundary mapping. Both arms all15commonflags incltail1/wider1/veto1; only residual absent toexact1. CLI110 preserves actual downstreamreserve60/stage20; native outer60 and stock120 per Root confirmation. OFF compared to immutable actualtailON200 raw8+sets; ON topology/zones/660boundarybits/noaddedsets recorded. All normal39/Main29/pair held; Root OV9/testcarrier/currentroles transition explicitlybound, no HEAD rollback or Kit memoryidentity claim.
+
+Two preparation tool assertions retained before any build/native: omitted Root test-only carrier repair; exact textmatch indent mismatch. Neither changed science/source. Freshbuild and oncepair already explicitlyauthorized, no extra native calls/retries. Trace caps unchanged and incomplete rows never upgraded to complete. Enabled scheduling costs actualwall; no neutrality or wholecase acceptance claim.

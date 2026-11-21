@@ -1,0 +1,290 @@
+{
+  "schema": "dcdtuni-independent-actual-thermal-trajectory-review/v1",
+  "createdUTC": "2026-10-05T19:45:16.500798+00:00",
+  "reviewOutcome": "Scope sound; original v2 AD probe remains FAIL due an insensitive inlet objective. New independently justified objective recommended without changing the guard.",
+  "executionScope": "This audit used only stdlib JSON/source/hash reads and route arithmetic. No DAE, oracle, sensitivity, FD or solver was rerun; no browser/API/service/process mutation. Only audit files created inside the repository.",
+  "run_id": "b69f923f8c76499eb4ec60c64ae46cb4",
+  "completedInputsVerified": 6,
+  "designPayloadsVerified": 10,
+  "productionSourceFilesVerified": 9,
+  "actualBaselineObjective": {
+    "mean_solid_K": 329.1413062170994,
+    "AD_baseline_mean_solid_K": 329.14130621709927,
+    "difference_K": -1.1368683772161603e-13,
+    "caveat": "This direct audit verifies the final mean objective only; the probe did not publish all recomputed thermal states for an all-state equality gate."
+  },
+  "v2NumericalOutcome": {
+    "passed": false,
+    "heat_direction": {
+      "AD": 3.3616446284439934,
+      "centered_FD": 3.3616446282280776,
+      "relative_error": 6.422919541017387e-11,
+      "passed": true
+    },
+    "inlet_direction": {
+      "AD": 2.4369829033082793e-17,
+      "centered_FD": 0.0,
+      "relative_error": 2.436982903308279e-07,
+      "passed": false
+    },
+    "five_full_trajectories": true,
+    "workerReturncode": 1,
+    "naturalExit": true,
+    "workerPIDNoLongerPresent": true,
+    "timeoutTerminationExercised": false,
+    "fuserEvents": [],
+    "lifecycleLimitation": "Actual natural-exit recording is proved; mocked ownership tests do not constitute an actual timeout/fuser termination validation."
+  },
+  "independentPhysicalSensitivityReview": {
+    "equation": "(I-dt*A)s_i=s_(i-1)+dt*db_i; s_0=0. Heat forcing db_solid=(Q_i-Q_0)/Csolid; inlet forcing db_primary=m_primary*cp_primary*(Tin_i-Tin_0)/Cprimary. Same static A, actual accepted .5 s grid and flows.",
+    "sensitivityFinal": {
+      "seq": 49,
+      "time_s": 24.5,
+      "heat_mean_solid": 3.361644628443994,
+      "inlet_mean_solid": 2.4369829033082698e-17,
+      "inlet_mean_primary_return": -0.01795178819297585,
+      "inlet_mean_hx_secondary": 0.0022959686041671987
+    },
+    "heatAD_minusIndependent": -4.440892098500626e-16,
+    "inletSolidAD_minusIndependent": 9.55261252416069e-32,
+    "interpretation": "The observed near-zero inlet-to-solid derivative is independently reproduced; it is an insensitive objective within this horizon, not an established AD fault.",
+    "recommendedInletObjective": "mean primary_return_temperature at final actual sample; separately retain mean solid_temperature as heat objective. Preserve all five full trajectories, epsilon=1e-4 and nonzero-derivative guard.",
+    "scopeLimit": "No event-time derivative, UI/JSON differentiation, dynamic hydraulic/property derivative, second-order derivative or global differentiability proof."
+  },
+  "transportInterpretation": {
+    "formula": "pipe mean residence = rho*pi*D^2*polyline_length/(4*abs(actual_flow)) summed along actual positive-flow routes from HX supply to cold-plate inlet. Matches compiler straight waypoint polyline length.",
+    "shortest": {
+      "edge_id": "m_20_e_56_cp_CP-CU_1",
+      "pipe_residence_s": 600.1013813198505,
+      "cells": 26,
+      "path": [
+        {
+          "edge_id": "m_31_seg14",
+          "pipe_residence_s": 70.86255734005393,
+          "cells": 22
+        },
+        {
+          "edge_id": "m_31_spoke_tee_1778058997173",
+          "pipe_residence_s": 499.69110532151325,
+          "cells": 2
+        },
+        {
+          "edge_id": "m_20_e_56_branch_in",
+          "pipe_residence_s": 29.54771865828335,
+          "cells": 2
+        }
+      ]
+    },
+    "longest": {
+      "edge_id": "m_17_e_45_cp_CP-CU_1",
+      "pipe_residence_s": 1263.128391338784,
+      "cells": 84,
+      "path": [
+        {
+          "edge_id": "m_31_seg14",
+          "pipe_residence_s": 70.86255734005393,
+          "cells": 22
+        },
+        {
+          "edge_id": "m_31_seg13",
+          "pipe_residence_s": 9.457887433061904,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg12",
+          "pipe_residence_s": 21.92907810575261,
+          "cells": 6
+        },
+        {
+          "edge_id": "m_31_seg11",
+          "pipe_residence_s": 11.934354877703507,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg10",
+          "pipe_residence_s": 14.90520280921625,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg9",
+          "pipe_residence_s": 28.821307381299352,
+          "cells": 6
+        },
+        {
+          "edge_id": "m_31_seg8",
+          "pipe_residence_s": 16.97806175497813,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg7",
+          "pipe_residence_s": 18.73853503428221,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg6",
+          "pipe_residence_s": 76.5832520412331,
+          "cells": 10
+        },
+        {
+          "edge_id": "m_31_seg5",
+          "pipe_residence_s": 53.03786668778921,
+          "cells": 6
+        },
+        {
+          "edge_id": "m_31_seg4",
+          "pipe_residence_s": 35.6112575552909,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg3",
+          "pipe_residence_s": 43.97402637368985,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_seg2",
+          "pipe_residence_s": 134.96388551083277,
+          "cells": 6
+        },
+        {
+          "edge_id": "m_31_seg1",
+          "pipe_residence_s": 125.02540027128613,
+          "cells": 3
+        },
+        {
+          "edge_id": "m_31_spoke_tee_1778059219789",
+          "pipe_residence_s": 499.112500380272,
+          "cells": 2
+        },
+        {
+          "edge_id": "m_17_e_45_branch_in",
+          "pipe_residence_s": 101.19321778204225,
+          "cells": 2
+        }
+      ]
+    },
+    "coldPlatesReached": 56,
+    "horizon_s": 24.5,
+    "caveat": "Mean residence is not a strict delay: finite-volume upwinding and backward Euler yield small instantaneous tails. This is mock-parameter geometry; no vendor calibration or measured transport claim."
+  },
+  "twoFluidPrimaryChannel": {
+    "UA_W_K": 2000,
+    "mcp_W_K": 4180.0,
+    "primary_capacity_J_K": 82947.92,
+    "local_primary_relaxation_s": 13.421993527508091,
+    "actual_primary_return_final_minus_initial_K": -0.017951788200491592,
+    "actual_primary_return_peak_minus_initial_K": 0.12655127051215231,
+    "actual_secondary_final_minus_initial_K": 0.0022959685640557836,
+    "actual_secondary_peak_minus_initial_K": 0.012338321433162491
+  },
+  "independentOracleReview": {
+    "BE_equation": "(I-dt*A)x_i=x_(i-1)+dt*b_i",
+    "continuousReference": "exp of augmented affine matrix for each actual accepted b_i held across original interval, not continuously interpolated ramp forcing.",
+    "thermal_states": 513,
+    "max_BE_product_error_K": 5.248352863418404e-10,
+    "max_node_mixing_error_K": 3.9374299376504496e-09,
+    "independent_substep_errors_K": [
+      0.11433134514498988,
+      0.05843598656173299,
+      0.02954841125620078,
+      0.014858500754939996
+    ],
+    "independent_substep_orders": [
+      0.9682919868437357,
+      0.9837765334956173,
+      0.9917920092801789
+    ],
+    "interpretation": "Independent BE matches original 50-sample product and first-order temporal refinement is demonstrated for the sampled-hold reference. This is not a production dt-refinement run or MMS construction."
+  },
+  "boundFiles": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/checkpoint.json",
+      "bytes": 290756,
+      "sha256": "449368686432df7e9001f89dbe1902047ce7b16077a6af183f89ef8accdbbee6"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/executed-inputs.json",
+      "bytes": 538,
+      "sha256": "92b74f2479b97515f2a9d4deaedf2942931b204abbb86e4bf0557ea69c54fdb1"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/executed.liquidrun",
+      "bytes": 290264,
+      "sha256": "bc6a61f864dfc1292e010db41423c7844692855fa2c84f477b46170c0d8ef030"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/input.json",
+      "bytes": 322798,
+      "sha256": "3a7f60b3d352f73d94482e379bd780546edee87cd480020df0cdb53345eaf122"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/input.liquidrun",
+      "bytes": 231870,
+      "sha256": "3cdcd29fe0ca48ba5d26e396f1008ad6bec5526d0fa7e385ebadc303001ccbeb"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/completed/result.json",
+      "bytes": 2799797,
+      "sha256": "2d1873f616105d680829f5766cf129054a85ced5b8c3e64f4e1df3d7c4f4f547"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/trajectory_ad_probe.py",
+      "bytes": 12630,
+      "sha256": "d01ad347533df68e40edb285a531b8295840aa1732c3c43a2b516e47765c849a"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/owned_worker.py",
+      "bytes": 8947,
+      "sha256": "465fe94832748f1f0d214d7230e30ac4ecbf8ec23d4540f746b91b883d758302"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/source-identity.json",
+      "bytes": 1763,
+      "sha256": "a06c16f349c33025b48d3a6435e119fe0912674d9eb3b0e69e2ec5d81aff3b3c"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/manifest.json",
+      "bytes": 1636,
+      "sha256": "2b96b9086408b574631c1dbac74e2ae3438e068ffde113cc20addacae763e525"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/run-b69f-actual-thermal/result.json",
+      "bytes": 5051,
+      "sha256": "6479a88de37da062ebb878db90c35afc8ed5d515dbf299a76e74dfe2020e0e74"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-trajectory-ad-probe-v2-20261006/run-b69f-actual-thermal/worker-terminal.json",
+      "bytes": 3316,
+      "sha256": "a3ee22915d01e3a128b9c9db0237b3935f5cb2cb2e7a0975bd6903e83156ec32"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/oracle.py",
+      "bytes": 6075,
+      "sha256": "59bacc4dec2861fc2c2ee027df712c66b0bb8cb5bdebbce0f4cbf4d6537f6f7d"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/result.json",
+      "bytes": 4659,
+      "sha256": "091945e053cccf1046c23f05fed57ed46f4a96f87015a51542ea6c9704bf545a"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/refinement.py",
+      "bytes": 7278,
+      "sha256": "c9a55512d0f4dae3a45342b5f20f25d7d9057e04c8d1fd66006be219eb01a216"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/refinement.json",
+      "bytes": 9972,
+      "sha256": "510534e46afb89b4da2eef5f390a16f9eff87e35b547c31c636dd28d2365cf15"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/sensitivity.py",
+      "bytes": 2672,
+      "sha256": "671a923275aff46f8673d2c68d4ba530a8c6e388b0bee5af82930b41e3269586"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/liquid-mixed-keyframe-actual-20261006/root-independent-oracle/sensitivity.json",
+      "bytes": 12910,
+      "sha256": "b647aa7f04b732e2bb137b27550d5096626d79a046b0bf38d678f3735c09d93c"
+    }
+  ]
+}

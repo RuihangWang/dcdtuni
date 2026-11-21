@@ -1,0 +1,56 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run --maxWorkers=4 --minWorkers=1 test/RendererControl.test.ts -t keeps renderer controls in the same toolbar slot
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/RendererControl.test.ts (16 tests | 1 failed | 15 skipped) 178ms
+   × keeps renderer controls in the same toolbar slot through collapse and expansion 175ms
+     → expected null to be <select aria-label="渲染器" …(1)>…(2)</select> // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/RendererControl.test.ts > keeps renderer controls in the same toolbar slot through collapse and expansion
+AssertionError: expected null to be <select aria-label="渲染器" …(1)>…(2)</select> // Object.is equality
+
+- Expected: 
+<select
+  aria-label="渲染器"
+  disabled=""
+>
+  <option
+    value="three"
+  >
+    Three.js
+  </option>
+  <option
+    value="ov"
+  >
+    Omniverse
+  </option>
+</select>
+
++ Received: 
+null
+
+ ❯ test/RendererControl.test.ts:246:42
+    244|     expect(toolbar.classList.contains('collapsed')).toBe(true)
+    245|     expect(document.getElementById('renderer-switch-slot')).toBe(slot)
+    246|     expect(slot.querySelector('select')).toBe(select)
+       |                                          ^
+    247|     expect(slot.querySelector('details')).toBe(connection)
+    248|     expect(connection.open).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 skipped (16)
+   Start at  18:40:23
+   Duration  19.75s (transform 3.45s, setup 0ms, collect 7.84s, tests 178ms, environment 10.92s, prepare 432ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -1,0 +1,82 @@
+--- a/dcCartCutCells.C
++++ b/dcCartCutCells.C
+@@ -4,6 +4,13 @@
+ #include "dcCartWriterNumericContext.H"
+ #include "dcCartCompleteCavityLocalOracle.H"
+ #include "dcCartCompleteCavityRepair.H"
++#include "dcCartCompleteCavityReplayObservation.H"
++namespace dcCartCompleteCavityReplaySourceSidecar
++{
++thread_local Reference state;
++}
++namespace Foam { namespace dcCartCompleteCavityReplayObservation
++{ thread_local Pending pending; }}
+ #include "polyMesh.H"
+ #include "Time.H"
+ #include "polyPatch.H"
+@@ -14227,6 +14234,9 @@
+     {FatalErrorInFunction<<"complete-cavity repair requires the existing earliest writer oracle"<<exit(FatalError);}
+     if (literalUnions)
+     {
++        // OBS only: retain the ALREADY constructed oracle by ownership transfer,
++        // not a fresh construct/cache evaluation. No observation is a decision.
++        autoPtr<polyMesh> replayEarliest;writerBindings replayEarliestBindings;
+         // One all-rank, no-write installed oracle before ANY literal union.
+         // The immutable raw checkpoint survives all candidates until the final
+         // writer certificate. Its baseline is never refreshed after mutation.
+@@ -14290,6 +14300,15 @@
+                 m.weightUnionState->clock=clockTime();
+                 dcCartWeightUnionPreview::capture
+                     (*m.weightUnionState,*checkpoint,*oracle,oracleBindings,unionParent,sourceOrigin);
++            }
++            if(dcCartCompleteCavityReplayObservation::enabled()&&m.completeCavityContext
++               &&!m.completeCavityContext->views.empty()
++               &&dcCartCompleteCavityReplayObservation::cachedGeometry(*oracle)
++               &&dcCartCompleteCavityReplayObservation::bindingsBytes(oracleBindings)<=dcCartCompleteCavityReplayObservation::Limits::bytes)
++            {
++                // Move-only, O(1); no point/geometry/binding copy or callback.
++                replayEarliestBindings=std::move(oracleBindings);
++                replayEarliest=std::move(oracle);
+             }
+         }
+         // Working data and actual oracle must not remain aliases/references
+@@ -15030,6 +15049,23 @@
+                 Pout<<"; actual installed prefix/final and earliest coupled guards still required"<<endl;
+             }
+         }
++        // Default-OFF replay observation runs only after all original decisions.
++        // No quality/source/admission callback, oracle refresh or mutation.
++        if(dcCartCompleteCavityReplayObservation::enabled()&&m.completeCavityContext)
++        {
++            const fileName output=runTime.path()/("complete-prefix-observation-rank"+std::to_string(myRank)+".json");
++            const auto observed=dcCartCompleteCavityReplayObservation::capturePairedRaw
++                (true,output.c_str(),*m.completeCavityContext,m,unionCF,patchTypes,
++                 dcCartLegacyJournalObservation::state,dcCartLegacyJournalObservation::dependencyStorage(),
++                 replayEarliest.get(),&replayEarliestBindings);
++            // Destroy only the OBS lease after its selected cache bytes were copied.
++            replayEarliest.clear();replayEarliestBindings=writerBindings();
++            Pout<<"Complete prefix replay observation: rank "<<myRank
++                <<", complete/written "<<observed.complete<<'/'<<observed.written
++                <<", reason "<<observed.refusal<<", entries/cells/faces/aliases/members "
++                <<observed.entries<<'/'<<observed.cells<<'/'<<observed.faces<<'/'<<observed.aliases<<'/'<<observed.members
++                <<", bytes "<<observed.bytes<<", observation "<<observed.seconds<<" s; no repair permission"<<endl;
++        }
+         // One unconditional gather after all local work, including empty
+         // ranks. The statistics never affect the subsequent mesh algorithm.
+         List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(21,0);
+@@ -16746,6 +16782,15 @@
+             <<", verify "<<verifySeconds<<" s; earliest installed baseline and real final DP bytes; full checkMesh required"<<endl;
+         m.writerBaseline.reset();
+     }
++    if(!baselineOnly&&dcCartCompleteCavityReplayObservation::enabled())
++    {
++        const fileName output=runTime.path()/("complete-prefix-final-observation-rank"+std::to_string(Pstream::myProcNo())+".json");
++        const auto observed=dcCartCompleteCavityReplayObservation::captureFinal(true,output.c_str(),mesh,bindings);
++        Pout<<"Complete prefix final observation: rank "<<Pstream::myProcNo()
++            <<", complete/written "<<observed.complete<<'/'<<observed.written
++            <<", reason "<<observed.refusal<<", bytes "<<observed.bytes
++            <<", observation "<<observed.seconds<<" s; cached fields only, no quality permission"<<endl;
++    }
+     return meshPtr;
+ }
+ 

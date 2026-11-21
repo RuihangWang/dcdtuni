@@ -1,0 +1,58 @@
+--- v1/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/display_diagnostics.py
++++ v2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/display_diagnostics.py
+@@ -95,6 +95,29 @@
+             if a is None or any(not 0 <= v <= 1 for v in a):
+                 raise ValueError('base-view-limit')
+     return view
++
++
++def _camera_identity(stage, api):
++    """Fixed authored camera scalar identity; no projection or reply fallback.
++
++    The normal viewJson fields can lag direct USD camera edits. Even an already
++    pending delivered frame must not annotate a newer authored camera.
++    """
++    from pxr import Gf, UsdGeom
++    camera = UsdGeom.Camera(stage.GetPrimAtPath(CAMERA))
++    if not camera or api is None:
++        raise ValueError('invalid-public-value')
++    authored = camera.GetCamera(api.time)
++    projection = camera.GetProjectionAttr().Get(api.time)
++    if projection not in ('perspective', 'orthographic') or authored.projection not in (Gf.Camera.Perspective, Gf.Camera.Orthographic):
++        raise ValueError('invalid-public-value')
++    scalars = (authored.focalLength, authored.horizontalAperture, authored.verticalAperture,
++               authored.horizontalApertureOffset, authored.verticalApertureOffset)
++    clipping = _array((authored.clippingRange.GetMin(), authored.clippingRange.GetMax()), 2)
++    transform = _array([authored.transform[i][j] for i in range(4) for j in range(4)], 16)
++    if any(not _finite(v) for v in scalars) or clipping is None or transform is None:
++        raise ValueError('invalid-public-value')
++    return (projection, tuple(scalars), tuple(clipping), tuple(transform))
+ 
+ 
+ def _context_owned(context, uid):
+@@ -253,6 +276,7 @@
+             view = _base_view(read_view())
+             api, window = paired_viewport()
+             api_identity = (api.stage, str(api.camera_path), api.time) if api is not None else None
++            camera_identity = _camera_identity(stage, api)
+             renderer = _settings(settings, api)
+             # All projection/mapping math belongs to the single frozen sampler.
+             viewport = _lower_sampler(sampler(api, stage, CAMERA,
+@@ -261,6 +285,17 @@
+             elapsed = (self.__clock() - start) * 1000
+             if not _finite(elapsed) or not 0 <= elapsed <= 1e9:
+                 return refusal('invalid-public-value')
++            # Path/time alone do not bind pose, focal settings or a delivered
++            # viewport frame. Re-read the same bounded producers after the last
++            # timing callback; no extra projector or source/asset fallback.
++            final_view = _base_view(read_view())
++            final_renderer = _settings(settings, api)
++            final_viewport = _lower_sampler(sampler(api, stage, CAMERA,
++                current_scene_context={'sceneRevision': revision, 'projectHash': project_hash, 'displayGeneration': generation},
++                viewport_window=window, app_window=app_window(), output_layout=None))
++            final_camera_identity = _camera_identity(stage, api)
++            if final_view != view or final_renderer != renderer or final_viewport != viewport or final_camera_identity != camera_identity:
++                return refusal('source-context-changed')
+             roof = _roof(stage, paths, uid)
+             # Re-read primitive metadata only after all getters. A changed map
+             # or public source identity cannot annotate a newer scene.

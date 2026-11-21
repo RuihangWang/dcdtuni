@@ -1,0 +1,125 @@
+<h2>瞬态模拟设计 — 整体架构</h2>
+<p class="subtitle">数据流：前端 → .cfdrun → runner → OpenFOAM 边界条件</p>
+
+<div class="mockup">
+  <div class="mockup-header">架构总览</div>
+  <div class="mockup-body" style="font-family:monospace;font-size:11px;background:#0d1117;color:#ccc;padding:20px;line-height:1.8;">
+    <div style="text-align:center;margin-bottom:16px;">
+      <span style="background:#2a3a4a;padding:6px 16px;border-radius:6px;border:1px solid #4a6a8a;color:#8be9fd;font-size:13px;">端到端数据流</span>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:stretch;">
+      <!-- Frontend -->
+      <div style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:10px;">
+        <div style="color:#ff9f43;font-size:12px;text-align:center;margin-bottom:8px;">🖥 前端 (STL_generate.html)</div>
+        <div style="background:#252540;padding:6px;border-radius:4px;margin:4px 0;">
+          <div style="color:#54d6a0;font-size:10px;">⏱ 瞬态场景 Tab</div>
+          <div style="font-size:9px;color:#888;">事件列表 + 时间线预览</div>
+          <div style="font-size:9px;color:#888;">聚合所有 model.timeVarying</div>
+        </div>
+        <div style="background:#252540;padding:6px;border-radius:4px;margin:4px 0;">
+          <div style="color:#54d6a0;font-size:10px;">📋 属性面板 ⏱ 按钮</div>
+          <div style="font-size:9px;color:#888;">每个 ACU/Rack 参数旁</div>
+          <div style="font-size:9px;color:#888;">内联 time-value table 编辑</div>
+        </div>
+        <div style="text-align:center;color:#4a9eff;font-size:10px;margin-top:6px;">↓ model.timeVarying 存入 state</div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;color:#4a9eff;font-size:16px;">→</div>
+
+      <!-- .cfdrun -->
+      <div style="flex:0.8;background:#1a2a1a;border:1px solid #3a5a3a;border-radius:6px;padding:10px;">
+        <div style="color:#54d6a0;font-size:12px;text-align:center;margin-bottom:8px;">📄 .cfdrun JSON</div>
+        <div style="font-size:9px;color:#ccc;background:#1e2e1e;padding:6px;border-radius:4px;">
+          <div>acus: {</div>
+          <div>&nbsp; ACU_1: {</div>
+          <div>&nbsp;&nbsp; airflow: 3000,</div>
+          <div>&nbsp;&nbsp; <span style="color:#ff9f43;">timeVarying</span>: {</div>
+          <div>&nbsp;&nbsp;&nbsp; airflow: [</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp; {t:0, v:3000},</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp; {t:60, v:3000},</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp; {t:61, v:0}</div>
+          <div>&nbsp;&nbsp;&nbsp; ]</div>
+          <div>&nbsp;&nbsp; }</div>
+          <div>&nbsp; }</div>
+          <div>}</div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;color:#4a9eff;font-size:16px;">→</div>
+
+      <!-- Runner -->
+      <div style="flex:1;background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:10px;">
+        <div style="color:#ff6b6b;font-size:12px;text-align:center;margin-bottom:8px;">⚙ Runner (fields.py)</div>
+        <div style="background:#252540;padding:6px;border-radius:4px;margin:4px 0;">
+          <div style="color:#ff9f43;font-size:10px;">BC 生成逻辑</div>
+          <div style="font-size:9px;color:#ccc;">
+            if model.timeVarying[param]:<br>
+            &nbsp; → uniformFixedValue + table<br>
+            else:<br>
+            &nbsp; → fixedValue (原逻辑不变)
+          </div>
+        </div>
+        <div style="background:#252540;padding:6px;border-radius:4px;margin:4px 0;">
+          <div style="color:#ff9f43;font-size:10px;">controlDict</div>
+          <div style="font-size:9px;color:#ccc;">
+            buoyantBoussinesqPimpleFoam<br>
+            adjustTimeStep / PIMPLE<br>
+            <span style="color:#888;">(已实现 ✓)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;color:#4a9eff;font-size:16px;">→</div>
+
+      <!-- OpenFOAM -->
+      <div style="flex:0.8;background:#2a1a1a;border:1px solid #5a3a3a;border-radius:6px;padding:10px;">
+        <div style="color:#ff6b6b;font-size:12px;text-align:center;margin-bottom:8px;">🔥 OpenFOAM</div>
+        <div style="font-size:9px;color:#ccc;background:#2e1e1e;padding:6px;border-radius:4px;">
+          <div>ACU_1_inlet</div>
+          <div>{</div>
+          <div>&nbsp; type</div>
+          <div>&nbsp;&nbsp; <span style="color:#8be9fd;">uniformFixedValue</span>;</div>
+          <div>&nbsp; uniformValue</div>
+          <div>&nbsp;&nbsp; <span style="color:#ff9f43;">table</span></div>
+          <div>&nbsp;&nbsp; (</div>
+          <div>&nbsp;&nbsp;&nbsp; (0 &nbsp; 293)</div>
+          <div>&nbsp;&nbsp;&nbsp; (60 &nbsp;293)</div>
+          <div>&nbsp;&nbsp;&nbsp; (61 &nbsp;350)</div>
+          <div>&nbsp;&nbsp; );</div>
+          <div>}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What's already done vs what's new -->
+    <div style="margin-top:16px;display:flex;gap:12px;">
+      <div style="flex:1;background:#1e2e1e;border:1px solid #3a5a3a;border-radius:4px;padding:8px;">
+        <div style="color:#54d6a0;font-size:11px;margin-bottom:4px;">✓ 已实现</div>
+        <div style="font-size:9px;color:#aaa;">
+          • controlDict (PIMPLE/adjustTimeStep)<br>
+          • fvSchemes (ddtSchemes)<br>
+          • fvSolution (PIMPLE + relaxation)<br>
+          • 残差/传感器/服务器温度监控<br>
+          • 前端 solver Tab 瞬态参数面板<br>
+          • FO writeInterval 实时监控
+        </div>
+      </div>
+      <div style="flex:1;background:#2e1e1e;border:1px solid #5a3a3a;border-radius:4px;padding:8px;">
+        <div style="color:#ff6b6b;font-size:11px;margin-bottom:4px;">☐ 待实现</div>
+        <div style="font-size:9px;color:#aaa;">
+          • model.timeVarying 数据结构<br>
+          • 瞬态场景 Tab (事件列表+时间线)<br>
+          • 属性面板 ⏱ 时变编辑器<br>
+          • fields.py: timeVarying → uniformFixedValue+table<br>
+          • cfdproj_schema.py: timeVarying 字段<br>
+          • 定常→瞬态自动衔接逻辑<br>
+          • .cfdrun 导出 timeVarying 数据
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,1496 @@
+--- before/src/frontend/shared/vendor/earcut.umd.js
++++ after/src/frontend/shared/vendor/earcut.umd.js
+@@ -0,0 +1,718 @@
++/*! @license
++ISC License
++
++Copyright (c) 2024, Mapbox
++
++Permission to use, copy, modify, and/or distribute this software for any purpose
++with or without fee is hereby granted, provided that the above copyright notice
++and this permission notice appear in all copies.
++THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
++REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
++INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
++OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++THIS SOFTWARE.
++ */
++/**
++ * Earcut 3.0.2: unchanged numerical source from installed Three 0.184.0.
++ * Original source SHA256: 1e1d25448661b04a034155fba7df43662a8f039e3ec33b1f7a1c16283d688d5a
++ * https://github.com/mapbox/earcut/tree/v3.0.2
++ * ISC License, Copyright (c) 2024, Mapbox. See earcut.LICENSE.
++ */
++(function (root, factory) {
++    var api = factory();
++    if (typeof module === 'object' && module.exports) module.exports = api;
++    if (root) root.dcdtuniEarcut = api;
++})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
++    'use strict';
++/* eslint-disable */
++// copy of mapbox/earcut version 3.0.2
++// https://github.com/mapbox/earcut/tree/v3.0.2
++
++function earcut(data, holeIndices, dim = 2) {
++
++    const hasHoles = holeIndices && holeIndices.length;
++    const outerLen = hasHoles ? holeIndices[0] * dim : data.length;
++    let outerNode = linkedList(data, 0, outerLen, dim, true);
++    const triangles = [];
++
++    if (!outerNode || outerNode.next === outerNode.prev) return triangles;
++
++    let minX, minY, invSize;
++
++    if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
++
++    // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
++    if (data.length > 80 * dim) {
++        minX = data[0];
++        minY = data[1];
++        let maxX = minX;
++        let maxY = minY;
++
++        for (let i = dim; i < outerLen; i += dim) {
++            const x = data[i];
++            const y = data[i + 1];
++            if (x < minX) minX = x;
++            if (y < minY) minY = y;
++            if (x > maxX) maxX = x;
++            if (y > maxY) maxY = y;
++        }
++
++        // minX, minY and invSize are later used to transform coords into integers for z-order calculation
++        invSize = Math.max(maxX - minX, maxY - minY);
++        invSize = invSize !== 0 ? 32767 / invSize : 0;
++    }
++
++    earcutLinked(outerNode, triangles, dim, minX, minY, invSize, 0);
++
++    return triangles;
++}
++
++// create a circular doubly linked list from polygon points in the specified winding order
++function linkedList(data, start, end, dim, clockwise) {
++    let last;
++
++    if (clockwise === (signedArea(data, start, end, dim) > 0)) {
++        for (let i = start; i < end; i += dim) last = insertNode(i / dim | 0, data[i], data[i + 1], last);
++    } else {
++        for (let i = end - dim; i >= start; i -= dim) last = insertNode(i / dim | 0, data[i], data[i + 1], last);
++    }
++
++    if (last && equals(last, last.next)) {
++        removeNode(last);
++        last = last.next;
++    }
++
++    return last;
++}
++
++// eliminate colinear or duplicate points
++function filterPoints(start, end) {
++    if (!start) return start;
++    if (!end) end = start;
++
++    let p = start,
++        again;
++    do {
++        again = false;
++
++        if (!p.steiner && (equals(p, p.next) || area(p.prev, p, p.next) === 0)) {
++            removeNode(p);
++            p = end = p.prev;
++            if (p === p.next) break;
++            again = true;
++
++        } else {
++            p = p.next;
++        }
++    } while (again || p !== end);
++
++    return end;
++}
++
++// main ear slicing loop which triangulates a polygon (given as a linked list)
++function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
++    if (!ear) return;
++
++    // interlink polygon nodes in z-order
++    if (!pass && invSize) indexCurve(ear, minX, minY, invSize);
++
++    let stop = ear;
++
++    // iterate through ears, slicing them one by one
++    while (ear.prev !== ear.next) {
++        const prev = ear.prev;
++        const next = ear.next;
++
++        if (invSize ? isEarHashed(ear, minX, minY, invSize) : isEar(ear)) {
++            triangles.push(prev.i, ear.i, next.i); // cut off the triangle
++
++            removeNode(ear);
++
++            // skipping the next vertex leads to less sliver triangles
++            ear = next.next;
++            stop = next.next;
++
++            continue;
++        }
++
++        ear = next;
++
++        // if we looped through the whole remaining polygon and can't find any more ears
++        if (ear === stop) {
++            // try filtering points and slicing again
++            if (!pass) {
++                earcutLinked(filterPoints(ear), triangles, dim, minX, minY, invSize, 1);
++
++            // if this didn't work, try curing all small self-intersections locally
++            } else if (pass === 1) {
++                ear = cureLocalIntersections(filterPoints(ear), triangles);
++                earcutLinked(ear, triangles, dim, minX, minY, invSize, 2);
++
++            // as a last resort, try splitting the remaining polygon into two
++            } else if (pass === 2) {
++                splitEarcut(ear, triangles, dim, minX, minY, invSize);
++            }
++
++            break;
++        }
++    }
++}
++
++// check whether a polygon node forms a valid ear with adjacent nodes
++function isEar(ear) {
++    const a = ear.prev,
++        b = ear,
++        c = ear.next;
++
++    if (area(a, b, c) >= 0) return false; // reflex, can't be an ear
++
++    // now make sure we don't have other points inside the potential ear
++    const ax = a.x, bx = b.x, cx = c.x, ay = a.y, by = b.y, cy = c.y;
++
++    // triangle bbox
++    const x0 = Math.min(ax, bx, cx),
++        y0 = Math.min(ay, by, cy),
++        x1 = Math.max(ax, bx, cx),
++        y1 = Math.max(ay, by, cy);
++
++    let p = c.next;
++    while (p !== a) {
++        if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 &&
++            pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) &&
++            area(p.prev, p, p.next) >= 0) return false;
++        p = p.next;
++    }
++
++    return true;
++}
++
++function isEarHashed(ear, minX, minY, invSize) {
++    const a = ear.prev,
++        b = ear,
++        c = ear.next;
++
++    if (area(a, b, c) >= 0) return false; // reflex, can't be an ear
++
++    const ax = a.x, bx = b.x, cx = c.x, ay = a.y, by = b.y, cy = c.y;
++
++    // triangle bbox
++    const x0 = Math.min(ax, bx, cx),
++        y0 = Math.min(ay, by, cy),
++        x1 = Math.max(ax, bx, cx),
++        y1 = Math.max(ay, by, cy);
++
++    // z-order range for the current triangle bbox;
++    const minZ = zOrder(x0, y0, minX, minY, invSize),
++        maxZ = zOrder(x1, y1, minX, minY, invSize);
++
++    let p = ear.prevZ,
++        n = ear.nextZ;
++
++    // look for points inside the triangle in both directions
++    while (p && p.z >= minZ && n && n.z <= maxZ) {
++        if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c &&
++            pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area(p.prev, p, p.next) >= 0) return false;
++        p = p.prevZ;
++
++        if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c &&
++            pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area(n.prev, n, n.next) >= 0) return false;
++        n = n.nextZ;
++    }
++
++    // look for remaining points in decreasing z-order
++    while (p && p.z >= minZ) {
++        if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c &&
++            pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area(p.prev, p, p.next) >= 0) return false;
++        p = p.prevZ;
++    }
++
++    // look for remaining points in increasing z-order
++    while (n && n.z <= maxZ) {
++        if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c &&
++            pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area(n.prev, n, n.next) >= 0) return false;
++        n = n.nextZ;
++    }
++
++    return true;
++}
++
++// go through all polygon nodes and cure small local self-intersections
++function cureLocalIntersections(start, triangles) {
++    let p = start;
++    do {
++        const a = p.prev,
++            b = p.next.next;
++
++        if (!equals(a, b) && intersects(a, p, p.next, b) && locallyInside(a, b) && locallyInside(b, a)) {
++
++            triangles.push(a.i, p.i, b.i);
++
++            // remove two nodes involved
++            removeNode(p);
++            removeNode(p.next);
++
++            p = start = b;
++        }
++        p = p.next;
++    } while (p !== start);
++
++    return filterPoints(p);
++}
++
++// try splitting polygon into two and triangulate them independently
++function splitEarcut(start, triangles, dim, minX, minY, invSize) {
++    // look for a valid diagonal that divides the polygon into two
++    let a = start;
++    do {
++        let b = a.next.next;
++        while (b !== a.prev) {
++            if (a.i !== b.i && isValidDiagonal(a, b)) {
++                // split the polygon in two by the diagonal
++                let c = splitPolygon(a, b);
++
++                // filter colinear points around the cuts
++                a = filterPoints(a, a.next);
++                c = filterPoints(c, c.next);
++
++                // run earcut on each half
++                earcutLinked(a, triangles, dim, minX, minY, invSize, 0);
++                earcutLinked(c, triangles, dim, minX, minY, invSize, 0);
++                return;
++            }
++            b = b.next;
++        }
++        a = a.next;
++    } while (a !== start);
++}
++
++// link every hole into the outer loop, producing a single-ring polygon without holes
++function eliminateHoles(data, holeIndices, outerNode, dim) {
++    const queue = [];
++
++    for (let i = 0, len = holeIndices.length; i < len; i++) {
++        const start = holeIndices[i] * dim;
++        const end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
++        const list = linkedList(data, start, end, dim, false);
++        if (list === list.next) list.steiner = true;
++        queue.push(getLeftmost(list));
++    }
++
++    queue.sort(compareXYSlope);
++
++    // process holes from left to right
++    for (let i = 0; i < queue.length; i++) {
++        outerNode = eliminateHole(queue[i], outerNode);
++    }
++
++    return outerNode;
++}
++
++function compareXYSlope(a, b) {
++    let result = a.x - b.x;
++    // when the left-most point of 2 holes meet at a vertex, sort the holes counterclockwise so that when we find
++    // the bridge to the outer shell is always the point that they meet at.
++    if (result === 0) {
++        result = a.y - b.y;
++        if (result === 0) {
++            const aSlope = (a.next.y - a.y) / (a.next.x - a.x);
++            const bSlope = (b.next.y - b.y) / (b.next.x - b.x);
++            result = aSlope - bSlope;
++        }
++    }
++    return result;
++}
++
++// find a bridge between vertices that connects hole with an outer ring and link it
++function eliminateHole(hole, outerNode) {
++    const bridge = findHoleBridge(hole, outerNode);
++    if (!bridge) {
++        return outerNode;
++    }
++
++    const bridgeReverse = splitPolygon(bridge, hole);
++
++    // filter collinear points around the cuts
++    filterPoints(bridgeReverse, bridgeReverse.next);
++    return filterPoints(bridge, bridge.next);
++}
++
++// David Eberly's algorithm for finding a bridge between hole and outer polygon
++function findHoleBridge(hole, outerNode) {
++    let p = outerNode;
++    const hx = hole.x;
++    const hy = hole.y;
++    let qx = -Infinity;
++    let m;
++
++    // find a segment intersected by a ray from the hole's leftmost point to the left;
++    // segment's endpoint with lesser x will be potential connection point
++    // unless they intersect at a vertex, then choose the vertex
++    if (equals(hole, p)) return p;
++    do {
++        if (equals(hole, p.next)) return p.next;
++        else if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
++            const x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
++            if (x <= hx && x > qx) {
++                qx = x;
++                m = p.x < p.next.x ? p : p.next;
++                if (x === hx) return m; // hole touches outer segment; pick leftmost endpoint
++            }
++        }
++        p = p.next;
++    } while (p !== outerNode);
++
++    if (!m) return null;
++
++    // look for points inside the triangle of hole point, segment intersection and endpoint;
++    // if there are no points found, we have a valid connection;
++    // otherwise choose the point of the minimum angle with the ray as connection point
++
++    const stop = m;
++    const mx = m.x;
++    const my = m.y;
++    let tanMin = Infinity;
++
++    p = m;
++
++    do {
++        if (hx >= p.x && p.x >= mx && hx !== p.x &&
++                pointInTriangle(hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy, p.x, p.y)) {
++
++            const tan = Math.abs(hy - p.y) / (hx - p.x); // tangential
++
++            if (locallyInside(p, hole) &&
++                (tan < tanMin || (tan === tanMin && (p.x > m.x || (p.x === m.x && sectorContainsSector(m, p)))))) {
++                m = p;
++                tanMin = tan;
++            }
++        }
++
++        p = p.next;
++    } while (p !== stop);
++
++    return m;
++}
++
++// whether sector in vertex m contains sector in vertex p in the same coordinates
++function sectorContainsSector(m, p) {
++    return area(m.prev, m, p.prev) < 0 && area(p.next, m, m.next) < 0;
++}
++
++// interlink polygon nodes in z-order
++function indexCurve(start, minX, minY, invSize) {
++    let p = start;
++    do {
++        if (p.z === 0) p.z = zOrder(p.x, p.y, minX, minY, invSize);
++        p.prevZ = p.prev;
++        p.nextZ = p.next;
++        p = p.next;
++    } while (p !== start);
++
++    p.prevZ.nextZ = null;
++    p.prevZ = null;
++
++    sortLinked(p);
++}
++
++// Simon Tatham's linked list merge sort algorithm
++// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
++function sortLinked(list) {
++    let numMerges;
++    let inSize = 1;
++
++    do {
++        let p = list;
++        let e;
++        list = null;
++        let tail = null;
++        numMerges = 0;
++
++        while (p) {
++            numMerges++;
++            let q = p;
++            let pSize = 0;
++            for (let i = 0; i < inSize; i++) {
++                pSize++;
++                q = q.nextZ;
++                if (!q) break;
++            }
++            let qSize = inSize;
++
++            while (pSize > 0 || (qSize > 0 && q)) {
++
++                if (pSize !== 0 && (qSize === 0 || !q || p.z <= q.z)) {
++                    e = p;
++                    p = p.nextZ;
++                    pSize--;
++                } else {
++                    e = q;
++                    q = q.nextZ;
++                    qSize--;
++                }
++
++                if (tail) tail.nextZ = e;
++                else list = e;
++
++                e.prevZ = tail;
++                tail = e;
++            }
++
++            p = q;
++        }
++
++        tail.nextZ = null;
++        inSize *= 2;
++
++    } while (numMerges > 1);
++
++    return list;
++}
++
++// z-order of a point given coords and inverse of the longer side of data bbox
++function zOrder(x, y, minX, minY, invSize) {
++    // coords are transformed into non-negative 15-bit integer range
++    x = (x - minX) * invSize | 0;
++    y = (y - minY) * invSize | 0;
++
++    x = (x | (x << 8)) & 0x00FF00FF;
++    x = (x | (x << 4)) & 0x0F0F0F0F;
++    x = (x | (x << 2)) & 0x33333333;
++    x = (x | (x << 1)) & 0x55555555;
++
++    y = (y | (y << 8)) & 0x00FF00FF;
++    y = (y | (y << 4)) & 0x0F0F0F0F;
++    y = (y | (y << 2)) & 0x33333333;
++    y = (y | (y << 1)) & 0x55555555;
++
++    return x | (y << 1);
++}
++
++// find the leftmost node of a polygon ring
++function getLeftmost(start) {
++    let p = start,
++        leftmost = start;
++    do {
++        if (p.x < leftmost.x || (p.x === leftmost.x && p.y < leftmost.y)) leftmost = p;
++        p = p.next;
++    } while (p !== start);
++
++    return leftmost;
++}
++
++// check if a point lies within a convex triangle
++function pointInTriangle(ax, ay, bx, by, cx, cy, px, py) {
++    return (cx - px) * (ay - py) >= (ax - px) * (cy - py) &&
++           (ax - px) * (by - py) >= (bx - px) * (ay - py) &&
++           (bx - px) * (cy - py) >= (cx - px) * (by - py);
++}
++
++// check if a point lies within a convex triangle but false if its equal to the first point of the triangle
++function pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, px, py) {
++    return !(ax === px && ay === py) && pointInTriangle(ax, ay, bx, by, cx, cy, px, py);
++}
++
++// check if a diagonal between two polygon nodes is valid (lies in polygon interior)
++function isValidDiagonal(a, b) {
++    return a.next.i !== b.i && a.prev.i !== b.i && !intersectsPolygon(a, b) && // doesn't intersect other edges
++           (locallyInside(a, b) && locallyInside(b, a) && middleInside(a, b) && // locally visible
++            (area(a.prev, a, b.prev) || area(a, b.prev, b)) || // does not create opposite-facing sectors
++            equals(a, b) && area(a.prev, a, a.next) > 0 && area(b.prev, b, b.next) > 0); // special zero-length case
++}
++
++// signed area of a triangle
++function area(p, q, r) {
++    return (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
++}
++
++// check if two points are equal
++function equals(p1, p2) {
++    return p1.x === p2.x && p1.y === p2.y;
++}
++
++// check if two segments intersect
++function intersects(p1, q1, p2, q2) {
++    const o1 = sign(area(p1, q1, p2));
++    const o2 = sign(area(p1, q1, q2));
++    const o3 = sign(area(p2, q2, p1));
++    const o4 = sign(area(p2, q2, q1));
++
++    if (o1 !== o2 && o3 !== o4) return true; // general case
++
++    if (o1 === 0 && onSegment(p1, p2, q1)) return true; // p1, q1 and p2 are collinear and p2 lies on p1q1
++    if (o2 === 0 && onSegment(p1, q2, q1)) return true; // p1, q1 and q2 are collinear and q2 lies on p1q1
++    if (o3 === 0 && onSegment(p2, p1, q2)) return true; // p2, q2 and p1 are collinear and p1 lies on p2q2
++    if (o4 === 0 && onSegment(p2, q1, q2)) return true; // p2, q2 and q1 are collinear and q1 lies on p2q2
++
++    return false;
++}
++
++// for collinear points p, q, r, check if point q lies on segment pr
++function onSegment(p, q, r) {
++    return q.x <= Math.max(p.x, r.x) && q.x >= Math.min(p.x, r.x) && q.y <= Math.max(p.y, r.y) && q.y >= Math.min(p.y, r.y);
++}
++
++function sign(num) {
++    return num > 0 ? 1 : num < 0 ? -1 : 0;
++}
++
++// check if a polygon diagonal intersects any polygon segments
++function intersectsPolygon(a, b) {
++    let p = a;
++    do {
++        if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i &&
++                intersects(p, p.next, a, b)) return true;
++        p = p.next;
++    } while (p !== a);
++
++    return false;
++}
++
++// check if a polygon diagonal is locally inside the polygon
++function locallyInside(a, b) {
++    return area(a.prev, a, a.next) < 0 ?
++        area(a, b, a.next) >= 0 && area(a, a.prev, b) >= 0 :
++        area(a, b, a.prev) < 0 || area(a, a.next, b) < 0;
++}
++
++// check if the middle point of a polygon diagonal is inside the polygon
++function middleInside(a, b) {
++    let p = a;
++    let inside = false;
++    const px = (a.x + b.x) / 2;
++    const py = (a.y + b.y) / 2;
++    do {
++        if (((p.y > py) !== (p.next.y > py)) && p.next.y !== p.y &&
++                (px < (p.next.x - p.x) * (py - p.y) / (p.next.y - p.y) + p.x))
++            inside = !inside;
++        p = p.next;
++    } while (p !== a);
++
++    return inside;
++}
++
++// link two polygon vertices with a bridge; if the vertices belong to the same ring, it splits polygon into two;
++// if one belongs to the outer ring and another to a hole, it merges it into a single ring
++function splitPolygon(a, b) {
++    const a2 = createNode(a.i, a.x, a.y),
++        b2 = createNode(b.i, b.x, b.y),
++        an = a.next,
++        bp = b.prev;
++
++    a.next = b;
++    b.prev = a;
++
++    a2.next = an;
++    an.prev = a2;
++
++    b2.next = a2;
++    a2.prev = b2;
++
++    bp.next = b2;
++    b2.prev = bp;
++
++    return b2;
++}
++
++// create a node and optionally link it with previous one (in a circular doubly linked list)
++function insertNode(i, x, y, last) {
++    const p = createNode(i, x, y);
++
++    if (!last) {
++        p.prev = p;
++        p.next = p;
++
++    } else {
++        p.next = last.next;
++        p.prev = last;
++        last.next.prev = p;
++        last.next = p;
++    }
++    return p;
++}
++
++function removeNode(p) {
++    p.next.prev = p.prev;
++    p.prev.next = p.next;
++
++    if (p.prevZ) p.prevZ.nextZ = p.nextZ;
++    if (p.nextZ) p.nextZ.prevZ = p.prevZ;
++}
++
++function createNode(i, x, y) {
++    return {
++        i, // vertex index in coordinates array
++        x, y, // vertex coordinates
++        prev: null, // previous and next vertex nodes in a polygon ring
++        next: null,
++        z: 0, // z-order curve value
++        prevZ: null, // previous and next nodes in z-order
++        nextZ: null,
++        steiner: false // indicates whether this is a steiner point
++    };
++}
++
++// return a percentage difference between the polygon area and its triangulation area;
++// used to verify correctness of triangulation
++function deviation(data, holeIndices, dim, triangles) {
++    const hasHoles = holeIndices && holeIndices.length;
++    const outerLen = hasHoles ? holeIndices[0] * dim : data.length;
++
++    let polygonArea = Math.abs(signedArea(data, 0, outerLen, dim));
++    if (hasHoles) {
++        for (let i = 0, len = holeIndices.length; i < len; i++) {
++            const start = holeIndices[i] * dim;
++            const end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
++            polygonArea -= Math.abs(signedArea(data, start, end, dim));
++        }
++    }
++
++    let trianglesArea = 0;
++    for (let i = 0; i < triangles.length; i += 3) {
++        const a = triangles[i] * dim;
++        const b = triangles[i + 1] * dim;
++        const c = triangles[i + 2] * dim;
++        trianglesArea += Math.abs(
++            (data[a] - data[c]) * (data[b + 1] - data[a + 1]) -
++            (data[a] - data[b]) * (data[c + 1] - data[a + 1]));
++    }
++
++    return polygonArea === 0 && trianglesArea === 0 ? 0 :
++        Math.abs((trianglesArea - polygonArea) / polygonArea);
++}
++
++function signedArea(data, start, end, dim) {
++    let sum = 0;
++    for (let i = start, j = end - dim; i < end; i += dim) {
++        sum += (data[j] - data[i]) * (data[i + 1] + data[j + 1]);
++        j = i;
++    }
++    return sum;
++}
++
++// turn a polygon in a multi-dimensional array form (e.g. as in GeoJSON) into a form Earcut accepts
++function flatten(data) {
++    const vertices = [];
++    const holes = [];
++    const dimensions = data[0][0].length;
++    let holeIndex = 0;
++    let prevLen = 0;
++
++    for (const ring of data) {
++        for (const p of ring) {
++            for (let d = 0; d < dimensions; d++) vertices.push(p[d]);
++        }
++        if (prevLen) {
++            holeIndex += prevLen;
++            holes.push(holeIndex);
++        }
++        prevLen = ring.length;
++    }
++    return {vertices, holes, dimensions};
++}
++
++    earcut.deviation = deviation;
++    earcut.flatten = flatten;
++    return earcut;
++});
+--- before/src/frontend/shared/vendor/earcut.LICENSE
++++ after/src/frontend/shared/vendor/earcut.LICENSE
+@@ -0,0 +1,14 @@
++ISC License
++
++Copyright (c) 2024, Mapbox
++
++Permission to use, copy, modify, and/or distribute this software for any purpose
++with or without fee is hereby granted, provided that the above copyright notice
++and this permission notice appear in all copies.
++THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
++REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
++INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
++OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++THIS SOFTWARE.
+--- before/src/frontend/shared/js/box_geometry_product.js
++++ after/src/frontend/shared/js/box_geometry_product.js
+@@ -0,0 +1,234 @@
++/**
++ * Owned structural BOX/CDU buffers. Numerical functions use only their inputs
++ * and the shared pure clipping/triangulation/naming dependencies.
++ * Materials, image IO, PBR/image UV adaptation and renderer lifetimes stay in
++ * carriers. Buffers are fresh per call and are never project document fields.
++ */
++(function (root, factory) {
++    var common = typeof module === 'object' && module.exports;
++    var api = factory(
++        common ? require('../vendor/polygon-clipping.umd.js') : root.polygonClipping,
++        common ? require('../vendor/earcut.umd.js') : root.dcdtuniEarcut,
++        common ? require('./stl_naming.js') : root.stlNaming
++    );
++    if (common) module.exports = api;
++    if (root) root.boxGeometryProduct = api;
++})(typeof globalThis !== 'undefined' ? globalThis : this, function (clipping, earcut, naming) {
++    'use strict';
++    if (!clipping || typeof clipping.difference !== 'function' || typeof earcut !== 'function'
++        || !naming || typeof naming.composeModelScopedExportName !== 'function') {
++        throw new Error('box_geometry_product.js needs polygon-clipping, earcut and stl_naming loaded first');
++    }
++
++    function circleToPoly(cx, cy, r) {
++        const ring = [];
++        for (let i = 0; i < 32; i++) ring.push([cx + r * Math.cos(i / 32 * Math.PI * 2), cy + r * Math.sin(i / 32 * Math.PI * 2)]);
++        ring.push([ring[0][0], ring[0][1]]);
++        return [[ring]];
++    }
++
++    function rectToPoly(x, y, w, h) {
++        return [[[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]]];
++    }
++
++    function quadCornersUV(x, y, w, h, offsets) {
++        const o = (i) => (Array.isArray(offsets) && offsets[i]) ? offsets[i] : { x: 0, y: 0 };
++        const ox = (i) => Number(o(i).x) || 0, oy = (i) => Number(o(i).y) || 0;
++        return [
++            [x + ox(0), y + oy(0)],
++            [x + w + ox(1), y + oy(1)],
++            [x + w + ox(2), y + h + oy(2)],
++            [x + ox(3), y + h + oy(3)]
++        ];
++    }
++
++    function hasCornerOffsets(offsets) {
++        return Array.isArray(offsets) && offsets.length === 4
++            && offsets.some(o => o && ((Number(o.x) || 0) !== 0 || (Number(o.y) || 0) !== 0));
++    }
++
++    function quadToPoly(x, y, w, h, offsets) {
++        if (!hasCornerOffsets(offsets)) return rectToPoly(x, y, w, h);
++        const c = quadCornersUV(x, y, w, h, offsets);
++        return [[[c[0], c[1], c[2], c[3], c[0]]]];
++    }
++
++    function buildFaceIslands(model) {
++        const facesIslands = {};
++        Object.keys(model.geometry.faces).forEach(faceId => {
++            const face = model.geometry.faces[faceId];
++            // V4 racks store geometry.faces as an array of door/role entries that carry
++            // no `.patches`; those models render via renderRackModel and never consume
++            // these islands. Skip any face entry that isn't a patch-bearing face dict.
++            if (!face || !Array.isArray(face.patches)) return;
++            let islands = [];
++            face.patches.forEach(patch => {
++                const poly = patch.type === 'circle' ? circleToPoly(patch.cx, patch.cy, patch.r) : quadToPoly(patch.x, patch.y, patch.w, patch.h, patch.cornerOffsets);
++                let current = { poly, name: naming.getPatchFinalExportName(model, faceId, patch), color: patch.color, refIds: [patch.id] };
++                let nextIslands = [];
++                islands.forEach(island => {
++                    let inter = [];
++                    try { inter = clipping.intersection(island.poly, current.poly); } catch (e) {}
++                    if (inter && inter.length > 0) {
++                        current.poly = clipping.union(current.poly, island.poly);
++                        current.refIds.push(...island.refIds);
++                        current.name = island.name;
++                        current.color = island.color;
++                    } else {
++                        nextIslands.push(island);
++                    }
++                });
++                nextIslands.push(current);
++                islands = nextIslands;
++            });
++            facesIslands[faceId] = islands;
++        });
++        return facesIslands;
++    }
++
++    function vector(x = 0, y = 0, z = 0) { return [x, y, z]; }
++    function frame(origin, right, up, w, h, color, extDepth) {
++        var x = right[1] * up[2] - right[2] * up[1];
++        var y = right[2] * up[0] - right[0] * up[2];
++        var z = right[0] * up[1] - right[1] * up[0];
++        var factor = 1 / (Math.sqrt(x * x + y * y + z * z) || 1);
++        x *= factor; y *= factor; z *= factor;
++        return { origin, right, up, w, h, color, extDepth,
++            matrix: [right[0], right[1], right[2], 0, up[0], up[1], up[2], 0,
++                x, y, z, 0, origin[0], origin[1], origin[2], 1] };
++    }
++    function getBoxFaceFrames(model) {
++        var size = (model.geometry && model.geometry.size) || {};
++        var W = size.x, H = size.y, D = size.z;
++        return {
++            front: frame(vector(W, 0, 0), vector(-1, 0, 0), vector(0, 1, 0), W, H, '#5c6370', D),
++            back: frame(vector(0, 0, D), vector(1, 0, 0), vector(0, 1, 0), W, H, '#7f848e', D),
++            left: frame(vector(0, 0, 0), vector(0, 0, 1), vector(0, 1, 0), D, H, '#7f848e', W),
++            right: frame(vector(W, 0, D), vector(0, 0, -1), vector(0, 1, 0), D, H, '#7f848e', W),
++            top: frame(vector(0, H, D), vector(1, 0, 0), vector(0, 0, -1), W, D, '#9ba0a9', H),
++            bottom: frame(vector(0, 0, 0), vector(1, 0, 0), vector(0, 0, 1), W, D, '#4b5263', H)
++        };
++    }
++
++    // Line paths sample each segment at t=0/1, deduplicate consecutive exact
++    // points, then ShapeUtils removes only a duplicate closing endpoint.
++    function pathPoints(ring) {
++        var points = [];
++        function push(p) {
++            var last = points[points.length - 1];
++            if (!last || last[0] !== p[0] || last[1] !== p[1]) points.push(p);
++        }
++        for (var i = 1; i < ring.length; i++) {
++            var a = ring[i - 1], b = ring[i];
++            push([(b[0] - a[0]) * 0 + a[0], (b[1] - a[1]) * 0 + a[1]]);
++            push([b[0], b[1]]);
++        }
++        return points;
++    }
++    function area(points) {
++        var a = 0.0, n = points.length;
++        for (var p = n - 1, q = 0; q < n; p = q++) {
++            a += points[p][0] * points[q][1] - points[q][0] * points[p][1];
++        }
++        return a * 0.5;
++    }
++    function removeClosingPoint(points) {
++        var n = points.length;
++        if (n > 2 && points[n - 1][0] === points[0][0] && points[n - 1][1] === points[0][1]) points.pop();
++    }
++    function normalMatrix(e) {
++        var n11 = e[0], n21 = e[1], n31 = e[2],
++            n12 = e[4], n22 = e[5], n32 = e[6],
++            n13 = e[8], n23 = e[9], n33 = e[10];
++        var t11 = n33 * n22 - n32 * n23,
++            t12 = n32 * n13 - n33 * n12,
++            t13 = n23 * n12 - n22 * n13;
++        var det = n11 * t11 + n21 * t12 + n31 * t13;
++        if (det === 0) return [0, 0, 0, 0, 0, 0, 0, 0, 0];
++        var f = 1 / det;
++        // Inverse transpose, in the original arithmetic order.
++        return [t11 * f, t12 * f, t13 * f,
++            (n31 * n23 - n33 * n21) * f, (n33 * n11 - n31 * n13) * f, (n21 * n13 - n23 * n11) * f,
++            (n32 * n21 - n31 * n22) * f, (n31 * n12 - n32 * n11) * f, (n22 * n11 - n21 * n12) * f];
++    }
++    function polygonBuffers(polygon, e) {
++        var contour = pathPoints(polygon[0]), holes = polygon.slice(1).map(pathPoints);
++        if (!(area(contour) < 0)) {
++            contour.reverse();
++            holes.forEach(function (hole) { if (area(hole) < 0) hole.reverse(); });
++        }
++        removeClosingPoint(contour);
++        var xy = [], holeIndices = [], count = contour.length;
++        contour.forEach(function (p) { xy.push(p[0], p[1]); });
++        holes.forEach(function (hole) {
++            removeClosingPoint(hole); holeIndices.push(count); count += hole.length;
++            hole.forEach(function (p) { xy.push(p[0], p[1]); });
++        });
++        var triangleIndices = earcut(xy, holeIndices, 2);
++        var positions = new Float32Array(count * 3), normals = new Float32Array(count * 3), uvs = new Float32Array(count * 2);
++        for (var i = 0; i < count; i++) {
++            positions[i * 3] = xy[i * 2]; positions[i * 3 + 1] = xy[i * 2 + 1]; positions[i * 3 + 2] = 0;
++            normals[i * 3] = 0; normals[i * 3 + 1] = 0; normals[i * 3 + 2] = 1;
++            uvs[i * 2] = xy[i * 2]; uvs[i * 2 + 1] = xy[i * 2 + 1];
++        }
++        var nm = normalMatrix(e);
++        for (var i = 0; i < count; i++) {
++            var j = i * 3, x = positions[j], y = positions[j + 1], z = positions[j + 2];
++            var w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
++            positions[j] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w;
++            positions[j + 1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w;
++            positions[j + 2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
++            x = normals[j]; y = normals[j + 1]; z = normals[j + 2];
++            var nx = nm[0] * x + nm[3] * y + nm[6] * z;
++            var ny = nm[1] * x + nm[4] * y + nm[7] * z;
++            var nz = nm[2] * x + nm[5] * y + nm[8] * z;
++            var f = 1 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1);
++            normals[j] = nx * f; normals[j + 1] = ny * f; normals[j + 2] = nz * f;
++        }
++        var large = triangleIndices.some(function (index) { return index >= 65535; });
++        return { positions, normals, uvs, indices: large ? new Uint32Array(triangleIndices) : new Uint16Array(triangleIndices) };
++    }
++    function wallOpacity(face, index) {
++        return Array.isArray(face.wallOpacities) && Number.isFinite(face.wallOpacities[index])
++            ? face.wallOpacities[index] : (Number.isFinite(face.opacity) ? face.opacity : 1);
++    }
++    function createProduct(source, kind, context) {
++        if (kind !== 'box' && kind !== 'cdu') throw new Error('Unsupported geometry product kind: ' + kind);
++        var model = { ...source, kind }, faces = model.geometry.faces;
++        var frames = getBoxFaceFrames(model), islandsByFace = context && context.faceIslands || buildFaceIslands(model);
++        var parts = [], dim = context && context.dimOpacity != null ? context.dimOpacity : 1;
++        var cduColors = { front: '#007a99', back: '#009ab8', left: '#008aaa', right: '#008aaa', top: '#00b4dc', bottom: '#005e77' };
++        Object.keys(faces).forEach(function (faceId) {
++            var face = faces[faceId], layout = Object.prototype.hasOwnProperty.call(frames, faceId) && frames[faceId];
++            if (!face || !layout) return;
++            var islands = islandsByFace[faceId] || [], wall = rectToPoly(0, 0, layout.w, layout.h);
++            islands.forEach(function (island, islandIndex) {
++                wall = clipping.difference(wall, island.poly);
++                island.poly.forEach(function (polygon, polygonIndex) {
++                    parts.push({ ...polygonBuffers(polygon, layout.matrix),
++                        partId: model.uid + '/' + faceId + '/patch/' + islandIndex + '/' + polygonIndex,
++                        faceId, exportName: naming.composeModelScopedExportName(model, faceId, face,
++                            { isPatch: true, patchIndex: islandIndex, patchCount: islands.length }),
++                        refIds: island.refIds.slice(), islandIndex, wallIndex: undefined, isBaseWall: false,
++                        materialRecipe: { role: 'structural-patch', uvMode: 'raw',
++                            color: island.color, opacity: (face.opacity ?? 1) * dim,
++                            source: { ownerUid: model.uid, faceId, patchIds: island.refIds.slice() } } });
++                });
++            });
++            wall.forEach(function (polygon, wallIndex) {
++                parts.push({ ...polygonBuffers(polygon, layout.matrix),
++                    partId: model.uid + '/' + faceId + '/wall/' + wallIndex,
++                    faceId, exportName: naming.composeModelScopedExportName(model, faceId, face,
++                        { isWallPart: true, partIndex: wallIndex, partCount: wall.length }),
++                    refIds: [], wallIndex, isBaseWall: true,
++                    materialRecipe: { role: 'structural-wall', uvMode: 'raw',
++                        color: kind === 'cdu' ? cduColors[faceId] || '#00b4dc' : layout.color,
++                        opacity: wallOpacity(face, wallIndex) * dim,
++                        source: { ownerUid: model.uid, faceId, patchIds: [] } } });
++            });
++        });
++        return { schema: 'dcdtuni.geometry-product/v1', modelUid: model.uid, kind, parts };
++    }
++    return Object.freeze({ createProduct, getBoxFaceFrames, buildFaceIslands,
++        circleToPoly, rectToPoly, quadCornersUV, hasCornerOffsets, quadToPoly });
++});
+--- before/src/frontend/shared/js/box_geometry_product.d.ts
++++ after/src/frontend/shared/js/box_geometry_product.d.ts
+@@ -0,0 +1,29 @@
++export interface StructuralPart {
++  partId: string
++  faceId: string
++  exportName: string
++  refIds: string[]
++  islandIndex?: number
++  wallIndex?: number
++  isBaseWall: boolean
++  positions: Float32Array
++  normals: Float32Array
++  uvs: Float32Array
++  indices: Uint16Array | Uint32Array
++  materialRecipe: {
++    role: 'structural-patch' | 'structural-wall'
++    uvMode: 'raw'
++    color: string
++    opacity: number
++    source: { ownerUid: string; faceId: string; patchIds: string[] }
++  }
++}
++export interface GeometryProduct {
++  schema: 'dcdtuni.geometry-product/v1'
++  modelUid: string
++  kind: 'box' | 'cdu'
++  parts: StructuralPart[]
++}
++export interface BoxGeometryProductKernel {
++  createProduct(source: Record<string, unknown>, kind: string): GeometryProduct
++}
+--- before/src/frontend/react/src/domain/geometryProductKernel.ts
++++ after/src/frontend/react/src/domain/geometryProductKernel.ts
+@@ -0,0 +1,11 @@
++import '../../../shared/vendor/polygon-clipping.umd.js'
++import '../../../shared/vendor/earcut.umd.js'
++import '../../../shared/js/stl_naming.js'
++import '../../../shared/js/box_geometry_product.js'
++import type { BoxGeometryProductKernel } from '../../../shared/js/box_geometry_product.js'
++
++type KernelGlobal = typeof globalThis & { boxGeometryProduct?: Readonly<BoxGeometryProductKernel> }
++const kernel = (globalThis as KernelGlobal).boxGeometryProduct
++if (!kernel) throw new Error('box_geometry_product.js is not loaded')
++export const geometryProductKernel: Readonly<BoxGeometryProductKernel> = kernel
++export type { GeometryProduct, StructuralPart } from '../../../shared/js/box_geometry_product.js'
+--- before/src/frontend/react/src/domain/BaseEntity.ts
++++ after/src/frontend/react/src/domain/BaseEntity.ts
+@@ -1,4 +1,5 @@
+ import { modelPoseKernel } from './modelPoseKernel'
++import { geometryProductKernel } from './geometryProductKernel'
+ 
+ /** Renderer-independent, derived views. The source record remains plain project JSON. */
+ export type EntityRecord = Record<string, unknown>
+@@ -40,6 +41,11 @@
+       geometry: objectRecord(this.record.geometry), polygon: this.record.polygon,
+       sourcePath: this.identity.path,
+     }
++  }
++  /** Owned structural buffers; unsupported kinds are never lowered as boxes. */
++  geometryProduct() {
++    this.requireSupported('geometry product')
++    return geometryProductKernel.createProduct({ ...this.record, uid: this.uid }, this.definition.kind)
+   }
+   render() {
+     const meta = objectRecord(this.record.meta)
+--- before/src/frontend/shared/js/geometry_pure.js
++++ after/src/frontend/shared/js/geometry_pure.js
+@@ -47,6 +47,15 @@
+ })(typeof window !== 'undefined' ? window : null, function () {
+     'use strict';
+ 
++    function _boxProduct() {
++        var api = typeof globalThis !== 'undefined' ? globalThis.boxGeometryProduct : null;
++        if (!api && typeof require === 'function' && typeof module === 'object' && module.exports) {
++            api = require('./box_geometry_product.js');
++        }
++        if (!api) throw new Error('geometry_pure.js needs js/box_geometry_product.js loaded first');
++        return api;
++    }
++
+     // js/rack_state.js — the rack model's own normalisation helpers. Bound
+     // explicitly for the same reason as the other siblings: resolving them as
+     // bare globals only worked inside the legacy page, where a top-level
+@@ -373,39 +382,26 @@
+     }
+ 
+     
+-    function circleToPoly(cx, cy, r) {
+-        const ring = [];
+-        for (let i = 0; i < 32; i++) ring.push([cx + r * Math.cos(i / 32 * Math.PI * 2), cy + r * Math.sin(i / 32 * Math.PI * 2)]);
+-        ring.push([ring[0][0], ring[0][1]]);
+-        return [[ring]];
++    function circleToPoly(x, y, r) {
++        return _boxProduct().circleToPoly(x, y, r);
+     }
+ 
+     
+     function rectToPoly(x, y, w, h) {
+-        return [[[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]]];
++        return _boxProduct().rectToPoly(x, y, w, h);
+     }
+     // The four corners of a rectangle with per-corner in-plane offsets
+     // (`cornerOffsets`: [{x,y} x 4], bottom-left, bottom-right, top-right,
+     // top-left in the face's (u, v)). A rectangle whose corners were dragged
+     // becomes a general quad — a trapezoid for a duct's expansion, say.
+     function quadCornersUV(x, y, w, h, offsets) {
+-        const o = (i) => (Array.isArray(offsets) && offsets[i]) ? offsets[i] : { x: 0, y: 0 };
+-        const ox = (i) => Number(o(i).x) || 0, oy = (i) => Number(o(i).y) || 0;
+-        return [
+-            [x + ox(0), y + oy(0)],
+-            [x + w + ox(1), y + oy(1)],
+-            [x + w + ox(2), y + h + oy(2)],
+-            [x + ox(3), y + h + oy(3)]
+-        ];
++        return _boxProduct().quadCornersUV(x, y, w, h, offsets);
+     }
+     function hasCornerOffsets(offsets) {
+-        return Array.isArray(offsets) && offsets.length === 4
+-            && offsets.some(o => o && ((Number(o.x) || 0) !== 0 || (Number(o.y) || 0) !== 0));
++        return _boxProduct().hasCornerOffsets(offsets);
+     }
+     function quadToPoly(x, y, w, h, offsets) {
+-        if (!hasCornerOffsets(offsets)) return rectToPoly(x, y, w, h);
+-        const c = quadCornersUV(x, y, w, h, offsets);
+-        return [[[c[0], c[1], c[2], c[3], c[0]]]];
++        return _boxProduct().quadToPoly(x, y, w, h, offsets);
+     }
+ 
+     // ── polygon sheets (a floor / ceiling drawn in the 2D room editor) ──────
+@@ -567,36 +563,7 @@
+ 
+     
+     function buildFaceIslands(model) {
+-        const facesIslands = {};
+-        Object.keys(model.geometry.faces).forEach(faceId => {
+-            const face = model.geometry.faces[faceId];
+-            // V4 racks store geometry.faces as an array of door/role entries that carry
+-            // no `.patches`; those models render via renderRackModel and never consume
+-            // these islands. Skip any face entry that isn't a patch-bearing face dict.
+-            if (!face || !Array.isArray(face.patches)) return;
+-            let islands = [];
+-            face.patches.forEach(patch => {
+-                const poly = patch.type === 'circle' ? circleToPoly(patch.cx, patch.cy, patch.r) : quadToPoly(patch.x, patch.y, patch.w, patch.h, patch.cornerOffsets);
+-                let current = { poly, name: getPatchFinalExportName(model, faceId, patch), color: patch.color, refIds: [patch.id] };
+-                let nextIslands = [];
+-                islands.forEach(island => {
+-                    let inter = [];
+-                    try { inter = polygonClipping.intersection(island.poly, current.poly); } catch (e) {}
+-                    if (inter && inter.length > 0) {
+-                        current.poly = polygonClipping.union(current.poly, island.poly);
+-                        current.refIds.push(...island.refIds);
+-                        current.name = island.name;
+-                        current.color = island.color;
+-                    } else {
+-                        nextIslands.push(island);
+-                    }
+-                });
+-                nextIslands.push(current);
+-                islands = nextIslands;
+-            });
+-            facesIslands[faceId] = islands;
+-        });
+-        return facesIslands;
++        return _boxProduct().buildFaceIslands(model);
+     }
+ 
+     
+@@ -968,23 +935,14 @@
+                 top:    { origin: v3(0, H, D), right: v3(1, 0, 0), up: v3(0, 0, -1), mat: makeMat(v3(0, H, D), v3(1, 0, 0), v3(0, 0, -1)), w: W, h: D, color: '#9ba0a9', extDepth: H }
+             };
+         }
+-        // 2026-04-18 Y-up: depth is along Z (was Y), height is along Y (was Z).
+-        // front/back/left/right faces now stand vertically along Y; top/bottom lie on the XZ plane.
+-        // Basis convention: outward normal = right × up (used by makeBasis and STL export).
+-        // front (Z=0): right×up = (-1,0,0)×(0,1,0) = (0,0,-1) ✓
+-        // back  (Z=D): right×up = (+1,0,0)×(0,1,0) = (0,0,+1) ✓
+-        // left  (X=0): right×up = (0,0,+1)×(0,1,0) = (-1,0,0) ✓
+-        // right (X=W): right×up = (0,0,-1)×(0,1,0) = (+1,0,0) ✓
+-        // top   (Y=H): right×up = (+1,0,0)×(0,0,-1) = (0,+1,0) ✓
+-        // bottom(Y=0): right×up = (+1,0,0)×(0,0,+1) = (0,-1,0) ✓
+-        return {
+-            front:  { origin: v3(W, 0, 0), right: v3(-1, 0, 0), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, 0), v3(-1, 0, 0), v3(0, 1, 0)), w: W, h: H, color: '#5c6370', extDepth: D },
+-            back:   { origin: v3(0, 0, D), right: v3(1, 0, 0), up: v3(0, 1, 0), mat: makeMat(v3(0, 0, D), v3(1, 0, 0), v3(0, 1, 0)), w: W, h: H, color: '#7f848e', extDepth: D },
+-            left:   { origin: v3(0, 0, 0), right: v3(0, 0, 1), up: v3(0, 1, 0), mat: makeMat(v3(0, 0, 0), v3(0, 0, 1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+-            right:  { origin: v3(W, 0, D), right: v3(0, 0, -1), up: v3(0, 1, 0), mat: makeMat(v3(W, 0, D), v3(0, 0, -1), v3(0, 1, 0)), w: D, h: H, color: '#7f848e', extDepth: W },
+-            top:    { origin: v3(0, H, D), right: v3(1, 0, 0), up: v3(0, 0, -1), mat: makeMat(v3(0, H, D), v3(1, 0, 0), v3(0, 0, -1)), w: W, h: D, color: '#9ba0a9', extDepth: H },
+-            bottom: { origin: v3(0, 0, 0), right: v3(1, 0, 0), up: v3(0, 0, 1), mat: makeMat(v3(0, 0, 0), v3(1, 0, 0), v3(0, 0, 1)), w: W, h: D, color: '#4b5263', extDepth: H }
+-        };
++        var numeric = _boxProduct().getBoxFaceFrames(model), layouts = {};
++        Object.keys(numeric).forEach(function (id) {
++            var f = numeric[id];
++            layouts[id] = { ...f, origin: v3(...f.origin), right: v3(...f.right), up: v3(...f.up),
++                mat: new THREE.Matrix4().fromArray(f.matrix) };
++            delete layouts[id].matrix;
++        });
++        return layouts;
+     }
+ 
+     
+@@ -1988,6 +1946,7 @@
+     }
+ 
+     return {
++        _boxGeometryProduct: function (model, kind, context) { return _boxProduct().createProduct(model, kind, context); },
+         _heightmapToNormalMap: _heightmapToNormalMap,
+         _makeCanvasTexture: _makeCanvasTexture,
+         _generateProceduralTexture: _generateProceduralTexture,
+--- before/src/frontend/shared/js/geometry_scene.js
++++ after/src/frontend/shared/js/geometry_scene.js
+@@ -1476,8 +1476,46 @@
+         }
+ 
+         function renderBoxModel(model, modelGroup, faceLayouts, facesIslands) {
+-            Object.keys(model.geometry.faces).forEach(faceId => {
+-                _buildSingleBoxFace(modelGroup, model, faceLayouts, faceId, facesIslands, 1.0);
++            if (model.kind !== 'box' && model.kind !== 'cdu') {
++                // Existing ACU/cold-plate/custom fallback callers retain their
++                // legacy carrier; they are outside this domain product slice.
++                Object.keys(model.geometry.faces).forEach(faceId => {
++                    _buildSingleBoxFace(modelGroup, model, faceLayouts, faceId, facesIslands, 1.0);
++                });
++                return;
++            }
++            const product = _pure()._boxGeometryProduct(model, model.kind, { faceIslands: facesIslands });
++            product.parts.forEach(part => {
++                const face = model.geometry.faces[part.faceId];
++                // Keep the established document normalization outside the pure core.
++                if (part.isBaseWall) ensureWallOpacity(face, part.wallIndex);
++                const geom = new THREE.BufferGeometry();
++                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(part.positions), 3));
++                geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(part.normals), 3));
++                geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(part.uvs), 2));
++                geom.setIndex(new THREE.BufferAttribute(new part.indices.constructor(part.indices), 1));
++                const recipe = part.materialRecipe;
++                if (part.isBaseWall) {
++                    if (model.kind === 'cdu') faceLayouts[part.faceId].color = recipe.color;
++                    const image = faceImageSource(face);
++                    spawnRenderable(modelGroup, geom, {
++                        color: image ? '#ffffff' : recipe.color, opacity: recipe.opacity,
++                        objectKind: image ? FACE_IMAGE_KIND + image : model.kind === 'cdu' ? 'cdu-body' : 'box',
++                        ...(image ? { uvNormalize: { type: 'stretch' } } : {}),
++                        userData: { modelId: model.uid, faceId: part.faceId, refIds: null, wallIndex: part.wallIndex,
++                            exportName: part.exportName, isBaseWall: true, geometryPartId: part.partId }
++                    });
++                } else {
++                    const island = facesIslands[part.faceId][part.islandIndex];
++                    const image = patchImageSource(face, island);
++                    spawnRenderable(modelGroup, geom, {
++                        color: image ? '#ffffff' : recipe.color, opacity: recipe.opacity,
++                        objectKind: image ? FACE_IMAGE_KIND + image : 'box', renderOrder: 3,
++                        ...(image ? { uvNormalize: { type: 'stretch' } } : {}),
++                        userData: { modelId: model.uid, faceId: part.faceId, refIds: part.refIds,
++                            exportName: part.exportName, isBaseWall: false, geometryPartId: part.partId }
++                    });
++                }
+             });
+         }
+ 
+--- before/src/frontend/react/src/legacy/geometryBuilder.ts
++++ after/src/frontend/react/src/legacy/geometryBuilder.ts
+@@ -117,6 +117,7 @@
+ // still gives access to whatever the CJS branch produced.
+ // eslint-disable-next-line import/first
+ import * as polygonClippingModule from '../../../shared/vendor/polygon-clipping.umd.js'
++import '../../../shared/vendor/earcut.umd.js'
+ // eslint-disable-next-line import/first
+ import '../../../shared/js/cfdproj_schema.js'
+ // eslint-disable-next-line import/first
+@@ -129,6 +130,7 @@
+ import '../../../shared/js/stl_writer.js'
+ // eslint-disable-next-line import/first
+ import '../../../shared/js/stl_naming.js'
++import '../../../shared/js/box_geometry_product.js'
+ // eslint-disable-next-line import/first
+ import '../../../shared/js/transform_tools.js'
+ // eslint-disable-next-line import/first
+--- before/src/frontend/web/STL_generate.html
++++ after/src/frontend/web/STL_generate.html
+@@ -10,6 +10,7 @@
+          not optional: six geometry builders call it, so the racks simply do not
+          build without it. The React editor needs them locally too. -->
+     <script src="vendor/polygon-clipping.umd.js"></script>
++    <script src="vendor/earcut.umd.js"></script>
+     <script src="vendor/three-r184-global.min.js"></script>
+     <script src="vendor/three-mesh-bvh-global.min.js"></script>
+     <script>
+@@ -1245,6 +1246,7 @@
+     <script src="js/rack_state.js"></script>
+ <script src="js/stl_writer.js"></script>
+ <script src="js/stl_naming.js"></script>
++<script src="js/box_geometry_product.js"></script>
+ <script src="js/transform_tools.js"></script>
+ <script src="js/geometry_pure.js"></script>
+ <script src="js/geometry_scene.js"></script>
+--- before/src/frontend/react/test/geometryProductKernel.test.ts
++++ after/src/frontend/react/test/geometryProductKernel.test.ts
+@@ -0,0 +1,212 @@
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++import { spawnSync } from 'node:child_process'
++import vm from 'node:vm'
++import { describe, expect, it, vi } from 'vitest'
++import * as THREE from 'three'
++import { stateV4 } from '../src/legacy/cfdprojModules'
++import { createSceneBuilder, emptyRegistries, type SceneHost } from '../src/interaction/sceneBuilder'
++import { BoxEntity, DomainProject, PduEntity } from '../src/domain'
++import { geometryProductKernel } from '../src/domain/geometryProductKernel'
++import type { CfdProject } from '../src/schema/cfdproj'
++import golden from './fixtures/boxGeometryProductParity.json'
++
++const root = resolve(process.cwd(), '../../..')
++const shared = resolve(root, 'src/frontend/shared')
++function read(path: string) { return readFileSync(resolve(shared, path), 'utf8') }
++function bytes(array: ArrayBufferView) {
++  return Buffer.from(array.buffer, array.byteOffset, array.byteLength).toString('hex')
++}
++function classic() {
++  const context = vm.createContext({})
++  // A real classic-script global has window === globalThis. No renderer or DOM.
++  vm.runInContext('globalThis.window = globalThis', context)
++  for (const file of ['vendor/polygon-clipping.umd.js', 'vendor/earcut.umd.js',
++    'js/stl_naming.js', 'js/box_geometry_product.js']) vm.runInContext(read(file), context)
++  return context
++}
++function model(index = 4) { return structuredClone(golden.cases[index]!.model) }
++function product(index = 4) {
++  const sample = golden.cases[index]!
++  return geometryProductKernel.createProduct(model(index), sample.bucket === 'cdus' ? 'cdu' : 'box')
++}
++
++describe('one pure structural kernel across classic, React and CommonJS', () => {
++  it('preserves the installed Earcut numerical body and distribution license', () => {
++    const installed = readFileSync(resolve(process.cwd(), 'node_modules/three/src/extras/lib/earcut.js'), 'utf8')
++    const numerical = installed.replace('export default function earcut', 'function earcut')
++      .replace('export function deviation', 'function deviation')
++      .replace('export function flatten', 'function flatten')
++    const wrapped = read('vendor/earcut.umd.js')
++    expect(wrapped).toContain(numerical)
++    expect(wrapped).toContain('Permission to use, copy, modify, and/or distribute')
++    expect(read('vendor/earcut.LICENSE')).toContain('Copyright (c) 2024, Mapbox')
++  })
++
++  it('runs the classic loader without THREE, document or a renderer fallback', () => {
++    const context = classic()
++    expect(vm.runInContext('typeof THREE + "/" + typeof document', context)).toBe('undefined/undefined')
++    context.input = model()
++    const value = vm.runInContext('boxGeometryProduct.createProduct(input, "box")', context) as ReturnType<typeof product>
++    const expected = golden.cases[4]!.expected.parts
++    expect(value.parts).toHaveLength(expected.length)
++    value.parts.forEach((part, i) => {
++      expect(bytes(part.positions)).toBe(expected[i]!.position!.bytesLE)
++      expect(bytes(part.normals)).toBe(expected[i]!.normal!.bytesLE)
++      expect(bytes(part.uvs)).toBe(expected[i]!.uv!.bytesLE)
++      expect(bytes(part.indices)).toBe(expected[i]!.index!.bytesLE)
++    })
++  })
++
++  it('fails clearly when classic numerical dependencies were not loaded', () => {
++    const context = vm.createContext({})
++    expect(() => vm.runInContext(read('js/box_geometry_product.js'), context))
++      .toThrow(/needs polygon-clipping, earcut and stl_naming loaded first/)
++    expect(context.boxGeometryProduct).toBeUndefined()
++  })
++
++  it('standalone CommonJS uses the same buffers without renderer globals', () => {
++    const script = [
++      "const assert = require('node:assert/strict');",
++      'const core = require(' + JSON.stringify(resolve(shared, 'js/box_geometry_product.js')) + ');',
++      'const pure = require(' + JSON.stringify(resolve(shared, 'js/geometry_pure.js')) + ');',
++      'const sample = ' + JSON.stringify(golden.cases[4]) + ';',
++      "assert.equal(typeof global.THREE, 'undefined'); assert.equal(typeof global.window, 'undefined');",
++      "assert.equal(typeof global.document, 'undefined');",
++      "const p = core.createProduct(sample.model, 'box');",
++      "p.parts.forEach((x,i) => assert.equal(Buffer.from(x.positions.buffer).toString('hex'), sample.expected.parts[i].position.bytesLE));",
++      "assert.deepEqual(pure.circleToPoly(1,2,3), core.circleToPoly(1,2,3));",
++      "assert.throws(()=>core.createProduct(sample.model,'acu'), /Unsupported geometry product kind/);",
++      "process.stdout.write('pure-kernel-ok');",
++    ].join('\n')
++    const result = spawnSync(process.execPath, ['-e', script], { cwd: root, encoding: 'utf8', timeout: 5000 })
++    expect(result.error).toBeUndefined()
++    expect(result.status, result.stderr).toBe(0)
++    expect(result.stdout).toBe('pure-kernel-ok')
++  })
++
++  it('both actual entry points load the shared numerical producer before consuming it', () => {
++    const html = readFileSync(resolve(root, 'src/frontend/web/STL_generate.html'), 'utf8')
++    const react = readFileSync(resolve(process.cwd(), 'src/legacy/geometryBuilder.ts'), 'utf8')
++    for (const source of [html, react]) {
++      expect(source.indexOf('vendor/earcut.umd.js')).toBeGreaterThan(source.indexOf('vendor/polygon-clipping.umd.js'))
++      expect(source.indexOf('js/box_geometry_product.js')).toBeGreaterThan(source.indexOf('js/stl_naming.js'))
++      expect(source.indexOf('js/geometry_pure.js', source.indexOf('js/box_geometry_product.js')))
++        .toBeGreaterThan(source.indexOf('js/box_geometry_product.js'))
++    }
++  })
++})
++
++describe('owned plain buffers and explicitly scoped material source recipes', () => {
++  it('does not alias any mutable buffer or source recipe between calls or to JSON', () => {
++    const input = model()
++    const before = JSON.stringify(input)
++    const a = geometryProductKernel.createProduct(input, 'box')
++    const b = geometryProductKernel.createProduct(input, 'box')
++    for (const key of ['positions', 'normals', 'uvs', 'indices'] as const) {
++      expect(a.parts[0]![key]).not.toBe(b.parts[0]![key])
++      const value = b.parts[0]![key][0]
++      a.parts[0]![key][0] = 999
++      expect(b.parts[0]![key][0]).toBe(value)
++    }
++    a.parts[0]!.refIds.push('foreign')
++    a.parts[0]!.materialRecipe.source.patchIds.push('foreign')
++    a.parts[0]!.materialRecipe.color = '#000'
++    expect(b.parts[0]!.refIds).not.toContain('foreign')
++    expect(b.parts[0]!.materialRecipe.source.patchIds).not.toContain('foreign')
++    expect(b.parts[0]!.materialRecipe.color).not.toBe('#000')
++    expect(JSON.stringify(input)).toBe(before)
++  })
++
++  it('keeps patch/wall roles and raw UV as source descriptors, not renderer textures', () => {
++    const p = product()
++    expect(p.parts.some(part => !part.isBaseWall)).toBe(true)
++    for (const part of p.parts) {
++      expect(part.materialRecipe).toEqual({
++        role: part.isBaseWall ? 'structural-wall' : 'structural-patch',
++        uvMode: 'raw', color: expect.any(String), opacity: expect.any(Number),
++        source: { ownerUid: p.modelUid, faceId: part.faceId, patchIds: part.refIds },
++      })
++      expect(part.partId.startsWith(p.modelUid + '/' + part.faceId + '/')).toBe(true)
++      expect(part.materialRecipe).not.toHaveProperty('texture')
++      expect(part.materialRecipe).not.toHaveProperty('pbrMaterial')
++    }
++  })
++
++  it('reads legacy opacity defaults without materializing wallOpacities in project JSON', () => {
++    const input = model(9), face = input.geometry.faces.front
++    Reflect.deleteProperty(face, 'wallOpacities')
++    face.opacity = .37
++    const before = JSON.stringify(input)
++    const p = geometryProductKernel.createProduct(input, 'box')
++    expect(p.parts.filter(part => part.faceId === 'front').every(part => part.materialRecipe.opacity === .37)).toBe(true)
++    expect(JSON.stringify(input)).toBe(before)
++    expect(face).not.toHaveProperty('wallOpacities')
++  })
++
++  it('keeps CDU face palette and owned structural recipe apart from display details', () => {
++    const p = product(2)
++    const colors: Record<string, string> = { front: '#007a99', back: '#009ab8', left: '#008aaa',
++      right: '#008aaa', top: '#00b4dc', bottom: '#005e77' }
++    for (const part of p.parts.filter(x => x.isBaseWall)) expect(part.materialRecipe.color).toBe(colors[part.faceId])
++    expect(p.parts.every(part => !/hmi|pipe|door-detail/i.test(part.partId))).toBe(true)
++  })
++
++  it('explicit PDU assets keep physical BOX products while display names never assign PDU type', () => {
++    const record = model(1)
++    const ordinary = new DomainProject({ schemaVersion: 5, constructions: { boxes: { [record.uid]: record } } } as unknown as CfdProject).topLevel()[0]!
++    expect(ordinary).toBeInstanceOf(BoxEntity)
++    expect(ordinary).not.toBeInstanceOf(PduEntity)
++    const named = { ...record, meta: { ...record.meta, name: 'PDU_only_a_display_name' } }
++    expect(new DomainProject({ schemaVersion: 5, constructions: { boxes: { [record.uid]: named } } } as unknown as CfdProject).topLevel()[0]).not.toBeInstanceOf(PduEntity)
++    const declared = { ...record, assetDefinition: { type: 'pdu' } }
++    const entity = new DomainProject({ schemaVersion: 5, constructions: { boxes: { [record.uid]: declared } } } as unknown as CfdProject).topLevel()[0]!
++    expect(entity).toBeInstanceOf(PduEntity)
++    expect((entity as PduEntity).geometryProduct().kind).toBe('box')
++    expect(bytes((entity as PduEntity).geometryProduct().parts[0]!.positions)).toBe(golden.cases[1]!.expected.parts[0]!.position!.bytesLE)
++  })
++})
++
++describe('legacy non-BOX callers retain their established structural carrier', () => {
++  it.each([
++    ['acu', 'acus'], ['cold_plate', 'boxes'], ['custom', 'customMeshes'],
++  ])('renders %s without asking the narrower domain product to convert it', (kind, bucket) => {
++    const raw = stateV4().getInitialStateV4() as unknown as CfdProject
++    const record = { ...model(1), kind }
++    // Persisted BOX subtypes carry this marker; a bare transient kind is
++    // intentionally canonicalized to BOX by the established loader.
++    if (kind === 'cold_plate') Object.assign(record.meta, { legacyKind: kind })
++    raw.constructions = { [bucket]: { [record.uid]: record } } as CfdProject['constructions']
++    const project = stateV4().normalizeStateV4(raw) as unknown as CfdProject
++    expect(stateV4().allModels(project)[0]).toMatchObject({ kind })
++    const globalGroup = new THREE.Group(), wrapperGroup = new THREE.Group()
++    wrapperGroup.add(globalGroup)
++    const host: SceneHost = { globalGroup, wrapperGroup, registries: emptyRegistries(),
++      project: () => project, selectedUid: () => null, webglAvailable: false }
++    const runtime = globalThis as typeof globalThis & { boxGeometryProduct: typeof geometryProductKernel }
++    const original = runtime.boxGeometryProduct
++    const noBoxConversion = vi.fn(() => { throw new Error('unsupported carrier entered BOX product') })
++    runtime.boxGeometryProduct = { ...original, createProduct: noBoxConversion }
++    const builder = createSceneBuilder(host)
++    try {
++      builder.rebuildModels([record.uid])
++      expect(host.registries.renderMeshes.length).toBeGreaterThanOrEqual(6)
++      expect(host.registries.renderMeshes.every(mesh => mesh.userData.exportName && mesh.userData.modelId === record.uid)).toBe(true)
++      expect(noBoxConversion).not.toHaveBeenCalled()
++      expect(() => geometryProductKernel.createProduct(record, kind)).toThrow(/Unsupported geometry product kind/)
++    } finally {
++      builder.clear()
++      runtime.boxGeometryProduct = original
++    }
++  })
++})
++
++describe('base entity geometry-product contract rejects unsupported source kinds', () => {
++  it.each(['sensors', 'futureDevices'])('returns an explicit unsupported error for %s', bucket => {
++    const record = model()
++    const entity = new DomainProject({ schemaVersion: 5,
++      constructions: { [bucket]: { [record.uid]: record } } } as unknown as CfdProject).allEntities().find(item => item.uid === record.uid)!
++    expect(typeof entity.geometryProduct).toBe('function')
++    expect(() => entity.geometryProduct()).toThrow(/unsupported.*geometry|geometry.*unsupported/i)
++  })
++})
+--- before/src/frontend/react/test/boxGeometryProduct.test.ts
++++ after/src/frontend/react/test/boxGeometryProduct.test.ts
+@@ -7,7 +7,7 @@
+ import { createSceneBuilder, emptyRegistries, type SceneHost } from '../src/interaction/sceneBuilder'
+ import { buildSceneSnapshot } from '../src/renderer/sceneSnapshot'
+ import { setLiquidModeActive } from '../src/liquid/liquidModeState'
+-import type { CfdProject, Construction } from '../src/schema/cfdproj'
++import type { CfdProject } from '../src/schema/cfdproj'
+ 
+ interface NumericPart {
+   faceId: string

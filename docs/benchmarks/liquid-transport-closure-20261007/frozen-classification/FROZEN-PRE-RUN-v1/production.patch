@@ -1,0 +1,106 @@
+--- a/src/frontend/shared/vendor/three-csg-ts.umd.js
++++ b/src/frontend/shared/vendor/three-csg-ts.umd.js
+@@ -227,7 +227,9 @@
+       this.w = w;
+     }
+     clone() {
+-      return new _Plane(this.normal.clone(), this.w);
++      const plane = new _Plane(this.normal.clone(), this.w);
++      if (this.classificationEpsilon !== void 0) plane.classificationEpsilon = this.classificationEpsilon;
++      return plane;
+     }
+     flip() {
+       this.normal.negate();
+@@ -247,7 +249,8 @@
+       const types = [];
+       for (let i = 0; i < polygon.vertices.length; i++) {
+         const t = this.normal.dot(polygon.vertices[i].pos) - this.w;
+-        const type = t < -_Plane.EPSILON ? BACK : t > _Plane.EPSILON ? FRONT : COPLANAR;
++        const epsilon = this.classificationEpsilon === void 0 ? _Plane.EPSILON : this.classificationEpsilon;
++        const type = t < -epsilon ? BACK : t > epsilon ? FRONT : COPLANAR;
+         polygonType |= type;
+         types.push(type);
+       }
+@@ -279,9 +282,9 @@
+             }
+           }
+           if (f.length >= 3)
+-            front.push(new Polygon(f, polygon.shared));
++            front.push(new Polygon(f, polygon.shared, polygon.plane.classificationEpsilon === void 0 ? void 0 : polygon.plane));
+           if (b.length >= 3)
+-            back.push(new Polygon(b, polygon.shared));
++            back.push(new Polygon(b, polygon.shared, polygon.plane.classificationEpsilon === void 0 ? void 0 : polygon.plane));
+           break;
+         }
+       }
+@@ -295,13 +298,13 @@
+ 
+   // package/lib/esm/Polygon.js
+   var Polygon = class _Polygon {
+-    constructor(vertices, shared) {
++    constructor(vertices, shared, supportPlane) {
+       this.vertices = vertices;
+       this.shared = shared;
+-      this.plane = Plane.fromPoints(vertices[0].pos, vertices[1].pos, vertices[2].pos);
++      this.plane = supportPlane ? supportPlane.clone() : Plane.fromPoints(vertices[0].pos, vertices[1].pos, vertices[2].pos);
+     }
+     clone() {
+-      return new _Polygon(this.vertices.map((v) => v.clone()), this.shared);
++      return new _Polygon(this.vertices.map((v) => v.clone()), this.shared, this.plane.classificationEpsilon === void 0 ? void 0 : this.plane);
+     }
+     flip() {
+       this.vertices.reverse().map((v) => v.flip());
+@@ -344,7 +347,9 @@
+       csg.polygons = polygons;
+       return csg;
+     }
+-    static fromGeometry(geom, objectIndex) {
++    static fromGeometry(geom, objectIndex, classificationEpsilon) {
++      if (classificationEpsilon !== void 0 && (!Number.isFinite(classificationEpsilon) || classificationEpsilon <= 0 || classificationEpsilon > Plane.EPSILON))
++        throw new Error("CSG classification precision must be positive and no looser than the default");
+       let polys = [];
+       const posattr = geom.attributes.position;
+       const normalattr = geom.attributes.normal;
+@@ -387,6 +392,7 @@
+           polys[pli] = new Polygon(vertices, objectIndex);
+         }
+       }
++      if (classificationEpsilon !== void 0) for (const p of polys) p.plane.classificationEpsilon = classificationEpsilon;
+       return _CSG.fromPolygons(polys.filter((p) => !isNaN(p.plane.normal.x)));
+     }
+     static toGeometry(csg, toMatrix) {
+@@ -461,8 +467,8 @@
+       geom.computeBoundingBox();
+       return geom;
+     }
+-    static fromMesh(mesh, objectIndex) {
+-      const csg = _CSG.fromGeometry(mesh.geometry, objectIndex);
++    static fromMesh(mesh, objectIndex, classificationEpsilon) {
++      const csg = _CSG.fromGeometry(mesh.geometry, objectIndex, classificationEpsilon);
+       const ttvv0 = new import_three2.Vector3();
+       const tmpm3 = new import_three2.Matrix3();
+       tmpm3.getNormalMatrix(mesh.matrix);
+@@ -472,6 +478,10 @@
+           const v = p.vertices[j];
+           v.pos.copy(ttvv0.copy(v.pos.toVector3()).applyMatrix4(mesh.matrix));
+           v.normal.copy(ttvv0.copy(v.normal.toVector3()).applyMatrix3(tmpm3));
++        }
++        if (classificationEpsilon !== void 0) {
++          p.plane = Plane.fromPoints(p.vertices[0].pos, p.vertices[1].pos, p.vertices[2].pos);
++          p.plane.classificationEpsilon = classificationEpsilon;
+         }
+       }
+       return csg;
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -420,7 +420,9 @@
+                 geometry.setAttribute('position',new THREE.BufferAttribute(new Float64Array(vertices),3));
+                 geometry.setIndex(indices); geometry.computeVertexNormals();
+                 const mesh=new THREE.Mesh(geometry); mesh.updateMatrix();
+-                const result=CSG.fromMesh(mesh,owner); geometry.dispose();
++                // Transport intersections need sub-quantization classification precision;
++                // other CSG producers retain their original default.
++                const result=CSG.fromMesh(mesh,owner,1e-9); geometry.dispose();
+                 return result;
+             };
+             sources.forEach((model,owner) => {

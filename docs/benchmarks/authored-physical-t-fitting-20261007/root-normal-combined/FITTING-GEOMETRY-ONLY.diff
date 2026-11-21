@@ -1,0 +1,16 @@
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -439,7 +439,12 @@
+                 } else {
+                     const ports=model.cooling?.ports;
+                     if(model.cooling?.type!=='T_branch' || !Array.isArray(ports) || ports.length!==3)
+-                        throw new Error('Liquid transport currently needs an explicit three-port T fitting');
++                        throw new Error('Liquid transport currently needs an explicit three-port T fitting: declare its physical layout in Properties before exporting');
++                    if(typeof model.cooling.fittingDiameterM!=='number' || !Number.isFinite(model.cooling.fittingDiameterM) || model.cooling.fittingDiameterM<=0)
++                        throw new Error('invalid fitting diameter: set a positive physical T fitting diameter in Properties before exporting');
++                    if(ports.some(port=>!port || typeof port.id!=='string' || !port.id ||
++                        ![port.offset,port.direction].every(point=>point && ['x','y','z'].every(k=>typeof point[k]==='number' && Number.isFinite(point[k])) && Math.hypot(point.x,point.y,point.z)>0)) || new Set(ports.map(port=>port.id)).size!==3)
++                        throw new Error('Liquid transport needs three explicit physical port offsets and directions: declare the T fitting layout in Properties before exporting');
+                     const radius=diameter(model.cooling.fittingDiameterM,'fitting diameter')/2;
+                     const centre=vector(model.geometry?.location,'junction location');
+                     const endpoints=ports.map(port=>portPoint(model.uid+'.'+port.id));

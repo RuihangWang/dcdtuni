@@ -1,0 +1,1969 @@
+{
+  "scope": "SOURCE-COUNT-ONLY MOCK. Not NV topology, measurements, calibrated parameters, controller validation or simulation results.",
+  "project": {
+    "path": "case/NV_PEK02_Mock/NV_PEK02_mock.cfdproj",
+    "sha256": "c1d320a375183e42a2d377bf7c34ec9fc1c77943754962a921efa75365dab2d0"
+  },
+  "derived": {
+    "path": "docs/benchmarks/fixtures/nv-pek02-mock-v3.liquidrun",
+    "sha256": "460f7e24498adb8c581b8e58034fbacf69a814352515c11f7e7a81511b2659b2",
+    "format": "liquidrun",
+    "version": "3.0"
+  },
+  "source_provenance": {
+    "fixture_revision": "nv-pek02-mock-1",
+    "source_project": "case/Shinaide_Liquid/Shinaide_hybrid_cpu.cfdproj",
+    "template_sha256": "d00c6a0b32c350ec680b604e9da014507916a4d07bd4a90d1a20207290ee68bb",
+    "asset_count_sources": [
+      {
+        "asset": "CDU",
+        "count": 2,
+        "cell": "C3",
+        "sheet": "Liquid Cooling",
+        "file": "Pek02_BMS_PointList_Interface_V3.0_20260916_CQB.xlsx",
+        "sha256": "ec4dc0ee243bdd7e26ecab44791f84039e0f5bbf2317fb1355f93e7780213075",
+        "meaning": "planned asset count only; no topology, installed state or authorization inferred"
+      },
+      {
+        "asset": "energy_valve",
+        "count": 34,
+        "cell": "C31",
+        "sheet": "Liquid Cooling",
+        "file": "Pek02_BMS_PointList_Interface_V3.0_20260916_CQB.xlsx",
+        "sha256": "ec4dc0ee243bdd7e26ecab44791f84039e0f5bbf2317fb1355f93e7780213075",
+        "meaning": "planned asset count only; no topology, installed state or authorization inferred"
+      },
+      {
+        "asset": "isolation_valve",
+        "count": 68,
+        "cell": "C40",
+        "sheet": "Liquid Cooling",
+        "file": "Pek02_BMS_PointList_Interface_V3.0_20260916_CQB.xlsx",
+        "sha256": "ec4dc0ee243bdd7e26ecab44791f84039e0f5bbf2317fb1355f93e7780213075",
+        "meaning": "planned asset count only; no topology, installed state or authorization inferred"
+      }
+    ],
+    "topology": {
+      "source": "mock",
+      "reference": "tools/nv_mock_project.ts",
+      "description": "Two independent CDU zones, 17 racks each, no cross-tie/standby. One equivalent pump and two-fluid-volume HX per CDU; not a model of the actual internal three-pump arrangement. One energy valve + supply isolation + return isolation per rack; isolation is a zero-volume series element co-located with its branch fitting."
+    },
+    "geometry": {
+      "source": "mock",
+      "description": "22 x 14 x 4 m assumed room; generic construction shapes cloned from own Shinaide fixture; 0.85 m assumed rack pitch. All line lengths come from the common geometry compiler, not NV CAD."
+    },
+    "thermal": {
+      "source": "mock",
+      "rack_load_W": 10000,
+      "total_load_W": 340000,
+      "step_time_s": 5,
+      "step_factor": 1.2,
+      "description": "One equivalent liquid load/thermal mass per rack; not an individual GPU/cold-plate identification. Uniform 10 kW/rack chosen only for solver tests."
+    },
+    "missing": [
+      "actual CDU model",
+      "as-built P&ID",
+      "rack/CDU allocation",
+      "equipment curves",
+      "primary-side dynamics",
+      "synchronized telemetry",
+      "controller logic",
+      "electrical-to-liquid heat split",
+      "independent CDU/pump electricity measurement"
+    ]
+  },
+  "compiler_modules": [
+    "src/frontend/react/src/liquid/liquidExperiment.ts",
+    "src/frontend/react/src/liquid/dynamicLiquidGraph.ts",
+    "src/frontend/shared/js/liquid_graphgen.js"
+  ],
+  "validation": {
+    "source_project_unchanged": true,
+    "racks": 34,
+    "nodes": 316,
+    "edges": 348,
+    "edge_types": {
+      "pump": 2,
+      "heat_exchanger": 2,
+      "valve": 102,
+      "cold_plate": 34,
+      "pipe": 208
+    },
+    "connected_components": 2,
+    "component_node_counts": [
+      158,
+      158
+    ],
+    "source_inventory": {
+      "CDU": 2,
+      "energy_valve": 34,
+      "isolation_valve": 68
+    },
+    "all_valves_fixed_open": true,
+    "initial_rack_heat_W": 340000,
+    "event_rack_heat_W": 408000,
+    "solver_executed": false
+  },
+  "asset_to_graph": [
+    {
+      "asset_uid": "nv_energy_01",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 01",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_01_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_01"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_01",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_01",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 01",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_01_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_01"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_02",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 02",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_02_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_02"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_02",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_02",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 02",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_02_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_02"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_03",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 03",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_03_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_03"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_03",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_03",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 03",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_03_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_03"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_04",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 04",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_04_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_04"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_04",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_04",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 04",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_04_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_04"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_05",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 05",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_05_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_05"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_05",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_05",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 05",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_05_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_05"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_06",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 06",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_06_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_06"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_06",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_06",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 06",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_06_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_06"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_07",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 07",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_07_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_07"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_07",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_07",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 07",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_07_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_07"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_08",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 08",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_08_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_08"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_08",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_08",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 08",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_08_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_08"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_09",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 09",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_09_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_09"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_09",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_09",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 09",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_09_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_09"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_10",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 10",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_10_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_10"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_10",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_10",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 10",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_10_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_10"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_11",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 11",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_11_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_11"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_11",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_11",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 11",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_11_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_11"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_12",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 12",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_12_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_12"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_12",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_12",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 12",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_12_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_12"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_13",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 13",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_13_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_13"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_13",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_13",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 13",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_13_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_13"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_14",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 14",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_14_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_14"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_14",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_14",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 14",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_14_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_14"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_15",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 15",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_15_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_15"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_15",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_15",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 15",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_15_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_15"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_16",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 16",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_16_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_16"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_16",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_16",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 16",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_16_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_16"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_17",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 17",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_control_nv_energy_17_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_control_nv_energy_17"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_17",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_01",
+      "series_with": "nv_energy_17",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 17",
+        "kind": "valve",
+        "parent_uid": "nv_supply_01",
+        "node_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_17_out"
+        ],
+        "edge_ids": [
+          "nv_supply_01_isolation_nv_iso_supply_17"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_01",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_01",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 01",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_01_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_01"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_02",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_02",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 02",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_02_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_02"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_03",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_03",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 03",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_03_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_03"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_04",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_04",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 04",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_04_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_04"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_05",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_05",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 05",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_05_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_05"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_06",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_06",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 06",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_06_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_06"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_07",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_07",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 07",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_07_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_07"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_08",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_08",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 08",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_08_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_08"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_09",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_09",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 09",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_09_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_09"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_10",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_10",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 10",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_10_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_10"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_11",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_11",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 11",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_11_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_11"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_12",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_12",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 12",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_12_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_12"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_13",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_13",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 13",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_13_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_13"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_14",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_14",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 14",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_14_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_14"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_15",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_15",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 15",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_15_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_15"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_16",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_16",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 16",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_16_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_16"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_17",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_01",
+      "series_with": "nv_return_tee_17",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 17",
+        "kind": "valve",
+        "parent_uid": "nv_return_01",
+        "node_ids": [
+          "nv_return_01_isolation_nv_iso_return_17_out"
+        ],
+        "edge_ids": [
+          "nv_return_01_isolation_nv_iso_return_17"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_18",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 18",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_18_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_18"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_18",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_18",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 18",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_18_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_18"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_19",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 19",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_19_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_19"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_19",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_19",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 19",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_19_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_19"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_20",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 20",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_20_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_20"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_20",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_20",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 20",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_20_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_20"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_21",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 21",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_21_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_21"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_21",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_21",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 21",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_21_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_21"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_22",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 22",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_22_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_22"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_22",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_22",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 22",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_22_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_22"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_23",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 23",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_23_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_23"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_23",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_23",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 23",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_23_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_23"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_24",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 24",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_24_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_24"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_24",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_24",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 24",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_24_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_24"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_25",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 25",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_25_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_25"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_25",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_25",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 25",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_25_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_25"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_26",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 26",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_26_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_26"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_26",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_26",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 26",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_26_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_26"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_27",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 27",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_27_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_27"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_27",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_27",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 27",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_27_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_27"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_28",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 28",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_28_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_28"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_28",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_28",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 28",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_28_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_28"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_29",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 29",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_29_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_29"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_29",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_29",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 29",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_29_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_29"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_30",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 30",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_30_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_30"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_30",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_30",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 30",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_30_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_30"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_31",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 31",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_31_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_31"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_31",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_31",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 31",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_31_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_31"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_32",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 32",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_32_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_32"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_32",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_32",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 32",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_32_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_32"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_33",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 33",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_33_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_33"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_33",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_33",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 33",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_33_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_33"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_energy_34",
+      "asset_kind": "energy_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": null,
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK energy valve 34",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_control_nv_energy_34_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_control_nv_energy_34"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_supply_34",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_supply_02",
+      "series_with": "nv_energy_34",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK supply isolation 34",
+        "kind": "valve",
+        "parent_uid": "nv_supply_02",
+        "node_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_34_out"
+        ],
+        "edge_ids": [
+          "nv_supply_02_isolation_nv_iso_supply_34"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_18",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_18",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 18",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_18_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_18"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_19",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_19",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 19",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_19_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_19"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_20",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_20",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 20",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_20_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_20"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_21",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_21",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 21",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_21_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_21"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_22",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_22",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 22",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_22_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_22"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_23",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_23",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 23",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_23_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_23"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_24",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_24",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 24",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_24_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_24"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_25",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_25",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 25",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_25_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_25"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_26",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_26",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 26",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_26_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_26"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_27",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_27",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 27",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_27_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_27"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_28",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_28",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 28",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_28_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_28"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_29",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_29",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 29",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_29_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_29"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_30",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_30",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 30",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_30_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_30"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_31",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_31",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 31",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_31_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_31"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_32",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_32",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 32",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_32_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_32"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_33",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_33",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 33",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_33_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_33"
+        ]
+      }
+    },
+    {
+      "asset_uid": "nv_iso_return_34",
+      "asset_kind": "isolation_valve",
+      "owner_pipe_uid": "nv_return_02",
+      "series_with": "nv_return_tee_34",
+      "opening": 1,
+      "compiled": {
+        "label": "MOCK return isolation 34",
+        "kind": "valve",
+        "parent_uid": "nv_return_02",
+        "node_ids": [
+          "nv_return_02_isolation_nv_iso_return_34_out"
+        ],
+        "edge_ids": [
+          "nv_return_02_isolation_nv_iso_return_34"
+        ]
+      }
+    }
+  ],
+  "primary_circuits": [
+    {
+      "edge_id": "nv_cdu_01_hx",
+      "flow_kg_s": 5,
+      "inlet_K": 293.15,
+      "cp_J_kgK": 4182,
+      "rho_kg_m3": 997,
+      "primary_volume_m3": 0.05,
+      "secondary_volume_m3": 0.05,
+      "source": "mock",
+      "source_reference": "tools/nv_mock_project.ts: assumed constant 5 kg/s at 20 C; 50 L mixed primary and secondary volumes. Not vendor data, NV telemetry or calibration."
+    },
+    {
+      "edge_id": "nv_cdu_02_hx",
+      "flow_kg_s": 5,
+      "inlet_K": 293.15,
+      "cp_J_kgK": 4182,
+      "rho_kg_m3": 997,
+      "primary_volume_m3": 0.05,
+      "secondary_volume_m3": 0.05,
+      "source": "mock",
+      "source_reference": "tools/nv_mock_project.ts: assumed constant 5 kg/s at 20 C; 50 L mixed primary and secondary volumes. Not vendor data, NV telemetry or calibration."
+    }
+  ]
+}

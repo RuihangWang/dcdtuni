@@ -1,0 +1,80 @@
+--- before/src/frontend/shared/js/box_material_recipe.js
++++ final/src/frontend/shared/js/box_material_recipe.js
+@@ -40,7 +40,7 @@
+         var opacity = options.opacity ?? 1;
+         var transparent = typeof options.transparent === 'boolean' ? options.transparent : opacity < 0.999;
+         var parameters = {
+-            color: photo ? 0xffffff : options.color,
++            ...(photo ? { color: 0xffffff } : options.color !== undefined ? { color: options.color } : {}),
+             side: options.doubleSide ? 'double' : 'front', polygonOffset: true,
+             polygonOffsetFactor: options.polygonOffsetFactor ?? 1,
+             transparent: transparent, opacity: opacity, depthWrite: options.depthWrite ?? !transparent
+--- before/src/frontend/shared/js/geometry_scene.js
++++ final/src/frontend/shared/js/geometry_scene.js
+@@ -2500,7 +2500,7 @@
+             const matProps = scopedPolicy ? Object.assign({}, scopedPolicy.parameters, {
+                 side: scopedPolicy.parameters.side === 'double' ? THREE.DoubleSide : THREE.FrontSide
+             }) : {
+-                color: options.color,
++                ...(options.color !== undefined ? { color: options.color } : {}),
+                 shininess: Math.round((1 - preset.roughness) * 80) + 10,
+                 specular: 0x111111,
+                 side: (options.doubleSide || _thinSurface) ? THREE.DoubleSide : THREE.FrontSide,
+@@ -2597,7 +2597,7 @@
+                 material = options.objectKind
+                     ? getCachedMaterial(options.objectKind, options)
+                     : new THREE.MeshPhongMaterial({
+-                        color: options.color,
++                        ...(options.color !== undefined ? { color: options.color } : {}),
+                         shininess: 30,
+                         specular: 0x111111,
+                         side: options.doubleSide ? THREE.DoubleSide : THREE.FrontSide,
+--- before/src/frontend/react/test/materialRecipeKernel.test.ts
++++ final/src/frontend/react/test/materialRecipeKernel.test.ts
+@@ -22,7 +22,7 @@
+     expect(vm.runInContext('boxMaterialRecipe.materialPolicy("box",{color:"#789abc"}).parameters.shininess',c)).toBe(34)
+   })
+   it('standalone CommonJS consumes the exact same numeric policy without a browser fallback',()=>{
+-    const result=spawnSync(process.execPath,['-e',`const assert=require('node:assert/strict');const k=require(${JSON.stringify(shared)});assert.equal(typeof global.THREE,'undefined');assert.equal(typeof global.window,'undefined');assert.deepEqual(k.materialPolicy('box',{opacity:.3,transparent:false,depthWrite:false}).parameters,{color:undefined,side:'front',polygonOffset:true,polygonOffsetFactor:1,transparent:false,opacity:.3,depthWrite:false,shininess:34,specular:0x111111});process.stdout.write('pure-material-ok')`],{encoding:'utf8',timeout:5000})
++    const result=spawnSync(process.execPath,['-e',`const assert=require('node:assert/strict');const k=require(${JSON.stringify(shared)});assert.equal(typeof global.THREE,'undefined');assert.equal(typeof global.window,'undefined');assert.deepEqual(k.materialPolicy('box',{opacity:.3,transparent:false,depthWrite:false}).parameters,{side:'front',polygonOffset:true,polygonOffsetFactor:1,transparent:false,opacity:.3,depthWrite:false,shininess:34,specular:0x111111});process.stdout.write('pure-material-ok')`],{encoding:'utf8',timeout:5000})
+     expect(result.status,result.stderr).toBe(0);expect(result.stdout).toBe('pure-material-ok')
+   })
+   for(const sample of actual)it(sample.label+' resolves no-kind records and matches actual original carrier scalars',()=>{
+@@ -79,6 +79,37 @@
+       expect(ready.userData.pbrUvScaled).toBeUndefined()
+     }finally{builder.clear();lib.ROLES['painted-steel']=oldRole;lib.SETS['painted-steel']!.meanRoughness=oldMean;lib._resetForTests();load.mockRestore()}
+   })
++  it('creates missing-color materials without warnings while retaining Phong and library defaults',()=>{
++    const lib=pbrMaterials(), globals=window as unknown as {pbrMaterials?:typeof lib}
++    const context=new Proxy({}, {get(_target,key){
++      if(key==='createLinearGradient'||key==='createRadialGradient')return ()=>({addColorStop(){}})
++      if(key==='getImageData'||key==='createImageData')return (...args:number[])=>({data:new Uint8ClampedArray((args.at(-2)??1)*(args.at(-1)??1)*4)})
++      return ()=>undefined
++    }})
++    const canvas=vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation(()=>context as CanvasRenderingContext2D)
++    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{})
++    const originalLibrary=globals.pbrMaterials
++    try{
++      for(const [kind,library] of [[undefined,false],['box',false],['cdu-body',false],['cdu-body',true],['baffle',false]] as const){
++        lib._resetForTests();globals.pbrMaterials=library?lib:undefined
++        const project=stateV4().normalizeStateV4(stateV4().getInitialStateV4()) as unknown as CfdProject
++        const group=new THREE.Group(),wrapper=new THREE.Group();wrapper.add(group)
++        const builder=createSceneBuilder({globalGroup:group,wrapperGroup:wrapper,registries:emptyRegistries(),project:()=>project,selectedUid:()=>null,webglAvailable:true})
++        const spawn=builder.api.spawnRenderable as (g:THREE.Group,geo:THREE.BufferGeometry,o:Record<string,unknown>)=>THREE.Mesh
++        try{
++          warn.mockClear()
++          const missing=spawn(group,new THREE.PlaneGeometry(2,1),{objectKind:kind,color:undefined,skipEdges:true})
++          expect(warn.mock.calls.filter(([message])=>String(message).includes("parameter 'color'")),`${kind??'untyped'}/${library}`).toEqual([])
++          const material=missing.material as THREE.MeshPhongMaterial|THREE.MeshStandardMaterial
++          const defaultColor=library?new THREE.Color(lib.ROLES['painted-steel']!.color):kind==='baffle'?new THREE.Color(0x8a9098):new THREE.MeshPhongMaterial().color
++          expect(material.color.toArray()).toEqual(defaultColor.toArray())
++          const black=spawn(group,new THREE.PlaneGeometry(2,1),{objectKind:kind,color:0,skipEdges:true,keepUserColor:true})
++          expect((black.material as THREE.MeshPhongMaterial).color.getHex()).toBe(0)
++          expect(warn.mock.calls.filter(([message])=>String(message).includes("parameter 'color'"))).toEqual([])
++        }finally{builder.clear()}
++      }
++    }finally{globals.pbrMaterials=originalLibrary;lib._resetForTests();warn.mockRestore();canvas.mockRestore()}
++  })
+   it('only admits BOX/CDU capabilities, never infers physical type from a display name',()=>{
+     const sample=actual[0]!,record=structuredClone(sample.sample.model)
+     record.meta.name='PDU_only_name'

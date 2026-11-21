@@ -1,0 +1,274 @@
+- generic: ▼
+- generic: 📁 工程与视图
+- button "📂 加载工程"
+- button "💾 保存工程"
+- button "🏠 房间 2D 平面设计"
+- button "🎮 进入第一人称"
+- button "💧 液冷模拟"
+- button "🌬️ 风冷模拟"
+- button "🗂️ 几何与属性":
+  - generic: 🗂️
+  - generic: 几何
+- button "🔬 液冷求解":
+  - generic: 🔬
+  - generic: 液冷
+- button "📊 后处理":
+  - generic: 📊
+  - generic: 后处理
+- heading "液冷动态实验" [level=3]
+- paragraph: CDU—管网—冷板联动。泵、换热器与阀门使用可替换的 mock 参数；设备几何和冷板参数来自当前工程。
+- group "可微 Newton DAE":
+  - generic: 可微 Newton DAE
+  - paragraph: 此 DAE 使用已保存的合成设备、一次侧储能和材料参数。运行前请核对一次侧详情和参数包；这些输入不是实测或厂商标定。
+  - generic: 分析模式
+  - generic "DAE 分析模式": 瞬态 · 负载响应在顶栏切换（液冷视图）
+  - paragraph: 初值：稳态初始化。计算设置：CPU · float64 · 2 线程（工程保存值）。
+  - generic: CPU 线程数
+  - combobox "DAE CPU 线程数":
+    - option "1"
+    - option "2" [selected]
+    - option "4"
+  - paragraph: 线程数写入工程，用于下一次求解；共享服务器建议选用留有余量的线程预算。
+  - generic "查看已保存的一次侧参数（1 个 HX）"
+  - generic: 时间与负载
+  - generic: 仿真时长 / s
+  - generic: 24.5 s（瞬态时由时间条决定）
+  - generic: 时间步长 / s
+  - spinbutton "时间步长 / s": "0.5"
+  - paragraph: 瞬态工程里，负载与一次侧进水温度的变化在时间条上给冷板功耗 / 一次侧进水温度打关键帧
+  - generic: 泵控制
+  - generic: 控制方式
+  - combobox "控制方式" [disabled]:
+    - option "固定转速" [selected]
+    - option "冷板温度 PI"
+    - option "泵压差 PI"
+  - paragraph: 保存的泵速与阀位轨迹是基线；下方在线设定从下一接受步生效。此入口不接 PI 控制器。
+  - paragraph: 实验设置随工程保存。参数包：liquid-demo-equipment · mock-1-dae-v3
+- generic: 播放速度
+- combobox "播放速度":
+  - option "1×"
+  - option "10×"
+  - option "最快计算" [selected]
+- button "导出液冷运行文件"
+- button "新建实验"
+- group "当前运行的计划负载倍率":
+  - generic: 当前运行的计划负载倍率
+  - button "80%（−20%）" [disabled]: 80%
+  - button "100%" [disabled]
+  - button "120%（+20%）" [disabled]: 120%
+  - paragraph: 已接受负载倍率：100%。
+  - paragraph: 在线倍率与工程预设的负载计划相乘，例如 1.2 × 1.2 = 1.44；已接受历史保持完整。
+  - generic: 泵
+  - combobox "泵":
+    - option "m_30_pump" [selected]
+  - generic: 泵相对转速
+  - spinbutton "泵相对转速": "1"
+  - button "排队泵速" [disabled]
+  - paragraph: 当前已接受：m_30_pump = 1
+  - generic: 阀门
+  - combobox "阀门":
+    - option "m_32_control_valve_1778059294098" [selected]
+    - option "m_32_control_valve_1778059300037"
+    - option "m_32_control_valve_1778059304833"
+    - option "m_32_control_valve_1778059309112"
+    - option "m_32_control_valve_1778059313540"
+    - option "m_32_control_valve_1778059317045"
+    - option "m_32_control_valve_1778059321377"
+    - option "m_32_control_valve_1778059326858"
+    - option "m_32_control_valve_1778059337713"
+    - option "m_32_control_valve_1778059365363"
+    - option "m_32_control_valve_1778059369370"
+    - option "m_32_control_valve_1778059372094"
+    - option "m_32_control_valve_1778059375012"
+    - option "m_32_control_valve_1778059381648"
+  - generic: 阀门开度
+  - spinbutton "阀门开度": "1"
+  - button "排队阀位" [disabled]
+  - paragraph: 当前已接受：m_32_control_valve_1778059294098 = 1
+  - generic: HX 边
+  - combobox "HX 边":
+    - option "m_30_hx" [selected]
+  - generic: 供水温度（K）
+  - spinbutton "供水温度（K）": "295"
+  - button "排队供水温度" [disabled]
+  - paragraph: 当前已接受：m_30_hx = 293.15
+  - button "独立稳态查询"
+  - paragraph: 使用当前已接受时刻的边界与待生效热负载、泵速和阀位，独立预览稳态；不推进时间，也不写入瞬态曲线。
+- strong: 已完成 · 24.5 s
+- progressbar
+- generic: 运行 846357c1e058 · 4b16b22023
+- button "导出结果"
+- button "保存检查点"
+- button "导出已计算输入"
+- paragraph: 包含已完成时刻的实际输入，可独立复现；待应用命令和独立稳态查询不在其中。
+- button "核查液冷热量守恒" [active]
+- strong: 已核查 56 台服务器、2800 个采样；最大热量残差 3.38e-8 W。
+- paragraph: 本次结果与已接受输入的运行身份已核对。
+- paragraph: 这里只核查冷板输入、液体移热与芯片储能；未计算空气侧余热。
+- generic "旧版边界条件求解"
+- option "Water 40°C" [selected]
+- option "Water 20°C"
+- option "Glycol 25%"
+- option "Glycol 50%"
+- option "Custom"
+- option "BDF1" [selected]
+- option "BDF2"
+- option "BDF3"
+- option "CPU"
+- option "CUDA (GPU)" [selected]
+- button "▼ 折叠工具栏" [expanded]: ⌃
+- radiogroup "液冷工况：稳态或瞬态":
+  - generic: 液冷
+  - radio "稳态":
+    - text: 稳态
+  - radio "瞬态" [checked]:
+    - text: 瞬态
+  - generic: 风冷·稳态
+- text: 渲染器
+- combobox "渲染器":
+  - option "Three.js" [selected]
+  - option "Omniverse"
+- button "导出渲染场景"
+- generic "OV 连接"
+- button "建模工具":
+  - generic: 建模工具
+  - generic: ⌄
+- button "视图工具":
+  - generic: 视图工具
+  - generic: ⌄
+- button "偏好设置":
+  - generic: 偏好设置
+  - generic: ⌄
+- combobox "瞬态起点：从稳态收敛场出发，或从均匀初场出发":
+  - option "起点：稳态收敛场" [selected]
+  - option "起点：均匀初场"
+- slider "播放头（秒）":
+  - generic "2.5 s"
+  - generic "6.5 s"
+  - generic "10.5 s"
+  - generic "16.5 s"
+- generic "播放头（秒）":
+  - text: t
+  - spinbutton "播放头（秒）": "24.5"
+  - text: s
+- generic "时间设置"
+- button "轨道"
+- generic: "FPS: 39"
+- text: "| meshes: 800"
+- generic "拖动旋转视角，单击某个面切换到该法向视角"
+- button "动态实验"
+- button "旧版监视"
+- heading "联动监视" [level=3]
+- paragraph:
+  - text: 仿真时间
+  - strong: 24.5 s
+  - text: · 50 帧
+- generic: 冷板
+- combobox "冷板":
+  - option "m_1_e_1_cp_CP-CU_1" [selected]
+  - option "m_1_e_2_cp_CP-CU_1"
+  - option "m_1_e_3_cp_CP-CU_1"
+  - option "m_1_e_4_cp_CP-CU_1"
+  - option "m_3_e_5_cp_CP-CU_1"
+  - option "m_3_e_6_cp_CP-CU_1"
+  - option "m_3_e_7_cp_CP-CU_1"
+  - option "m_3_e_8_cp_CP-CU_1"
+  - option "m_4_e_9_cp_CP-CU_1"
+  - option "m_4_e_10_cp_CP-CU_1"
+  - option "m_4_e_11_cp_CP-CU_1"
+  - option "m_4_e_12_cp_CP-CU_1"
+  - option "m_5_e_13_cp_CP-CU_1"
+  - option "m_5_e_14_cp_CP-CU_1"
+  - option "m_5_e_15_cp_CP-CU_1"
+  - option "m_5_e_16_cp_CP-CU_1"
+  - option "m_7_e_17_cp_CP-CU_1"
+  - option "m_7_e_18_cp_CP-CU_1"
+  - option "m_7_e_19_cp_CP-CU_1"
+  - option "m_7_e_20_cp_CP-CU_1"
+  - option "m_17_e_45_cp_CP-CU_1"
+  - option "m_17_e_46_cp_CP-CU_1"
+  - option "m_17_e_47_cp_CP-CU_1"
+  - option "m_17_e_48_cp_CP-CU_1"
+  - option "m_10_e_21_cp_CP-CU_1"
+  - option "m_10_e_22_cp_CP-CU_1"
+  - option "m_10_e_23_cp_CP-CU_1"
+  - option "m_10_e_24_cp_CP-CU_1"
+  - option "m_11_e_25_cp_CP-CU_1"
+  - option "m_11_e_26_cp_CP-CU_1"
+  - option "m_11_e_27_cp_CP-CU_1"
+  - option "m_11_e_28_cp_CP-CU_1"
+  - option "m_12_e_29_cp_CP-CU_1"
+  - option "m_12_e_30_cp_CP-CU_1"
+  - option "m_12_e_31_cp_CP-CU_1"
+  - option "m_12_e_32_cp_CP-CU_1"
+  - option "m_13_e_33_cp_CP-CU_1"
+  - option "m_13_e_34_cp_CP-CU_1"
+  - option "m_13_e_35_cp_CP-CU_1"
+  - option "m_13_e_36_cp_CP-CU_1"
+  - option "m_15_e_37_cp_CP-CU_1"
+  - option "m_15_e_38_cp_CP-CU_1"
+  - option "m_15_e_39_cp_CP-CU_1"
+  - option "m_15_e_40_cp_CP-CU_1"
+  - option "m_16_e_41_cp_CP-CU_1"
+  - option "m_16_e_42_cp_CP-CU_1"
+  - option "m_16_e_43_cp_CP-CU_1"
+  - option "m_16_e_44_cp_CP-CU_1"
+  - option "m_19_e_49_cp_CP-CU_1"
+  - option "m_19_e_50_cp_CP-CU_1"
+  - option "m_19_e_51_cp_CP-CU_1"
+  - option "m_19_e_52_cp_CP-CU_1"
+  - option "m_20_e_53_cp_CP-CU_1"
+  - option "m_20_e_54_cp_CP-CU_1"
+  - option "m_20_e_55_cp_CP-CU_1"
+  - option "m_20_e_56_cp_CP-CU_1"
+- heading "冷板温度 / °C" [level=4]
+- generic "m_1_e_1_cp_CP-CU_1":
+  - generic: m_1_e_1_cp_CP-CU_1
+- generic "°C / 时间 / s"
+- heading "冷板质量流量 / kg/s" [level=4]
+- generic "m_1_e_1_cp_CP-CU_1":
+  - generic: m_1_e_1_cp_CP-CU_1
+- generic "kg/s / 时间 / s"
+- heading "CDU_1 · 一次回水 / 二次供水" [level=4]
+- paragraph: 一次回水 25.01 °C · 二次供水 35.53 °C
+- generic "一次回水":
+  - generic: 一次回水
+- generic "°C / 时间 / s"
+- generic "二次供水":
+  - generic: 二次供水
+- generic "°C / 时间 / s"
+- paragraph: 两条温度曲线各用独立纵轴；请按刻度比较变化。
+- checkbox "MMS 解析参考"
+- text: MMS 解析参考
+- heading "热量与储能 / kW" [level=4]
+- generic "热输入":
+  - generic: 热输入
+- generic "一次侧带走":
+  - generic: 一次侧带走
+- generic "储能率":
+  - generic: 储能率
+- generic "kW / 时间 / s"
+- paragraph: 热输入 21.00 kW · 一次侧带走 20.92 kW · 储能率 0.08 kW
+- paragraph: 热平衡残差 -1.19e-8 W
+- paragraph: 图表使用同一运行的物理时间；温度由 K 换算为 °C。能量残差衡量数值守恒，不表示设备模型已由现场验证。
+- button "◀"
+- button "▶"
+- generic: 拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- generic: 拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- separator "调整左侧栏宽度"
+- separator "调整右侧栏宽度"
+- separator "调整工具栏高度"
+- separator "调整日志栏高度"
+- generic: Terminal无可撤销操作
+- button "↶ 撤销" [disabled]
+- button "↷ 重做" [disabled]
+- button "Terminal"
+- button "Log"
+- button "Toggle"
+- button "📸 截图"
+- generic: "[05:11:04]"
+- generic: "[file:loadProject]"
+- generic: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/DomainAsset_Compat_Browser_CUA/DomainAsset_Compat_After.cfdproj
+- generic: "[05:11:05]"
+- generic: "[view:refreshServerInfo]"
+- generic: DCTwin 就绪

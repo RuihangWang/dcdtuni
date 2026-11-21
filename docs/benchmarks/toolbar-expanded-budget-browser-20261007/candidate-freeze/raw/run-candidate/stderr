@@ -1,0 +1,83 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/toolbarPinnedControls.test.tsx > reserves the measured header AND timeline on deliberate keyboard shrinking
+AssertionError: expected 340 to be 232 // Object.is equality
+
+- Expected
++ Received
+
+- 232
++ 340
+
+ ❯ test/toolbarPinnedControls.test.tsx:75:46
+     73|   const handle=document.getElementById('toolbar-resizer')!
+     74|   act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent(…
+     75|   expect(parseFloat(f.toolbar.style.height)).toBe(232)
+       |                                              ^
+     76|   expect(handle.getAttribute('aria-valuemin')).toBe('232')
+     77|   expect(parseFloat(f.toolbar.style.getPropertyValue('--toolbar-header…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/toolbarPinnedControls.test.tsx > keeps manual preference across header expansion and narrower/wider layouts
+AssertionError: expected 340 to be 272 // Object.is equality
+
+- Expected
++ Received
+
+- 272
++ 340
+
+ ❯ test/toolbarPinnedControls.test.tsx:98:46
+     96|   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))!
+     97|   headerHeight=120;act(()=>observe.emit())
+     98|   expect(parseFloat(f.toolbar.style.height)).toBe(272)
+       |                                              ^
+     99|   width=800;headerHeight=80;act(()=>observe.emit())
+    100|   expect(f.toolbar.dataset.layout).toBe('wide')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/toolbarRemeasure.test.tsx > reserves the measured timeline during keyboard resize and re-wrap
+AssertionError: expected 264 to be 152 // Object.is equality
+
+- Expected
++ Received
+
+- 152
++ 264
+
+ ❯ test/toolbarRemeasure.test.tsx:87:51
+     85|     for (let step = 0; step < 3; step++) splitter.dispatchEvent(new Ke…
+     86|   })
+     87|   expect(Number.parseFloat(toolbar.style.height)).toBe(152)
+       |                                                   ^
+     88|   expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-…
+     89|   expect(splitter.getAttribute('aria-valuemin')).toBe('152')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/toolbarRemeasure.test.tsx > keeps a footer taller than the window cap reachable inside a bounded scroll region
+AssertionError: expected 384 to be close to 215.04000000000002, received difference is 168.95999999999998, but expected 0.005
+ ❯ test/toolbarRemeasure.test.tsx:104:51
+    102|   Object.defineProperty(toolbar, 'scrollHeight', { configurable: true,…
+    103|   act(() => root.render(<PanelResizers />))
+    104|   expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.i…
+       |                                                   ^
+    105|   expect(toolbar.dataset.footerScrollable).toBe('true')
+    106|   expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/toolbarRemeasure.test.tsx > measures the full scrolling tools when an outer grid reports only its constrained height
+AssertionError: expected NaN to be close to 215.04000000000002, received difference is NaN, but expected 0.005
+ ❯ test/toolbarRemeasure.test.tsx:117:51
+    115|   Object.defineProperty(timeline, 'scrollHeight', { configurable: true…
+    116|   act(() => root.render(<PanelResizers />))
+    117|   expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.i…
+       |                                                   ^
+    118|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+    119| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+

@@ -1,0 +1,63 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.widget.viewport-e33603573147cc56/omni/kit/widget/viewport/display_delegate.py
+FULL_SHA256 47ebdf1077aa854f366e9c2d7208e5ee1b96dd6cb75384aeae7aa4a6f18449ba
+LINES 15–74
+15: class ViewportDisplayDelegate:
+16:     def __init__(self, viewport_api):
+17:         self.__zstack = None
+18:         self.__image_provider = None
+19:         self.__image = None
+20: 
+21:     def __del__(self):
+22:         self.destroy()
+23: 
+24:     def destroy(self):
+25:         if self.__zstack:
+26:             self.__zstack.clear()
+27:             self.__zstack.destroy()
+28:             self.__zstack = None
+29:         if self.__image:
+30:             self.__image.destroy()
+31:             self.__image = None
+32:         if self.__image_provider:
+33:             self.__image_provider = None
+34: 
+35:     @property
+36:     def image_provider(self):
+37:         return self.__image_provider
+38: 
+39:     @image_provider.setter
+40:     def image_provider(self, image_provider: ui.ImageProvider):
+41:         if not isinstance(image_provider, ui.ImageProvider):
+42:             raise RuntimeError('ViewportDisplayDelegate.image_provider must be an omni.ui.ImageProvider')
+43: 
+44:         # Clear any existing ui.ImageWithProvider
+45:         # XXX: ui.ImageWithProvider should have a method to swap this out
+46:         if self.__image:
+47:             self.__image.destroy()
+48:             self.__image = None
+49: 
+50:         self.__image_provider = image_provider
+51:         self.__image = ui.ImageWithProvider(self.__image_provider,
+52:                                             style_type_name_override='ViewportImage',
+53:                                             name='Color')
+54: 
+55:     def create(self, ui_frame, prev_delegate, *args, **kwargs):
+56:         # Save the previous ImageProvider early to keep it alive
+57:         image_provider = prev_delegate.image_provider if prev_delegate else None
+58:         self.destroy()
+59:         with ui_frame:
+60:             self.__zstack = ui.ZStack()
+61:             with self.__zstack:
+62:                 if not image_provider:
+63:                     image_provider = ui.ImageProvider(name='ViewportImageProvider')
+64:                 self.image_provider = image_provider
+65: 
+66:         return self.__zstack
+67: 
+68:     def update(self, viewport_api, texture, view, projection, presentation_key=0, metadata=None):
+69:         self.__image_provider.set_image_data(texture, presentation_key=presentation_key, metadata=metadata)
+70:         return self.size
+71: 
+72:     @property
+73:     def size(self):
+74:         return (int(self.__image.computed_width), int(self.__image.computed_height))

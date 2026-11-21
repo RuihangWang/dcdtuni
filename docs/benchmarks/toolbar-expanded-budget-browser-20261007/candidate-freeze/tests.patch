@@ -1,0 +1,160 @@
+--- a/src/frontend/react/test/toolbarPinnedControls.test.tsx
++++ b/src/frontend/react/test/toolbarPinnedControls.test.tsx
+@@ -71,7 +71,7 @@
+  const f=regionFixture()
+  try{
+   const handle=document.getElementById('toolbar-resizer')!
+-  act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true}))})
++  act(()=>{for(let i=0;i<20;i++)handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true}))})
+   expect(parseFloat(f.toolbar.style.height)).toBe(232)
+   expect(handle.getAttribute('aria-valuemin')).toBe('232')
+   expect(parseFloat(f.toolbar.style.getPropertyValue('--toolbar-header-available-height'))).toBe(80)
+@@ -92,7 +92,7 @@
+  const f=regionFixture()
+  try{
+   const handle=document.getElementById('toolbar-resizer')!
+-  act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true}))})
++  act(()=>{for(let i=0;i<20;i++)handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true}))})
+   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))!
+   headerHeight=120;act(()=>observe.emit())
+   expect(parseFloat(f.toolbar.style.height)).toBe(272)
+--- a/src/frontend/react/test/toolbarRemeasure.test.tsx
++++ b/src/frontend/react/test/toolbarRemeasure.test.tsx
+@@ -82,7 +82,7 @@
+   act(() => root.render(<PanelResizers />))
+   const splitter = document.getElementById('toolbar-resizer')!
+   act(() => {
+-    for (let step = 0; step < 3; step++) splitter.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true }))
++    for (let step = 0; step < 20; step++) splitter.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true }))
+   })
+   expect(Number.parseFloat(toolbar.style.height)).toBe(152)
+   expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBe(120)
+@@ -101,7 +101,7 @@
+   Object.defineProperty(timeline, 'scrollHeight', { configurable: true, get: () => 800 })
+   Object.defineProperty(toolbar, 'scrollHeight', { configurable: true, get: () => 1000 })
+   act(() => root.render(<PanelResizers />))
+-  expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.innerHeight * .28)
++  expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.innerHeight * .5)
+   expect(toolbar.dataset.footerScrollable).toBe('true')
+   expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBeGreaterThan(0)
+   expect(Number.parseFloat(toolbar.style.getPropertyValue('--timeline-available-height'))).toBeLessThan(800)
+@@ -114,6 +114,7 @@
+   Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 220 })
+   Object.defineProperty(timeline, 'scrollHeight', { configurable: true, get: () => 80 })
+   act(() => root.render(<PanelResizers />))
+-  expect(Number.parseFloat(toolbar.style.height)).toBeCloseTo(window.innerHeight * .28)
++  expect(toolbar.style.height).toBe('')
++  expect(toolbar.dataset.scrollable).toBe('false')
+   expect(document.getElementById('toolbar-resizer')!.getAttribute('aria-valuemax')).toBe('300')
+ })
+--- /dev/null
++++ b/src/frontend/react/test/toolbarExpandedBudget.test.tsx
+@@ -0,0 +1,108 @@
++// Actual Toolbar/PanelResizers with bounded DOM size observations from Root's
++// Windows1280x720 report: outer width675.2/body natural123 are observed;
++// header70/footer37.4 are a controlled budget decomposition, not measured rows.
++// jsdom has no CSS layout: this checks budget/lifecycle,
++// not pixels, Three/OV video or actual TimelineStrip rendering.
++import { act } from 'react'
++import { createRoot, type Root } from 'react-dom/client'
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { Toolbar, DEFAULT_VIEW_OPTIONS } from '../src/components/Toolbar'
++import { PanelResizers } from '../src/components/PanelResizers'
++import { toolbarTargetHeight } from '../src/ui/layoutMetrics'
++;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
++class ObservedSize {
++  observe() {}
++  unobserve() {}
++  disconnect() {}
++}
++let host: HTMLDivElement, handleHost: HTMLDivElement
++let root: Root, resizers: Root
++let toolbar: HTMLElement, header: HTMLElement, body: HTMLElement, footer: HTMLDivElement
++let bodyNatural = 123, headerNatural = 70
++const footerNatural = 37.4
++const width = 675.2
++function rectangle(height: number) { return { width, height, top: 8, bottom: 8 + height, left: 313.2, right: 313.2 + width } as DOMRect }
++function natural() {
++  if (toolbar.classList.contains('collapsed')) return 30
++  return 20 + headerNatural + footerNatural + (body.hidden ? 8 : 16 + bodyNatural)
++}
++function drawn() { return Number.parseFloat(toolbar.style.height) || natural() }
++function click(id: string) { act(() => document.getElementById(id)!.dispatchEvent(new MouseEvent('click', { bubbles: true }))) }
++async function open(id = 'toolbar-view-tools-toggle') { await act(async () => { click(id); await Promise.resolve() }) }
++beforeEach(() => {
++  bodyNatural = 123; headerNatural = 70
++  vi.stubGlobal('ResizeObserver', ObservedSize)
++  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(720)
++  vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1280)
++  host = document.createElement('div'); handleHost = document.createElement('div')
++  document.body.append(host, handleHost)
++  root = createRoot(host); resizers = createRoot(handleHost)
++  act(() => root.render(<Toolbar view={DEFAULT_VIEW_OPTIONS} onChange={() => {}} hasSelection={false} project={null} />))
++  toolbar = document.getElementById('toolbar')!; header = document.getElementById('toolbar-header')!; body = document.getElementById('toolbar-body')!
++  toolbar.style.padding = '9px 10px'; toolbar.style.border = '1px solid black'
++  document.getElementById('toolbar-content')!.style.rowGap = '8px'
++  // Controlled measured footer, supplied outside scrolling tools; not a fake
++  // runtime/video grant and not a claim that TimelineStrip pixels were tested.
++  footer = document.createElement('div'); footer.id = 'timeline-strip'
++  document.getElementById('toolbar-content')!.append(footer)
++  Object.defineProperty(toolbar, 'offsetWidth', { configurable: true, get: () => width })
++  Object.defineProperty(toolbar, 'scrollHeight', { configurable: true, get: () => Math.round(natural() - 2) })
++  toolbar.getBoundingClientRect = () => rectangle(drawn())
++  Object.defineProperty(header, 'scrollHeight', { configurable: true, get: () => headerNatural })
++  header.getBoundingClientRect = () => rectangle(headerNatural)
++  Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => bodyNatural })
++  body.getBoundingClientRect = () => rectangle(Math.min(bodyNatural, Math.max(0, drawn() - 20 - headerNatural - footerNatural - 16)))
++  Object.defineProperty(footer, 'scrollHeight', { configurable: true, get: () => Math.floor(footerNatural) })
++  footer.getBoundingClientRect = () => rectangle(footerNatural)
++  act(() => resizers.render(<PanelResizers />))
++})
++afterEach(() => {
++  act(() => resizers.unmount()); act(() => root.unmount())
++  host.remove(); handleHost.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals()
++})
++it('opens the actual shared View Tools within the half-window budget instead of clipping its123px content', async () => {
++  expect(drawn()).toBeCloseTo(135.4)
++  await open()
++  expect(toolbar.dataset.layout).toBe('compact')
++  expect(drawn()).toBeCloseTo(266.4)
++  expect(body.getBoundingClientRect().height).toBeCloseTo(123)
++  expect(toolbar.dataset.scrollable).toBe('false')
++  expect(body.contains(header)).toBe(false)
++  expect(body.contains(footer)).toBe(false)
++  expect(document.getElementById('toolbar-view-tools')!.contains(document.getElementById('grid-density-slider'))).toBe(true)
++})
++it('caps oversized explicitly opened controls at the existing360px ceiling and retains scrolling', async () => {
++  bodyNatural = 500
++  await open('toolbar-model-tools-toggle')
++  expect(drawn()).toBe(360)
++  expect(toolbar.dataset.scrollable).toBe('true')
++  expect(body.getBoundingClientRect().height).toBeGreaterThan(0)
++  expect(body.getBoundingClientRect().height).toBeLessThan(bodyNatural)
++})
++it('honours a manual shrink across closing and reopening tools without resetting its remembered height', async () => {
++  await open()
++  act(() => document.getElementById('toolbar-resizer')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })))
++  expect(drawn()).toBeCloseTo(256.4)
++  await open(); expect(body.hidden).toBe(true); expect(drawn()).toBeCloseTo(135.4)
++  await open(); expect(drawn()).toBeCloseTo(256.4)
++  expect(toolbar.dataset.scrollable).toBe('true')
++})
++it('retains the28percent auto cap for a wrapped header when all tool groups are closed', () => {
++  headerNatural = 500
++  act(() => window.dispatchEvent(new Event('resize')))
++  expect(body.hidden).toBe(true)
++  expect(drawn()).toBeCloseTo(201.6)
++})
++it('keeps manual, natural-height and reservation limits identical regardless of the expanded flag', () => {
++  for (const expanded of [false, true]) {
++    expect(toolbarTargetHeight(400, 260, 720, 180, expanded)).toBe(260)
++    expect(toolbarTargetHeight(400, 999, 720, 180, expanded)).toBe(360)
++    expect(toolbarTargetHeight(160, 260, 720, 100, expanded)).toBe(160)
++    expect(toolbarTargetHeight(400, 28, 720, 180, expanded)).toBe(180)
++  }
++})
++it('makes the arithmetic expansion explicit while retaining default-call auto behavior', () => {
++  expect(toolbarTargetHeight(266.4, null, 720, 175.4, true)).toBeCloseTo(266.4)
++  expect(toolbarTargetHeight(266.4, null, 720, 175.4)).toBeCloseTo(201.6)
++  expect(toolbarTargetHeight(500, null, 720, 175.4, true)).toBe(360)
++})

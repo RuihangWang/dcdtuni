@@ -1,0 +1,15 @@
+# Independent audit of actual Tri roof component witnesses
+
+Native exported12 component samples before final mesh writing. This audit preserves their complete JSONL bytes and uses their own cell, face and point IDs, original coordinates, boundary/protection flags and all-nine-point proposals. These are native cutMesh IDs, not final polyMesh labels. No source, mesh, binary, solver or checker is modified or executed.
+
+The packet displacement formula is independently reconstructed from each exported bounding box, normal span, axis, sign and normalized3×3 grid. Every sampled delta matches with zero difference, and every original grid point lies exactly on its declared plane. No proposal point record is missing.
+
+Two rank3 samples are complete: each contains one packet and its17-cell full point star. Their direct five moving points have protectedMask0, but their stars contain13 and8 coupled faces respectively. This reproduces the native coupled-star rejection: remote neighbor centres cannot be inferred. The audit then performs a clearly separate offline coordinate trial on all17 locally exported cells. Both trials create8nonplanar faces and12cells with nonplanar polygons; maximum face deviation is15.625micrometres. Native did not perform these geometric trials because it rejected the coupled stars first. Outside-export one-ring neighbours remain unrepresented, so this is not a full component-quality test.
+
+The rank3 three-packet sample exports all three proposal grids, but only32of39star cells. Shared moving edge points3816and3820 independently have the same(0,0.0000625,0)m proposals in both adjacent packets. The full proposal agreement can be established, while truncated star geometry is explicitly not evaluated.
+
+Rank7's conflict sample includes concrete unprotected points13386and13387. At each, one packet proposes(0,-0.00003125,0)m alongnegativeY; another proposes(-0.00003166666675,0,0)m alongnegativeX. They are incompatible orthogonal normal displacements. The original coordinates and both packet/axis/sign/plane records are preserved. Shared zero-displacement corners4154,4156and4169from different planes/axes are compatible constraints and are not falsely rejected.
+
+Other samples are explicitly partial. In particular, the rank0 conflict sample's first eight packets do not include the native conflict point; this audit does not claim to reproduce that whole rejection. Twelve samples do not reproduce all nineteen source components. Native global counts remain traceable to the saved original SSE/hash, rather than inferred by summing incomplete witnesses.
+
+Four focused tests pass for fixed-corner conflicts, nonzero axis metadata conflicts, protected moving points and raw coordinate consistency. The native evidence states all 48 core written polyMesh files remain byte-identical to baseline. This audit independently re-hashed all 48 current files and matched both recorded before/after hashes; it did not reopen the prior baseline files. No user-case quality acceptance follows: the original Tri still fails fullcheckMesh, and this diagnostic writes no displacement.

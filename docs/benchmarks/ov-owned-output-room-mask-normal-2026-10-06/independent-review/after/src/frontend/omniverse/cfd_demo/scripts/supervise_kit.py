@@ -1,0 +1,445 @@
+#!/usr/bin/env python3
+"""Own OV preflight and one Kit session through a private control listener.
+
+All process signals target this supervisor's saved child sessions and UID.
+No existing process is searched by name or claimed through its signaling port.
+"""
+import argparse
+import ctypes
+import json
+import math
+import os
+from pathlib import Path
+import signal
+import socket
+import subprocess
+import time
+
+from resolve_vulkan_gpu import resolve_gpu
+
+
+def _parent_death_signal(expected_parent, death_signal=signal.SIGTERM):
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, death_signal, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "PR_SET_PDEATHSIG failed")
+    if os.getppid() != expected_parent:
+        os._exit(1)
+
+
+def _write(runtime, name, value):
+    temporary = runtime / (name + ".new")
+    temporary.write_text(str(value) + "\n")
+    temporary.replace(runtime / name)
+
+
+def _process_identity(pid):
+    """Read kernel identity, not process names; sessions remain private."""
+    try:
+        directory = Path(f"/proc/{pid}")
+        data = (directory / "stat").read_text().rsplit(")", 1)[1].split()
+        return directory.stat().st_uid, int(data[3]), int(data[19]), data[0]
+    except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+        return None
+
+
+def _session_members(session):
+    result = {}
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit():
+            pid = int(entry.name)
+            identity = _process_identity(pid)
+            if identity and identity[0] == os.getuid() and identity[1] == session:
+                result[pid] = identity
+    return result
+
+
+def _pidfd_open(pid):
+    if hasattr(os, "pidfd_open"):
+        return os.pidfd_open(pid)
+    # Some older Python builds omit the API although the Linux kernel provides
+    # it. These x86-64 numbers are from asm/unistd_64.h; never fall back to an
+    # unprotected PID signal on another platform.
+    if os.uname().machine != "x86_64":
+        raise RuntimeError("safe pidfd signaling is unavailable on this platform")
+    libc = ctypes.CDLL(None, use_errno=True)
+    result = libc.syscall(434, int(pid), 0)
+    if result < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    return result
+
+
+def _pidfd_send_signal(fd, sig):
+    if hasattr(signal, "pidfd_send_signal"):
+        signal.pidfd_send_signal(fd, sig)
+        return
+    if os.uname().machine != "x86_64":
+        raise RuntimeError("safe pidfd signaling is unavailable on this platform")
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.syscall(424, int(fd), int(sig), 0, 0) < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def _signal_member(pid, identity, sig):
+    # Hold kernel process identity, then verify UID/session/start-time. Ignore
+    # transient R/S/Z state when matching the same process.
+    try:
+        fd = _pidfd_open(pid)
+        try:
+            if (_process_identity(pid) or ())[:3] == identity[:3]:
+                _pidfd_send_signal(fd, sig)
+        finally:
+            os.close(fd)
+    except ProcessLookupError:
+        pass
+
+
+class Cancelled(RuntimeError):
+    pass
+
+
+class Owner:
+    def __init__(self, grace):
+        self.stop = False
+        self.grace = grace
+        self.sessions = []
+        self.session_starts = {}
+
+    def request_stop(self, signum, frame):
+        self.stop = True
+
+    def check(self):
+        if self.stop:
+            raise Cancelled("startup cancelled by launcher or parent death")
+
+    def spawn(self, command, **kwargs):
+        self.check()
+        owner = os.getpid()
+        child = subprocess.Popen(command, start_new_session=True,
+            preexec_fn=lambda: _parent_death_signal(owner, signal.SIGKILL), **kwargs)
+        self.sessions.append(child)
+        self.session_starts[child.pid] = _process_identity(child.pid)
+        if self.stop:
+            self.close(child)
+            self.check()
+        return child
+
+    def members(self, child):
+        current = _process_identity(child.pid)
+        original = self.session_starts.get(child.pid)
+        # A fully exited/reaped session ID can eventually be reused. Never
+        # claim a later same-UID session leader with the same numeric PID.
+        if current and original and current[:3] != original[:3]:
+            return {}
+        return _session_members(child.pid)
+
+    def close(self, child):
+        # Only this Popen-created session and our UID. Descendants with separate
+        # process groups (e.g. sh/zenity) stay in the same private session.
+        deadline = time.monotonic() + self.grace
+        for pid, identity in self.members(child).items():
+            _signal_member(pid, identity, signal.SIGTERM)
+        while time.monotonic() < deadline:
+            child.poll()
+            if not any(i[3] != "Z" for i in self.members(child).values()):
+                break
+            time.sleep(.02)
+        for pid, identity in self.members(child).items():
+            _signal_member(pid, identity, signal.SIGKILL)
+        try:
+            child.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("owned child did not exit after session cleanup")
+        # Wait for killed descendants before the control socket closes. This
+        # also allows subreaper adoption and exact-PID reaping of grandchildren.
+        until = time.monotonic() + 2
+        while True:
+            members = self.members(child)
+            for pid, identity in members.items():
+                if pid != child.pid and identity[3] == "Z":
+                    try:
+                        os.waitpid(pid, os.WNOHANG)
+                    except ChildProcessError:
+                        pass
+            if not any(i[3] != "Z" for i in members.values()):
+                break
+            if time.monotonic() >= until:
+                raise RuntimeError("owned session descendants did not exit after cleanup")
+            time.sleep(.02)
+        if child in self.sessions:
+            self.sessions.remove(child)
+        self.session_starts.pop(child.pid, None)
+
+    def cleanup(self):
+        errors = []
+        for child in list(reversed(self.sessions)):
+            try:
+                self.close(child)
+            except Exception as error:
+                # One unreadable/failed session must not prevent attempts on
+                # the remaining owned sessions. Keep the failure explicit.
+                errors.append(f"session {child.pid}: {type(error).__name__}: {error}")
+        return errors
+
+    def probe(self, command, *, env, timeout, deadline):
+        self.check()
+        budget = min(timeout, max(0, deadline - time.monotonic()))
+        if budget <= 0:
+            raise RuntimeError("startup deadline expired before preflight")
+        child = self.spawn(command, env=env, text=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        until = time.monotonic() + budget
+        try:
+            while True:
+                self.check()
+                remaining = until - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(f"{Path(command[0]).name} deadline exceeded")
+                try:
+                    stdout, stderr = child.communicate(timeout=min(.1, remaining))
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+            if child.returncode:
+                # Never echo environment, auth keys, or arbitrary probe output.
+                raise RuntimeError(f"{Path(command[0]).name} preflight exited {child.returncode}")
+            return subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
+        finally:
+            self.close(child)
+
+
+def _listener_inodes(port):
+    found = set()
+    for name in ("tcp", "tcp6"):
+        for line in Path(f"/proc/self/net/{name}").read_text().splitlines()[1:]:
+            fields = line.split()
+            if fields[3] == "0A" and int(fields[1].rsplit(":", 1)[1], 16) == port:
+                found.add(fields[9])
+    return found
+
+
+def _owned_listener(pid, port):
+    listeners = _listener_inodes(port)
+    if not listeners:
+        return False
+    owned = set()
+    try:
+        for fd in Path(f"/proc/{pid}/fd").iterdir():
+            try:
+                target = os.readlink(fd)
+                if target.startswith("socket:["):
+                    owned.add(target[8:-1])
+            except FileNotFoundError:
+                pass
+    except FileNotFoundError:
+        return False
+    if listeners - owned:
+        raise RuntimeError("expected signaling port belongs to another process")
+    return bool(listeners & owned)
+
+
+def _fatal_log(runtime, offsets):
+    fatal = "[omni.gpu_foundation_factory.plugin] Failed to create any GPU devices"
+    for name in ("kit.log", "kit-internal.log"):
+        path = runtime / name
+        if not path.is_file():
+            continue
+        with path.open("r", errors="replace") as source:
+            source.seek(offsets.get(name, 0))
+            text = source.read()
+            offsets[name] = source.tell()
+        # Keep a short overlap in case a log writer splits the fatal line.
+        combined = offsets.get(name + ".tail", "") + text
+        offsets[name + ".tail"] = combined[-len(fatal):]
+        if fatal in combined:
+            raise RuntimeError("Kit GPU initialization failed; see kit.log")
+
+
+def _positive(value):
+    result = float(value)
+    if not math.isfinite(result) or not 0 < result <= 1800:
+        raise argparse.ArgumentTypeError("timeout must be finite and in (0, 1800]")
+    return result
+
+
+def _owned_metadata_environment(environment, runtime, root):
+    """Managed launches ignore inherited side-channel output overrides."""
+    root = Path(root).resolve()
+    runtime = Path(runtime).resolve()
+    if not runtime.is_relative_to(root) or runtime == root:
+        raise RuntimeError("metadata runtime must stay inside this checkout")
+    environment = dict(environment)
+    environment["DC_CFD_DATASET_INFO"] = str(runtime / "dataset-info.json")
+    environment["DC_CFD_SCENE_TREE"] = str(runtime / "scene-tree.json")
+    return environment
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runtime", required=True)
+    parser.add_argument("--managed", action="store_true")
+    parser.add_argument("--parent-pid", type=int)
+    parser.add_argument("--display", default="")
+    parser.add_argument("--signal-port", type=int, default=0)
+    parser.add_argument("--gpu", type=int)
+    parser.add_argument("--required-executable")
+    parser.add_argument("--startup-timeout", type=_positive, default=300)
+    parser.add_argument("--preflight-timeout", type=_positive, default=20)
+    parser.add_argument("--cleanup-grace", type=_positive, default=1)
+    parser.add_argument("--poll-interval", type=_positive, default=.1)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    runtime = Path(args.runtime).resolve()
+    root = Path(__file__).resolve().parents[5]
+    if not runtime.is_relative_to(root):
+        parser.error("runtime directory must stay inside this checkout")
+    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    if not command or not 0 <= args.signal_port <= 65535:
+        parser.error("Kit command and a valid signaling port are required")
+    if args.gpu is not None and args.gpu < 0:
+        parser.error("GPU must be a physical index")
+    owner = Owner(args.cleanup_grace)
+    signal.signal(signal.SIGTERM, owner.request_stop)
+    signal.signal(signal.SIGINT, owner.request_stop)
+    if args.managed:
+        _parent_death_signal(args.parent_pid or os.getppid())
+    # Reap only our adopted descendants during owned session cleanup.
+    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "PR_SET_CHILD_SUBREAPER failed")
+    runtime.mkdir(parents=True, exist_ok=True)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as control:
+        control.bind(("127.0.0.1", 0))
+        control.listen(1)
+        _write(runtime, "supervisor.pid", os.getpid())
+        _write(runtime, "supervisor.uid", os.getuid())
+        _write(runtime, "supervisor.port", control.getsockname()[1])
+        _write(runtime, "startup.timeout", args.startup_timeout)
+        deadline = time.monotonic() + args.startup_timeout
+        code = 1
+        try:
+            owner.check()
+            descriptor = _pidfd_open(os.getpid())
+            os.close(descriptor)
+            if args.required_executable and not os.access(args.required_executable, os.X_OK):
+                raise RuntimeError("kit-cae wrapper is missing or not executable")
+            if args.signal_port and _listener_inodes(args.signal_port):
+                raise RuntimeError("expected signaling port belongs to another process")
+            environment = dict(os.environ)
+            environment.pop("EXEC", None)
+            temporary = runtime / "tmp"
+            temporary.mkdir(exist_ok=True)
+            environment["TMPDIR"] = str(temporary)
+            # Texture uploads belong to this launch, regardless of inherited cache overrides.
+            texture_cache = runtime / "render-textures"
+            if not texture_cache.resolve().is_relative_to(root):
+                raise RuntimeError("texture cache must stay inside this checkout")
+            texture_cache.mkdir(exist_ok=True)
+            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = str(texture_cache)
+            environment = _owned_metadata_environment(environment, runtime, root)
+            if args.gpu is not None:
+                def run_probe(command, *, env, timeout):
+                    return owner.probe(command, env=env,
+                        timeout=min(timeout, args.preflight_timeout), deadline=deadline)
+                index, physical_uuid, pci, active, icd = resolve_gpu(args.gpu, environment, run_probe)
+                environment.update(CUDA_VISIBLE_DEVICES=physical_uuid,
+                    VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd,
+                    DC_CFD_RESOLVED_GPU=index, DC_CFD_RESOLVED_UUID=physical_uuid,
+                    DC_CFD_RESOLVED_PCI=pci, DC_CFD_RESOLVED_ACTIVE_GPU=str(active),
+                    DC_CFD_RESOLVED_ICD=icd)
+                _write(runtime, "gpu.txt",
+                    f"index={index}\nuuid={physical_uuid}\npci_bus_id={pci}\n"
+                    f"active_gpu={active}\nvulkan_icd={icd}")
+            environment["DC_CFD_SUPERVISOR_PID"] = str(os.getpid())
+            if args.display:
+                environment["DISPLAY"] = args.display
+                def display_alive():
+                    try:
+                        owner.probe(["xdpyinfo"], env=environment, timeout=2, deadline=deadline)
+                        return True
+                    except Cancelled:
+                        raise
+                    except RuntimeError:
+                        if owner.stop or time.monotonic() >= deadline:
+                            raise
+                        return False
+                if not display_alive():
+                    owner.check()
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("startup deadline expired before Xvfb launch")
+                    with (runtime / "xvfb.log").open("wb") as xvfb_log:
+                        display = owner.spawn(["Xvfb", args.display, "-screen", "0", "1920x1080x24"],
+                            env=environment, stdout=xvfb_log, stderr=subprocess.STDOUT)
+                    _write(runtime, "xvfb.pid", display.pid)
+                    for _ in range(20):
+                        if display_alive():
+                            break
+                        if display.poll() is not None:
+                            raise RuntimeError("Xvfb exited before the display became available")
+                        owner.check()
+                        time.sleep(.1)
+                    else:
+                        raise RuntimeError("Xvfb display did not become available")
+            owner.check()
+            if time.monotonic() >= deadline:
+                raise RuntimeError("startup deadline expired before Kit launch")
+            with (runtime / "kit.log").open("wb") as log:
+                child = owner.spawn(command, env=environment, stdout=log, stderr=subprocess.STDOUT)
+                _write(runtime, "kit.pid", child.pid)
+                ready = not args.signal_port
+                offsets = {}
+                while True:
+                    owner.check()
+                    _fatal_log(runtime, offsets)
+                    polled = child.poll()
+                    if polled is not None:
+                        code = polled
+                        if not ready:
+                            raise RuntimeError(f"Kit exited {code} before its signaling listener")
+                        break
+                    if not ready:
+                        if _owned_listener(child.pid, args.signal_port):
+                            _write(runtime, "kit.ready", json.dumps({
+                                "pid": child.pid, "port": args.signal_port, "uid": os.getuid()}))
+                            ready = True
+                        elif time.monotonic() >= deadline:
+                            raise RuntimeError("Kit signaling listener deadline exceeded")
+                    time.sleep(args.poll_interval)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+            code = 1
+            message = str(error)
+            _write(runtime, "kit.failure", message)
+            print(f"[supervise_kit] ERROR: {message}; logs {runtime}/kit.log", flush=True)
+        finally:
+            try:
+                cleanup_errors = owner.cleanup()
+            except Exception as error:
+                # Defensive finalization if cleanup itself fails outside an
+                # individual close attempt. Never turn this into success.
+                cleanup_errors = [f"{type(error).__name__}: {error}"]
+            if cleanup_errors:
+                original_code = code
+                code = 1
+                message = "\n".join(cleanup_errors)
+                print(f"[supervise_kit] ERROR: owned session cleanup failed: {message}", flush=True)
+                receipts = [("cleanup.failure",
+                             f"original return code: {original_code}\n{message}")]
+                if not (runtime / "kit.failure").is_file():
+                    receipts.append(("kit.failure", "Owned session cleanup failed; see cleanup.failure"))
+                for name, value in receipts:
+                    try:
+                        _write(runtime, name, value)
+                    except OSError as error:
+                        # Still attempt the other failure/exit receipts when a
+                        # single receipt cannot be written.
+                        print(f"[supervise_kit] ERROR: cannot write {name}: {error}", flush=True)
+            try:
+                _write(runtime, "kit.exit", code)
+            except OSError as error:
+                code = 1
+                print(f"[supervise_kit] ERROR: cannot write kit.exit: {error}", flush=True)
+        return code if code >= 0 else 128 - code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,9 @@
+# Retiring OV grid status when returning to Three.js, 2026-10-07
+
+An unsupported/pending OV grid message remained over the restored Three.js viewport. Returning now clears only those two decoration statuses, preserving actual fallback/export errors. Existing session invalidation still prevents a retired callback from updating the new viewport. A bounded console receipt logs grid phase/reason only when they change.
+
+Root used the Windows local in-app browser against the actual 40901 product at port 8396. After a deliberate frontend reload and ordinary server file selection, Root restored the completed full Shinaide GPU/glycol run, selected its 20 s result, enabled both temperature controls, and switched to OV. Actual decoded video was 60 FPS. Its current grid refusal was `unsupported / stream-layout-unresolved`, recorded by the newly built frontend. Returning to Three.js removed the old message; sample 20 s, 11-frame result and both colour settings remained. Warning/error console entries were empty. See `receipt.json` for the explicitly labelled transcription, source and artifact hashes.
+
+This fixes the stale status only. Native grid geometry and encoded output pixel parity remain separate; the unresolved stream layout and previously observed OV lower black band remain open. Shared UI ownership is unchanged.
+
+Validation: existing RendererControl 16 tests and material parity 29 tests passed together. The subsequent production build initially failed on a separately promoted graph test union type; its original log is retained. Commit `1f2f74e1` added real `analysis in liquidrun` narrowing without changing its original assertions; the rebuilt production frontend passed (28.56 s). Gzip files preserve every original log byte; verify decoded hashes in the receipt. Screenshots were saved through the product screenshot button.

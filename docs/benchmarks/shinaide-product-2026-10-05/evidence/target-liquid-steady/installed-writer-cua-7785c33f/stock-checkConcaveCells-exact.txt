@@ -1,0 +1,106 @@
+bool Foam::primitiveMesh::checkConcaveCells
+(
+    const vectorField& fAreas,
+    const pointField& fCentres,
+    const bool report,
+    labelHashSet* setPtr
+) const
+{
+    DebugInFunction << "Checking for concave cells" << endl;
+
+    const cellList& c = cells();
+    const labelList& fOwner = faceOwner();
+
+    label nConcaveCells = 0;
+
+    forAll(c, celli)
+    {
+        const cell& cFaces = c[celli];
+
+        bool concave = false;
+
+        forAll(cFaces, i)
+        {
+            if (concave)
+            {
+                break;
+            }
+
+            label fI = cFaces[i];
+
+            const point& fC = fCentres[fI];
+
+            vector fN = fAreas[fI];
+
+            fN /= max(mag(fN), VSMALL);
+
+            // Flip normal if required so that it is always pointing out of
+            // the cell
+            if (fOwner[fI] != celli)
+            {
+                fN *= -1;
+            }
+
+            // Is the centre of any other face of the cell on the
+            // wrong side of the plane of this face?
+
+            forAll(cFaces, j)
+            {
+                if (j != i)
+                {
+                    label fJ = cFaces[j];
+
+                    const point& pt = fCentres[fJ];
+
+                    // If the cell is concave, the point will be on the
+                    // positive normal side of the plane of f, defined by
+                    // its centre and normal, and the angle between (pt -
+                    // fC) and fN will be less than 90 degrees, so the dot
+                    // product will be positive.
+
+                    vector pC = (pt - fC);
+
+                    pC /= max(mag(pC), VSMALL);
+
+                    if ((pC & fN) > -planarCosAngle_)
+                    {
+                        // Concave or planar face
+
+                        concave = true;
+
+                        if (setPtr)
+                        {
+                            setPtr->insert(celli);
+                        }
+
+                        nConcaveCells++;
+
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    reduce(nConcaveCells, sumOp<label>());
+
+    if (nConcaveCells > 0)
+    {
+        if (debug || report)
+        {
+            Info<< " ***Concave cells (using face planes) found,"
+                << " number of cells: " << nConcaveCells << endl;
+        }
+
+        return true;
+    }
+
+    if (debug || report)
+    {
+        Info<< "    Concave cell check OK." << endl;
+    }
+
+    return false;
+}
+
+

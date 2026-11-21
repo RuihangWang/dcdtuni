@@ -1,0 +1,112 @@
+===== /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C lines 37-44 =====
+37: // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+38: 
+39: Foam::scalar Foam::primitiveMesh::closedThreshold_  = 1.0e-6;
+40: Foam::scalar Foam::primitiveMesh::aspectThreshold_  = 1000;
+41: Foam::scalar Foam::primitiveMesh::nonOrthThreshold_ = 70;    // deg
+42: Foam::scalar Foam::primitiveMesh::skewThreshold_    = 4;
+43: Foam::scalar Foam::primitiveMesh::planarCosAngle_   = 1.0e-6;
+44: 
+===== /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C lines 808-909 =====
+808: bool Foam::primitiveMesh::checkConcaveCells
+809: (
+810:     const vectorField& fAreas,
+811:     const pointField& fCentres,
+812:     const bool report,
+813:     labelHashSet* setPtr
+814: ) const
+815: {
+816:     DebugInFunction << "Checking for concave cells" << endl;
+817: 
+818:     const cellList& c = cells();
+819:     const labelList& fOwner = faceOwner();
+820: 
+821:     label nConcaveCells = 0;
+822: 
+823:     forAll(c, celli)
+824:     {
+825:         const cell& cFaces = c[celli];
+826: 
+827:         bool concave = false;
+828: 
+829:         forAll(cFaces, i)
+830:         {
+831:             if (concave)
+832:             {
+833:                 break;
+834:             }
+835: 
+836:             label fI = cFaces[i];
+837: 
+838:             const point& fC = fCentres[fI];
+839: 
+840:             vector fN = fAreas[fI];
+841: 
+842:             fN /= max(mag(fN), VSMALL);
+843: 
+844:             // Flip normal if required so that it is always pointing out of
+845:             // the cell
+846:             if (fOwner[fI] != celli)
+847:             {
+848:                 fN *= -1;
+849:             }
+850: 
+851:             // Is the centre of any other face of the cell on the
+852:             // wrong side of the plane of this face?
+853: 
+854:             forAll(cFaces, j)
+855:             {
+856:                 if (j != i)
+857:                 {
+858:                     label fJ = cFaces[j];
+859: 
+860:                     const point& pt = fCentres[fJ];
+861: 
+862:                     // If the cell is concave, the point will be on the
+863:                     // positive normal side of the plane of f, defined by
+864:                     // its centre and normal, and the angle between (pt -
+865:                     // fC) and fN will be less than 90 degrees, so the dot
+866:                     // product will be positive.
+867: 
+868:                     vector pC = (pt - fC);
+869: 
+870:                     pC /= max(mag(pC), VSMALL);
+871: 
+872:                     if ((pC & fN) > -planarCosAngle_)
+873:                     {
+874:                         // Concave or planar face
+875: 
+876:                         concave = true;
+877: 
+878:                         if (setPtr)
+879:                         {
+880:                             setPtr->insert(celli);
+881:                         }
+882: 
+883:                         nConcaveCells++;
+884: 
+885:                         break;
+886:                     }
+887:                 }
+888:             }
+889:         }
+890:     }
+891: 
+892:     reduce(nConcaveCells, sumOp<label>());
+893: 
+894:     if (nConcaveCells > 0)
+895:     {
+896:         if (debug || report)
+897:         {
+898:             Info<< " ***Concave cells (using face planes) found,"
+899:                 << " number of cells: " << nConcaveCells << endl;
+900:         }
+901: 
+902:         return true;
+903:     }
+904: 
+905:     if (debug || report)
+906:     {
+907:         Info<< "    Concave cell check OK." << endl;
+908:     }
+909: 

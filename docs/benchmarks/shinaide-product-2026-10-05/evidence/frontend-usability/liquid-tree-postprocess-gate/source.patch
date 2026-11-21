@@ -1,0 +1,31 @@
+diff --git a/src/frontend/react/src/liquid/liquidPostprocessHost.ts b/src/frontend/react/src/liquid/liquidPostprocessHost.ts
+index 36465834..f1ff8902 100644
+--- a/src/frontend/react/src/liquid/liquidPostprocessHost.ts
++++ b/src/frontend/react/src/liquid/liquidPostprocessHost.ts
+@@ -18,12 +18,15 @@ import { createElement } from 'react'
+ import { createRoot, type Root } from 'react-dom/client'
+ import { LiquidPostprocessWindow } from '../components/LiquidPostprocessWindow'
+ import {
++  knownLiquidRuns,
+   openPpWindow,
+   ppWindowState,
+   resolveTreeClick,
+   type PpTarget,
+ } from './liquidPostprocess'
+ import { isLiquidModeActive } from './liquidModeState'
++import { liquidRunState } from './liquidSession'
++import { parseLiquidResults } from './liquidResults'
+ import * as store from '../projectStore'
+ 
+ const HOST_ID = 'lsm-monitor-host'
+@@ -88,6 +91,10 @@ function installGlobals() {
+       equipmentId,
+     })
+     if (!target) return
++    // Selection should not obscure an unsolved model with an empty chart.
++    // Explicit postprocess requests above still report read failures; scanned
++    // historical records remain reachable before their result is cached.
++    if (!parseLiquidResults(liquidRunState().results) && knownLiquidRuns().length === 0) return
+     void openPpWindow(target)
+   }
+ 

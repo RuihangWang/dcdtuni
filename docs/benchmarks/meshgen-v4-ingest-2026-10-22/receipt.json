@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-22",
+  "scope": "meshgen through backend.api air --mesh-only --mesh-engine meshgen --max-processes 8 on copies of case/<name>/<name>.cfdproj (headless export = cfdrun schemaVersion 4); diagnosis and parser/runner repair only, no mesh acceptance claimed",
+  "binaries": {
+    "devCheckout": {
+      "path": "Ref_code/MeshGenerator/build/cli/meshgen-cli",
+      "md5": "0399a7c8eee36290c6c7381c69348000",
+      "built": "2026-09-21",
+      "readsSchema": "only schemaVersion == 2 has a meshGeometry blob"
+    },
+    "vendoredUnchangedSource": {
+      "sha256": "7f0eba1c6fe8716e2e39f1423129de2b9e5610ec8788e9a79443d6105dd612f2",
+      "note": "deploy.sh, 12m59s; bit-identical to the 2026-10-06 recorded normal build"
+    },
+    "vendoredSurfaceUidFix": {
+      "sha256": "fd51049332261eea4e0f11f5317bcc2c753f3848f2517440412e20e259e113a6",
+      "note": "deploy.sh incremental, 42 s; used for runs 2-4"
+    }
+  },
+  "causes": [
+    "B4 root cause: the vendored binary was not built, so the runner fell back to the dev checkout; that build reads a schemaVersion 4 manifest as v1 (root meshConfig.blockMeshBounds is null, no room), so the domain, seed and region levels were lost (ingest/devcheckout_v4.mapping.json: domain.hasBox=false, primary seed (5,1.5,5), 16 of 23 solids bound) and S7 refused the seed outside the background domain",
+    "vendored schema 3/4 reader refused every multi-server v4 manifest: surfaceUid was keyed globally although it is local to objectPath (fixed in CfdrunGeometryView.hpp, see UPSTREAM_PROVENANCE.json local_surfaceuid_scope_20261022)",
+    "remaining refusals are inside the MeshGenerator kernel (S10/S11 cell construction), not in ingest"
+  ],
+  "runs": {
+    "1_SingleRack_stale_devcheckout": {
+      "status": "failed",
+      "failureStage": "mesh",
+      "mesher": "/mnt/lv/home/litianyu/mycode/dcdtuni/Ref_code/MeshGenerator/build/cli/meshgen-cli",
+      "cells": null,
+      "checkMeshOk": false,
+      "failedChecks": null,
+      "runDir": "/mnt/lv/home/litianyu/mycode/dcdtuni/_tmp/campaign_B4mg/cases/SingleRack_stale/log/api/2026-10-22_101655_SGT__air",
+      "resultSha256": "67288b1b7ce4a957b592f17f3e3ec30b4630c2bb36741ffef3a122e6778330bd",
+      "meshJobLogSha256": "b1e1f7700d685dbf47d1022328ca56384ec85172b312d771791953dafdd3bb8c"
+    },
+    "2_SingleRack_vendored": {
+      "status": "failed",
+      "failureStage": "mesh",
+      "mesher": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/aircooling/third_parties/meshgenerator/platforms/linux-x86_64-gcc-release/bin/meshgen-cli",
+      "cells": null,
+      "checkMeshOk": false,
+      "failedChecks": null,
+      "runDir": "/mnt/lv/home/litianyu/mycode/dcdtuni/_tmp/campaign_B4mg/r2/SingleRack/log/api/2026-10-22_102438_SGT__air",
+      "resultSha256": "df97a797263de20d8537c5003bdb7d8d2a15e6c1e2c8c47121089a3b7c78039d",
+      "meshJobLogSha256": "3ed7a6e1c20b775330874972a4cf85bed45e9d2b93d173611f208db34a3797e0"
+    },
+    "3_Base_leakage_vendored": {
+      "status": "failed",
+      "failureStage": "mesh",
+      "mesher": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/aircooling/third_parties/meshgenerator/platforms/linux-x86_64-gcc-release/bin/meshgen-cli",
+      "cells": null,
+      "checkMeshOk": false,
+      "failedChecks": null,
+      "runDir": "/mnt/lv/home/litianyu/mycode/dcdtuni/_tmp/campaign_B4mg/r2/Base_leakage/log/api/2026-10-22_102450_SGT__air",
+      "resultSha256": "564302057338fd70264bf3dfad7bad6900b38366e6c4d21bfe30a05a6c8b185c",
+      "meshJobLogSha256": "c24202126353ba030fb9fe8260883ab07731dbea51599872622b1793e11a51c9"
+    },
+    "4_Slab_vendored": {
+      "status": "failed",
+      "failureStage": "mesh",
+      "mesher": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/aircooling/third_parties/meshgenerator/platforms/linux-x86_64-gcc-release/bin/meshgen-cli",
+      "cells": 142947,
+      "checkMeshOk": false,
+      "failedChecks": 6,
+      "runDir": "/mnt/lv/home/litianyu/mycode/dcdtuni/_tmp/campaign_B4mg/r2/Slab/log/api/2026-10-22_102520_SGT__air",
+      "resultSha256": "d83bbcd63a11de447c2284cfe1c12d90e5b28ba0bd121b04a8bf61e365a5daa9",
+      "meshJobLogSha256": "00cbbb68e8bcf80d6f19053e8b05f7c6a6b3df1fd5a536b0c2d9b0ec244c21f4"
+    }
+  },
+  "diagnostics_not_kept": {
+    "E0": "dev-checkout kernel fed a schemaVersion-2 relabelled copy: same S10 refusal on SingleRack cell 28780 (0.000757) as the vendored kernel",
+    "E1": "vendored + CART_QUALITY_MERGE=1: kind3cells=1, pairs=5, merged=0 (failFoam=5), same S10 refusal",
+    "E2": "vendored + meshConfig.qualityGate=warn: S10 downgraded, then S11b refuses cell 28780 (an edge shared by 4 faces)",
+    "E3": "vendored + CART_NO_BAND_ABSORB=1: same 0.000757 S10 refusal (cell 29661 after renumbering)"
+  },
+  "artifactsOutsideRepo": "_tmp/campaign_B4mg/ (ignored)"
+}

@@ -1,0 +1,89 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidRuntimeStaleRevision.test.tsx (8 tests | 4 failed) 526ms
+   × does not invalidate a prepared run as the real playhead reaches its final sample 154ms
+     → expected true to be false // Object.is equality
+   × does not invalidate on log or normal save notifications 34ms
+     → expected 7 to be 5 // Object.is equality
+   × refused off-start geometry edits do not invalidate the prepared inputs 73ms
+     → expected 27 to be 25 // Object.is equality
+   × Prepare captures the committed input clock after saving materialized assumptions 124ms
+     → expected 31 to be less than 31
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidRuntimeStaleRevision.test.tsx > does not invalidate a prepared run as the real playhead reaches its final sample
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/liquidRuntimeStaleRevision.test.tsx:77:26
+     75|   const before = inputRevision(), rendering = store.revision()
+     76|   act(() => store.setPlayhead(2.5))
+     77|   expect(staleVisible()).toBe(false)
+       |                          ^
+     78|   act(() => store.setPlayhead(24.5))
+     79|   expect(store.playheadTime()).toBe(24.5)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/liquidRuntimeStaleRevision.test.tsx > does not invalidate on log or normal save notifications
+AssertionError: expected 7 to be 5 // Object.is equality
+
+- Expected
++ Received
+
+- 5
++ 7
+
+ ❯ test/liquidRuntimeStaleRevision.test.tsx:88:27
+     86|   act(() => store.logAction('actual-run-completed', '24.5s'))
+     87|   act(() => store.markSaved('/owned/unchanged.cfdproj'))
+     88|   expect(inputRevision()).toBe(before)
+       |                           ^
+     89|   expect(staleVisible()).toBe(false)
+     90| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/liquidRuntimeStaleRevision.test.tsx > refused off-start geometry edits do not invalidate the prepared inputs
+AssertionError: expected 27 to be 25 // Object.is equality
+
+- Expected
++ Received
+
+- 25
++ 27
+
+ ❯ test/liquidRuntimeStaleRevision.test.tsx:137:27
+    135|   })
+    136|   expect(store.lastEditRejection()?.reason).toBe('static')
+    137|   expect(inputRevision()).toBe(before)
+       |                           ^
+    138|   expect(staleVisible()).toBe(false)
+    139| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/liquidRuntimeStaleRevision.test.tsx > Prepare captures the committed input clock after saving materialized assumptions
+AssertionError: expected 31 to be less than 31
+ ❯ test/liquidRuntimeStaleRevision.test.tsx:148:27
+    146|   expect(transport.create).toHaveBeenCalledOnce()
+    147|   expect(transport.create.mock.calls[0]?.[2]).toBe(inputRevision())
+    148|   expect(inputRevision()).toBeLessThan(store.revision())
+       |                           ^
+    149| })
+    150| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 4 passed (8)
+   Start at  19:38:15
+   Duration  5.00s (transform 1.46s, setup 0ms, collect 3.34s, tests 526ms, environment 805ms, prepare 76ms)
+

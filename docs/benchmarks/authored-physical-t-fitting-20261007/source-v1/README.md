@@ -1,0 +1,40 @@
+# Authored physical T fitting: private review freeze
+
+Baseline actual source is public ea922aadc9763551887aae356b30eb0462bb1dac. This is a PRIVATE source copy inside D, not a change to clean D@662 or normal I, and not the final combined product-source validation. Fourteen exact targets: seven modified production paths, three new production modules, two existing tests extended and two new tests. The full before/after snapshots, exact patch, mutation/closure receipt, source input hashes and raw failures/successes are included. No case fixture, 13-STL input, liquid graph, MMS identity, native runtime, GPU or service was modified.
+
+## Real failure and resulting behavior
+
+The first test invokes the actual shared liquid_mode._upgradeToTBranch, installed production bridge factories, real projectStore and migrator. A 73 mm authored pipe, deliberately carrying inconsistent spec text pipe_999mm, became two25mm pipes and a fitting with no diameter in the unmodified baseline. The free factory returned cooling {}, while the bridge declared type/quaternion only. Both original tests truly failed; evidence/baseline-actual-api-red.log and the exact baseline test are retained. They now pass: fitting and both pipes carry the original .073 m, not display size or spec text.
+
+The pure tBranch contract is used by both actual React factories. Newly created fittings explicitly author .025 m, identity quaternion, local port_1/2 at -/+ .04 m X and port_3 at +.04 m Z, matching the pre-existing split frame and roles inout/inout/out. The physical directions are -X/+X/+Z. Defaults are separate fresh objects and remain metres even when inputUnit is mm. The 60 mm display helper is not a physical diameter source. Shared liquid_mode passes the validated original geometry.diameterM through the actual bridge's normal fourth argument; it no longer writes an independent port layout. Missing, string, zero, negative or nonfinite original diameter refuses before undo/topology mutation. The two split pieces explicitly preserve that diameter; original role and connection mapping remain.
+
+The common React Inspector now includes a physical-fitting card using the existing shared styles/NumberField/unit conversion. A diameter edit on an existing complete physical fitting writes only fittingDiameterM, retaining every saved port, quaternion and unrelated field. Old missing physics remains absent through load/render/save. For an incomplete old fitting, entering a diameter is only local draft state; the explicit Declare standard T layout click authors the standard physical declaration in one undoable edit. Standard existing port IDs, roles, connectedPipeIds and valid saved orientation are retained. Unrecognised old port identities are refused rather than silently disconnected. Existing complete layouts have no re-declaration button.
+
+No schema, migration or save codec was changed, and no implicit backfill was added. Physical export still refuses missing/invalid fitting diameter, type/three ports or missing physical offsets/directions. The error now tells the user to set/declare the fitting in Properties; finite nonzero physical offsets/directions and unique IDs are checked before export, avoiding display fallback. The exporter's pre-existing .001..2 m numerical diameter bounds remain unchanged.
+
+## Meaningful validation
+
+Final8-file regression:103 PASS,1 existing optional skip,15.40s, CPU38-39/threads2/CUDA empty. Files cover actual factory/bridge/shared upgrade, actual common Inspector (not a mocked replacement component), unit conversion, explicit old-layout authoring and undo, unknown-ID/invalid-bore refusal, actual save/reload, current physical exporter and legacy graph preservation. The optional real-project transport test is unchanged and skips because no DCDTUNI_TRANSPORT_ACTUAL_PROJECT was supplied; no skip was added here.
+
+Actual geometry controls export the new fitting after 90degree Y yaw and uniform scale2, independently check the expected metre bounds, triangle nondegeneracy, every oriented edge having exactly one opposite use, positive volume and actual source UID provenance. Another control performs the real73mm split, save/reload via actual store kind revival, and grouped union export: Y envelope retains the73mm diameter and all3 source contributor UIDs remain bound; input JSON remains unchanged during export. Existing LiquidSingle graph/transport test remains unchanged and passes without writing physical defaults.
+
+Production build after necessary test typing repair is RC0/52.18s, output index-Bm7uU99B.js. Both raw build attempts are retained: original build RED had only a new test's unused Construction import and edge-use map typed as an unbounded number[]; the repair removes unused import and gives the edge pair its actual two-element tuple type. No numeric expectation or threshold changed. Final103 tests ran again on these exact final test bytes.
+
+A private intermediate test harness failure is retained: the first full candidate run passed48 and failed1 because it exported readProjectFileText's parsed document directly, without the actual store.loadProject step that revives non-enumerable runtime kind. The final test follows the real load path and explicitly asserts pipe_junction kind before checking the unchanged missing-diameter refusal. This was a harness wiring repair, not removal of the refusal assertion.
+
+The actual Inspector import also activates the existing asynchronous AuthOverlay, and the logs contain its act warning. This is preserved honestly; these controls do not assert a clean browser console. Build warnings about existing large chunks/dynamic imports are retained.
+
+## Independent replay
+
+Use RUN_REPRO.py --source <real repo root with matching frozen before files> --node-bin <D owned Node24.12 bin> --node-modules <D actual installed node_modules> --output <fresh private directory in B> [--cpu 38-39]. It checks exact source before and candidate after hashes, copies only tracked repo inputs (excluding Kit vendor), overlays14 exact files, uses the supplied real installed modules, and runs the same103 controls plus production build. It performs no install/service/GPU launch. It rejects source-escaping symlinks and existing output; caches/temp stay inside the private output, and owned process groups have240s caps then TERM/grace/KILL+wait. --help/AST validation is separate from a full replay; root should perform the independent full replay.
+
+If the normal floor-producer work changes geometry_scene.js, do not overwrite it with this full after snapshot. Rebase only this fitting hunk onto the newly verified source, refresh exact before/after closure and replay controls. TARGETS.json records whether each historical before guard is still held at freezing. No final clean-clone source sync/all-suite/native GPU launch is claimed.
+
+
+Observed direct replay command (output must not already exist):
+
+```sh
+python -B /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/t-fitting-authored-private/FROZEN-v1/RUN_REPRO.py --source /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration --node-bin /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/bootstrap-toolchain/node-v24.12.0-linux-x64/bin --node-modules /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/src/frontend/react/node_modules --output /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/t-fitting-authored-private/root-independent-replay --cpu 38-39
+```
+
+RUN_REPRO --help returned0; full packaged independent replay has not been run by this worker. The source audit predecessor is the unchanged47-payload read-only receipt at D/.codex-tmp/bootstrap-fixes/pipe-junction-physical-default-readonly (manifest41c2fbbcef7ca78265eab4803161d958cce77f392022ec9b7a671045f264e8b2), separately reviewed by root. Preview cancellation FROZEN-v2 and its12 files are a separate immutable candidate; they were not overlaid into this ea922 fitting tree or counted as this build's inputs.

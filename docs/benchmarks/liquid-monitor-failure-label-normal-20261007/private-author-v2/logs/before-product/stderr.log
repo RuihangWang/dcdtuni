@@ -1,0 +1,128 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > shows the real structured failed-step reason from a successful current frames response
+AssertionError: expected undefined to be 'Hydraulic solve failed: controlled no…' // Object.is equality
+
+- Expected: 
+"Hydraulic solve failed: controlled nonconvergence"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:51:32
+     49|   expect(runtime.runtimeState().session?.error).toEqual(failure)
+     50|   expect(status()).toBe('failed')
+     51|   expect(alert()?.textContent).toBe(failure.message)
+       |                                ^
+     52|   expect(alert()?.getAttribute('data-runtime-error-kind')).toBe('solve…
+     53|   expect(runtime.runtimeState().frames.map(f=>[f.run_id,f.seq,f.time_s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > shows a failed session returned by initial creation without rendering its error object
+AssertionError: expected undefined to be 'Hydraulic solve failed: controlled no…' // Object.is equality
+
+- Expected: 
+"Hydraulic solve failed: controlled nonconvergence"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:57:32
+     55| it('shows a failed session returned by initial creation without render…
+     56|   await create('A','failed',{...failure,last_successful_seq:0})
+     57|   expect(alert()?.textContent).toBe(failure.message)
+       |                                ^
+     58|   expect(host.textContent).not.toContain('[object Object]')
+     59| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > keeps request failure ahead of solver failure and restores solver reason after reconnect
+AssertionError: expected undefined to be 'Hydraulic solve failed: controlled no…' // Object.is equality
+
+- Expected: 
+"Hydraulic solve failed: controlled nonconvergence"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:69:32
+     67|   expect(host.querySelector('[data-runtime-connection]')?.getAttribute…
+     68|   await poll({status:'failed',frames:[],error:failure})
+     69|   expect(alert()?.textContent).toBe(failure.message)
+       |                                ^
+     70|   expect(alert()?.getAttribute('data-runtime-error-kind')).toBe('solve…
+     71|   expect(runtime.runtimeState().connection).toBe('connected')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > does not show obsolete session errors in a completed, cancelled or healthy new session
+AssertionError: expected undefined to be 'Hydraulic solve failed: controlled no…' // Object.is equality
+
+- Expected: 
+"Hydraulic solve failed: controlled nonconvergence"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:86:67
+     84| })
+     85| it('does not show obsolete session errors in a completed, cancelled or…
+     86|   await create('A','failed',failure);expect(alert()?.textContent).toBe…
+       |                                                                   ^
+     87|   for(const next of ['completed','cancelled','running'] as const) {
+     88|     await create('new-'+next,next,failure)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > uses a truthful failed fallback for missing, empty and unknown error shapes
+AssertionError: expected undefined to be '失败' // Object.is equality
+
+- Expected: 
+"失败"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:100:34
+     98|   for(const [index,error] of [null,{}, {message:{secret:'not a display…
+     99|     await create('unknown-'+index,'failed',error)
+    100|     expect(alert()?.textContent).toBe('失败');expect(status()).toBe('f…
+       |                                  ^
+    101|     expect(host.textContent).not.toContain('secret');expect(host.textC…
+    102|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > preserves a legacy string reason as literal text, not HTML
+AssertionError: expected undefined to be '<img src=x onerror=alert(1)>' // Object.is equality
+
+- Expected: 
+"<img src=x onerror=alert(1)>"
+
++ Received: 
+undefined
+
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:106:32
+    104| it('preserves a legacy string reason as literal text, not HTML',async(…
+    105|   await create('legacy','failed','<img src=x onerror=alert(1)>')
+    106|   expect(alert()?.textContent).toBe('<img src=x onerror=alert(1)>')
+       |                                ^
+    107|   expect(alert()?.querySelector('img')).toBeNull()
+    108| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/LiquidRuntimeMonitor.failure.test.tsx > names the reference scenario selector accurately in both locales
+AssertionError: expected null not to be null
+ ❯ test/LiquidRuntimeMonitor.failure.test.tsx:112:63
+    110|   await create('A')
+    111|   act(()=>{(host.querySelector('input[type="checkbox"]') as HTMLInputE…
+    112|   expect(host.querySelector('select[aria-label="参考场景"]')).not.toBe…
+       |                                                               ^
+    113|   act(()=>setLocale('en-US'))
+    114|   expect(host.querySelector('select[aria-label="Reference scenario"]')…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+

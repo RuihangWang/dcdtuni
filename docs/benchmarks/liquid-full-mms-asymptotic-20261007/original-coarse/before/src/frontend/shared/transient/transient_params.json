@@ -1,0 +1,26 @@
+{
+  "format": "dcdtuni.transient-params/v1",
+  "displayOnly": [
+    {"key": "display", "under": "meta"},
+    {"key": "moveTool"},
+    {"key": "rotateTool"},
+    {"key": "opacity", "under": "faces.*"},
+    {"key": "wallOpacities", "under": "faces.*"}
+  ],
+  "params": [
+    {"key": "server.power", "mode": "air", "bucket": "racks", "path": "constructions.servers.{server}.cooling.power", "unit": "W", "min": 0, "max": 1000000},
+    {"key": "box.heat", "mode": "air", "bucket": "boxes", "path": "cooling.totalPower", "unit": "W", "min": 0, "max": 10000000},
+    {"key": "acu.supplyTemp", "mode": "air", "bucket": "acus", "path": "geometry.faces.*.patches[id={patch}].physics.temperature", "unit": "degC", "min": -20, "max": 80, "where": {"physics.role": "supply"}},
+    {"key": "acu.airflow", "mode": "air", "bucket": "acus", "path": "geometry.faces.*.patches[id={patch}].physics.volumeFlowRate", "unit": "m3/s", "min": 0, "max": 100, "where": {"physics.role": "supply"}},
+    {"key": "acu.supplyAngle", "mode": "air", "bucket": "acus", "path": "geometry.faces.*.patches[id={patch}].physics.supplyAngleDeg", "unit": "deg", "min": -60, "max": 60, "where": {"physics.role": "supply"}},
+    {"key": "cp.heat", "mode": "liquid", "bucket": "racks", "path": "constructions.servers.{server}.liquidCooling.cpCuPairs.{pair}.Q_W", "unit": "W", "min": 0, "max": 100000},
+    {"key": "cp.dT", "mode": "liquid", "bucket": "racks", "path": "constructions.servers.{server}.liquidCooling.cpCuPairs.{pair}.dT_K", "unit": "K", "min": 0, "max": 100},
+    {"key": "pump.rpm", "mode": "liquid", "bucket": "cdus", "path": "constructions.pump.rpmRatio", "unit": "1", "min": 0, "max": 2, "default": 1, "createWithDefault": true},
+    {"key": "pump.flow", "mode": "liquid", "bucket": "cdus", "path": "cooling.totalFlowRate", "unit": "L/min", "min": 0, "max": 100000},
+    {"key": "valve.opening", "mode": "liquid", "bucket": "pipeSegments", "path": "cooling.valves[id={valve}].opening", "unit": "1", "min": 0.001, "max": 1, "where": {"type": ["flow_control", "isolation"]}},
+    {"key": "cdu.primaryInletT", "mode": "liquid", "bucket": "cdus", "path": "cooling.primaryInletTemperatureC", "unit": "degC", "min": 0, "max": 80, "default": 20, "createWithDefault": true},
+    {"key": "cdu.primaryFlow", "mode": "liquid", "bucket": "cdus", "path": "cooling.primaryFlowKgS", "unit": "kg/s", "min": 0, "max": 1000, "default": 1, "createWithDefault": true},
+    {"key": "cdu.secondarySupplyT", "mode": "liquid", "bucket": "cdus", "path": "cooling.supplyTemperatureC", "unit": "degC", "min": 0, "max": 80},
+    {"key": "cdu.returnPressure", "mode": "liquid", "bucket": "cdus", "path": "cooling.returnPressureKpa", "unit": "kPa", "min": 1, "max": 2000, "default": 150, "createWithDefault": true}
+  ]
+}

@@ -1,0 +1,97 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| fvSolution — unified template, rendered per experiment                      |
+| Variables: tol_p_rgh, rel_tol_p_rgh, tol_uTke, rel_tol_uTke,                |
+|            max_iter, n_non_ortho, res_ctrl, p_rgh_relax, U_relax,          |
+|            T_relax, k_eps_relax                                             |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    p_rgh
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       1e-8;
+            relTol          0.01;
+            nVcycles        2;
+            smoother        DICGaussSeidel;
+            nPreSweeps      2;
+        }
+        tolerance       1e-8;
+        relTol          0.01;
+        maxIter         100;
+    }
+
+    p_rghFinal
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       1e-8;
+            relTol          0;
+            nVcycles        2;
+            smoother        DICGaussSeidel;
+            nPreSweeps      2;
+        }
+        tolerance       1e-8;
+        relTol          0;
+        maxIter         100;
+    }
+
+    "(U|T|k|epsilon)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0.01;
+        maxIter         100;
+    }
+
+    cellDisplacement
+    {
+        $p_rgh;
+        relTol          0.01;
+    }
+}
+
+SIMPLE
+{
+    nNonOrthogonalCorrectors 1;
+    pRefCell    0;
+    pRefValue   0;
+    residualControl
+    {
+        p_rgh           1e-4;
+        U               1e-4;
+        T               1e-4;
+        "(k|epsilon|omega)" 1e-4;
+    }
+}
+
+relaxationFactors
+{
+    fields
+    {
+        p_rgh           0.7;
+    }
+    equations
+    {
+        U               0.2;
+        T               0.5;
+        "(k|epsilon)"   0.7;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,38 @@
+// DCDTuni common-display alpha adapter. Kit's existing library owns PBR shading.
+mdl 1.8;
+import ::UsdPreviewSurface::*;
+
+export material DcdtuniFractionalPreview(
+    float3 diffuseColor = float3(0.18),
+    float3 emissiveColor = float3(0.0),
+    uniform int useSpecularWorkflow = 0,
+    float3 specularColor = float3(0.0),
+    float metallic = 0.0,
+    float roughness = 0.5,
+    float clearcoat = 0.0,
+    float clearcoatRoughness = 0.01,
+    float3 normal = float3(0.0, 0.0, 1.0),
+    float displacement = 0.0,
+    uniform float ior = 1.5,
+    float opacity = 1.0,
+    uniform float opacityThreshold = 0.0
+) = let {
+    material opaque = ::UsdPreviewSurface::UsdPreviewSurface(
+        diffuseColor: diffuseColor, emissiveColor: emissiveColor,
+        useSpecularWorkflow: useSpecularWorkflow, specularColor: specularColor,
+        metallic: metallic, roughness: roughness,
+        clearcoat: clearcoat, clearcoatRoughness: clearcoatRoughness,
+        normal: normal, displacement: displacement, ior: ior,
+        opacity: 1.0, opacityThreshold: 0.0,
+        enable_opacity: false, enable_specular_transmission: false);
+} in material(
+    thin_walled: opaque.thin_walled,
+    surface: opaque.surface,
+    backface: opaque.backface,
+    ior: opaque.ior,
+    volume: opaque.volume,
+    hair: opaque.hair,
+    geometry: material_geometry(
+        displacement: opaque.geometry.displacement,
+        normal: opaque.geometry.normal,
+        cutout_opacity: opacity < opacityThreshold ? 0.0 : opacity));

@@ -1,0 +1,394 @@
+{
+  "version": "1.0",
+  "source": "frontend",
+  "projectName": "Untitled",
+  "gravity": [
+    0,
+    -9.81,
+    0
+  ],
+  "fluid": {
+    "rho_kg_m3": 992.2,
+    "cp_J_kgK": 4180,
+    "mu_Pa_s": 0.000653,
+    "k_W_mK": 0.632
+  },
+  "time": {
+    "dt_s": 1,
+    "N_t": 10,
+    "bdf_order": 1
+  },
+  "racks": [
+    {
+      "id": "Default_Rack_1",
+      "position_m": [
+        0,
+        0,
+        0
+      ],
+      "n_slots": 42,
+      "manifold": {
+        "supply_node": "Default_Rack_1_mf_supply",
+        "return_node": "Default_Rack_1_mf_return",
+        "layout": "split",
+        "D_m": 0.025
+      },
+      "servers": [
+        {
+          "id": "liquid-server_1",
+          "slot_range": [
+            27,
+            32
+          ],
+          "z_m": 1.20015,
+          "cp_cu_pairs": [
+            {
+              "id": "CP-CU_1",
+              "edge_id": "Default_Rack_1_liquid-server_1_cp0",
+              "Q_W": 3500
+            }
+          ],
+          "inlet_node": "Default_Rack_1_liquid-server_1_in",
+          "outlet_node": "Default_Rack_1_liquid-server_1_out"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "CDU_1_supply",
+      "type": "pressure_bc",
+      "position_m": [
+        2.401392890500783,
+        1.53,
+        -0.2850184090404052
+      ],
+      "bc": {
+        "P_Pa": 250000,
+        "T_K": 308.15
+      }
+    },
+    {
+      "id": "CDU_1_return",
+      "type": "pressure_bc",
+      "position_m": [
+        2.401392890500783,
+        1.48,
+        -0.2850184090404052
+      ],
+      "bc": {
+        "P_Pa": 101325
+      }
+    },
+    {
+      "id": "Default_Rack_1_mf_supply",
+      "type": "junction",
+      "position_m": [
+        0,
+        1.8669000000000002,
+        0
+      ]
+    },
+    {
+      "id": "Default_Rack_1_mf_return",
+      "type": "junction",
+      "position_m": [
+        0.05,
+        1.8669000000000002,
+        0
+      ]
+    },
+    {
+      "id": "Default_Rack_1_liquid-server_1_in",
+      "type": "junction",
+      "position_m": [
+        0,
+        1.20015,
+        0
+      ]
+    },
+    {
+      "id": "Default_Rack_1_liquid-server_1_out",
+      "type": "junction",
+      "position_m": [
+        0.05,
+        1.20015,
+        0
+      ]
+    },
+    {
+      "id": "Pipe_1_blind_start",
+      "type": "junction",
+      "position_m": [
+        -0.7902337298666648,
+        2.825613594601141,
+        0.08660076227333047
+      ]
+    },
+    {
+      "id": "Pipe_1_tee_valve_1779191286514",
+      "type": "junction",
+      "position_m": [
+        -0.5856378578986017,
+        2.825613594601141,
+        0.08660076227333048
+      ]
+    },
+    {
+      "id": "Pipe_1_copy_blind_start",
+      "type": "junction",
+      "position_m": [
+        -0.6366285596247045,
+        3.215474733307139,
+        -0.1310936563654544
+      ]
+    },
+    {
+      "id": "Pipe_1_copy_tee_tee_1779191317140",
+      "type": "junction",
+      "position_m": [
+        -0.018787762057074997,
+        3.215474733307139,
+        -0.1310936563654544
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "CDU_1_pump",
+      "type": "pump",
+      "from": "CDU_1_return",
+      "to": "CDU_1_supply",
+      "params": {
+        "H0_m": 20,
+        "a_coef": 500000,
+        "rpm_ratio": 1
+      }
+    },
+    {
+      "id": "Default_Rack_1_liquid-server_1_branch_in",
+      "type": "pipe",
+      "from": "Default_Rack_1_mf_supply",
+      "to": "Default_Rack_1_liquid-server_1_in",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 1.5e-06,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            0,
+            1.8669000000000002,
+            0
+          ],
+          [
+            0,
+            1.20015,
+            0
+          ]
+        ],
+        "K_minor_per_bend": 0.3
+      }
+    },
+    {
+      "id": "Default_Rack_1_liquid-server_1_branch_out",
+      "type": "pipe",
+      "from": "Default_Rack_1_liquid-server_1_out",
+      "to": "Default_Rack_1_mf_return",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 1.5e-06,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            0.05,
+            1.20015,
+            0
+          ],
+          [
+            0.05,
+            1.8669000000000002,
+            0
+          ]
+        ],
+        "K_minor_per_bend": 0.3
+      }
+    },
+    {
+      "id": "Default_Rack_1_liquid-server_1_cp0",
+      "type": "cold_plate",
+      "from": "Default_Rack_1_liquid-server_1_in",
+      "to": "Default_Rack_1_liquid-server_1_out",
+      "params": {
+        "dp_a": 36568239.72805256,
+        "dp_b": 0,
+        "UA_W_per_K": 33.333333333333336,
+        "C_solid_J_per_K": 100,
+        "V_fluid_m3": 4.9999999999999996e-06,
+        "Q_W": 3500
+      }
+    },
+    {
+      "id": "Pipe_1_spoke_valve_1779191286514",
+      "type": "pipe",
+      "from": "Pipe_1_tee_valve_1779191286514",
+      "to": "Default_Rack_1_mf_return",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            -0.5856378578986017,
+            2.825613594601141,
+            0.08660076227333048
+          ],
+          [
+            0.05,
+            1.8669000000000002,
+            0
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "Pipe_1_seg0",
+      "type": "pipe",
+      "from": "Pipe_1_blind_start",
+      "to": "Pipe_1_tee_valve_1779191286514",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            -0.7902337298666648,
+            2.825613594601141,
+            0.08660076227333047
+          ],
+          [
+            -0.5856378578986017,
+            2.825613594601141,
+            0.08660076227333048
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "Pipe_1_seg1",
+      "type": "pipe",
+      "from": "Pipe_1_tee_valve_1779191286514",
+      "to": "CDU_1_return",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 16,
+        "waypoints_m": [
+          [
+            -0.5856378578986017,
+            2.825613594601141,
+            0.08660076227333048
+          ],
+          [
+            2.401392890500783,
+            1.48,
+            -0.2850184090404052
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "Pipe_1_copy_spoke_tee_1779191317140",
+      "type": "pipe",
+      "from": "Pipe_1_copy_tee_tee_1779191317140",
+      "to": "Default_Rack_1_mf_supply",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            -0.018787762057074997,
+            3.215474733307139,
+            -0.1310936563654544
+          ],
+          [
+            0,
+            1.8669000000000002,
+            0
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "Pipe_1_copy_seg0",
+      "type": "pipe",
+      "from": "Pipe_1_copy_blind_start",
+      "to": "Pipe_1_copy_tee_tee_1779191317140",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 3,
+        "waypoints_m": [
+          [
+            -0.6366285596247045,
+            3.215474733307139,
+            -0.1310936563654544
+          ],
+          [
+            -0.018787762057074997,
+            3.215474733307139,
+            -0.1310936563654544
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "Pipe_1_copy_seg1",
+      "type": "pipe",
+      "from": "Pipe_1_copy_tee_tee_1779191317140",
+      "to": "CDU_1_supply",
+      "params": {
+        "D_m": 0.1,
+        "roughness_m": 1.5e-06,
+        "n_cells": 15,
+        "waypoints_m": [
+          [
+            -0.018787762057074997,
+            3.215474733307139,
+            -0.1310936563654544
+          ],
+          [
+            2.401392890500783,
+            1.53,
+            -0.2850184090404052
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    }
+  ],
+  "events": [],
+  "initial_conditions": {
+    "T_fluid_K": 308.15,
+    "T_solid_K": 340,
+    "P_uniform_Pa": 175000
+  },
+  "solver": {
+    "optimizer": "adam",
+    "lr": 0.1,
+    "max_epochs": 10000,
+    "convergence_tol": 1e-06,
+    "weights": {
+      "mass": 1,
+      "momentum": 1e-06,
+      "energy": 1,
+      "bc": 100,
+      "ic": 10
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "dcCart Base604 hang: processor-interface divergence fix + carve progress + runner pairing check",
+  "date": "2026-09-30",
+  "branch": "fix/dccart-base604",
+  "commits": ["d4fa72fa runner pairing check", "967e8e2c carve progress", "04455e49 half-held merge veto + slow-shell log"],
+  "machine": "40902 (scratch copies; fix built in a separate worktree with deploy.sh --cart-only; 40902 main checkout and case dirs untouched)",
+  "baseline_code": "75b13b1e (identical to main on the mesh path)",
+  "reproduction": {
+    "np16_original": {"dcCart_s": 429, "checkMesh": "segfault rank 9 processorPolyPatch::updateMesh", "pairing": ["procBoundary8to9 20151 vs 20150", "procBoundary9to10 17890 vs 17891"]},
+    "orphan_face": {"plane_x": 7.63043, "y": [0.80385, 0.84615], "z": [14.6875, 14.85833], "rank8_cell_x": [7.1217, 7.6304], "rank10_cell_x": [7.6304, 8.1391], "rank9_slab_x": [7.334, 7.970]},
+    "np8_original": {"cells": 3554526, "result": "Mesh complete", "checkMesh": "Failed 1 (9 face pyramids)"},
+    "np16_debug_rerun": {"deterministic": true, "runner_message": "Partitioned mesh is inconsistent between ranks 8 and 9 ..."}
+  },
+  "fix_result": {
+    "np16_fixed": {"cells": 3566729, "delta_vs_np8": "+12203 (+0.34%)", "pairing_problems": 0, "checkMesh": "Failed 1 (same 9 face pyramids)", "result": "Mesh complete", "total_s": 446},
+    "carve_timing": "shell 684 of 685 took 317 s of the 371 s carve (289815 cells in reach on the master)"
+  },
+  "regression": {
+    "deploy_smoke": "serial checkMesh OK; 2 ranks 5704 cells = serial",
+    "Tri_angle_np4": {"base": "109833 cells, Mesh OK", "fix": "110121 cells (+0.26%), Mesh OK", "pairing": "0 / 0"},
+    "Shinaide_np8": {"base": "714462 cells, Failed 1 (53 skew faces, max 5.53)", "fix": "714626 cells (+0.02%), identical failure", "pairing": "0 / 0"},
+    "DAML-Testbed_np8": {"base": "290449 cells, Failed 1 (3 face pyramids)", "fix": "290790 cells (+0.12%), identical failure", "pairing": "0 / 0"},
+    "Base2-9": "excluded: stale V1 .cfdrun, both trees refuse it at load"
+  },
+  "tradeoff": "vetoed merges are skipped on every rank, so the mesh is no longer exactly rank-count invariant (+0.02-0.34% cells in these cases)",
+  "workaround_before_merge": "meshProcess 8 for Base604 (verified)",
+  "open": ["9 / 3 face-pyramid errors and 53 skew faces are pre-existing, unchanged by the fix", "single large shell dominates the carve time", "partition1 seed-collision warning; 13 of 55 seeds unresolved"]
+}

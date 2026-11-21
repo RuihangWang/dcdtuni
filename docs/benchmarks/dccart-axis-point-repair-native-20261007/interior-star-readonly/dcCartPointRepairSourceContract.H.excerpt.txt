@@ -1,0 +1,170 @@
+1: #ifndef dcCartPointRepairSourceContract_H
+2: #define dcCartPointRepairSourceContract_H
+3: 
+4: #include "dictionary.H"
+5: #include "entry.H"
+6: #include "ITstream.H"
+7: #include "OStringStream.H"
+8: #include "Pstream.H"
+9: #include "IOstreams.H"
+10: 
+11: namespace Foam
+12: {
+13: namespace dcCartPointRepairSourceContract
+14: {
+15: // Runner proof of locked raw bytes/resolved actual STL roles, not a native
+16: // re-hash of CFDRUN JSON. Only the globally absent bulk/material scope is
+17: // supported. Native installed-mesh scope checks remain independent.
+18: struct LocalContract
+19: {
+20:     bool valid=false;
+21:     bool eligible=false;
+22:     string canonical;
+23:     string refusal;
+24: };
+25: 
+26: inline const ITstream* primitive(const dictionary& d,const word& key)
+27: {
+28:     const entry* e=d.findEntry(key,keyType::LITERAL);
+29:     return e && e->isStream() ? e->streamPtr() : nullptr;
+30: }
+31: 
+32: inline bool lowerSha256(const string& value)
+33: {
+34:     if (value.size()!=64) return false;
+35:     for (const char ch:value)
+36:     {
+37:         if (!((ch>='0' && ch<='9') || (ch>='a' && ch<='f'))) return false;
+38:     }
+39:     return true;
+40: }
+41: 
+42: // These checks inspect tokens without extracting from a stream: malformed
+43: // primitive type/arity never invokes lookup/get/operator>> rank-local Fatal.
+44: inline LocalContract readLocal(const dictionary& meshDict)
+45: {
+46:     LocalContract result;
+47:     const entry* block=meshDict.findEntry
+48:         ("dcdtuniPointRepairSourceRoleContract",keyType::LITERAL);
+49:     if (!block)
+50:     {
+51:         result.canonical="<missing>";
+52:         result.refusal="missing source-role contract";
+53:         return result;
+54:     }
+55:     OStringStream normalized;
+56:     block->write(normalized);
+57:     result.canonical=normalized.str();
+58:     if (!block->isDict())
+59:     {
+60:         result.refusal="source-role contract is not a dictionary";
+61:         return result;
+62:     }
+63:     const dictionary& d=block->dict();
+64:     for (const entry& field:d)
+65:     {
+66:         const keyType& key=field.keyword();
+67:         if (!key.isLiteral() || !(key=="version" || key=="eligible"
+68:          || key=="rawSha256" || key=="rolesDigest" || key=="reasons"
+69:          || key=="scope"))
+70:         {
+71:             result.refusal="unknown source-role contract field";
+72:             return result;
+73:         }
+74:     }
+75:     const ITstream* version=primitive(d,"version");
+76:     const ITstream* eligible=primitive(d,"eligible");
+77:     const ITstream* raw=primitive(d,"rawSha256");
+78:     const ITstream* roles=primitive(d,"rolesDigest");
+79:     const ITstream* reasons=primitive(d,"reasons");
+80:     const ITstream* scope=primitive(d,"scope");
+81:     if (!version || version->size()!=1 || !(*version)[0].isLabel()
+82:      || (*version)[0].labelToken()!=1)
+83:     {
+84:         result.refusal="source-role contract requires integer version 1";
+85:         return result;
+86:     }
+87:     if (!eligible || eligible->size()!=1 || !(*eligible)[0].isWord()
+88:      || !((*eligible)[0].wordToken()=="true"
+89:        || (*eligible)[0].wordToken()=="false"))
+90:     {
+91:         result.refusal="source-role contract eligible must be true or false";
+92:         return result;
+93:     }
+94:     if (!scope || scope->size()!=1 || !(*scope)[0].isWord()
+95:      || (*scope)[0].wordToken()!="globallyNoBulkSourcesAndNoMaterialDomains")
+96:     {
+97:         result.refusal="unsupported source-role contract scope";
+98:         return result;
+99:     }
+100:     if (!raw || raw->size()!=1 || !(*raw)[0].isString()
+101:      || !lowerSha256((*raw)[0].stringToken())
+102:      || !roles || roles->size()!=1 || !(*roles)[0].isString()
+103:      || !lowerSha256((*roles)[0].stringToken()))
+104:     {
+105:         result.refusal="source-role contract requires quoted lowercase SHA256 values";
+106:         return result;
+107:     }
+108:     if (!reasons || reasons->size()<2
+109:      || !(*reasons)[0].isPunctuation(token::BEGIN_LIST)
+110:      || !(*reasons)[reasons->size()-1].isPunctuation(token::END_LIST))
+111:     {
+112:         result.refusal="source-role contract reasons must be a string/word list";
+113:         return result;
+114:     }
+115:     for (label i=1;i+1<reasons->size();++i)
+116:     {
+117:         if (!(*reasons)[i].isString() && !(*reasons)[i].isWord())
+118:         {
+119:             result.refusal="source-role contract reasons contains a non-text token";
+120:             return result;
+121:         }
+122:     }
+123:     result.eligible=((*eligible)[0].wordToken()=="true");
+124:     if (result.eligible && reasons->size()!=2)
+125:     {
+126:         result.eligible=false;
+127:         result.refusal="eligible source-role contract must have no refusal reasons";
+128:         return result;
+129:     }
+130:     result.valid=true;
+131:     if (!result.eligible) result.refusal="runner source-role proof is ineligible";
+132:     return result;
+133: }
+134: 
+135: inline bool exactRowsAgree(const List<string>& rows)
+136: {
+137:     if (rows.empty()) return false;
+138:     for (label rank=1;rank<rows.size();++rank)
+139:         if (rows[rank]!=rows[0]) return false;
+140:     return true;
+141: }
+142: 
+143: // Call only behind the existing all-rank-consistent point-repair enable gate.
+144: // Every participating rank enters both collectives even if its block is
+145: // missing, malformed, unknown, or ineligible. Mismatch refuses singleton3;
+146: // the original mesh path and non-singleton repair remain available.
+147: inline bool readEligible(const dictionary& meshDict)
+148: {
+149:     const LocalContract local=readLocal(meshDict);
+150:     List<string> rows(Pstream::nProcs());
+151:     rows[Pstream::myProcNo()]=local.canonical;
+152:     if (Pstream::parRun())
+153:     {
+154:         Pstream::gatherList(rows);
+155:         Pstream::scatterList(rows);
+156:     }
+157:     const bool agrees=exactRowsAgree(rows);
+158:     const bool eligible=agrees && local.valid && local.eligible;
+159:     if (!eligible && Pstream::master())
+160:     {
+161:         WarningInFunction
+162:             << "singleton3 source-role contract refused: "
+163:             << (agrees ? local.refusal : string("contract differs across ranks"))
+164:             << "; existing mesh/repair path retained" << nl;
+165:     }
+166:     return eligible;
+167: }
+168: }
+169: }
+170: #endif

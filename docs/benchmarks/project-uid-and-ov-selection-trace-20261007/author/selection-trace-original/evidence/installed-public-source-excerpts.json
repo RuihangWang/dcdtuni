@@ -1,0 +1,119 @@
+[
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/Ref_code/kit-cae/_build/linux-x86_64/release/extscache/omni.kit.manipulator.selection-109.0.1+62477c11/omni/kit/manipulator/selection/manipulator.py",
+    "bytes": 11334,
+    "sha256": "fa3f7acff98e4b6a1923cda76555bd66c8951625807b779fa6efd678757ae750",
+    "ranges": [
+      {
+        "firstLine": 32,
+        "lastLine": 82,
+        "text": "    return values[0] if values else default_value\n\n\nclass _ModifierDown:\n    def __init__(self):\n        self.__input = carb.input.acquire_input_interface()\n\n    def test(self, modifiers: int):\n        mods_down = self.__input.get_global_modifier_flags(modifiers)\n        return bool(mods_down & modifiers)\n\n\n# Selection box takes lowest priority, every other gesture (typically camera-controls) should win\n#\nclass _SelectionPreventer(sc.GestureManager):\n    \"\"\"Class to explicitly block gestures based on < comparison of a priority priority.\"\"\"\n    def can_be_prevented(self, gesture):\n        if getattr(gesture, \"priority\", 0) < 0:\n            return True\n\n        # Never prevent in the middle or at the end of drag\n        gesture_state = gesture.state\n        return (\n            gesture_state != sc.GestureState.CHANGED\n            and gesture_state != sc.GestureState.ENDED\n            and gesture_state != sc.GestureState.CANCELED\n        )\n\n    def should_prevent(self, gesture, preventer):\n        if getattr(gesture, \"priority\", 0) < getattr(preventer, \"priority\", 0):\n            gesture_state = gesture.state\n            return (\n                gesture_state != sc.GestureState.CHANGED\n                and gesture_state != sc.GestureState.ENDED\n                and gesture_state != sc.GestureState.CANCELED\n            )\n        return False\n\n\nclass _SelectionGesture:\n    @classmethod\n    def _get_selection_mode(self):\n        mods_down = _ModifierDown()\n        if mods_down.test(carb.input.KEYBOARD_MODIFIER_FLAG_SHIFT):\n            return SelectionMode.APPEND\n        if mods_down.test(carb.input.KEYBOARD_MODIFIER_FLAG_CONTROL):\n            return SelectionMode.REMOVE\n        # alt_down = mods_down.test(carb.input.KEYBOARD_MODIFIER_FLAG_ALT)\n        return SelectionMode.REPLACE\n\n    @classmethod\n"
+      },
+      {
+        "firstLine": 132,
+        "lastLine": 144,
+        "text": "    def __init__(self, model: sc.AbstractManipulatorModel, *args, **kwargs):\n        super().__init__(*args, **kwargs)\n        self.model = model\n\n    def on_ended(self):\n        model = self.model\n        _SelectionGesture._set_mouse(model, self.sender.gesture_payload.mouse, True)\n        model._item_changed(model.get_item(\"ndc_rect\"))\n        _SelectionGesture._on_ended(model, self.state)\n\n    @property\n    def name(self):\n        return \"omni.kit.manipulator.selection.SelectionClickGesture\"\n"
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/Ref_code/kit-cae/_build/linux-x86_64/release/extscache/omni.kit.viewport.window-109.0.1+62477c11/omni/kit/viewport/window/manipulator/selection.py",
+    "bytes": 5603,
+    "sha256": "b9ae955fbe657e0302bece3bc5a675d7b7c7820f7bdfa65e3b3a73c0fa954995",
+    "ranges": [
+      {
+        "firstLine": 91,
+        "lastLine": 113,
+        "text": "\n        # Convert the mode into an omni.usd.PickingMode\n        mode = model.get_as_ints('mode')\n        if not mode:\n            return self.__reset_state()\n        mode = {\n            SelectionMode.REPLACE: omni.usd.PickingMode.RESET_AND_SELECT,\n            SelectionMode.APPEND: omni.usd.PickingMode.MERGE_SELECTION,\n            SelectionMode.REMOVE: omni.usd.PickingMode.INVERT_SELECTION\n        }.get(mode[0], None)\n        if mode is None:\n            return self.__reset_state()\n\n        self.__handle_selection(model, ndc_rect, mode, self.__viewport_api)\n\n        # For reset selection, we can live-select as the drag occurs\n        # live_select = mode == omni.usd.PickingMode.RESET_AND_SELECT\n        if live_select:\n            self.__request_pick()\n\n        return None\n\n    def destroy(self):\n"
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/Ref_code/kit-cae/_build/linux-x86_64/release/extscache/omni.kit.viewport.window-109.0.1+62477c11/config/extension.toml",
+    "bytes": 8971,
+    "sha256": "bd512dc7ee53bcfdb9ba546c3fe5915b9007b687250dc89efb0e427c520c657a",
+    "ranges": [
+      {
+        "firstLine": 105,
+        "lastLine": 110,
+        "text": "startup.selectionManipulator.enabled=true\n\n\n# Whether to use omni.kit.raycast.query (if available) instead of request_query from hydra texture\nuseRaycastQuery = true\n\n"
+      },
+      {
+        "firstLine": 129,
+        "lastLine": 138,
+        "text": "ZoomScrollGesture = \"Any\"\nFlightSpeedGesture = \"RightButton\"\nFlightMode = \"RightButton\"\n\n[settings.exts.\"omni.kit.viewport.window\".bindings.selection]\n\"SelectionClickGesture\" = \"Any LeftButton\"\n\"SelectionDragGesture\" = \"Any LeftButton\"\n\n[settings.exts.\"omni.kit.viewport.window\".bindings.objectClick]\n\"ObjectDoubleClickGesture\" = \"LeftButton\"\n"
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/.cache/packman/chk/kit-kernel/109.0.3+production.263267.62477c11.gl.manylinux_2_35_x86_64.release/kernel/py/carb/input.pyi",
+    "bytes": 40018,
+    "sha256": "44cea4dcb46a2d7746162722998023c3e6ff102f8cf1373ab2c444c9cf10d535",
+    "ranges": [
+      {
+        "firstLine": 388,
+        "lastLine": 392,
+        "text": "    def get_gamepad_name(self, arg0: Gamepad) -> str: ...\n    def get_gamepad_value(self, arg0: Gamepad, arg1: GamepadInput) -> float: ...\n    def get_global_modifier_flags(self, modifiers: int = 0, mouse_buttons: object = None) -> int: ...\n    @staticmethod\n    def get_input_provider(*args, **kwargs) -> typing.Any: ...\n"
+      },
+      {
+        "firstLine": 1043,
+        "lastLine": 1046,
+        "text": "def acquire_input_interface(plugin_name: str = None, library_path: str = None) -> IInput:\n    pass\ndef acquire_input_provider(*args, **kwargs) -> typing.Any:\n    pass\n"
+      },
+      {
+        "firstLine": 1063,
+        "lastLine": 1069,
+        "text": "KEYBOARD_MODIFIER_FLAG_ALT = 4\nKEYBOARD_MODIFIER_FLAG_CAPS_LOCK = 16\nKEYBOARD_MODIFIER_FLAG_CONTROL = 2\nKEYBOARD_MODIFIER_FLAG_NUM_LOCK = 32\nKEYBOARD_MODIFIER_FLAG_SHIFT = 1\nKEYBOARD_MODIFIER_FLAG_SUPER = 8\nSUBSCRIPTION_ORDER_DEFAULT = -1\n"
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/@nvidia/omniverse-webrtc-streaming-library/dist/omniverse-webrtc-streaming-library.js",
+    "bytes": 722124,
+    "sha256": "46b9ee6862c2eda0d02f07d34dc1272801e3040e97cadadd60578d286b02e395",
+    "characterExcerpts": [
+      {
+        "purpose": "focus/blur exact implementations and key handler",
+        "startChar": 685589,
+        "endChar": 686455,
+        "text": "onBlurStream(e){var t;fe.debug(\"Stream viewport losing focus\"),null==(t=this._props)||t.captureUserInput(!1,R.InputType.All)}onFocusStream(e){var t;fe.debug(\"Stream viewport getting focus\"),null==(t=this._props)||t.captureUserInput(!0,R.InputType.All)}videoElementClickedEventHandler(e){}keyUpDownEventHandler(e){var t;!(73==e.keyCode&&e.ctrlKey&&e.shiftKey)&&!(67==e.keyCode&&e.shiftKey&&e.metaKey)&&!(68==e.keyCode&&e.ctrlKey&&e.shiftKey)&&!(\"Tab\"==e.code&&e.altKey)&&\"ZoomToggle\"!=e.code&&\"SelectTask\"!=e.code&&\"BrightnessDown\"!=e.code&&\"BrightnessUp\"!=e.code&&\"AudioVolumeMute\"!=e.code&&\"AudioVolumeDown\"!=e.code&&\"AudioVolumeUp\"!=e.code&&!(e.keyCode>=48&&e.keyCode<=57)&&\"Backspace\"!=e.code&&e.preventDefault(),86==e.keyCode&&e.ctrlKey&&\"keydown\"===e.type&&(this._pasteKeysToRelease={ctrlKey:e.ctrlKey,metaKey:e.metaKey},null==(t=this._props)||t.onPasteText())}"
+      },
+      {
+        "purpose": "setup callback DOM/focus listeners",
+        "startChar": 686455,
+        "endChar": 688050,
+        "text": "setupCallbacks(){var e,t,i;const s=document.getElementById(null==(e=this._props)?void 0:e.videoElementId),n=document.getElementById(null==(t=this._props)?void 0:t.audioElementId);if(n&&(n.muted=!0),s){const e=document.createElement(\"div\");s.parentElement.appendChild(e),e.appendChild(s),s.muted=!0,s.playsInline=!0,s.autoplay=!0,s.tabIndex=-1,s.style.outline=\"none\",s.parentElement.id=`${null==(i=this._props)?void 0:i.videoElementId}-input-parent`,s.parentElement.tabIndex=-1,s.parentElement.style.outline=\"none\",s.parentElement.style.display=\"contents\",this._videoElementParent=s.parentElement,this._boundContextMenuHandler=e=>{e.preventDefault()},this._boundSendTextEventHandler=e=>{var t;return null==(t=this._props)?void 0:t.sendTextEventHandler(e)},this._boundKeyDownHandler=e=>this.keyUpDownEventHandler(e),this._boundKeyUpHandler=e=>this.keyUpDownEventHandler(e),this._boundPointerDownHandler=e=>this.videoElementClickedEventHandler(e),this._boundFocusInHandler=e=>this.onFocusStream(e),this._boundFocusOutHandler=e=>this.onBlurStream(e),this._videoElementParent.addEventListener(\"contextmenu\",this._boundContextMenuHandler),this._videoElementParent.addEventListener(\"keydown\",this._boundSendTextEventHandler),this._videoElementParent.addEventListener(\"keydown\",this._boundKeyDownHandler),this._videoElementParent.addEventListener(\"keyup\",this._boundKeyUpHandler),this._videoElementParent.addEventListener(\"pointerdown\",this._boundPointerDownHandler),this._videoElementParent.addEventListener(\"focusin\",this._boundFocusInHandler),this._videoElementParent.addEventListener(\"focusout\",this"
+      },
+      {
+        "purpose": "keyboard callback input-enabled guard and separate key wire",
+        "startChar": 387533,
+        "endChar": 389700,
+        "text": "cb(e){var i,s;let n=this.tb;this.qg=!1;const r=this.kr.Dr(e.timeStamp);if(!this.If.Am())return;this.sS(e)&&e.preventDefault();let o=this.iS(e);o&&(n=n||o),this.Yb(e);const a=this.Zb(e);n=n||a;const c=this.tS(e);if(n=n||c,this.Gb.includes(e.keyCode)&&!a&&!o)return;const d=o?160:this.jb(e);if(0===d){this.Og=!0;const t={compositionText:e.key,imeRecommendation:!0};return void this.ro.emit(\"TextComposition\",t)}if(this.Og){this.Og=!1;const e={compositionText:\"\"};this.ro.emit(\"TextComposition\",e)}if(this.Bg.has(d))return;this.Bg.add(d);let h=!1;const l=this.rc.Wm();let u;if(187==d)h=!this.rc.eS();else if(e.ctrlKey&&e.altKey)if(!Ei.isInternalUser&&!Ei.stutterIndicator||119!=d&&219!=d)if(Ei.isInternalUser)switch(d){case 48:this.Db.sg();break;case 49:this.rc.nS();break;case 56:this.rc.hS();break;case 68:this.rc.oS();break;case 71:this.zb();break;case 76:null==l||l.rS(),this.Db.Yf();break;case 83:this.Ng.aS();break;case 115:this.rc.dS();break;case 116:this.rc.cS();break;case 117:this.rc.toggleOnScreenStats(e.shiftKey);break;case 118:case 192:this.rc.lS();break;case 120:this.Db.tg();break;case 189:this.Gg=!this.Gg;const i=\"Position dependent keys: \"+(this.Gg?\"ON\":\"OFF\");this.rc.ig(i),t.Log.i(\"{8bacfa5}\",\"{61d2ab5}\",this.Gg?\"ON\":\"OFF\");break;case 77:this.rc.uS();break;case 81:e.shiftKey&&this.rc.AS();break;case 80:e.shiftKey&&this.rc.vS();break;default:h=!0}else h=!0;else this.rc.toggleStutterIndicator();else if(u=this.fS(e,d)){let t=this.pS(e);for(const e of u.Tg){const i=t&~en(e);t!=i&&(t=i,this.Td.Yc(4,e,t,r)),this.Bg.delete(e)}for(const e of u.Pg)t|=en(e),this.Td.Yc(3,e,t,r);this.Td.Yc(3,u.Eg,t,r),this.Td.Yc(4,u.Eg,t,r);for(const e of u.Pg)t&=~en(e),this.Td.Yc(4,e,t,r);this.Bg.delete(d)}else null!=l&&l.isVisible()?13==d?(l.toggle(),this.Db.Yf()):82==d?(l.reset(),this.Db.Yf()):65==d?l.mS():83==d?l.gS():67==d?l.bS():77==d?l.SS():h=!0:h=!0;if(h&&(wi.getInstance().Eo(),this.Td.Yc(3,d,this.pS(e),r)),\"Hankaku\"!=e.key&&\"Zenkaku\"!=e.key||192==d&&(n=!0),this.Lb&&e.metaKey&&!u&&(n=!0),this.Ub&&(\"Backspace\"==e.code&&(n=!0),\"\"==e.code&&\"Enter\"==e.key)){const e=new CompositionEvent(\"compositionend\",{data:null===(i=this.textInputElement)||void 0===i?vo"
+      },
+      {
+        "purpose": "mouse callback button-only arguments",
+        "startChar": 367633,
+        "endChar": 368133,
+        "text": "np(e){this.rc.rm(),this.If.am(!0),this.Mf=!0;const t=this.kr.Dr(e.timeStamp);if(!this.Kf()||this.Qf()){if(this.im&&this.Np.Op){this.nm();const e=500;this._f=window.setTimeout(this.zf,e)}wi.getInstance().Eo(),this.xc(e.button,t)}else if(this.Yf(),this.Np.Op){this.dm(e.offsetX,e.offsetY),this.lm();const i=this.Np.Bp,s=this.Np.Fp;this.Td.Uc(!0,i,s,t)}}nm(){this._f&&(window.clearTimeout(this._f),this._f=0)}up(e){js(e)||(e.preventDefault(),this.cp(e))}cp(e){wi.getInstance().Eo(),this.Bc(e.button,this"
+      },
+      {
+        "purpose": "mouseDown packet arguments",
+        "startChar": 323971,
+        "endChar": 324234,
+        "text": "xc(e,i){const s=this.Xd(18);this.Oc(s,0,8,Ls(e),i);try{this.wc(s)}catch(e){t.Log.e(\"{57a6a4d}\",\"{b258856}\",e),this.telemetry.yc(e,\"send mousedown exception\",\"{57a6a4d}.ts\",0,0,!0)}}Bc(e,i){const s=this.Xd(18);this.Oc(s,0,9,Ls(e),i);try{this.wc(s)}catch(e){t.Log.e"
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/@nvidia/omniverse-webrtc-streaming-library/dist/omniverse-webrtc-streaming-library.d.ts",
+    "bytes": 19924,
+    "sha256": "51e460d205350353e86cff8b50ef3c7cf9e40f0104f4440efd9485881651e12e",
+    "ranges": [
+      {
+        "firstLine": 24,
+        "lastLine": 128,
+        "text": "export declare class AppStreamer {\n    private static _stream;\n    private static _streamStatus;\n    private static _disconnectStatus;\n    /**\n     * Connects to the streaming kit app specified by the input props.\n     *\n     * @param   props The StreamProps that contain the initialization data for the stream.\n     * @returns {Promise<StreamEvent>}\n     */\n    static connect(props: StreamProps): Promise<StreamEvent>;\n    /**\n     * Sends the provided custom message to the streaming Kit application.\n     *\n     * @param message A custom message to send to the streaming application.\n     * @returns {Promise<StreamEvent>}\n     */\n    private static _sendMessage;\n    /**\n     * Sends the provided custom message to the streaming Kit application.\n     *\n     * @param message A custom message to send to the streaming application.\n     * @returns {Promise<StreamEvent>}\n     */\n    static sendMessage(message: ApplicationMessage): Promise<StreamEvent>;\n    /**\n     * Starts/restarts the stream.\n     *\n     * @returns {Promise<StreamEvent>}\n     */\n    static start(): Promise<StreamEvent>;\n    /**\n     * Stops (pauses) the stream.\n     *\n     * @returns {Promise<StreamEvent>}\n     */\n    static stop(): Promise<StreamEvent>;\n    /**\n     * Terminates the stream. The stream reference will be reset and will no\n     * longer be accessible. Setup will need to be called to connect to a new session.\n     *\n     * If `terminateApp` is true, then the Kit app instance will also be terminated.\n     * This currently only applies to OVC v1 stream API and NVCF.\n     *\n     * @param terminateApp Whether or not to terminate the Kit app instance.\n     * @returns {Promise<StreamEvent>}\n     */\n    static terminate(terminateApp?: boolean): Promise<StreamEvent>;\n    /**\n     * Make a request to update the resolution of the streaming application.\n     *\n     * If the requested size is larger than the maximum size (the size specified in the\n     * stream config) the stream resolution will not be updated and promise rejection\n     * will be thrown.\n     *\n     * If fitStreamResolution is set to true, the stream resolution will not be updated\n     * and promise rejection will be thrown.\n     *\n     * @param width     The requested width. MaxValue 4096.\n     * @param height    The requested height. MaxValue 4096.\n     */\n    static resize(width: number, height: number): Promise<StreamEvent>;\n    /**\n     * Sets the fit stream resolution flag.\n     *\n     * If fitStreamResolution is true, the stream resolution will be updated\n     * to fit the video element current size and stream resolution will be\n     * automatically updated to fit any subsequent changes to the video\n     * element size.\n     *\n     * If fitStreamResolution is false, the stream resolution will be set to the\n     * initial width and height specified in the stream config.\n     *\n     * @param setFitStreamResolution - Whether to fit the stream resolution to the video element.\n     */\n    static setFitStreamResolution(fitStreamResolution: boolean): void;\n    /**\n     * Gets the current status of the stream.\n     *\n     * @returns {StreamStatus} The current status of the stream.\n     */\n    static get streamStatus(): StreamStatus;\n    /**\n     * Send a request to open a stage in Kit.\n     */\n    static openStage(url: string): Promise<OpenStageEvent>;\n    /**\n     * Send a request to reset a stage in Kit.\n     * @param deselectPrims Specify whether or not to deselect prims.\n     */\n    static resetStage(deselectPrims?: boolean): Promise<StreamEvent>;\n    /**\n     * Send a request to select a list of prims from a stage in Kit.\n     * @param paths AArray of USD prim paths that can be selected.\n     */\n    static setSelectedPrims(paths: string[]): Promise<StreamEvent>;\n    /**\n     * Send a request to make prims selectable.\n     * @param paths Array of USD prim paths to make selectable.\n     */\n    static makePrimsSelectable(paths: string[]): Promise<StreamEvent>;\n    /**\n     * Send a request to get the children of a prim.\n     * @param primPath Path of the prim used to return the children of the prim.\n     * @param filters Array of USD prim types to filter for children of the prim.\n"
+      }
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "status": "failed",
+  "solver": "gmres",
+  "threads": 1,
+  "linear_iters": 128,
+  "input_sha256": "460f7e24498adb8c581b8e58034fbacf69a814352515c11f7e7a81511b2659b2",
+  "solver_sha256": "35ecee6590b12995694c55ab5dd61f455a98f46177501eef1721533d75346cb3",
+  "state_device": "cpu",
+  "dtype": "float64",
+  "stage_seconds": {
+    "load": 0.20925937802530825
+  },
+  "states": 1604,
+  "initializer": "hydraulic_predictor",
+  "failed_stage": "steady",
+  "error_type": "RuntimeError",
+  "error": "matrix-free DAE GMRES did not converge in 128 iterations; linear residual 0.887391, tolerance 1.3673e-06",
+  "traceback": "Traceback (most recent call last):\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/dae-gmres-2026-09-27/benchmark_nv.py\", line 70, in main\n    initial, steady_report = solve_steady(\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 267, in solve_steady\n    y,report=_root(problem,constrained,guess,(theta,t,reference),options)\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 233, in _root\n    y,stats=_ImplicitRoot.apply(residual,problem.state_scale,problem.residual_scale,\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/torch/autograd/function.py\", line 575, in apply\n    return super().apply(*args, **kwargs)  # type: ignore[misc]\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 178, in forward\n    y,report=_newton(residual,guess,parameters,state_scale,residual_scale,options)\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 153, in _newton\n    direction=_gmres(\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni/src/backend/liquidcooling/solver/dae_newton.py\", line 113, in _gmres\n    raise RuntimeError(\nRuntimeError: matrix-free DAE GMRES did not converge in 128 iterations; linear residual 0.887391, tolerance 1.3673e-06\n"
+}

@@ -1,0 +1,128 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/liquidDefaultNewton.test.tsx --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidDefaultNewton.test.tsx (11 tests | 5 failed) 881ms
+   × canonical and default Newton entry > canonical saved inputs explicitly use synthetic DAE at the original 180s/1s without a load step 87ms
+     → expected undefined to match object { engine: 'newton-dae', …(4) }
+   × canonical and default Newton entry > a pure compile resolves missing default to one steady sample without mutating or materializing it 126ms
+     → expected { dt_s: 1, N_t: 1, bdf_order: 1 } to deeply equal { dt_s: 1, N_t: 1 }
+   × canonical and default Newton entry > preparing after a time edit saves the actual assumptions before hashing the submitted project 115ms
+     → expected "spy" to be called 1 times, but got 0 times
+   × canonical and default Newton entry > download also materializes first and binds the saved project, without starting a runtime 37ms
+     → expected undefined to be defined
+   × canonical and default Newton entry > does not alter any effective DAE-CPU physics, times or MMS binding when provenance wording is corrected 48ms
+     → expected '8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX …' to match /14/
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > canonical saved inputs explicitly use synthetic DAE at the original 180s/1s without a load step
+AssertionError: expected undefined to match object { engine: 'newton-dae', …(4) }
+
+- Expected: 
+Object {
+  "dae": Object {
+    "analysis": Object {
+      "initialization": "steady",
+      "mode": "steady",
+    },
+    "execution": Object {
+      "device": "cpu",
+      "max_threads": 2,
+    },
+  },
+  "dt_s": 1,
+  "duration_s": 180,
+  "engine": "newton-dae",
+  "settings": Object {
+    "loadStep": false,
+    "mode": "manual",
+  },
+}
+
++ Received: 
+undefined
+
+ ❯ test/liquidDefaultNewton.test.tsx:75:47
+     73|   it('canonical saved inputs explicitly use synthetic DAE at the origi…
+     74|     const raw = canonical() as any
+     75|     expect(raw.runDefaults.liquid.experiment).toMatchObject({
+       |                                               ^
+     76|       engine: 'newton-dae', duration_s: 180, dt_s: 1, settings: { mode…
+     77|       dae: { analysis: { mode: 'steady', initialization: 'steady' }, e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > a pure compile resolves missing default to one steady sample without mutating or materializing it
+AssertionError: expected { dt_s: 1, N_t: 1, bdf_order: 1 } to deeply equal { dt_s: 1, N_t: 1 }
+
+- Expected
++ Received
+
+  Object {
+    "N_t": 1,
++   "bdf_order": 1,
+    "dt_s": 1,
+  }
+
+ ❯ test/liquidDefaultNewton.test.tsx:106:22
+    104|     expect(run.schemaVersion).toBe(3)
+    105|     expect(run.analysis).toEqual({ mode: 'steady', initialization: 'st…
+    106|     expect(run.time).toEqual({ dt_s: 1, N_t: 1 })
+       |                      ^
+    107|     expect(run.events).toEqual([])
+    108|     expect(run.edges.filter((e: any) => e.type === 'cold_plate')).toHa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > preparing after a time edit saves the actual assumptions before hashing the submitted project
+AssertionError: expected "spy" to be called 1 times, but got 0 times
+ ❯ test/liquidDefaultNewton.test.tsx:117:26
+    115|     const before = cfdrunExport().projectContentHashSync(store.getProj…
+    116|     await click(host, 'lce.prepare_experiment')
+    117|     expect(mocks.create).toHaveBeenCalledTimes(1)
+       |                          ^
+    118|     const submitted = mocks.create.mock.calls[0]![0] as any
+    119|     const saved = experiments.readExperiment(store.getProject())
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > download also materializes first and binds the saved project, without starting a runtime
+AssertionError: expected undefined to be defined
+ ❯ test/liquidDefaultNewton.test.tsx:140:20
+    138|     try {
+    139|       await click(host, 'lce.export_manifest')
+    140|       expect(blob).toBeDefined()
+       |                    ^
+    141|       const text = await new Promise<string>((resolve, reject) => {
+    142|         const reader = new FileReader(); reader.onload = () => resolve…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > does not alter any effective DAE-CPU physics, times or MMS binding when provenance wording is corrected
+AssertionError: expected '8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX …' to match /14/
+
+- Expected: 
+/14/
+
++ Received: 
+"8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX 的单环路。自有 Shinaide 合成夹具,不是 NV 现场 P&ID。"
+
+ ❯ test/liquidDefaultNewton.test.tsx:206:52
+    204|     expect(p.constructions).toEqual(old.constructions)
+    205|     expect(p.runDefaults).toEqual(old.runDefaults)
+    206|     expect(p.meta.provenance.topology.description).toMatch(/14/)
+       |                                                    ^
+    207|     expect(JSON.stringify(p.meta.provenance.display_only)).toMatch(/cu…
+    208|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 6 passed (11)
+   Start at  09:32:08
+   Duration  17.10s (transform 2.01s, setup 0ms, collect 4.66s, tests 881ms, environment 10.84s, prepare 437ms)
+

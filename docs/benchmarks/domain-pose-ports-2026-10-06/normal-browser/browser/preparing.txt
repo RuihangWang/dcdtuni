@@ -1,0 +1,128 @@
+- generic: ▼
+- generic: 📁 工程与视图
+- button "📂 加载工程"
+- button "💾 保存工程"
+- button "🏠 房间 2D 平面设计"
+- button "🎮 进入第一人称"
+- button "💧 液冷模拟"
+- button "🌬️ 风冷模拟"
+- button "🗂️ 几何与属性":
+  - generic: 🗂️
+  - generic: 几何
+- button "🔬 液冷求解":
+  - generic: 🔬
+  - generic: 液冷
+- button "📊 后处理":
+  - generic: 📊
+  - generic: 后处理
+- heading "液冷动态实验" [level=3]
+- paragraph: CDU—管网—冷板联动。泵、换热器与阀门使用可替换的 mock 参数；设备几何和冷板参数来自当前工程。
+- group "可微 Newton DAE":
+  - generic: 可微 Newton DAE
+  - paragraph: 此 DAE 使用已保存的合成设备、一次侧储能和材料参数。运行前请核对一次侧详情和参数包；这些输入不是实测或厂商标定。
+  - generic: 分析模式
+  - generic "DAE 分析模式": 瞬态 · 负载响应在顶栏切换（液冷视图）
+  - paragraph: 初值：稳态初始化。计算设置：CPU · float64 · 2 线程（工程保存值）。
+  - generic: CPU 线程数
+  - combobox "DAE CPU 线程数" [disabled]:
+    - option "1" [disabled]
+    - option "2" [disabled] [selected]
+    - option "4" [disabled]
+  - paragraph: 线程数写入工程，用于下一次求解；共享服务器建议选用留有余量的线程预算。
+  - generic "查看已保存的一次侧参数（1 个 HX）"
+  - generic: 时间与负载
+  - generic: 仿真时长 / s
+  - generic: 24.5 s（瞬态时由时间条决定）
+  - generic: 时间步长 / s
+  - spinbutton "时间步长 / s" [disabled]: "0.5"
+  - paragraph: 瞬态工程里，负载与一次侧进水温度的变化在时间条上给冷板功耗 / 一次侧进水温度打关键帧
+  - generic: 泵控制
+  - generic: 控制方式
+  - combobox "控制方式" [disabled]:
+    - option "固定转速" [disabled] [selected]
+    - option "冷板温度 PI" [disabled]
+    - option "泵压差 PI" [disabled]
+  - paragraph: 保存的泵速与阀位轨迹是基线；下方在线设定从下一接受步生效。此入口不接 PI 控制器。
+  - paragraph: 实验设置随工程保存。参数包：liquid-demo-equipment · mock-1-dae-v3
+- generic: 播放速度
+- combobox "播放速度":
+  - option "1×"
+  - option "10×"
+  - option "最快计算" [selected]
+- button "导出液冷运行文件" [disabled]
+- button "准备中…" [disabled]
+- generic "旧版边界条件求解"
+- option "Water 40°C" [selected]
+- option "Water 20°C"
+- option "Glycol 25%"
+- option "Glycol 50%"
+- option "Custom"
+- option "BDF1" [selected]
+- option "BDF2"
+- option "BDF3"
+- option "CPU"
+- option "CUDA (GPU)" [selected]
+- button "▼ 折叠工具栏" [expanded]: ⌃
+- radiogroup "液冷工况：稳态或瞬态":
+  - generic: 液冷
+  - radio "稳态":
+    - text: 稳态
+  - radio "瞬态" [checked]:
+    - text: 瞬态
+  - generic: 风冷·稳态
+- text: 渲染器
+- combobox "渲染器":
+  - option "Three.js" [selected]
+  - option "Omniverse"
+- button "导出渲染场景"
+- generic "OV 连接"
+- button "建模工具":
+  - generic: 建模工具
+  - generic: ⌄
+- button "视图工具":
+  - generic: 视图工具
+  - generic: ⌄
+- button "偏好设置":
+  - generic: 偏好设置
+  - generic: ⌄
+- combobox "瞬态起点：从稳态收敛场出发，或从均匀初场出发":
+  - option "起点：稳态收敛场" [selected]
+  - option "起点：均匀初场"
+- slider "播放头（秒）":
+  - generic "2.5 s"
+  - generic "6.5 s"
+  - generic "10.5 s"
+  - generic "16.5 s"
+- generic "播放头（秒）":
+  - text: t
+  - spinbutton "播放头（秒）": "0"
+  - text: s
+- generic "时间设置"
+- button "轨道"
+- generic: "FPS: 40"
+- text: "| meshes: 800"
+- generic "拖动旋转视角，单击某个面切换到该法向视角"
+- button "动态实验"
+- button "旧版监视"
+- paragraph: 在左侧准备实验，随后查看温度、流量和控制输出。
+- button "◀"
+- button "▶"
+- generic: 拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- generic: 拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。
+- separator "调整左侧栏宽度"
+- separator "调整右侧栏宽度"
+- separator "调整工具栏高度"
+- separator "调整日志栏高度"
+- generic: Terminal无可撤销操作
+- button "↶ 撤销" [disabled]
+- button "↷ 重做" [disabled]
+- button "Terminal"
+- button "Log"
+- button "Toggle"
+- button "📸 截图"
+- generic: "[05:11:04]"
+- generic: "[file:loadProject]"
+- generic: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/DomainAsset_Compat_Browser_CUA/DomainAsset_Compat_After.cfdproj
+- generic: "[05:11:05]"
+- generic: "[view:refreshServerInfo]"
+- generic: DCTwin 就绪

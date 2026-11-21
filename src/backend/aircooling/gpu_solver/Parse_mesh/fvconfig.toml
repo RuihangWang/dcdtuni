@@ -1,0 +1,36 @@
+[solver]
+type="picoext" # option: "picoext", "picocmpt", "buoyantboussinesqpicoext", "buoyantboussinesqpicocmpt" (suffix ext = explicit face-flux assembly, cmpt = component-wise compact stencil)
+turbulence = "laminar" # temperory not used
+dim=3 # 2D or 3D
+
+[theta_pde]
+unsteady=true
+rho={value_type="constant","val"=1.0} # option: "constant": val=float, "parametirc": val=[start,step,end]
+mu={value_type="constant","val"=0.001}  # option: "constant": val=float, "parametirc": val=[start,step,end]
+dt={value_type="constant","val"=0.01} # for transient mode
+L=0.1 # for calculating Re
+source={value_type="constant","val"=0.0} # option: "constant": val=float, "parametirc": val=[start,step,end], "expression": val=python code, it will use eval() for calc
+Re={vel="boundaryfield.inlet"}
+
+[fvSchemes]
+ddtSchemes="imex" # choice=["implicit", "imex"]
+divSchemes={U="Linear corrected", T="Linear corrected"} # U(vector): Linear, Linear corrected, LinearUpwind, LimitedLinearV k; T(scalar): Linear, Linear corrected, LinearUpwind, LimitedLinear k
+laplacianSchemes="Linear corrected"  # choice=["linear", "Linear corrected"]
+snGradSchemes="corrected"  # choice=["corrected", "uncorrected", "orthogonal"]
+gradSchemes="1st"  # choice=["1st, 2nd, 3rd, 4th, GG"]
+interpolationSchemes="Linear corrected" # choice=["Linear", "Linear corrected"]
+boundaryDiffusionScheme="snGrad" # ext solvers: compact snGrad on physical boundary faces (the only supported value since 2026-07-18; ghost WLSQ gradients are no longer reconstructed)
+
+[fvSolution]
+pRefCell=-1 # 用于定义压力原点的单元序号，如果0文件中没有显示给定压力的第一类边界条件，那么必须设置此项,注意-1表示不进行施加
+pRefValue=0 # 压力原点的值
+loss_cont=1e5
+loss_mom=1e4
+loss_energy=1e3
+loss_phi_jump=0
+loss_pRef=1
+
+[stencil]
+khops=1 # WLSQ stencil hops. 1 (default) = compact 1-hop face adjacency, applied at LOAD time (existing H5 files need no re-parse; ghost gradients abandoned). >=2 = legacy wide stencil baked at parse time.
+
+

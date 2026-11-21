@@ -1,0 +1,190 @@
+{
+  "date_sgt": "2026-09-26",
+  "host": "NTU-Litianyu-40901",
+  "worktree": "/mnt/lv/home/litianyu/mycode/dcdtuni-liquid-platform",
+  "status": "passed",
+  "numerical_regression": {
+    "test_files": [
+      "test_dae_newton.py",
+      "test_dae_devices.py",
+      "test_dae_physical_mms.py",
+      "test_equation_graph.py",
+      "test_equation_graph_device.py",
+      "test_dae_experiment.py",
+      "test_liquidrun_dae_schema.py",
+      "test_dae_runtime.py",
+      "test_accepted_run_input.py"
+    ],
+    "passed": 86,
+    "skipped": 1,
+    "failed": 0,
+    "errors": 0,
+    "junit_seconds": 20.429,
+    "pytest_reported_seconds": 20.46,
+    "timestamp": "2026-09-26T14:23:48.983154+00:00",
+    "skip_reason": "explicit opt-in CUDA test; DCDTUNI_RUN_CUDA_TESTS was not enabled"
+  },
+  "execution": {
+    "cpu_affinity": [
+      0
+    ],
+    "nice": 10,
+    "default_omp_mkl_openblas_threads": 1,
+    "cuda_visible_devices": "",
+    "hard_timeout_s": 90,
+    "thread_policy_test": "temporarily sets two PyTorch threads with CPU affinity still [0]"
+  },
+  "source_sha256": {
+    "src/backend/liquidcooling/solver/dae_newton.py": "8ff0d1b2d0b4f8a8d6c0e844fd8caed0463cfa0b1ebab85672846d0712b86788",
+    "src/backend/liquidcooling/solver/equation_graph.py": "b1b3112e0e0bbd2add495f71dc00fe257ed35d7a0b18e72f24a676c1eadfe783",
+    "src/backend/liquidcooling/dae_experiment.py": "5532b5a2cbec7035c19438494679618baf23ba6debcbaa091fd8c0a2029e7e43",
+    "src/backend/liquidcooling/dae_runtime.py": "9e847bfc292775ed161615e3921907de676758a319dbc3fe5e31ec33a707fc5f",
+    "src/backend/liquidcooling/liquidrun_dae_schema.py": "434257213573f09553a09ef53927b6bc2c3ee6402d885f94a7912cc3b6c82b57",
+    "src/backend/liquidcooling/accepted_run_input.py": "f8800d725ef849a827d127248f2ff874dfe9adc07bb609427ace0c237be1c495"
+  },
+  "mac_remote_source_match": true,
+  "scope": [
+    "current physical residual and its source-temperature guard",
+    "Newton steady/BE/consistent initialization and implicit first derivatives",
+    "dtype propagation, batched residual profiler and caller-owned thread policy",
+    "independently derived physical MMS",
+    "strict v3 input validation, accepted input export and tensor/interactive experiment runtimes"
+  ],
+  "limits": [
+    "CPU execution only; CUDA numerical/performance validation remains unrun",
+    "The earlier 86-test report covered a different file selection; this record does not replace that historical source snapshot",
+    "No field calibration, hardware SIMD instruction trace or universal multithread speedup claim"
+  ],
+  "physical_cuda_acceptance_entry": {
+    "test_file": "src/backend/tests/test_liquid/test_equation_graph_cuda.py",
+    "sha256": "61fcd7f655be076cf30405474aa19b8ff5bbb6c81469e629459a3d4b4dbba9f8",
+    "mac_remote_hash_match": true,
+    "host": "NTU-Litianyu-40901",
+    "cpu_result": {
+      "passed": 2,
+      "skipped": 1,
+      "pytest_seconds": 15.44
+    },
+    "execution": {
+      "cpu_affinity": [
+        0
+      ],
+      "nice": 10,
+      "default_threads": 1,
+      "cuda_visible_devices": "",
+      "hard_timeout_s": 60,
+      "opt_in": false
+    },
+    "fixture": {
+      "states": 20,
+      "edges": 5,
+      "pipe_cells": 3,
+      "component_types": [
+        "cold_plate",
+        "heat_exchanger",
+        "pipe",
+        "pump",
+        "valve"
+      ]
+    },
+    "coverage": [
+      "independent steady and three backward-Euler steps",
+      "steady and trajectory gradients for heat/pump/positive valve opening, compared with central differences on CPU",
+      "all nested graph indices/coefficients and physical results stay on the selected device",
+      "guard raises skip before any CUDA availability probe"
+    ],
+    "cuda_parity_status": "unrun; requires explicit DCDTUNI_RUN_CUDA_TESTS=1 validation",
+    "scope_note": "Preparing and CPU-checking this entry is not a CUDA numerical or performance pass"
+  },
+  "frontend_i18n_regression": {
+    "host": "Mac",
+    "execution": {
+      "vitest_max_workers": 1,
+      "min_workers": 1,
+      "nice": 10,
+      "omp_mkl_openblas_threads": 1
+    },
+    "initial_result": {
+      "test_files": 249,
+      "passed": 2545,
+      "failed": 1,
+      "cause": "97 hard-coded Chinese TSX lines violated the existing locale invariant"
+    },
+    "fix": "130 paired shared dictionary keys; localized cached notices/statuses; a real locale-switch regression preserves project, accepted frames and request count",
+    "targeted_result": {
+      "passed": 30,
+      "vitest_seconds": 3.41
+    },
+    "full_result": {
+      "test_files": 249,
+      "passed": 2547,
+      "failed": 0,
+      "pending": 0,
+      "elapsed_s": 108.07238134765625,
+      "start_unix_ms": 1790433350333
+    },
+    "build": {
+      "status": "passed",
+      "vite_seconds": 2.77,
+      "warnings": "existing chunk-size and mixed static/dynamic import warnings"
+    },
+    "dictionary_sha256": {
+      "src/frontend/shared/i18n/zh-CN.json": "9abd8f72cef50aa289d28209b1a7cbbf317ac1e348546f568c2e06cf586ebebe",
+      "src/frontend/shared/i18n/en-US.json": "ab9a13ddb1e342856bfe1417f3a024636d5f4ab1f6392cc7e58ecb47d327cef9"
+    },
+    "snapshot_note": "Full regression was run after i18n repair and before the separately observed selected-result refresh fix; any later targeted verification will be recorded separately"
+  },
+  "selected_result_refresh_fix": {
+    "problem": "Selecting a 600 s historical run followed by the left refresh could display the latest 20 s result while keeping the historical run selected",
+    "fix": [
+      "Mount and refresh explicitly fetch selectedLiquidRun; empty selection remains latest",
+      "Only the newest result-read generation may publish; project reset invalidates in-flight previous-case reads",
+      "Existing workspace reset already clears run selection; no new state architecture"
+    ],
+    "targeted_result": {
+      "passed": 42,
+      "test_files_count": 4,
+      "vitest_seconds": 2.41,
+      "new_regression_tests": 5
+    },
+    "build": {
+      "status": "passed",
+      "vite_seconds": 2.86,
+      "main_bundle": "index-DSL5XSZu.js"
+    },
+    "source_sha256": {
+      "src/frontend/react/src/components/LiquidResultsPanel.tsx": "d37dfc286d3af55573bb1cc94a5b323af2fe6fa186893a2fd6514e0979e17613",
+      "src/frontend/react/src/liquid/liquidSession.ts": "f77b26e5b4c859ddd347e0ed43bc2484d8ab6c9d305ff90d133cedd6b123950b",
+      "src/frontend/react/test/liquidResultSelection.test.tsx": "87810da4ce74cdbe2465aa584fb2f405a9e51436ebdb13b7f38f986013454477",
+      "src/frontend/react/dist/index.html": "1dc24120a24c6c03c57b9087d45955e651882c18b08934c313e37fe4b02de5ab"
+    },
+    "mac_remote_hash_match": true,
+    "full_suite_note": "This targeted verification and final browser check occurred after the preceding full 2547-test i18n snapshot; a fresh all-files run after this final bounded fix is not claimed"
+  },
+  "final_browser_verification": {
+    "url": "http://127.0.0.1:18360/",
+    "serves_worktree": "NTU-Litianyu-40901:/mnt/lv/home/litianyu/mycode/dcdtuni-liquid-platform",
+    "case": "case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj",
+    "case_sha256": "9d193dc07b6dd789d60e71840c9217bcf17a7f76f006abb306aafaa9d25bafd0",
+    "case_unchanged": true,
+    "selected_run": "run-737a0ecc25e342acb7932356222e566f",
+    "actions": [
+      "Reload deployed production build",
+      "Reopen saved engineering project",
+      "Select complete historical run and immediately use left result refresh",
+      "Switch to English, inspect result time, switch back to Chinese and inspect again"
+    ],
+    "observed": {
+      "after_refresh_time_s": 600.0,
+      "english_time_s": 600.0,
+      "restored_chinese_time_s": 600.0,
+      "samples": 31,
+      "selected_sample": 30,
+      "selected_run_unchanged": true,
+      "renderer": "Three.js"
+    },
+    "numerical_run_started": false,
+    "gpu_started": false,
+    "final_locale": "zh-CN"
+  }
+}

@@ -1,0 +1,225 @@
+"""Launcher behavior without Kit, GPU contexts, or a browser.
+
+Run with a checkout-local pytest --basetemp. Fake Kit is an exec'd Python
+process with no listener, so teardown exercises the previously leaked phase.
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import socket
+import sys
+import time
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[5]
+DEMO = ROOT / "src/frontend/omniverse/cfd_demo"
+SUPERVISOR = DEMO / "scripts/supervise_kit.py"
+START = ROOT / "src/start_server.sh"
+
+
+def _wait_file(path, process, timeout=5):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.is_file():
+            return path.read_text().strip()
+        if process.poll() is not None:
+            raise AssertionError(f"launcher exited before {path.name}: {process.returncode}")
+        time.sleep(.02)
+    raise AssertionError(f"missing {path}")
+
+
+def _stopped(pid, timeout=5):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        status = Path(f"/proc/{pid}/status")
+        try:
+            if "\nState:\tZ" in status.read_text():
+                return True
+        except FileNotFoundError:
+            return True
+        time.sleep(.02)
+    return False
+
+
+def _fuser(runtime):
+    port = (runtime / "supervisor.port").read_text().strip()
+    pid = (runtime / "supervisor.pid").read_text().strip()
+    owners = subprocess.run(["fuser", port + "/tcp"], capture_output=True, text=True)
+    assert owners.stdout.strip() == pid
+    subprocess.run(["fuser", "-k", "-TERM", port + "/tcp"], capture_output=True, check=True)
+
+
+@pytest.fixture
+def fake_kit(tmp_path):
+    assert tmp_path.resolve().is_relative_to(ROOT)
+    build = tmp_path / "kit-build"
+    build.mkdir()
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    shim = binaries / "nvidia-smi"
+    shim.write_text("#!/bin/bash\nprintf '%s, GPU-11111111-1111-1111-1111-111111111111, 00000000:01:00.0\\n' \"$2\"\n")
+    shim.chmod(0o755)
+    manifest = tmp_path / "nvidia_icd.json"
+    manifest.write_text(json.dumps({"ICD": {"library_path": "libGLX_nvidia.so.0"}}))
+    vulkan = binaries / "vulkaninfo"
+    vulkan.write_text("#!/bin/bash\nprintf 'GPU%s:\n vendorID = 0x10de\n deviceUUID = 11111111-1111-1111-1111-111111111111\n' \"${DC_CFD_GPU:-0}\"\n")
+    vulkan.chmod(0o755)
+    kit = build / "omni.cae_streaming.kit.sh"
+    kit.write_text("#!/bin/bash\nexec " + sys.executable + " " + str(tmp_path / "fake_kit.py") + ' "$@"\n')
+    kit.chmod(0o755)
+    (tmp_path / "fake_kit.py").write_text(
+        "import json, os, pathlib, sys, time\n"
+        "pathlib.Path(os.environ['DC_CFD_RUNTIME_DIR'], 'observed.json').write_text(json.dumps({"
+        "'args':sys.argv[1:], 'cuda':os.environ['CUDA_VISIBLE_DEVICES'], 'tmp':os.environ['TMPDIR'],"
+        "'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n"
+        "time.sleep(60)\n")
+    # Reuse a synthetic already-live display; never start an X server.
+    (binaries / "xdpyinfo").write_text("#!/bin/bash\nexit 0\n")
+    (binaries / "xdpyinfo").chmod(0o755)
+    # The real user Kit may occupy production port8301; only use our own fake port.
+    with socket.socket() as signaling:
+        signaling.bind(("127.0.0.1", 0))
+        signal_port = signaling.getsockname()[1]
+    with socket.socket(type=socket.SOCK_DGRAM) as stream:
+        stream.bind(("127.0.0.1", 0))
+        stream_port = stream.getsockname()[1]
+    environment = dict(os.environ, CONDA_PREFIX=sys.prefix,
+        PATH=str(binaries) + ":" + str(Path(sys.prefix) / "bin") + ":" + os.environ["PATH"],
+        DC_CFD_KIT_BUILD=str(build), DC_CFD_AI="0", DC_CFD_VULKAN_ICD=str(manifest),
+        DC_CFD_SIGNAL_PORT=str(signal_port), DC_CFD_STREAM_PORT=str(stream_port),
+        DCDTUNI_RENDER_TEXTURE_CACHE="/tmp/legacy-demo-textures")
+    environment.pop("DC_CFD_GPU", None)
+    environment.pop("CFD_GPU", None)
+    return environment, binaries
+
+
+@pytest.mark.parametrize("selector", [["--gpu", "2"], ["--gpu=2"], ["--ov-gpu", "2"]])
+def test_alias_and_implicit_react_reject_reused_backend_before_gpu_work(selector):
+    result = subprocess.run(["bash", str(START), "--ov", *selector, "--no-backend"],
+        capture_output=True, text=True)
+    assert result.returncode == 2
+    assert "显示授权密钥" in result.stderr
+    assert "只支持 --app react" not in result.stderr
+
+
+def test_explicit_html_stays_invalid_for_ov():
+    result = subprocess.run(["bash", str(START), "--app", "html", "--ov"], capture_output=True, text=True)
+    assert result.returncode == 2
+    assert "只支持 --app react" in result.stderr
+
+
+def test_supervisor_socket_reaches_child_before_kit_has_a_listener(tmp_path):
+    runtime = tmp_path / "supervised"
+    command = [sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+        sys.executable, "-c", "import time; time.sleep(60)"]
+    with (tmp_path / "supervisor.log").open("wb") as output:
+        process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
+        child_pid = int(_wait_file(runtime / "kit.pid", process))
+        try:
+            assert (runtime / "supervisor.uid").read_text().strip() == str(os.getuid())
+        finally:
+            _fuser(runtime)
+            process.wait(timeout=5)
+    assert _stopped(child_pid)
+
+
+def test_demo_defaults_gpu0_uuid_and_worktree_extension(fake_kit, tmp_path):
+    environment, _ = fake_kit
+    runtime = tmp_path / "runtime"
+    environment.update(DC_CFD_RUNTIME_DIR=str(runtime), DC_CFD_MANAGED="1")
+    with (tmp_path / "launch.log").open("wb") as output:
+        process = subprocess.Popen(["bash", str(DEMO / "scripts/start_demo.sh")],
+            cwd="/", env=environment, stdout=output, stderr=subprocess.STDOUT)
+        child_pid = int(_wait_file(runtime / "kit.pid", process))
+        try:
+            observed = json.loads(_wait_file(runtime / "observed.json", process))
+            assert observed["cuda"] == "GPU-11111111-1111-1111-1111-111111111111"
+            assert "--/renderer/activeGpu=0" in observed["args"]
+            assert f"--/exts/omni.kit.livestream.app/primaryStream/streamPort={environment['DC_CFD_STREAM_PORT']}" in observed["args"]
+            assert "--/renderer/multiGpu/enabled=false" in observed["args"]
+            assert str(DEMO / "kit/extensions") in observed["args"]
+            assert "--portable-root" in observed["args"]
+            assert f"--/log/file={runtime}/kit-internal.log" in observed["args"]
+            assert f"--/app/userConfigPath={runtime}/user.config.json" in observed["args"]
+            assert Path(observed["tmp"]).is_relative_to(ROOT)
+            assert observed["cache"] == str(runtime / "render-textures")
+            assert Path(observed["cache"]).is_absolute()
+            assert Path(observed["cache"]).resolve().is_relative_to(ROOT)
+            assert (runtime / "gpu.txt").read_text().startswith("index=0\n")
+        finally:
+            _fuser(runtime)
+            process.wait(timeout=5)
+    assert _stopped(child_pid)
+
+
+def test_build_failure_cleans_unbound_kit(fake_kit, tmp_path):
+    environment, binaries = fake_kit
+    (binaries / "npm").write_text("#!/bin/bash\nexit 17\n")
+    (binaries / "npm").chmod(0o755)
+    before = set((ROOT / ".codex-tmp/ov-runtime").glob("18451.*")) if (ROOT / ".codex-tmp/ov-runtime").exists() else set()
+    result = subprocess.run(["bash", str(START), "--ov", "--gpu", "3", "--ov-port", "18451",
+        "--ov-stream-port", environment["DC_CFD_STREAM_PORT"], "--build"],
+        env=environment, capture_output=True, text=True, timeout=15)
+    assert result.returncode != 0
+    created = set((ROOT / ".codex-tmp/ov-runtime").glob("18451.*")) - before
+    assert len(created) == 1
+    runtime = created.pop()
+    assert "React 构建失败" in result.stderr
+    # Ownership is established before GPU preflight. A failed frontend build
+    # may cancel before Kit is spawned; a child, if published, must be gone.
+    if (runtime / "kit.pid").exists():
+        assert _stopped(int((runtime / "kit.pid").read_text()))
+    assert _stopped(int((runtime / "supervisor.pid").read_text()))
+    assert (runtime / "kit.exit").is_file()
+
+
+def test_supervisor_death_releases_child_that_ignores_sigterm(tmp_path):
+    runtime = tmp_path / "ignored-termination"
+    ready = tmp_path / "child-ready"
+    script = ("import signal, pathlib, time; "
+              "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+              f"pathlib.Path({str(ready)!r}).write_text('ready'); time.sleep(60)")
+    command = [sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+               sys.executable, "-c", script]
+    with (tmp_path / "supervisor.log").open("wb") as output:
+        process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
+        child_pid = int(_wait_file(runtime / "kit.pid", process))
+        try:
+            assert _wait_file(ready, process) == "ready"
+        finally:
+            _fuser(runtime)
+            process.wait(timeout=5)
+    assert _stopped(child_pid)
+
+
+@pytest.mark.parametrize("equals", [False, True])
+def test_react_launcher_passes_explicit_stream_to_owned_child(fake_kit, tmp_path, equals):
+    environment, binaries = fake_kit
+    signal_port = environment["DC_CFD_SIGNAL_PORT"]
+    prefix = ROOT / ".codex-tmp/ov-runtime"
+    before = set(prefix.glob(signal_port+".*")) if prefix.exists() else set()
+    environment["OV_TEST_RUNTIME_ROOT"] = str(prefix)
+    environment["OV_TEST_SIGNAL"] = signal_port
+    npm = binaries / "npm"
+    npm.write_text(f"#!{sys.executable}\nimport os,pathlib,time\n"
+        "root=pathlib.Path(os.environ['OV_TEST_RUNTIME_ROOT'])\n"
+        "for i in range(250):\n"
+        " if any(root.glob(os.environ['OV_TEST_SIGNAL']+'.*/observed.json')): raise SystemExit(17)\n"
+        " time.sleep(.02)\n"
+        "raise SystemExit(18)\n")
+    npm.chmod(0o755)
+    stream = environment["DC_CFD_STREAM_PORT"]
+    flag = ["--ov-stream-port="+stream] if equals else ["--ov-stream-port", stream]
+    result = subprocess.run(["bash", str(START), "--ov", "--ov-port", signal_port, *flag, "--build"],
+        env=environment, capture_output=True, text=True, timeout=15)
+    assert result.returncode != 0 and "React 构建失败" in result.stderr
+    created = set(prefix.glob(signal_port+".*")) - before
+    assert len(created) == 1
+    runtime = created.pop()
+    observed = json.loads((runtime / "observed.json").read_text())
+    assert f"--/exts/omni.kit.livestream.app/primaryStream/streamPort={stream}" in observed["args"]
+    assert f"--/exts/omni.kit.livestream.app/primaryStream/signalPort={signal_port}" in observed["args"]
+    assert _stopped(int((runtime / "kit.pid").read_text()))
+    assert _stopped(int((runtime / "supervisor.pid").read_text()))

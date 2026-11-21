@@ -1,0 +1,1700 @@
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -963,10 +963,14 @@
+                         return {'stage': omni.usd.get_context().get_stage(),
+                             'sceneRevision': self._scene_revision, 'projectHash': self._render_project_hash,
+                             'displayGeneration': self._display_generation, 'uidPaths': self._render_uid_paths}
++                    from .render_output_observations import sample_render_output_observations, reviewed_runtime_getters
++                    def output_observations(api, window, app_window, **pins):
++                        return sample_render_output_observations(api, window, app_window,
++                            reviewed_runtime_getters(), paired_viewport=get_active_viewport_and_window, **pins)
+                     reply = self._bounded_display_readback.read(message, current_context,
+                         lambda: render_scene.read_view(stage, ctx.get_selection().get_selected_prim_paths()),
+                         get_active_viewport_and_window, carb.settings.get_settings(),
+-                        appwindow.get_default_app_window, sample_grid_viewport)
++                        appwindow.get_default_app_window, sample_grid_viewport, output_sampler=output_observations)
+                     if reply is not None:
+                         self._render_ack(reply.pop('requestId'), **reply)
+                     return
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/display_diagnostics.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/display_diagnostics.py
+@@ -263,7 +263,7 @@
+         self.__last = None
+         self.__sequence = 0
+ 
+-    def read(self, message, context, read_view, paired_viewport, settings, app_window, sampler):
++    def read(self, message, context, read_view, paired_viewport, settings, app_window, sampler, output_sampler=None):
+         request = parse_request(message)
+         rid = request['requestId']
+         args = request['diagnostics']
+@@ -291,6 +291,11 @@
+             viewport = _lower_sampler(sampler(api, stage, CAMERA,
+                 current_scene_context={'sceneRevision': revision, 'projectHash': project_hash, 'displayGeneration': generation},
+                 viewport_window=window, app_window=app_window(), output_layout=None))
++            output_observations = None
++            if output_sampler is not None:
++                output_observations = output_sampler(api, window, app_window,
++                    expected_camera_path=CAMERA, read_context=context,
++                    read_complete_view=lambda: _base_view(read_view(), (revision, project_hash)))
+             elapsed = (self.__clock() - start) * 1000
+             if not _finite(elapsed) or not 0 <= elapsed <= 1e9:
+                 return refusal('invalid-public-value')
+@@ -319,6 +324,11 @@
+                      'diagnostics': {'schema': 'dcdtuni.render-display-diagnostics/v1', 'profile': PROFILE,
+                         'sampleSequence': self.__sequence, 'sampleElapsedMs': elapsed,
+                         'pixelVerified': False, 'renderer': renderer, 'viewport': viewport, 'roof': roof}}
++            if output_observations is not None:
++                # Owned producer, optional fixed observation schema. No output
++                # layout/scene-frame permission follows from a stable sample.
++                from .render_output_observations import _bounded
++                reply['diagnostics']['renderOutputObservations'] = _bounded(output_observations)
+             bounded_json(reply)
+             return reply
+         except ValueError as exc:
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_output_observations.py
+@@ -0,0 +1,319 @@
++"""Default-off readonly renderer metadata. Never a layout/stream-frame proof.
++
++Only this reviewed installed cohort is supported. A module-path/source gate is
++not proof that a running process's in-memory module equals later disk bytes.
++No pixels, textures, private fields, subscriptions, settings or USD writes.
++"""
++import hashlib
++import importlib
++import json
++import math
++from pathlib import Path
++import re
++import weakref
++
++OBSERVATION_BYTES = 6144
++MAX_SAFE = 9007199254740991
++SCHEMA = 'dcdtuni.render-output-observations/v1'
++REASONS = ('none', 'unsupported-runtime', 'no-viewport', 'owner-mismatch',
++           'changed-during-observation', 'missing-public-value', 'invalid-public-value',
++           'headless-or-unattached', 'observation-limit')
++REVIEWED_SOURCES = (('omni.kit.widget.viewport.api', 'omni.kit.widget.viewport-e33603573147cc56', (('omni/kit/widget/viewport/api.py', '0f2ed3f0b60162aca96ab7d0bac983f4735a88e786acfd6c77ce0c348d01a22c'), ('omni/kit/widget/viewport/widget.py', '05b000e92fec9e624844196260c7404de6a3e5589a9db524291ac8b5814d2170'), ('omni/kit/widget/viewport/capture.py', 'fe8944c6ada65abe09996f63b7b834f4efd82be1add6a4a9d7d1998dea3a1edf'), ('omni/kit/widget/viewport/impl/texture.py', 'e803cd662fa7c163d1dfb7bb59ee7bce99656b81099639aa7170664144de3f80'), ('config/extension.toml', 'a68a597b8799f323129673a51c4e07df219547d2c2b53e72edc063e5d1dbf356'))), ('omni.kit.viewport.window.window', 'omni.kit.viewport.window-6b8bd362e4a950d0', (('omni/kit/viewport/window/window.py', 'ca8b008d92ec7524080a38e3dbb40b5db837d7beabce2aaa667f0129b4a7d5b4'), ('omni/kit/viewport/window/layers.py', '3d6598eaaa011eb416248b8ed85f7d5daec748d8636c997154be0c6022777cd2'), ('config/extension.toml', 'bd512dc7ee53bcfdb9ba546c3fe5915b9007b687250dc89efb0e427c520c657a'))), ('omni.hydratexture', 'omni.kit.hydra_texture-1e941753365238e1', (('omni/hydratexture/_hydra_texture.pyi', '002db0f9d5264512639f685bc90bf152f7d416b5394ba3d8d1cc349d842c5223'), ('config/extension.toml', '19be90e085daf387e2a483da2204043125230013b1fcb44d424a5091d03fb268'), ('omni/hydratexture/__init__.py', '10a2322e922e431fb1a28f43c1bc1994da67ee2db4bc20df957e59e25cf6a46a'))), ('omni.appwindow', 'omni.appwindow-35766b062bc43ad5', (('omni/appwindow/_appwindow.pyi', '01de7bf4bfbdbe39e6f841d239e1fccd96749905020a8f700bfe89e065f70686'), ('config/extension.toml', 'c7d4b0db28c43a22ea053ccb53f137a3f48c7300a63151a4402f6cb942b4347e'), ('bin/libomni.appwindow.plugin.so', '338de3bbe317b97d81e18d3ca2e44ede75174136f3cf8d7b912363de581cab75'), ('omni/appwindow/__init__.py', 'c7f121ca098692dfe25e4db1d63294c81acc55cceceb3c05585a62683d73821d'))), ('omni.kit.renderer.bind', 'omni.kit.renderer.core-b0c65c993703d4a5', (('config/extension.toml', 'd3b2a9dc78bb08646c809446a78b339f427bb37c06a101e0467871c4706ae87e'), ('omni/kit/renderer/bind/_renderer.pyi', 'a5b59db2e38ef3e208e90e949100411c68d7c6d9fcab64bb30313cc3b9c4f93e'), ('omni/kit/renderer/bind/__init__.py', '42c3519a1853586bc04bbf02df9c68c43819d00089bb929c77800f04e95234f6'), ('bin/libomni.kit.renderer.plugin.so', '2baf35c3438bd8f46e75b38680c94ccd669c14fa6a494c13fb53333b5e1f5367'), ('bin/libomni.kit.renderer.ext.plugin.so', 'fb66916b239f9d2faba48979800786caf0c549018c57c38dd7d743a2f2fc7afc'))), ('omni.ui', 'omni.ui-0e529a493c7b9bf0', (('omni/ui/_ui.pyi', 'dae2fa71034bc4ab4aca979d6c74fbe8f2ab060ad95267e06322bfa054b69902'),)))
++
++
++def _unavailable(reason):
++    return {'status': 'unavailable', 'reason': reason}
++
++
++def _refusal(reason):
++    return dict(_unavailable(reason), schema=SCHEMA, layoutProof='unresolved',
++                frameSourceBindingProof='unresolved')
++
++
++def _number(v):
++    if type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 1e18:
++        raise ValueError('invalid-public-value')
++    return v
++
++
++def _ordinal(v):
++    if type(v) is not int or not 0 <= v <= MAX_SAFE:
++        raise ValueError('invalid-public-value')
++    return v
++
++
++def _dimensions(v):
++    a = list(v)
++    if len(a) != 2 or any(type(x) is not int or not 0 < x <= 16384 for x in a) or a[0] * a[1] > 134217728:
++        raise ValueError('invalid-public-value')
++    return a
++
++
++def _matrix(v):
++    # Hydra frame_info is a flat 16-list; public Gf matrices have 4 rows.
++    a = list(v)
++    if len(a) == 4:
++        a = [x for row in a for x in list(row)]
++    if len(a) != 16:
++        raise ValueError('invalid-public-value')
++    return [_number(x) for x in a]
++
++
++def _string(v, cap, empty=False):
++    if type(v) is not str or (not v and not empty) or len(v.encode('utf-8')) > cap or re.search(r'[\x00-\x1f\x7f]', v):
++        raise ValueError('invalid-public-value')
++    return v
++
++
++def _observed(fn):
++    try:
++        return dict(status='observed', reason='none', **fn())
++    except (AttributeError, KeyError):
++        return _unavailable('missing-public-value')
++    except ValueError as exc:
++        return _unavailable(str(exc) if str(exc) in REASONS else 'invalid-public-value')
++    except Exception:
++        return _unavailable('invalid-public-value')  # no native exception/payload serialization
++
++
++def reviewed_runtime_getters():
++    """Version/source gate on public module entries; no vendor private access.
++
++    Unknown module roots or changed source refuse before any renderer getter.
++    Only hashes/whitelisted relative files are read. No user config or assets.
++    """
++    try:
++        modules = {}
++        for name, basename, files in REVIEWED_SOURCES:
++            module = importlib.import_module(name)
++            path = Path(module.__file__).resolve()
++            root = next((p for p in (path.parent, *path.parents) if p.name == basename), None)
++            if root is None:
++                return None
++            for rel, expected in files:
++                target = root / rel
++                if target.is_symlink() or not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != expected:
++                    return None
++            modules[name] = module
++        renderer = modules['omni.kit.renderer.bind'].get_renderer_interface()
++        result = {key: getattr(renderer, key) for key in
++                  ('is_app_window_attached', 'get_framebuffer_width', 'get_framebuffer_height')}
++        if not all(callable(v) for v in result.values()):
++            return None
++        # The native utility's current wrapper must belong to the reviewed
++        # loaded public classes too; disk/module path alone cannot bind an old
++        # object retained across a module reload.
++        viewport_type = modules['omni.kit.widget.viewport.api'].ViewportAPI
++        window_type = modules['omni.kit.viewport.window.window'].ViewportWindow
++        app_type = modules['omni.appwindow'].IAppWindow
++        if not all(isinstance(t, type) for t in (viewport_type, window_type, app_type)):
++            return None
++        result['supports_viewport'] = lambda api: api.__class__ is viewport_type
++        result['supports_window'] = lambda window: window.__class__ is window_type
++        result['supports_appwindow'] = lambda app: app.__class__ is app_type
++        return result
++    except Exception:
++        return None
++
++
++def _frame(api):
++    info = api.frame_info
++    if type(info) is not dict or not info:
++        raise AttributeError('missing frame')
++    return {'frameNumber': _ordinal(info['frame_number']),
++            'resolution': _dimensions(info['resolution']),
++            'view': _matrix(info['view']), 'projection': _matrix(info['projection'])}
++
++
++def _same_public_api(a, b):
++    # Python standard weakref identity, never generic equality or repr/private
++    # unwrapping. The public utility normally returns the stored widget proxy.
++    if a is b:
++        return True
++    for owner, reference in ((a, b), (b, a)):
++        if type(owner) in weakref.ProxyTypes:
++            continue
++        try:
++            if any(ref is reference for ref in weakref.getweakrefs(owner)):
++                return True
++        except TypeError:
++            pass
++    return False
++
++
++def _owner(api, window, stage, expected_camera_path):
++    if api is None or window is None or api.stage is not stage:
++        raise ValueError('owner-mismatch')
++    camera = _string(str(api.camera_path), 512)
++    if camera != expected_camera_path:
++        raise ValueError('owner-mismatch')
++    widget = window.viewport_widget
++    paired = widget.viewport_api
++    # Public wrappers expose weakref.proxy; compare their public native id.
++    if (not _same_public_api(paired, api) or paired.stage is not stage or paired.id != api.id
++            or paired.usd_context_name != api.usd_context_name or str(paired.camera_path) != camera
++            or paired.render_product_path != api.render_product_path or paired.time != api.time):
++        raise ValueError('owner-mismatch')
++    owner = {'viewportId': _string(api.id, 128), 'usdContextName': _string(api.usd_context_name, 128, True),
++             'cameraPath': camera, 'renderProductPath': _string(api.render_product_path, 512)}
++    return owner, widget
++
++
++def _context(c):
++    if type(c) is not dict or c.get('stage') is None:
++        raise ValueError('owner-mismatch')
++    _ordinal(c['sceneRevision']); _ordinal(c['displayGeneration'])
++    h = c['projectHash']
++    if type(h) is not str or not re.fullmatch(r'[0-9a-f]{64}', h):
++        raise ValueError('owner-mismatch')
++    return c['stage'], {'sceneRevision': c['sceneRevision'], 'projectHash': h,
++                        'displayGeneration': c['displayGeneration']}
++
++
++def _bounded(v):
++    raw = json.dumps(v, allow_nan=False, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
++    if len(raw) > OBSERVATION_BYTES:
++        raise ValueError('observation-limit')
++    return v
++
++
++def sample_render_output_observations(api, viewport_window, app_window, renderer_getters,
++                                      expected_camera_path, read_context, read_complete_view, paired_viewport):
++    """Synchronous one-attempt observation; latest frame is NOT scene proof.
++
++    `app_window` is an owned producer, not an incoming pointer or guessed size.
++    Controlled CPU fixtures may pass controlled getters; wire cannot supply them.
++    """
++    if renderer_getters is None:
++        return _refusal('unsupported-runtime')
++    if api is None or viewport_window is None:
++        return _refusal('no-viewport')
++    try:
++        if (renderer_getters['supports_viewport'](api) is not True or
++                renderer_getters['supports_window'](viewport_window) is not True):
++            return _refusal('unsupported-runtime')
++        stage, context = _context(read_context())
++        view = json.loads(json.dumps(read_complete_view(), allow_nan=False))
++        owner, widget = _owner(api, viewport_window, stage, expected_camera_path)
++        native_time = api.time
++        initial_api, initial_window = paired_viewport()
++        initial_owner, _ = _owner(initial_api, initial_window, stage, expected_camera_path)
++        if (initial_owner != owner or initial_window is not viewport_window
++                or not _same_public_api(initial_api, api)):
++            return _refusal('owner-mismatch')
++        app = app_window()
++        if app is not None and renderer_getters['supports_appwindow'](app) is not True:
++            return _refusal('unsupported-runtime')
++        widget_ref = widget
++        # Reviewed ViewportWidget.viewport_api returns its stored public proxy;
++        # pin that handle, not `api is returnedSelf` across proxy/strong forms.
++        widget_api_ref = widget.viewport_api
++        frame_ref = viewport_window.frame
++        delivered = _observed(lambda: _frame(api))
++        canvas = _observed(lambda: {'view': _matrix(api.view), 'projection': _matrix(api.projection),
++            'transform': _matrix(api.transform), 'resolution': _dimensions(api.resolution),
++            'fullResolution': _dimensions(api.full_resolution), 'fillFrame': _bool(api.fill_frame)})
++        rect = _observed(lambda: {'rectKind': 'outerViewportWindowFrame', 'positionUnit': 'screen-pixel',
++            'dimensionUnit': 'native-raw-unresolved',
++            'position': [_number(frame_ref.screen_position_x), _number(frame_ref.screen_position_y)],
++            'size': _positive_pair(frame_ref.computed_width, frame_ref.computed_height),
++            'contentSize': _positive_pair(frame_ref.computed_content_width, frame_ref.computed_content_height),
++            'innerContentRect': None, 'innerContentProof': 'unresolved'})
++        association = _observed(lambda: {'viewportId': _string(widget.viewport_api.id, 128),
++            'name': _string(widget.name, 128, True), 'visible': _bool(widget.visible),
++            'innerContentRect': None, 'innerContentProof': 'unresolved'})
++        application = (_unavailable('headless-or-unattached') if app is None else
++            _observed(lambda: _app_observation(app)))
++        framebuffer = (_unavailable('headless-or-unattached') if app is None else
++            _observed(lambda: _framebuffer(app, renderer_getters)))
++        # Re-read all value groups as well as owner pointers. Resizing/mutating
++        # a stable window or API must not produce a mixed-time observation.
++        final_canvas = _observed(lambda: {'view': _matrix(api.view), 'projection': _matrix(api.projection),
++            'transform': _matrix(api.transform), 'resolution': _dimensions(api.resolution),
++            'fullResolution': _dimensions(api.full_resolution), 'fillFrame': _bool(api.fill_frame)})
++        final_rect = _observed(lambda: {'rectKind': 'outerViewportWindowFrame', 'positionUnit': 'screen-pixel',
++            'dimensionUnit': 'native-raw-unresolved',
++            'position': [_number(frame_ref.screen_position_x), _number(frame_ref.screen_position_y)],
++            'size': _positive_pair(frame_ref.computed_width, frame_ref.computed_height),
++            'contentSize': _positive_pair(frame_ref.computed_content_width, frame_ref.computed_content_height),
++            'innerContentRect': None, 'innerContentProof': 'unresolved'})
++        final_association = _observed(lambda: {'viewportId': _string(widget.viewport_api.id, 128),
++            'name': _string(widget.name, 128, True), 'visible': _bool(widget.visible),
++            'innerContentRect': None, 'innerContentProof': 'unresolved'})
++        final_application = (_unavailable('headless-or-unattached') if app is None else
++            _observed(lambda: _app_observation(app)))
++        final_framebuffer = (_unavailable('headless-or-unattached') if app is None else
++            _observed(lambda: _framebuffer(app, renderer_getters)))
++        # Capture every last public identity getter before the closing native
++        # metadata/source fence. The final conditional is a pure comparison;
++        # no widget/window/API getter can run after that fence.
++        final_owner, final_widget = _owner(api, viewport_window, stage, expected_camera_path)
++        final_widget_api_ref = final_widget.viewport_api
++        final_window_frame_ref = viewport_window.frame
++        final_app = app_window()
++        paired_api, paired_window = paired_viewport()
++        paired_owner, _ = _owner(paired_api, paired_window, stage, expected_camera_path)
++        same_paired_api = _same_public_api(paired_api, api)
++        # Complete native values follow all potentially late widget/window/
++        # active-owner getters. Read-only owned context/view callbacks close
++        # after metadata, too, to catch side effects in the final API getter.
++        final_frame = _observed(lambda: _frame(api))
++        final_time = api.time
++        final_view = read_complete_view()
++        final_stage, final_context = _context(read_context())
++        if (final_stage is not stage or final_context != context or final_view != view
++                or final_owner != owner or paired_owner != owner or paired_window is not viewport_window
++                or not same_paired_api or final_time != native_time or final_widget is not widget_ref
++                or final_widget_api_ref is not widget_api_ref
++                or final_window_frame_ref is not frame_ref or final_app is not app
++                or final_frame != delivered or final_canvas != canvas or final_rect != rect
++                or final_association != association or final_application != application
++                or final_framebuffer != framebuffer):
++            return _refusal('changed-during-observation')
++        # An older frame may remain under a stable accepted scene. Explicitly
++        # unresolved; no fabricated scene epoch or shared encoder frame identity.
++        return _bounded({'schema': SCHEMA, 'status': 'observed', 'reason': 'none',
++            'layoutProof': 'unresolved', 'frameSourceBindingProof': 'unresolved',
++            'observationContext': context, 'viewportOwner': dict(status='observed', reason='none', **owner),
++            'deliveredViewportFrame': delivered, 'viewportCanvas': canvas, 'viewportWindow': rect,
++            'widgetAssociation': association, 'applicationWindow': application, 'framebuffer': framebuffer})
++    except ValueError as exc:
++        reason = str(exc)
++        return _refusal(reason if reason in REASONS else 'invalid-public-value')
++    except Exception:
++        return _refusal('invalid-public-value')
++
++
++def _bool(v):
++    if type(v) is not bool:
++        raise ValueError('invalid-public-value')
++    return v
++
++
++def _positive_pair(x, y):
++    a = [_number(x), _number(y)]
++    if any(v <= 0 for v in a):
++        raise ValueError('invalid-public-value')
++    return a
++
++
++def _app_observation(app):
++    size = app.get_size()
++    dims = _dimensions((size.x, size.y))
++    wh = _dimensions((app.get_width(), app.get_height()))
++    if dims != wh:
++        raise ValueError('invalid-public-value')
++    dpi, ui = _positive_pair(app.get_dpi_scale(), app.get_ui_scale())
++    return {'size': dims, 'dimensionUnit': 'native-raw-unresolved', 'dpiScale': dpi, 'uiScale': ui}
++
++
++def _framebuffer(app, getters):
++    attached = getters['is_app_window_attached'](app)
++    if type(attached) is not bool:
++        raise ValueError('invalid-public-value')
++    if not attached:
++        # Explicit status instead of treating a headless zero size as observed.
++        raise ValueError('headless-or-unattached')
++    return {'attached': True, 'size': _dimensions((getters['get_framebuffer_width'](app),
++                                                  getters['get_framebuffer_height'](app))),
++            'dimensionUnit': 'framebuffer-pixel'}
+--- a/src/frontend/shared/schema/render-display-diagnostics.schema.json
++++ b/src/frontend/shared/schema/render-display-diagnostics.schema.json
+@@ -1489,6 +1489,9 @@
+               }
+             }
+           ]
++        },
++        "renderOutputObservations": {
++          "$ref": "#/definitions/renderOutputObservations"
+         }
+       },
+       "required": [
+@@ -1551,6 +1554,671 @@
+           }
+         }
+       }
++    },
++    "renderOutputObservations": {
++      "oneOf": [
++        {
++          "type": "object",
++          "properties": {
++            "schema": {
++              "const": "dcdtuni.render-output-observations/v1"
++            },
++            "layoutProof": {
++              "const": "unresolved"
++            },
++            "frameSourceBindingProof": {
++              "const": "unresolved"
++            },
++            "status": {
++              "const": "unavailable"
++            },
++            "reason": {
++              "enum": [
++                "unsupported-runtime",
++                "no-viewport",
++                "owner-mismatch",
++                "changed-during-observation",
++                "missing-public-value",
++                "invalid-public-value",
++                "headless-or-unattached",
++                "observation-limit"
++              ]
++            }
++          },
++          "required": [
++            "schema",
++            "layoutProof",
++            "frameSourceBindingProof",
++            "status",
++            "reason"
++          ],
++          "additionalProperties": false
++        },
++        {
++          "type": "object",
++          "properties": {
++            "schema": {
++              "const": "dcdtuni.render-output-observations/v1"
++            },
++            "layoutProof": {
++              "const": "unresolved"
++            },
++            "frameSourceBindingProof": {
++              "const": "unresolved"
++            },
++            "status": {
++              "const": "observed"
++            },
++            "reason": {
++              "const": "none"
++            },
++            "observationContext": {
++              "type": "object",
++              "properties": {
++                "sceneRevision": {
++                  "type": "integer",
++                  "minimum": 0,
++                  "maximum": 9007199254740991
++                },
++                "projectHash": {
++                  "type": "string",
++                  "pattern": "^[0-9a-f]{64}$"
++                },
++                "displayGeneration": {
++                  "type": "integer",
++                  "minimum": 0,
++                  "maximum": 9007199254740991
++                }
++              },
++              "required": [
++                "sceneRevision",
++                "projectHash",
++                "displayGeneration"
++              ],
++              "additionalProperties": false
++            },
++            "viewportOwner": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "viewportId": {
++                      "type": "string",
++                      "minLength": 1,
++                      "maxLength": 128,
++                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
++                    },
++                    "usdContextName": {
++                      "type": "string",
++                      "minLength": 0,
++                      "maxLength": 128,
++                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
++                    },
++                    "cameraPath": {
++                      "const": "/World/RenderCamera"
++                    },
++                    "renderProductPath": {
++                      "type": "string",
++                      "minLength": 1,
++                      "maxLength": 512,
++                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "viewportId",
++                    "usdContextName",
++                    "cameraPath",
++                    "renderProductPath"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "deliveredViewportFrame": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "frameNumber": {
++                      "type": "integer",
++                      "minimum": 0,
++                      "maximum": 9007199254740991
++                    },
++                    "resolution": {
++                      "type": "array",
++                      "items": {
++                        "type": "integer",
++                        "minimum": 1,
++                        "maximum": 16384
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "view": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 16,
++                      "maxItems": 16
++                    },
++                    "projection": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 16,
++                      "maxItems": 16
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "frameNumber",
++                    "resolution",
++                    "view",
++                    "projection"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "viewportCanvas": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "view": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 16,
++                      "maxItems": 16
++                    },
++                    "projection": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 16,
++                      "maxItems": 16
++                    },
++                    "transform": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 16,
++                      "maxItems": 16
++                    },
++                    "resolution": {
++                      "type": "array",
++                      "items": {
++                        "type": "integer",
++                        "minimum": 1,
++                        "maximum": 16384
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "fullResolution": {
++                      "type": "array",
++                      "items": {
++                        "type": "integer",
++                        "minimum": 1,
++                        "maximum": 16384
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "fillFrame": {
++                      "type": "boolean"
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "view",
++                    "projection",
++                    "transform",
++                    "resolution",
++                    "fullResolution",
++                    "fillFrame"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "viewportWindow": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "rectKind": {
++                      "const": "outerViewportWindowFrame"
++                    },
++                    "positionUnit": {
++                      "const": "screen-pixel"
++                    },
++                    "dimensionUnit": {
++                      "const": "native-raw-unresolved"
++                    },
++                    "position": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "minimum": -1e+18,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "size": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "exclusiveMinimum": 0,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "contentSize": {
++                      "type": "array",
++                      "items": {
++                        "type": "number",
++                        "exclusiveMinimum": 0,
++                        "maximum": 1e+18
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "innerContentRect": {
++                      "type": "null"
++                    },
++                    "innerContentProof": {
++                      "const": "unresolved"
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "rectKind",
++                    "positionUnit",
++                    "dimensionUnit",
++                    "position",
++                    "size",
++                    "contentSize",
++                    "innerContentRect",
++                    "innerContentProof"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "widgetAssociation": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "viewportId": {
++                      "type": "string",
++                      "minLength": 1,
++                      "maxLength": 128,
++                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
++                    },
++                    "name": {
++                      "type": "string",
++                      "minLength": 0,
++                      "maxLength": 128,
++                      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
++                    },
++                    "visible": {
++                      "type": "boolean"
++                    },
++                    "innerContentRect": {
++                      "type": "null"
++                    },
++                    "innerContentProof": {
++                      "const": "unresolved"
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "viewportId",
++                    "name",
++                    "visible",
++                    "innerContentRect",
++                    "innerContentProof"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "applicationWindow": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "size": {
++                      "type": "array",
++                      "items": {
++                        "type": "integer",
++                        "minimum": 1,
++                        "maximum": 16384
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "dimensionUnit": {
++                      "const": "native-raw-unresolved"
++                    },
++                    "dpiScale": {
++                      "type": "number",
++                      "exclusiveMinimum": 0,
++                      "maximum": 1e+18
++                    },
++                    "uiScale": {
++                      "type": "number",
++                      "exclusiveMinimum": 0,
++                      "maximum": 1e+18
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "size",
++                    "dimensionUnit",
++                    "dpiScale",
++                    "uiScale"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            },
++            "framebuffer": {
++              "oneOf": [
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "unavailable"
++                    },
++                    "reason": {
++                      "enum": [
++                        "unsupported-runtime",
++                        "no-viewport",
++                        "owner-mismatch",
++                        "changed-during-observation",
++                        "missing-public-value",
++                        "invalid-public-value",
++                        "headless-or-unattached",
++                        "observation-limit"
++                      ]
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason"
++                  ],
++                  "additionalProperties": false
++                },
++                {
++                  "type": "object",
++                  "properties": {
++                    "status": {
++                      "const": "observed"
++                    },
++                    "reason": {
++                      "const": "none"
++                    },
++                    "attached": {
++                      "const": true
++                    },
++                    "size": {
++                      "type": "array",
++                      "items": {
++                        "type": "integer",
++                        "minimum": 1,
++                        "maximum": 16384
++                      },
++                      "minItems": 2,
++                      "maxItems": 2
++                    },
++                    "dimensionUnit": {
++                      "const": "framebuffer-pixel"
++                    }
++                  },
++                  "required": [
++                    "status",
++                    "reason",
++                    "attached",
++                    "size",
++                    "dimensionUnit"
++                  ],
++                  "additionalProperties": false
++                }
++              ]
++            }
++          },
++          "required": [
++            "schema",
++            "layoutProof",
++            "frameSourceBindingProof",
++            "status",
++            "reason",
++            "observationContext",
++            "viewportOwner",
++            "deliveredViewportFrame",
++            "viewportCanvas",
++            "viewportWindow",
++            "widgetAssociation",
++            "applicationWindow",
++            "framebuffer"
++          ],
++          "additionalProperties": false
++        }
++      ]
+     }
+   }
+ }
+--- a/src/frontend/react/src/renderer/ovDisplayDiagnostics.ts
++++ b/src/frontend/react/src/renderer/ovDisplayDiagnostics.ts
+@@ -43,6 +43,8 @@
+   if(view.selectedUids&&typeof view.selectedUids==='object'&&!Array.isArray(view.selectedUids)&&Object.keys(view.selectedUids).length===0)view.selectedUids=[]
+   if(!Object.prototype.hasOwnProperty.call(view,'timeSeconds'))view.timeSeconds=null
+   if(!checkReply(owned))throw new Error('Invalid bounded display reply schema')
++  const output=(owned.diagnostics as Record<string,unknown>)?.renderOutputObservations
++  if(output!==undefined)validateRenderOutputObservations(output,context)
+   if(JSON.stringify(view).length>4096||utf8.encode(JSON.stringify(view)).byteLength>4096)throw new Error('Bounded base view exceeds 4096 bytes')
+   if(view.backgroundGridRaster!==undefined){
+     const raster=copyGridRaster(view.backgroundGridRaster as BackgroundGridRaster)
+@@ -71,3 +73,23 @@
+   if(utf8.encode(text).byteLength>DIAGNOSTIC_REPLY_BYTES)throw new Error('Bounded display receipt exceeds limit')
+   return text
+ }
++
++/** Metadata only: actual delivered scene epoch/stream layout stay unresolved.
++ * JSON schema is checked above; these extra checks bound UTF-8 bytes and the
++ * pixel-count product, neither of which JSON Schema draft-07 can express. */
++export const RENDER_OUTPUT_OBSERVATION_BYTES=6144
++function validateRenderOutputObservations(value:unknown,context:DiagnosticContext):void {
++  if(utf8.encode(JSON.stringify(value)).byteLength>RENDER_OUTPUT_OBSERVATION_BYTES)throw new Error('Bounded render output observation exceeds 6144 bytes')
++  const v=value as Record<string,any>
++  if(v.status!=='observed')return
++  if(v.observationContext.sceneRevision!==context.expectedSceneRevision||v.observationContext.projectHash!==context.expectedProjectHash)throw new Error('Stale bounded render output context')
++  for(const [name,field,cap] of [['viewportOwner','viewportId',128],['viewportOwner','usdContextName',128],['viewportOwner','cameraPath',512],['viewportOwner','renderProductPath',512],['widgetAssociation','viewportId',128],['widgetAssociation','name',128]] as const){
++    const group=v[name]
++    if(group.status==='observed'&&utf8.encode(group[field]).byteLength>cap)throw new Error('Bounded render output string exceeds byte limit')
++  }
++  for(const [name,field] of [['deliveredViewportFrame','resolution'],['viewportCanvas','resolution'],['viewportCanvas','fullResolution'],['applicationWindow','size'],['framebuffer','size']] as const){
++    const group=v[name]
++    if(group.status==='observed'&&group[field][0]*group[field][1]>134217728)throw new Error('Bounded render output dimensions exceed pixel budget')
++  }
++  if(v.widgetAssociation.status==='observed'&&v.viewportOwner.status==='observed'&&v.widgetAssociation.viewportId!==v.viewportOwner.viewportId)throw new Error('Wrong bounded render output viewport owner')
++}
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/tests/test_render_output_observations.py
+@@ -0,0 +1,109 @@
++"""Controlled readonly getter contracts; no running Kit/native/GPU/pixel proof."""
++from pathlib import Path
++import copy
++import importlib.util
++import json
++import types
++import unittest
++P=Path(__file__).resolve().parents[1]/'kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_output_observations.py'
++spec=importlib.util.spec_from_file_location('controlled_render_output_observations',P)
++o=importlib.util.module_from_spec(spec);spec.loader.exec_module(o)
++M=[float(i%5==0)for i in range(16)]
++class App:
++ def get_size(self):return types.SimpleNamespace(x=1600,y=638)
++ def get_width(self):return 1600
++ def get_height(self):return 638
++ def get_dpi_scale(self):return 1.25
++ def get_ui_scale(self):return 1.5
++class Contract(unittest.TestCase):
++ def fixture(self):
++  stage=object();context={'stage':stage,'sceneRevision':1,'projectHash':'a'*64,'displayGeneration':7};view={'selectedUids':[],'timeSeconds':None}
++  api=types.SimpleNamespace(stage=stage,time=0,id='CONTROLLED_OWNER',usd_context_name='',camera_path='/World/RenderCamera',render_product_path='/Render/Controlled',view=M[:],projection=M[:],transform=M[:],resolution=(1600,900),full_resolution=(1600,900),fill_frame=False,frame_info={'frame_number':17,'resolution':[1600,900],'view':M[:],'projection':M[:],'resource':object()})
++  api.frame_info['projection'][0]=2
++  frame=types.SimpleNamespace(screen_position_x=23,screen_position_y=41,computed_width=1600.,computed_height=638.,computed_content_width=1600.,computed_content_height=638.)
++  window=types.SimpleNamespace(frame=frame,viewport_widget=types.SimpleNamespace(viewport_api=api,name='',visible=True));app=App()
++  g={'supports_viewport':lambda _:True,'supports_window':lambda _:True,'supports_appwindow':lambda _:True,'is_app_window_attached':lambda _:True,'get_framebuffer_width':lambda _:1600,'get_framebuffer_height':lambda _:638}
++  run=lambda:o.sample_render_output_observations(api,window,lambda:app,g,'/World/RenderCamera',lambda:context,lambda:copy.deepcopy(view),lambda:(api,window))
++  return api,window,app,g,context,view,run
++ def test_projection_units_and_no_authority(self):
++  *_,run=self.fixture();a=run();self.assertEqual(a['status'],'observed');self.assertNotEqual(a['viewportCanvas']['projection'],a['deliveredViewportFrame']['projection']);self.assertEqual(a['layoutProof'],'unresolved');self.assertEqual(a['frameSourceBindingProof'],'unresolved');self.assertIsNone(a['viewportWindow']['innerContentRect']);self.assertEqual(a['viewportWindow']['position'],[23,41]);self.assertNotIn('resource',json.dumps(a))
++ def test_strict_ordinals(self):
++  for v in [True,-1,9007199254740992,17.,'17',None,float('nan')]:
++   with self.subTest(v=v):
++    api,*_,run=self.fixture();api.frame_info['frame_number']=v;self.assertEqual(run()['deliveredViewportFrame']['status'],'unavailable')
++ def test_dimensions_and_matrices(self):
++  for key,v in [('resolution',[0,900]),('resolution',[16384,16384]),('resolution',[True,2]),('view',[1]*15),('projection',[float('inf')]*16)]:
++   with self.subTest(key=key,v=v):
++    api,*_,run=self.fixture();api.frame_info[key]=v;self.assertEqual(run()['deliveredViewportFrame']['status'],'unavailable')
++ def test_current_change_with_same_pointer(self):
++  for mutation in [lambda v:v[4].update(sceneRevision=2),lambda v:v[0].frame_info.update(frame_number=18),lambda v:setattr(v[1].frame,'computed_width',1400.),lambda v:v[5].update(selectedUids=['new'])]:
++   v=self.fixture();v[3]['get_framebuffer_width']=lambda _:mutation(v) or 1600;self.assertEqual(v[6]()['status'],'unavailable')
++ def test_active_window_switch_and_time(self):
++  v=self.fixture();n=[0]
++  def pair():
++   n[0]+=1
++   return (v[0],v[1]) if n[0]==1 else (v[0],types.SimpleNamespace(frame=v[1].frame,viewport_widget=v[1].viewport_widget))
++  self.assertEqual(o.sample_render_output_observations(v[0],v[1],lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],pair)['reason'],'changed-during-observation')
++  v=self.fixture();v[3]['get_framebuffer_width']=lambda _:setattr(v[0],'time',1) or 1600
++  self.assertEqual(v[6]()['reason'],'changed-during-observation')
++ def test_same_id_proxy_replacement_not_self_proof(self):
++  v=self.fixture();old=v[0];replacement=types.SimpleNamespace(**old.__dict__)
++  v[3]['get_framebuffer_width']=lambda _:setattr(v[1].viewport_widget,'viewport_api',replacement) or 1600
++  self.assertEqual(v[6]()['reason'],'owner-mismatch')
++ def test_final_metadata_getter_cannot_late_change_context(self):
++  for kind in ['context','time']:
++   v=self.fixture();old=v[0]
++   class API:
++    calls=0
++    def __getattr__(self,key):
++     if key=='frame_info':
++      self.calls+=1
++      if self.calls==2:
++       if kind=='context':v[4]['sceneRevision']=2
++       else:old.time=1
++     return getattr(old,key)
++   api=API();v[1].viewport_widget.viewport_api=api
++   self.assertEqual(o.sample_render_output_observations(api,v[1],lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(api,v[1]))['reason'],'changed-during-observation')
++ def test_initial_same_labels_different_referent(self):
++  v=self.fixture();replacement=types.SimpleNamespace(**v[0].__dict__)
++  v[1].viewport_widget.viewport_api=replacement
++  self.assertEqual(v[6]()['reason'],'owner-mismatch')
++ def test_late_stored_proxy_getter_before_final_frame(self):
++  v=self.fixture();api=v[0]
++  class Widget:
++   calls=0;name='';visible=True
++   @property
++   def viewport_api(self):
++    self.calls+=1
++    if self.calls==8:api.frame_info['frame_number']=18
++    return api
++  v[1].viewport_widget=Widget()
++  self.assertEqual(v[6]()['reason'],'changed-during-observation')
++ def test_late_window_frame_getter_before_final_frame(self):
++  v=self.fixture();old=v[1]
++  class Window:
++   calls=0;viewport_widget=old.viewport_widget
++   @property
++   def frame(self):
++    self.calls+=1
++    if self.calls==2:v[0].frame_info['frame_number']=18
++    return old.frame
++  w=Window()
++  self.assertEqual(o.sample_render_output_observations(v[0],w,lambda:v[2],v[3],'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(v[0],w))['reason'],'changed-during-observation')
++ def test_standard_weakref_identity_only(self):
++  import weakref
++  class A:pass
++  a=A();b=A();pa=weakref.proxy(a);pb=weakref.proxy(b)
++  self.assertTrue(o._same_public_api(a,pa));self.assertTrue(o._same_public_api(pa,a));self.assertTrue(o._same_public_api(pa,pa))
++  self.assertFalse(o._same_public_api(a,b));self.assertFalse(o._same_public_api(pa,pb))
++ def test_default_gate_unknown(self):
++  v=self.fixture();self.assertEqual(o.sample_render_output_observations(v[0],v[1],lambda:v[2],None,'/World/RenderCamera',lambda:v[4],lambda:v[5],lambda:(v[0],v[1]))['reason'],'unsupported-runtime')
++ def test_unreviewed_class_guard_no_coercion(self):
++  for key in ['supports_viewport','supports_window','supports_appwindow']:
++   for value in [False,None,1,'true']:
++    v=self.fixture();v[3][key]=lambda _,value=value:value
++    self.assertEqual(v[6]()['reason'],'unsupported-runtime')
++ def test_byte_cap(self):
++  o._bounded({'x':'x'*(6144-8)})
++  with self.assertRaises(ValueError):o._bounded({'x':'x'*(6145-8)})
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/src/frontend/react/test/ovRenderOutputObservations.test.ts
+@@ -0,0 +1,38 @@
++import {expect,it} from 'vitest'
++import controlled from './fixtures/controlled-render-output-a-reply.json'
++import oldLiteralReply from './fixtures/actual-bounded-native-reply.json'
++import {validateDiagnosticReply,diagnosticReceipt} from '../src/renderer/ovDisplayDiagnostics'
++const context={expectedSceneRevision:controlled.sceneRevision,expectedProjectHash:controlled.projectHash,roofModelUid:controlled.diagnostics.roof.modelUid}
++const copy=()=>structuredClone(controlled) as any
++it('accepts actual production IExt/CPUUSD route with controlled native getter values; delivered/UI projection distinct and no layout/scene-frame claim',()=>{
++ const v=copy(),r=validateDiagnosticReply(v,context),a=r.diagnostics.renderOutputObservations as any
++ expect(a.deliveredViewportFrame.projection).not.toEqual(a.viewportCanvas.projection)
++ expect(a.framebuffer.size).toEqual([1600,638]);expect(a.deliveredViewportFrame.resolution).toEqual([1600,900]);expect(a.applicationWindow.dpiScale).toBe(1.25)
++ expect(a.layoutProof).toBe('unresolved');expect(a.frameSourceBindingProof).toBe('unresolved');expect(a.viewportWindow.innerContentRect).toBeNull()
++ v.diagnostics.renderOutputObservations.framebuffer.size[0]=1;expect(a.framebuffer.size[0]).toBe(1600)
++ expect(diagnosticReceipt(r)).toContain('renderOutputObservations')
++})
++it('legacy literal reply without optional observations remains byte-shaped compatible',()=>expect(validateDiagnosticReply(oldLiteralReply,context)).toEqual(oldLiteralReply))
++const mutations:Record<string,(a:any)=>void>={
++ sourceRevision:a=>a.observationContext.sceneRevision++,sourceHash:a=>a.observationContext.projectHash='b'.repeat(64),
++ sceneFramePromotion:a=>a.frameSourceBindingProof='accepted',layoutPromotion:a=>a.layoutProof='whole-frame',
++ unknownPayload:a=>a.SDP='not permitted',unknownFrameResource:a=>a.deliveredViewportFrame.resource={},
++ negativeFrame:a=>a.deliveredViewportFrame.frameNumber=-1,boolFrame:a=>a.deliveredViewportFrame.frameNumber=true,oversizedFrame:a=>a.deliveredViewportFrame.frameNumber=9007199254740992,
++ boolGeneration:a=>a.observationContext.displayGeneration=true,oversizedGeneration:a=>a.observationContext.displayGeneration=9007199254740992,
++ shortMatrix:a=>a.deliveredViewportFrame.projection.pop(),boolMatrix:a=>a.deliveredViewportFrame.view[0]=true,NaNMatrix:a=>a.deliveredViewportFrame.view[0]=NaN,
++ hugeMatrix:a=>a.viewportCanvas.projection[0]=1e19,
++ zeroDim:a=>a.framebuffer.size[0]=0,pixelBudget:a=>a.deliveredViewportFrame.resolution=[16384,16384],decimalDim:a=>a.viewportCanvas.resolution[0]=1600.5,
++ boolDim:a=>a.applicationWindow.size[0]=true,unattachedObserved:a=>a.framebuffer.attached=false,
++ boolDpi:a=>a.applicationWindow.dpiScale=true,negativeDpi:a=>a.applicationWindow.dpiScale=-1,
++ stringViewport:a=>a.viewportOwner.viewportId=17,wrongViewport:a=>a.widgetAssociation.viewportId='foreign',
++ badCamera:a=>a.viewportOwner.cameraPath='/World/Other',longProduct:a=>a.viewportOwner.renderProductPath='p'.repeat(513),
++ utf8Product:a=>a.viewportOwner.renderProductPath='😀'.repeat(256),controlProduct:a=>a.viewportOwner.renderProductPath='a\u0000b',
++ guessedInnerRect:a=>a.viewportWindow.innerContentRect=[0,0,1600,638],guessedDpiUnit:a=>a.viewportWindow.dimensionUnit='screen-pixel',
++ unavailableExtra:a=>a.deliveredViewportFrame={status:'unavailable',reason:'missing-public-value',frameNumber:1},
++ unknownReason:a=>a.viewportCanvas={status:'unavailable',reason:'native-exception-payload'},
++}
++for(const[label,mutate]of Object.entries(mutations))it(`refuses ${label} observation without source/layout relaxation`,()=>{const v=copy();mutate(v.diagnostics.renderOutputObservations);expect(()=>validateDiagnosticReply(v,context)).toThrow()})
++it('native unsupported/unavailable observation is optional, bounded and honest',()=>{
++ const v=copy();v.diagnostics.renderOutputObservations={schema:'dcdtuni.render-output-observations/v1',status:'unavailable',reason:'unsupported-runtime',layoutProof:'unresolved',frameSourceBindingProof:'unresolved'}
++ expect((validateDiagnosticReply(v,context).diagnostics.renderOutputObservations as any).status).toBe('unavailable')
++})
+--- /dev/null
++++ b/src/frontend/react/test/fixtures/controlled-render-output-a-reply.json
+@@ -0,0 +1,450 @@
++{
++  "requestId": "probe",
++  "ok": true,
++  "view": {
++    "camera": {
++      "position": [
++        0.0,
++        20.0,
++        0.0
++      ],
++      "target": [
++        0.0,
++        0.0,
++        0.0
++      ],
++      "up": [
++        0.0,
++        0.0,
++        -1.0
++      ],
++      "fov": 45,
++      "near": 0.1,
++      "far": 400,
++      "aspect": 2.5078369905956115
++    },
++    "selectedUids": [],
++    "timeSeconds": null
++  },
++  "sceneRevision": 1,
++  "projectHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "diagnostics": {
++    "schema": "dcdtuni.render-display-diagnostics/v1",
++    "profile": "bounded-display-v1",
++    "sampleSequence": 1,
++    "sampleElapsedMs": 2.2932300344109535,
++    "pixelVerified": false,
++    "renderer": {
++      "settingsScope": "effective-carbs-settings; not compiled-shader proof",
++      "settings": {
++        "translucencyAsOpacity": {
++          "status": "observed",
++          "reason": "none",
++          "value": false
++        },
++        "translucencyEnabled": {
++          "status": "observed",
++          "reason": "none",
++          "value": false
++        },
++        "raytracingFractionalCutoutOpacity": {
++          "status": "observed",
++          "reason": "none",
++          "value": false
++        },
++        "pathtracingFractionalCutoutOpacity": {
++          "status": "observed",
++          "reason": "none",
++          "value": false
++        }
++      }
++    },
++    "viewport": {
++      "status": "pending",
++      "reason": "invalid-public-value",
++      "layoutProof": "unresolved",
++      "textureToEncodedMapping": "unresolved",
++      "stageSame": true,
++      "cameraPath": "/World/RenderCamera",
++      "expectedCameraSame": true,
++      "resolution": [
++        1600,
++        900
++      ],
++      "fullResolution": [
++        1600,
++        900
++      ],
++      "appSizePx": [
++        1600,
++        638
++      ],
++      "view": [
++        1.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        1.0,
++        0.0,
++        0.0,
++        -1.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        -20.0,
++        1.0
++      ],
++      "matrixConvention": "Gf-row-vector; row-major-16",
++      "uiProjection": [
++        0.6824243899297812,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        1.7114091283505486,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        -1.0005001250387122,
++        -1.0,
++        0.0,
++        0.0,
++        -0.2000500154848487,
++        0.0
++      ],
++      "worldToNdc": [
++        0.6824243899297812,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        -1.0005001250387122,
++        -1.0,
++        0.0,
++        -1.7114091283505486,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        19.809952485289397,
++        20.0
++      ],
++      "imageWorldToNdc": [
++        0.9626676346971835,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        -1.0005001250387122,
++        -1.0,
++        0.0,
++        -1.7114091283505486,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        19.809952485289397,
++        20.0
++      ],
++      "cameraTransform": [
++        1.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        0.0,
++        -1.0,
++        0.0,
++        0.0,
++        1.0,
++        0.0,
++        0.0,
++        0.0,
++        20.0,
++        0.0,
++        1.0
++      ],
++      "ndcToTextureSamples": [
++        {
++          "ndc": [
++            0.0,
++            0.0
++          ],
++          "uv": [
++            0.5,
++            0.5
++          ],
++          "insideTexture": true
++        },
++        {
++          "ndc": [
++            1.0,
++            0.0
++          ],
++          "uv": [
++            1.2053291536050157,
++            0.5
++          ],
++          "insideTexture": false
++        },
++        {
++          "ndc": [
++            0.0,
++            1.0
++          ],
++          "uv": [
++            0.5,
++            1.0
++          ],
++          "insideTexture": true
++        },
++        {
++          "ndc": [
++            -0.5,
++            0.5
++          ],
++          "uv": [
++            0.1473354231974921,
++            0.75
++          ],
++          "insideTexture": true
++        },
++        {
++          "ndc": [
++            0.25,
++            -0.25
++          ],
++          "uv": [
++            0.6763322884012539,
++            0.375
++          ],
++          "insideTexture": true
++        }
++      ]
++    },
++    "roof": {
++      "status": "observed",
++      "reason": "none",
++      "targetSource": "single-selected-accepted-source-floor",
++      "modelUid": "floor-uid",
++      "primitiveCount": 1,
++      "materials": [
++        {
++          "geometryPath": "/World/RenderScene/Geometry/p_111111111111111111111111",
++          "materialPath": "/World/RenderScene/Looks/p_111111111111111111111111",
++          "surfacePath": "/World/RenderScene/Looks/p_111111111111111111111111/Surface",
++          "shaderId": "UsdPreviewSurface",
++          "bindingPurpose": "allPurpose",
++          "compiledShaderState": "not-read",
++          "opacity": {
++            "status": "observed",
++            "reason": "none",
++            "connected": false,
++            "authoredValue": 0.15000000596046448
++          },
++          "metallic": {
++            "status": "observed",
++            "reason": "none",
++            "connected": false,
++            "authoredValue": 0.3499999940395355
++          },
++          "opacityThreshold": {
++            "status": "observed",
++            "reason": "none",
++            "connected": false,
++            "authoredValue": 0.0
++          }
++        }
++      ]
++    },
++    "renderOutputObservations": {
++      "schema": "dcdtuni.render-output-observations/v1",
++      "status": "observed",
++      "reason": "none",
++      "layoutProof": "unresolved",
++      "frameSourceBindingProof": "unresolved",
++      "observationContext": {
++        "sceneRevision": 1,
++        "projectHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++        "displayGeneration": 7
++      },
++      "viewportOwner": {
++        "status": "observed",
++        "reason": "none",
++        "viewportId": "CONTROLLED_NATIVE_TEXTURE",
++        "usdContextName": "anon:0x564401b1bcf0:tmp.usda",
++        "cameraPath": "/World/RenderCamera",
++        "renderProductPath": "/Render/CONTROLLED_PRODUCT"
++      },
++      "deliveredViewportFrame": {
++        "status": "observed",
++        "reason": "none",
++        "frameNumber": 17,
++        "resolution": [
++          1600,
++          900
++        ],
++        "view": [
++          1.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          1.0,
++          0.0,
++          0.0,
++          -1.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          -20.0,
++          1.0
++        ],
++        "projection": [
++          1.3648487798595623,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          1.7114091283505486,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          -1.0005001250387122,
++          -1.0,
++          0.0,
++          0.0,
++          -0.2000500154848487,
++          0.0
++        ]
++      },
++      "viewportCanvas": {
++        "status": "observed",
++        "reason": "none",
++        "view": [
++          1.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          1.0,
++          0.0,
++          0.0,
++          -1.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          -20.0,
++          1.0
++        ],
++        "projection": [
++          0.6824243899297812,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          1.7114091283505486,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          -1.0005001250387122,
++          -1.0,
++          0.0,
++          0.0,
++          -0.2000500154848487,
++          0.0
++        ],
++        "transform": [
++          1.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          0.0,
++          -1.0,
++          0.0,
++          0.0,
++          1.0,
++          0.0,
++          0.0,
++          0.0,
++          20.0,
++          0.0,
++          1.0
++        ],
++        "resolution": [
++          1600,
++          900
++        ],
++        "fullResolution": [
++          1600,
++          900
++        ],
++        "fillFrame": false
++      },
++      "viewportWindow": {
++        "status": "observed",
++        "reason": "none",
++        "rectKind": "outerViewportWindowFrame",
++        "positionUnit": "screen-pixel",
++        "dimensionUnit": "native-raw-unresolved",
++        "position": [
++          23,
++          41
++        ],
++        "size": [
++          1600.0,
++          638.0
++        ],
++        "contentSize": [
++          1600.0,
++          638.0
++        ],
++        "innerContentRect": null,
++        "innerContentProof": "unresolved"
++      },
++      "widgetAssociation": {
++        "status": "observed",
++        "reason": "none",
++        "viewportId": "CONTROLLED_NATIVE_TEXTURE",
++        "name": "",
++        "visible": true,
++        "innerContentRect": null,
++        "innerContentProof": "unresolved"
++      },
++      "applicationWindow": {
++        "status": "observed",
++        "reason": "none",
++        "size": [
++          1600,
++          638
++        ],
++        "dimensionUnit": "native-raw-unresolved",
++        "dpiScale": 1.25,
++        "uiScale": 1.5
++      },
++      "framebuffer": {
++        "status": "observed",
++        "reason": "none",
++        "attached": true,
++        "size": [
++          1600,
++          638
++        ],
++        "dimensionUnit": "framebuffer-pixel"
++      }
++    }
++  }
++}

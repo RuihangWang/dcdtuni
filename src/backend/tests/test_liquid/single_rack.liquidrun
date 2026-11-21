@@ -1,0 +1,128 @@
+{
+  "version": "1.0",
+  "source": "test",
+  "projectName": "SingleRack",
+  "gravity": [0, -9.81, 0],
+  "fluid": {
+    "rho_kg_m3": 997.0,
+    "cp_J_kgK": 4182.0,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1.0,
+    "N_t": 5,
+    "bdf_order": 1
+  },
+  "racks": [
+    {
+      "id": "rack1",
+      "position_m": [2.0, 0.0, 0.0],
+      "n_slots": 42,
+      "manifold": {
+        "supply_node": "rack1_mf_supply",
+        "return_node": "rack1_mf_return",
+        "layout": "both-left",
+        "D_m": 0.025
+      },
+      "servers": [
+        {
+          "id": "srv1",
+          "slot_range": [1, 2],
+          "z_m": 0.044,
+          "cp_cu_pairs": [{"id": "srv1_cp1", "edge_id": "srv1_cp", "Q_W": 300.0}],
+          "inlet_node": "srv1_in",
+          "outlet_node": "srv1_out"
+        },
+        {
+          "id": "srv2",
+          "slot_range": [10, 11],
+          "z_m": 0.444,
+          "cp_cu_pairs": [{"id": "srv2_cp1", "edge_id": "srv2_cp", "Q_W": 400.0}],
+          "inlet_node": "srv2_in",
+          "outlet_node": "srv2_out"
+        },
+        {
+          "id": "srv3",
+          "slot_range": [20, 21],
+          "z_m": 0.889,
+          "cp_cu_pairs": [{"id": "srv3_cp1", "edge_id": "srv3_cp", "Q_W": 350.0}],
+          "inlet_node": "srv3_in",
+          "outlet_node": "srv3_out"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {"id": "cdu_supply", "type": "pressure_bc", "position_m": [0,0,0], "bc": {"P_Pa": 250000, "T_K": 308.15}},
+    {"id": "cdu_return", "type": "pressure_bc", "position_m": [0,0.1,0], "bc": {"P_Pa": 100000}},
+
+    {"id": "rack1_mf_supply", "type": "junction", "position_m": [2.0, 1.8, 0]},
+    {"id": "rack1_mf_return", "type": "junction", "position_m": [2.1, 1.8, 0]},
+
+    {"id": "srv1_in",  "type": "junction", "position_m": [2.0, 0.044, 0]},
+    {"id": "srv1_out", "type": "junction", "position_m": [2.1, 0.044, 0]},
+    {"id": "srv2_in",  "type": "junction", "position_m": [2.0, 0.444, 0]},
+    {"id": "srv2_out", "type": "junction", "position_m": [2.1, 0.444, 0]},
+    {"id": "srv3_in",  "type": "junction", "position_m": [2.0, 0.889, 0]},
+    {"id": "srv3_out", "type": "junction", "position_m": [2.1, 0.889, 0]}
+  ],
+  "edges": [
+    {
+      "id": "main_supply", "type": "pipe",
+      "from": "cdu_supply", "to": "rack1_mf_supply",
+      "params": {"D_m": 0.032, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[0,0,0],[1,0,0],[2,0,0],[2,1.8,0]],
+                 "K_minor_per_bend": 0.5}
+    },
+    {
+      "id": "main_return", "type": "pipe",
+      "from": "rack1_mf_return", "to": "cdu_return",
+      "params": {"D_m": 0.032, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[2.1,1.8,0],[2.1,0,0],[1,0,0],[0,0.1,0]],
+                 "K_minor_per_bend": 0.5}
+    },
+    {
+      "id": "cdu_pump", "type": "pump",
+      "from": "cdu_return", "to": "cdu_supply",
+      "params": {"H0_m": 20.0, "a_coef": 5e5, "rpm_ratio": 1.0}
+    },
+
+    {"id": "branch_s1_in", "type": "pipe", "from": "rack1_mf_supply", "to": "srv1_in",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.0,1.8,0],[2.0,0.044,0]], "K_minor_per_bend": 0.3}},
+    {"id": "branch_s1_out", "type": "pipe", "from": "srv1_out", "to": "rack1_mf_return",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.1,0.044,0],[2.1,1.8,0]], "K_minor_per_bend": 0.3}},
+
+    {"id": "branch_s2_in", "type": "pipe", "from": "rack1_mf_supply", "to": "srv2_in",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.0,1.8,0],[2.0,0.444,0]], "K_minor_per_bend": 0.3}},
+    {"id": "branch_s2_out", "type": "pipe", "from": "srv2_out", "to": "rack1_mf_return",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.1,0.444,0],[2.1,1.8,0]], "K_minor_per_bend": 0.3}},
+
+    {"id": "branch_s3_in", "type": "pipe", "from": "rack1_mf_supply", "to": "srv3_in",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.0,1.8,0],[2.0,0.889,0]], "K_minor_per_bend": 0.3}},
+    {"id": "branch_s3_out", "type": "pipe", "from": "srv3_out", "to": "rack1_mf_return",
+     "params": {"D_m": 0.015, "roughness_m": 1.5e-6, "n_cells": 2,
+                "waypoints_m": [[2.1,0.889,0],[2.1,1.8,0]], "K_minor_per_bend": 0.3}},
+
+    {"id": "srv1_cp", "type": "cold_plate", "from": "srv1_in", "to": "srv1_out",
+     "params": {"dp_a": 5e4, "dp_b": 100.0, "UA_W_per_K": 150.0,
+                "C_solid_J_per_K": 50.0, "V_fluid_m3": 5e-6, "Q_W": 300.0}},
+    {"id": "srv2_cp", "type": "cold_plate", "from": "srv2_in", "to": "srv2_out",
+     "params": {"dp_a": 5e4, "dp_b": 100.0, "UA_W_per_K": 150.0,
+                "C_solid_J_per_K": 50.0, "V_fluid_m3": 5e-6, "Q_W": 400.0}},
+    {"id": "srv3_cp", "type": "cold_plate", "from": "srv3_in", "to": "srv3_out",
+     "params": {"dp_a": 5e4, "dp_b": 100.0, "UA_W_per_K": 150.0,
+                "C_solid_J_per_K": 50.0, "V_fluid_m3": 5e-6, "Q_W": 350.0}}
+  ],
+  "events": [],
+  "initial_conditions": {"T_fluid_K": 308.15, "T_solid_K": 340.0, "P_uniform_Pa": 175000},
+  "solver": {
+    "optimizer": "adam", "lr": 0.1, "max_epochs": 5000, "convergence_tol": 1e-2,
+    "weights": {"mass": 1.0, "momentum": 1e-6, "energy": 1.0, "bc": 100.0, "ic": 10.0}
+  }
+}

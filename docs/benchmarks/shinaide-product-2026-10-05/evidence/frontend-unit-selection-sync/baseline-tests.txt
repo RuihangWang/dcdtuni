@@ -1,0 +1,179 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/FileBrowserInteractions.test.tsx test/components/PostprocessUnitSync.test.tsx --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/PostprocessUnitSync.test.tsx (5 tests | 5 failed) 289ms
+   × updates every bar and both open dialogs after one unit change 112ms
+     → expected 'Surface' to contain '(K)'
+   × converts a pending edit once and applies its same Kelvin value 23ms
+     → expected 26.125 to be close to 79.025, received difference is 52.900000000000006, but expected 5e-11
+   × a dialog opened later uses the current global unit and raw precision 19ms
+     → expected 'C' to be 'K' // Object.is equality
+   × keeps an empty pending draft empty across an external unit update 12ms
+     → expected 'C' to be 'K' // Object.is equality
+   × resynchronizes sidebar labels and values without committing a stale focused draft 122ms
+     → expected 'Min: (°C)' to contain '(K)'
+ ❯ test/FileBrowserInteractions.test.tsx (5 tests | 2 failed) 211ms
+   × keyboard selection while a directory is loading > blocks Enter just like the button (directory=true) 23ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/cases",
+    ]
+
+
+Number of calls: 1
+
+   × keyboard selection while a directory is loading > blocks Enter just like the button (directory=false) 19ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/cases/mesh-quality-receipt.json",
+    ]
+
+
+Number of calls: 1
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > keyboard selection while a directory is loading > blocks Enter just like the button (directory=true)
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/cases",
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/FileBrowserInteractions.test.tsx:79:22
+     77|     expect(confirm.disabled).toBe(true)
+     78|     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key:…
+     79|     expect(pick).not.toHaveBeenCalled()
+       |                      ^
+     80|     await act(async () => release(listing('/cases/child')))
+     81|     if (!directory) act(() => click(document.querySelector('.fb-file')…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > keyboard selection while a directory is loading > blocks Enter just like the button (directory=false)
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/cases/mesh-quality-receipt.json",
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/FileBrowserInteractions.test.tsx:79:22
+     77|     expect(confirm.disabled).toBe(true)
+     78|     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key:…
+     79|     expect(pick).not.toHaveBeenCalled()
+       |                      ^
+     80|     await act(async () => release(listing('/cases/child')))
+     81|     if (!directory) act(() => click(document.querySelector('.fb-file')…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > updates every bar and both open dialogs after one unit change
+AssertionError: expected 'Surface' to contain '(K)'
+
+Expected: "(K)"
+Received: "Surface"
+
+ ❯ test/components/PostprocessUnitSync.test.tsx:58:57
+     56|   change($('#surface-unit-dialog .pp-cbw-unit'), 'K')
+     57|   for (const id of ['surface-unit', 'slice-unit']) {
+     58|     expect($('#'+id+' .pp-colorbar-field').textContent).toContain('(K)…
+       |                                                         ^
+     59|     expect($('#'+id+' .pp-colorbar-max').textContent).toContain(' K')
+     60|     expect($<HTMLSelectElement>('#'+id+'-dialog .pp-cbw-unit').value).…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > converts a pending edit once and applies its same Kelvin value
+AssertionError: expected 26.125 to be close to 79.025, received difference is 52.900000000000006, but expected 5e-11
+ ❯ test/components/PostprocessUnitSync.test.tsx:71:79
+     69|   change($('#slice-unit-dialog .pp-cbw-min'), '26.125')
+     70|   change($('#surface-unit-dialog .pp-cbw-unit'), 'F')
+     71|   expect(Number($<HTMLInputElement>('#slice-unit-dialog .pp-cbw-min').…
+       |                                                                               ^
+     72|   change($('#slice-unit-dialog .pp-cbw-unit'), 'K')
+     73|   expect(Number($<HTMLInputElement>('#slice-unit-dialog .pp-cbw-min').…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > a dialog opened later uses the current global unit and raw precision
+AssertionError: expected 'C' to be 'K' // Object.is equality
+
+Expected: "K"
+Received: "C"
+
+ ❯ test/components/PostprocessUnitSync.test.tsx:85:73
+     83|   change($('#surface-unit-dialog .pp-cbw-unit'), 'K')
+     84|   open('slice-unit')
+     85|   expect($<HTMLSelectElement>('#slice-unit-dialog .pp-cbw-unit').value…
+       |                                                                         ^
+     86|   expect(Number($<HTMLInputElement>('#slice-unit-dialog .pp-cbw-min').…
+     87|   open('speed-unit')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > keeps an empty pending draft empty across an external unit update
+AssertionError: expected 'C' to be 'K' // Object.is equality
+
+Expected: "K"
+Received: "C"
+
+ ❯ test/components/PostprocessUnitSync.test.tsx:97:75
+     95|   change($('#surface-unit-dialog .pp-cbw-min'), '')
+     96|   act(() => setTempUnit('K'))
+     97|   expect($<HTMLSelectElement>('#surface-unit-dialog .pp-cbw-unit').val…
+       |                                                                           ^
+     98|   expect($<HTMLInputElement>('#surface-unit-dialog .pp-cbw-min').value…
+     99| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > resynchronizes sidebar labels and values without committing a stale focused draft
+AssertionError: expected 'Min: (°C)' to contain '(K)'
+
+Expected: "(K)"
+Received: "Min: (°C)"
+
+ ❯ test/components/PostprocessUnitSync.test.tsx:115:75
+    113|   change(initial, '123')
+    114|   act(() => setTempUnit('K'))
+    115|   expect($('#postprocess-controls label[for="pp-clim-min"]').textConte…
+       |                                                                           ^
+    116|   const after = $<HTMLInputElement>('#pp-clim-min')
+    117|   expect(after).not.toBe(initial)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 3 passed (10)
+   Start at  00:26:37
+   Duration  17.89s (transform 2.55s, setup 0ms, collect 5.36s, tests 500ms, environment 11.09s, prepare 507ms)
+

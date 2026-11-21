@@ -1,0 +1,3535 @@
+:root {
+  --bg: #10151d;
+  --panel: #181f29;
+  --border: #303c4b;
+  --border-bright: #405166;
+  --text: #dae3ed;
+  --text-dim: #9aabba;
+  --active: #193c42;
+  --highlight: #70c9c4;
+  --glow: rgba(112, 201, 196, 0.14);
+  --glow-dim: rgba(112, 201, 196, 0.07);
+  --glow2: rgba(169, 148, 220, 0.12);
+  --accent2: #b39cde;
+  --accent3: #74b5e8;
+  --danger: #f08f92;
+  --hint-color: #e2bd7b;
+  --bg-input: #111923;
+  --node-label-bg: #1d2835;
+
+  --section-header-create: #56b6c2;
+  --section-header-refine: #c678dd;
+  --section-header-solver: #c678dd;
+  --section-header-display: #98c379;
+
+  --font-primary: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-heading: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+
+  --left-panel-width: 330px;
+  --right-panel-width: 340px;
+  --log-panel-height: 160px;
+
+  /* ── Requested size vs drawn size ─────────────────────────────────────
+     The three variables above are what was ASKED for — the resizer drags
+     write them and the collapse buttons zero them. The three below are what
+     the frame is actually laid out against, and everything that has to sit
+     beside a panel or above the dock reads these.
+
+     `--log-dock-height` matters most: `#log-panel` is clamped by its own
+     min/max-height and shrinks to its header when collapsed, so the asked-for
+     160px stopped describing it the moment a user clicked Toggle — the side
+     panels went on ending 132px above the dock and the app background showed
+     through the band between. `LogPanel` republishes the dock's measured
+     height here, so a collapse, a drag and a window resize all reflow.
+
+     The panel widths are clamped so the two of them can never cover the
+     window: 330 + 340 already overlaps below 670px wide, and there is no
+     handle left over the canvas to drag back out of that. `min()` leaves the
+     desktop widths untouched — the clamp only bites under ~920px. */
+  --min-viewport-width: 260px;
+  --panel-fit-max: max(0px, calc((100vw - var(--min-viewport-width)) / 2));
+
+  /* A panel yields to the window before it has to be rescued.
+     `--panel-fit-max` above is the rescue: it stops the two sidebars covering
+     the window entirely, but it only bites below ~920px, so at 1100 the two of
+     them still took 61% of the width and left a 230px viewport.
+     `--panel-share` is the adaptation: above ~1270px it exceeds the asked-for
+     width and changes nothing, so the desktop layout is bit-identical to what
+     it was; below that the panels shrink with the window down to a 220px floor,
+     which is where the inspector's two-column rows stop fitting.
+     A resizer DRAG writes --left/right-panel-width and still wins at any size
+     the share allows — this caps, it does not overrule. */
+  --panel-share: 23vw;
+  --panel-floor: 220px;
+  --left-panel-w: min(
+    max(var(--panel-floor), min(var(--left-panel-width), var(--left-panel-share, var(--panel-share)))),
+    var(--panel-fit-max)
+  );
+  --right-panel-w: min(
+    max(var(--panel-floor), min(var(--right-panel-width), var(--right-panel-share, var(--panel-share)))),
+    var(--panel-fit-max)
+  );
+  --log-dock-height: var(--log-panel-height);
+
+  --panel-gradient: linear-gradient(180deg, #1b2430 0%, #171e28 100%);
+  --viewport-bg: #10151d;
+  --viewport-glow: radial-gradient(ellipse at 50% 45%, #1b2734 0%, #10151d 75%);
+  --header-bg: #1b2532;
+  --log-header-bg: #1b2532;
+  --file-bar-bg: #1b2532;
+  --tab-bar-bg: #17202b;
+  /* The dock replicates the HTML editor's xterm.js terminal verbatim: these
+     are its theme colours (STL_generate.html:4361) resolved through the ANSI
+     codes its log writer uses (appendLogToPanel :4295, _appendDctwinLogLine
+     :30057) — 90 grey stamps, 36 cyan for file/dctwin, 32/31/33 for
+     create/delete/modify, 35 magenta drag, and xterm's own default blue for
+     34 select. Changing these changes the parity with the other editor. */
+  --log-time: #7f7f7f;
+  --log-content: #e5e5e5;
+  --log-cat-create: #00ff88;
+  --log-cat-delete: #ff2244;
+  --log-cat-modify: #ffb800;
+  --log-cat-select: #0000ee;
+  --log-cat-view: #7f7f7f;
+  --log-cat-file: #00d4ff;
+  --log-cat-drag: #cc44ff;
+  --log-cat-mesh: #00d4ff;
+  --log-cat-solve: #00d4ff;
+  --log-cat-dctwin: #00d4ff;
+
+  --scrollbar-size: 14px;
+  --scrollbar-pad: 3px;
+  --scrollbar-thumb-min: 48px;
+  --scrollbar-thumb: #536577;
+  --scrollbar-thumb-hover: #74889d;
+  --scrollbar-thumb-active: #91a9bf;
+  --scrollbar-track: #131b25;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-primary);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+#root {
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────────
+   The reported bug: a 500-node tree renders a thumb too small to grab. 14px of
+   grab area with a 48px floor fixes it. min-height and min-width must be on
+   SEPARATE orientation rules — Chrome ignores the constraint when both sit on
+   the shared thumb rule. And Chrome >=121 disables ALL ::-webkit-scrollbar-*
+   styling the moment `scrollbar-color` is set, so that property is fenced
+   behind @supports and only Firefox ever sees it. */
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-left: 1px solid rgba(0, 255, 136, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: var(--scrollbar-pad) solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 0 6px var(--glow-dim);
+}
+::-webkit-scrollbar-thumb:vertical {
+  min-height: var(--scrollbar-thumb-min);
+}
+::-webkit-scrollbar-thumb:horizontal {
+  min-width: var(--scrollbar-thumb-min);
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+}
+
+/* ── Core layout ─────────────────────────────────────────────────────────── */
+.panel {
+  position: absolute;
+  top: 0;
+  bottom: var(--log-dock-height);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  background: var(--panel-gradient);
+  backdrop-filter: blur(6px);
+  overflow-x: hidden;
+}
+
+/* `.panel { display: flex }` outranks the UA's `[hidden] { display: none }`, so
+   the hidden attribute needs saying again here or a collapsed panel stays up. */
+.panel[hidden] {
+  display: none;
+}
+
+#left-panel {
+  left: 0;
+  width: var(--left-panel-w);
+  border-right: 1px solid var(--border-bright);
+  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.9), inset -1px 0 0 rgba(0, 255, 136, 0.12);
+}
+
+#right-panel {
+  right: 0;
+  width: var(--right-panel-w);
+  border-left: 1px solid var(--border-bright);
+  box-shadow: -4px 0 32px rgba(0, 0, 0, 0.9), inset 1px 0 0 rgba(0, 255, 136, 0.12);
+}
+
+/* Full width on purpose, matching the legacy editor: the canvas spans the whole
+   window and the two panels (z-index 40) sit ON TOP of it. Insetting it to the
+   gap between the panels would centre the scene 25px off from where the legacy
+   app puts it. */
+#center-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--log-dock-height);
+  outline: none;
+  z-index: 1;
+  background: var(--viewport-bg);
+  background-image: var(--viewport-glow);
+}
+#center-view canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+#toolbar {
+  position: fixed;
+  top: 0;
+  left: calc(var(--left-panel-w) + 8px);
+  right: calc(var(--right-panel-w) + 8px);
+  z-index: 42;
+  overflow: hidden;
+  transform-origin: top center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(26, 26, 34, 0.96);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.12);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(0, 255, 136, 0.1);
+}
+#toolbar.collapsed #toolbar-content {
+  display: none;
+}
+/* `contents` so the controls are laid out by #toolbar's own flex line and wrap
+   together with the collapse button — a nested flex container would wrap
+   independently and put the rows in different places. */
+#toolbar-content {
+  display: contents;
+}
+#toolbar-collapse-btn {
+  background: none;
+  border: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  font-family: var(--font-primary);
+  cursor: pointer;
+}
+#toolbar-collapse-btn:hover {
+  border-color: var(--highlight);
+  color: var(--highlight);
+}
+
+.tool-btn {
+  background: #1e1e28;
+  color: var(--text-dim);
+  border: 1px solid var(--border-bright);
+  padding: 4px 14px;
+  font-size: 0.68rem;
+  font-family: var(--font-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 5px;
+}
+.tool-btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.07);
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 10px var(--glow-dim);
+  text-shadow: none;
+}
+.tool-btn.active {
+  background: rgba(0, 255, 136, 0.1);
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 14px var(--glow-dim);
+  text-shadow: none;
+}
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tool-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-family: var(--font-primary);
+}
+.tool-inline input[type='range'] {
+  width: 110px;
+  accent-color: var(--highlight);
+}
+.tool-inline .badge {
+  min-width: 44px;
+  text-align: center;
+}
+
+.rot-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 26px;
+  border: 1px solid var(--border-bright);
+  background: #1e1e28;
+  border-radius: 5px;
+  padding: 0 2px 0 8px;
+}
+.rot-group:hover {
+  border-color: var(--highlight);
+  box-shadow: 0 0 8px var(--glow-dim);
+}
+.rot-select {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  font-size: 0.66rem;
+  font-family: var(--font-primary);
+  cursor: pointer;
+  padding: 2px;
+  outline: none;
+  appearance: none;
+  text-align: center;
+  min-width: 42px;
+}
+.rot-select option {
+  background: #1e1e28;
+  color: #abb2bf;
+}
+.rot-custom-input {
+  width: 38px;
+  background: #161620;
+  color: var(--highlight);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  font-size: 0.66rem;
+  font-family: var(--font-primary);
+  padding: 1px 3px;
+  text-align: center;
+  outline: none;
+  margin: 0 2px;
+}
+.rot-apply-btn {
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--highlight);
+  border: none;
+  border-left: 1px solid rgba(0, 255, 136, 0.2);
+  font-size: 0.64rem;
+  font-family: var(--font-heading);
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  cursor: pointer;
+  height: 100%;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.rot-apply-btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.18);
+  text-shadow: none;
+}
+.rot-apply-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#view-cube-panel {
+  position: absolute;
+  left: calc(var(--left-panel-w) + 14px);
+  bottom: 140px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--border-bright);
+  border-radius: 9px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+}
+/* Size is set inline by ViewCube.tsx (`CUBE_SIZE`), which is the value that
+   wins; these are the fallback and are kept in step with it deliberately —
+   88px here while the component drew 56 read as a size regression in the CSS
+   that nobody could reproduce in the browser. */
+#view-cube {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border: 1px solid rgba(0, 255, 136, 0.15);
+  background: rgba(22, 22, 32, 0.6);
+}
+#view-cube[data-active-face] {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+}
+#lang-selector,
+#theme-selector {
+  background: #1e1e28;
+  color: var(--text-dim);
+  border: 1px solid var(--border-bright);
+  padding: 3px 10px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: var(--font-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 5px;
+}
+#lang-selector {
+  margin-left: auto;
+}
+#theme-selector {
+  margin-left: 6px;
+}
+#lang-selector:hover,
+#theme-selector:hover {
+  border-color: var(--highlight);
+  color: var(--highlight);
+}
+
+.flow-monitor {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 34px;
+  padding: 2px 10px;
+  margin: 0 2px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.1));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-primary);
+  color: var(--text);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.flow-monitor::before {
+  /* hairline grid — subtle industrial instrument texture */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 6px 6px;
+  opacity: 0.6;
+  mix-blend-mode: screen;
+}
+.flow-gauge {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+  position: relative;
+  z-index: 1;
+}
+.flow-gauge .flow-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  line-height: 1;
+}
+.flow-gauge .flow-bar {
+  width: 46px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 1px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+.flow-gauge .flow-bar-fill {
+  height: 100%;
+  width: 0;
+  transition: width 0.4s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.3s ease;
+  background: linear-gradient(90deg, var(--flow-color-dim), var(--flow-color));
+  box-shadow: 0 0 5px var(--flow-color);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+}
+.flow-gauge[data-role='supply'] {
+  --flow-color: #4daafc;
+  --flow-color-dim: #0b4a78;
+}
+.flow-gauge[data-role='return'] {
+  --flow-color: #e5c07b;
+  --flow-color-dim: #6f5a2a;
+}
+.flow-gauge .flow-value {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1;
+}
+.flow-gauge .flow-value > span:first-child {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--flow-color, #fff);
+  text-shadow: none;
+  letter-spacing: 0.3px;
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.flow-gauge .flow-unit {
+  font-size: 7.5px;
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 0.4px;
+}
+.flow-balance {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  min-width: 44px;
+  padding-left: 8px;
+  border-left: 1px dashed var(--border);
+  position: relative;
+  z-index: 1;
+}
+.flow-balance .flow-balance-icon {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  transition: color 0.3s, text-shadow 0.3s;
+}
+.flow-balance .flow-balance-delta {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: color 0.3s;
+}
+.flow-balance[data-state='ok'] .flow-balance-icon {
+  color: #2fd673;
+  text-shadow: none;
+}
+.flow-balance[data-state='ok'] .flow-balance-delta {
+  color: #2fd673;
+}
+.flow-balance[data-state='fail'] .flow-balance-icon {
+  color: #f14c4c;
+  text-shadow: none;
+  animation: flow-pulse 1.4s ease-in-out infinite;
+}
+.flow-balance[data-state='fail'] .flow-balance-delta {
+  color: #f14c4c;
+}
+@keyframes flow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ── Collapse section headers ────────────────────────────────────────────── */
+.collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.collapse-caret {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  color: #00b4dc;
+  transition: color 0.15s;
+}
+.collapse-header:hover .collapse-caret {
+  color: #5fd9f5;
+}
+
+/* ── File bar ────────────────────────────────────────────────────────────── */
+.file-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--file-bar-bg);
+  flex: 0 0 auto;
+}
+.file-btn {
+  background: #1e1e28;
+  color: var(--text);
+  border: 1px solid var(--border-bright);
+  min-height: 50px;
+  padding: 8px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  font-family: var(--font-primary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 5px;
+}
+.file-btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.06);
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 12px var(--glow-dim);
+}
+.file-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cooling-mode-btn {
+  opacity: 0.5;
+  filter: grayscale(0.55);
+}
+#btn-mode-liquid.active {
+  opacity: 1;
+  filter: none;
+  background: rgba(0, 212, 255, 0.16);
+  border-color: var(--accent3);
+  color: #7fe6ff;
+  box-shadow: inset 0 0 12px rgba(0, 212, 255, 0.4), 0 0 10px rgba(0, 212, 255, 0.35);
+}
+#btn-mode-air.active {
+  opacity: 1;
+  filter: none;
+  background: rgba(255, 152, 0, 0.16);
+  border-color: #ff9800;
+  color: #ffc046;
+  box-shadow: inset 0 0 12px rgba(255, 152, 0, 0.4), 0 0 10px rgba(255, 152, 0, 0.35);
+}
+
+/* ── Left tab bar ────────────────────────────────────────────────────────── */
+#left-tab-bar {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+  background: var(--tab-bar-bg);
+}
+.left-tab-btn {
+  flex: 1;
+  padding: 8px 2px;
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  font-family: var(--font-heading);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.left-tab-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+.left-tab-btn.active {
+  color: var(--highlight);
+  border-bottom-color: var(--highlight);
+  text-shadow: none;
+}
+.left-tab-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Section headers ─────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--header-bg);
+  font-size: 0.72rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--highlight);
+  font-family: var(--font-heading);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: none;
+  border-left: 2px solid var(--highlight);
+  flex: 0 0 auto;
+}
+.header > .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header.section-cyan {
+  padding: 4px 8px;
+  background: rgba(0, 180, 220, 0.06);
+  border-bottom: 1px solid rgba(0, 180, 220, 0.3);
+  border-left: 2px solid rgba(0, 180, 220, 0.6);
+  color: #5fd9f5;
+  text-shadow: none;
+}
+
+.badge {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: transparent;
+  font-size: 0.62rem;
+  padding: 1px 7px;
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  color: var(--highlight);
+  font-family: var(--font-heading);
+  letter-spacing: 0.06em;
+  border-radius: 5px;
+}
+.badge.clickable {
+  cursor: pointer;
+}
+.badge.clickable:hover {
+  border-color: var(--highlight);
+  background: rgba(0, 255, 136, 0.1);
+  box-shadow: 0 0 10px var(--glow-dim);
+}
+.badge[data-mode='manual'] {
+  border-color: rgba(229, 192, 123, 0.45);
+  color: var(--hint-color);
+}
+
+/* ── Tree ────────────────────────────────────────────────────────────────── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+#tree-root-sticky {
+  flex: 0 0 auto;
+  padding: 6px 12px 0;
+  background: rgba(18, 18, 28, 0.99);
+  z-index: 2;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+}
+
+ul.tree {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+/* ── The windowed tree ──────────────────────────────────────────────────────
+   A large case opens into tens of thousands of rows — Alibaba-hongchou is
+   25,489 of them — so the tree draws only the rows a scroll position puts on
+   screen and stands a spacer of the right height in for the rest (see
+   interaction/treeLayout.ts). That is only sound if EVERY row is exactly
+   --tree-row-h tall, so under .tree-virtual the two margins that made the pitch
+   uneven go away and .node-label gets a fixed height instead of being
+   stretched by whichever child happens to be tallest: the 22px action buttons
+   made a model row 36px and a patch row 32px, which is also why rows visibly
+   jittered. The variable itself is declared unconditionally because the
+   component reads it back to work out the pitch before it knows whether it can
+   window at all. */
+#tree-container {
+  --tree-row-h: 32px;
+}
+#tree-container.tree-virtual li.tree-node {
+  margin: 0;
+}
+#tree-container.tree-virtual ul.tree ul {
+  margin-top: 0;
+}
+#tree-container.tree-virtual .node-label {
+  height: var(--tree-row-h);
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+#tree-container.tree-virtual li.tree-spacer {
+  list-style: none;
+  pointer-events: none;
+}
+ul.tree ul {
+  list-style: none;
+  margin: 3px 0 0 8px;
+  padding-left: 18px;
+  border-left: 1px solid rgba(0, 255, 136, 0.1);
+}
+li.tree-node {
+  margin: 2px 0;
+}
+
+.node-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #1e1e28;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+  border-radius: 5px;
+}
+.node-label:hover {
+  background: #262636;
+  border-color: rgba(0, 255, 136, 0.2);
+}
+.node-label.selected {
+  background: var(--active);
+  border-color: var(--highlight);
+  box-shadow: inset 3px 0 0 var(--highlight), 0 0 12px rgba(0, 255, 136, 0.15);
+  text-shadow: none;
+}
+.node-label.disabled {
+  opacity: 0.35;
+}
+.node-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.node-main > .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node-visibility-toggle {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--highlight);
+  cursor: pointer;
+}
+.node-expander {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 1px solid var(--border-bright);
+  background: var(--node-label-bg);
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s;
+  border-radius: 5px;
+}
+.node-expander:hover {
+  border-color: var(--highlight);
+  color: var(--highlight);
+  background: rgba(0, 255, 136, 0.08);
+}
+.node-expander.leaf {
+  border-color: transparent;
+  background: none;
+  cursor: default;
+}
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.node-action-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-bright);
+  background: var(--node-label-bg);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s;
+  border-radius: 5px;
+}
+.node-action-btn:hover {
+  background: rgba(255, 0, 112, 0.1);
+  border-color: var(--accent2);
+  color: var(--accent2);
+  box-shadow: 0 0 8px var(--glow2);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  background: #1e1e28;
+  color: var(--text);
+  border: 1px solid var(--border-bright);
+  font-size: 0.72rem;
+  margin-bottom: 6px;
+  transition: all 0.15s;
+  font-family: var(--font-primary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.06);
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 14px var(--glow-dim);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn.primary {
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 16px var(--glow-dim), inset 0 0 20px rgba(0, 255, 136, 0.04);
+  text-shadow: none;
+}
+.btn.primary:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.14);
+  box-shadow: 0 0 24px var(--glow-dim), 0 0 8px var(--glow);
+}
+.btn.success {
+  background: rgba(0, 255, 136, 0.07);
+  color: var(--highlight);
+  border: none;
+  border-top: 1px solid rgba(0, 255, 136, 0.4);
+  font-size: 0.78rem;
+  padding: 14px;
+  margin: 0;
+  clip-path: none;
+  text-shadow: none;
+  letter-spacing: 0.1em;
+  font-family: var(--font-heading);
+}
+.btn.success:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.12);
+  box-shadow: 0 0 20px var(--glow-dim);
+}
+#left-geo-export {
+  flex: 0 0 auto;
+}
+#left-geo-export .btn.success.cfd-package {
+  background: rgba(0, 212, 255, 0.07);
+  border-top-color: rgba(0, 212, 255, 0.4);
+  color: var(--accent3);
+  text-shadow: none;
+}
+
+/* ── Creation toolbar ────────────────────────────────────────────────────── */
+#creation-toolbar {
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  /* 240 px clipped liquid mode's CDU / pipe / connect tools to a small
+     scrolling window; scale with the screen, still leaving the inspector room. */
+  max-height: min(46vh, 440px);
+  overflow-y: auto;
+}
+#creation-toolbar .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+
+/* ── Property groups ─────────────────────────────────────────────────────── */
+.prop-group {
+  margin: 8px;
+  /* A `fieldset` — which this class is used on in the post-processing panel —
+     carries the UA rule `min-inline-size: min-content`, so it GROWS past its
+     column rather than let anything inside it shrink, and `overflow: hidden`
+     below then clips the overflow away. That is how one over-wide row (the
+     volume-resolution radios, sized as value boxes) took the whole volume
+     section's selects and Apply button off-screen. The legacy editor uses plain
+     `div`s here, which have no such rule; this restores that behaviour. */
+  min-width: 0;
+  background: rgba(24, 24, 36, 0.9);
+  padding: 12px 13px;
+  border: 1px solid rgba(50, 50, 72, 0.9);
+  border-left: 2px solid rgba(0, 255, 136, 0.25);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+.prop-group::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--highlight), transparent 60%);
+  opacity: 0.35;
+}
+.prop-title {
+  font-size: 0.65rem;
+  color: var(--highlight);
+  margin-bottom: 11px;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.12);
+  padding-bottom: 6px;
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  text-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.prop-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 10px;
+  background: currentColor;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+.prop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* Wraps rather than spilling. A row is label + one or two fixed-width fields,
+     and `.prop-group` clips what does not fit — so in a panel dragged narrow the
+     second field simply was not there. Wrapping costs nothing at the 330px
+     default, where no row is close to its threshold. */
+  flex-wrap: wrap;
+  /* Column gap only. A row gap would show up as extra height on the one row
+     that already wraps at the default width, and the frame has to keep matching
+     the legacy editor's screenshot. */
+  gap: 0 10px;
+  margin-bottom: 7px;
+  font-size: 0.8rem;
+}
+.prop-row label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-dim);
+}
+.prop-row input,
+.prop-row select {
+  min-width: 0;
+  width: 110px;
+  background: var(--bg-input);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: #abb2bf;
+  font-family: var(--font-primary);
+  font-size: 0.8rem;
+  padding: 3px 6px;
+  user-select: text;
+}
+/* These two are laid out by `flex: 1`, the way the legacy sets them inline
+   (STL_generate.html:176 and :497), so the generic 110px above is a second,
+   contradictory width — and it wins, cutting 122px off the run name in the
+   post-processing picker. Let the flex line decide instead. */
+#ms-mesh-mode,
+#pp-log-run {
+  width: auto;
+  min-width: 0;
+}
+.prop-row input:focus,
+.prop-row select:focus {
+  outline: none;
+  border-color: var(--highlight);
+  box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.2), 0 0 8px var(--glow-dim);
+}
+/* The 110px above is the width of a VALUE box. A checkbox is not one, and
+   neither is a radio: left at 110px each, the three volume-resolution radios
+   gave their row a 430px min-content, which a `fieldset.prop-group` (min-width:
+   min-content) then grew to — pushing the whole volume section past the panel
+   and behind `overflow: hidden`. The legacy's radios are 13px. */
+.prop-row input[type='checkbox'],
+.prop-row input[type='radio'] {
+  width: auto;
+  /* And never squeezed: a box with `width: auto` inside a flex label is a
+     shrinkable flex item, and the solver's type radios came out as 7.9x13
+     ovals. Their intrinsic 13px square is the whole control. */
+  flex: none;
+}
+/* The refinement-grid level boxes. Ported from cyberpunk-dark.css:355 — it was
+   missed, and without it each box falls back to a number input's ~68px
+   min-content, which widened the grid's four columns past the panel and clipped
+   the feature-level column away. */
+.mesh-lvl-input {
+  width: 42px;
+  padding: 2px 3px;
+  font-size: 0.78rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-bright);
+  color: var(--highlight);
+  text-align: center;
+  border-radius: 5px;
+}
+.prop-row .value {
+  color: var(--text);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prop-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: -2px 0 6px;
+  /* Hints quote absolute paths, and a path has no space to break at, so one
+     long enough simply ran off the side of the group (`overflow: hidden` there)
+     — 102px of "case 目录: /mnt/…" was invisible at the default panel width. */
+  overflow-wrap: anywhere;
+}
+
+/* ── Panel collapse handles ─────────────────────────────────────────────── */
+.panel-collapse-btn {
+  position: absolute;
+  top: 50%;
+  margin-top: -22px;
+  width: 14px;
+  height: 44px;
+  z-index: 46;
+  background: #1e1e28;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.panel-collapse-btn:hover {
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 8px var(--glow-dim);
+}
+#left-collapse-btn {
+  left: var(--left-panel-w);
+}
+#right-collapse-btn {
+  right: var(--right-panel-w);
+}
+/* A COLLAPSED panel is not a narrow one. The width clamp at the top of this
+   file has a 220px floor, so zeroing --right-panel-width alone left everything
+   laid out beside the panel — the toolbar, the resizers, the collapse handle,
+   the 2D editor — inset by 220px of dead band with the layer underneath showing
+   through it. The legacy needs no such override (it writes the width straight
+   into --right-panel-width) but marks the same two classes on `body`
+   (STL_generate.html:17476, 17494). */
+body.panel-left-collapsed {
+  --left-panel-w: 0px;
+}
+body.panel-right-collapsed {
+  --right-panel-w: 0px;
+}
+
+/* ── Log panel ───────────────────────────────────────────────────────────── */
+/* The one place that reads the ASKED-FOR height. Everything else is laid out
+   against `--log-dock-height`, which is what this box ends up measuring after
+   min-height, max-height and a collapse have had their say. */
+#log-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--log-panel-height);
+  min-height: 28px;
+  max-height: 50vh;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(22, 22, 32, 0.99);
+  border-top: 1px solid rgba(0, 255, 136, 0.15);
+}
+#log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 3px 12px;
+  background: var(--log-header-bg);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+  font-size: 0.65rem;
+  min-height: 24px;
+  font-family: var(--font-heading);
+  letter-spacing: 0.1em;
+  color: var(--highlight);
+  text-shadow: none;
+}
+#log-header .log-actions {
+  display: flex;
+  gap: 5px;
+}
+#log-header .log-actions button {
+  background: #1e1e28;
+  color: var(--text-dim);
+  border: 1px solid var(--border-bright);
+  padding: 1px 9px;
+  font-size: 0.62rem;
+  font-family: var(--font-heading);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.15s;
+  border-radius: 5px;
+}
+#log-header .log-actions button:hover:not(:disabled) {
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 8px var(--glow-dim);
+}
+#log-header .log-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#log-content {
+  flex: 1;
+  overflow-y: auto;
+  /* The xterm terminal's own box: same background, same face, same size as
+     `new Terminal({...})` in the HTML editor (STL_generate.html:4360-4364), so
+     a streamed run looks identical in both editors instead of like a different
+     widget wearing the app's panel font. */
+  padding: 4px 10px;
+  background: #161620;
+  font-family: 'Share Tech Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--log-content);
+  user-select: text;
+}
+/* The universal `* { user-select: none }` matches every descendant directly,
+   so the container's `text` alone never reached a log row: left-drag selected
+   nothing and there was nothing for a right-click Copy to act on. */
+#log-content * {
+  user-select: text;
+}
+.log-entry {
+  /* A streamed batch is one entry holding many lines; each wraps like a
+     terminal row instead of running off the dock. */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-time {
+  color: var(--log-time);
+  margin-right: 6px;
+}
+.log-cat-create {
+  color: var(--log-cat-create);
+}
+.log-cat-delete {
+  color: var(--log-cat-delete);
+}
+.log-cat-modify {
+  color: var(--log-cat-modify);
+}
+.log-cat-select {
+  color: var(--log-cat-select);
+}
+.log-cat-view {
+  color: var(--log-cat-view);
+}
+.log-cat-mesh {
+  color: var(--log-cat-mesh);
+}
+.log-cat-solve {
+  color: var(--log-cat-solve);
+}
+.log-cat-file {
+  color: var(--log-cat-file);
+}
+.log-cat-dctwin {
+  color: var(--log-cat-dctwin);
+}
+.log-cat-drag {
+  color: var(--log-cat-drag);
+}
+
+/* ── Viewport overlays ───────────────────────────────────────────────────── */
+/* The canvas spans the full window under the panels, so these overlays have to
+   be pushed clear of the left panel by hand — same arithmetic the legacy app
+   does in _positionFpsOverlay(). */
+/* The legacy pins the 92px gizmo canvas to the FPS overlay's left edge, 4px
+   above it (STL_generate.html:29360-29372); the stats bar below is that
+   overlay, 8px in and 8px up, ~26px tall. */
+#center-view canvas#corner-axes-gizmo,
+#corner-axes-gizmo {
+  position: absolute;
+  left: calc(var(--left-panel-w) + 8px);
+  bottom: 38px;
+  width: 92px;
+  height: 92px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 9;
+}
+.viewport-stats {
+  position: absolute;
+  left: calc(var(--left-panel-w) + 8px);
+  bottom: 8px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.empty {
+  color: var(--text-dim);
+  padding: 16px 4px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.error {
+  color: #ff5c72;
+  padding: 8px 12px;
+  font-size: 0.76rem;
+  border-top: 1px solid rgba(255, 92, 114, 0.3);
+  white-space: pre-wrap;
+}
+
+/* Advice, not failure: the run went ahead (e.g. the AI solve outside its training data). */
+.warn {
+  color: #e8a33d;
+  font-size: 0.76rem;
+  margin-top: 4px;
+}
+
+/* ── Modal dialogs ───────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(8, 8, 14, 0.72);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  background: var(--panel-gradient);
+  border: 1px solid var(--border-bright);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(0, 255, 136, 0.12);
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+.modal > .header > .node-action-btn {
+  margin-left: auto;
+}
+
+.file-browser {
+  width: min(760px, 88vw);
+  height: min(560px, 78vh);
+}
+.fb-path {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.fb-path input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: #abb2bf;
+  font-family: var(--font-primary);
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  user-select: text;
+}
+.fb-path input:focus {
+  outline: none;
+  border-color: var(--highlight);
+  box-shadow: 0 0 8px var(--glow-dim);
+}
+.fb-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.fb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.fb-row:hover {
+  background: rgba(0, 255, 136, 0.07);
+}
+.fb-row.selected {
+  background: var(--active);
+  box-shadow: inset 3px 0 0 var(--highlight);
+  color: #fff;
+}
+.fb-icon {
+  flex: 0 0 auto;
+}
+.fb-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fb-dir .fb-name {
+  color: var(--accent3);
+}
+.fb-size {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+.fb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.fb-selected {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Truncate the START of a long path, not the end — the filename is the part
+     worth seeing. `direction: rtl` alone does that but also drags the leading
+     "/" to the far end, so the path renders as "mnt/...cfdproj/".
+     `unicode-bidi: plaintext` takes the run's direction from its first strong
+     character, which for a path is LTR, so the text reads correctly while the
+     overflow is still clipped on the left. */
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+/* ── 2D room editor ──────────────────────────────────────────────────────── */
+/* Occupies the viewport band, not the whole window: the panels stay usable and
+   the layout does not jump when entering and leaving the editor.
+
+   The properties are NOT a column in here. They are portaled into the right
+   panel, over the 3D inspector, which is what the legacy does — so this is the
+   toolbar and the canvas, and it widens on its own when the right panel is
+   collapsed. */
+.room2d {
+  position: absolute;
+  top: 0;
+  left: var(--left-panel-w);
+  right: var(--right-panel-w);
+  bottom: var(--log-dock-height);
+  /* Above the 3D toolbar (42) and its resizer (43), BELOW the panel collapse
+     handles (46) — the legacy stacks it the same way, its #room2d-container
+     taking no z-index at all while the handles take 45-46. At 60 the editor
+     covered the ▶ handle, so the right panel could not be folded away while a
+     plan was open, which is the only way to give the canvas the full width. */
+  z-index: 44;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'toolbar' 'canvas';
+  background: var(--viewport-bg);
+}
+.room2d-toolbar {
+  grid-area: toolbar;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(26, 26, 34, 0.96);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.12);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(0, 255, 136, 0.1);
+}
+.room2d-toolbar .tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.room2d-canvas-host {
+  grid-area: canvas;
+  position: relative;
+  overflow: hidden;
+}
+.room2d-canvas-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+/* The portal target inside #right-panel. `display: contents` keeps it out of
+   the panel's flex layout, so the column below stretches and scrolls exactly as
+   the inspector it replaces does — and the empty host costs nothing while no
+   plan is open. */
+#room2d-side-host {
+  display: contents;
+}
+.room2d-side {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.room2d-side .prop-row input {
+  width: 74px;
+}
+.room2d-vertex-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* ── liquid results ─────────────────────────────────────────────────────
+   The server table is dense on purpose: a rack can hold 40+ servers and the
+   panel is 300px wide, so the row height is what decides whether a rack fits
+   on screen without collapsing every other one. */
+.lr-status-toggle { color: var(--text); font-size: 11px; cursor: pointer; }
+.lr-status-details[open] > summary { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.lr-status-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; font-size: 10px; }
+.lr-status-metrics > div { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.lr-status-metrics dt { color: var(--hint-color); }
+.lr-status-metrics dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-cdu-toggle { color: var(--highlight); font-size: 11px; cursor: pointer; }
+.lr-cdu-count { margin-inline-start: 8px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 8px; color: var(--hint-color); font-variant-numeric: tabular-nums; }
+.lr-cdu-details[open] > summary { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.lr-cdu-details .prop-hint { overflow-wrap: anywhere; }
+.prop-title.lr-rack-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 0 0 8px; color: var(--highlight); text-align: left; font-family: inherit; cursor: pointer; }
+.lr-rack-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.lr-rack-metric { display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.4; }
+.lr-rack-metric > span { font-size: 10px; color: var(--hint-color); }
+.lr-rack-metric > strong { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+.lr-table { width: 100%; table-layout: fixed; font-size: 10px; color: var(--text); border-collapse: collapse; }
+.lr-table th { overflow-wrap: anywhere; text-align: right; font-weight: 500; line-height: 1.4; color: var(--hint-color); padding: 5px 3px; border-bottom: 1px solid var(--border); }
+.lr-table td { padding: 5px 3px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--border); }
+.lr-table th:first-child, .lr-table td:first-child { width: 28%; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.lr-table th:nth-child(2) { width: 16%; }
+.lr-table th:nth-child(3) { width: 22%; }
+.lr-table th:nth-child(4), .lr-table th:nth-child(5) { width: 17%; }
+.lr-server-link { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.lr-row-focus { background: rgba(0,180,220,0.12); }
+.lr-link { background: none; border: none; padding: 0; color: var(--highlight); cursor: pointer; font: inherit; text-decoration: underline dotted; }
+.ts-chart { background: var(--bg-input); border: 1px solid var(--border); }
+.liquid-hx-charts { display: grid; gap: 8px; }
+
+/* ── post-processing right panel ────────────────────────────────────────
+   Replicates #dctwin-postprocess-right (STL_generate.html:928). The legacy
+   markup carries its style inline; the sizes below are those inline values,
+   kept as a stylesheet so the tree rows do not repeat a style attribute 53
+   times. */
+#dctwin-postprocess-right {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+  padding: 0;
+}
+.pp-display-options {
+  padding: 10px;
+  border-bottom: 1px solid #2a2a3a;
+}
+.pp-section-label {
+  font-size: 11px;
+  color: var(--section-header-display, #8be9fd);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.pp-slider-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0 4px;
+}
+.pp-slider-row label {
+  font-size: 11px;
+  color: #ccc;
+}
+.pp-slider-row span {
+  font-size: 10px;
+  color: #666;
+  font-family: monospace;
+}
+.pp-display-options input[type='range'] {
+  width: 100%;
+}
+#pp-clear-all {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.btn.danger {
+  background: linear-gradient(180deg, #4a1e1e, #3a1616);
+  border: 1px solid #5a2a2a;
+  color: #f66;
+}
+
+/* Render order: the top chip draws on top. Grab cursor and a colour-matched
+   border per layer, as in the legacy list. */
+#pp-render-order-panel {
+  margin-top: 10px;
+}
+#pp-render-order-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ro-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: grab;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 10px;
+  user-select: none;
+  transition: background 0.15s, transform 0.15s;
+}
+.ro-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.ro-icon { font-size: 12px; line-height: 1; }
+.ro-label { flex: 1; }
+.ro-grip { color: #555; font-size: 9px; }
+
+.pp-zones-row {
+  padding: 8px;
+  border-bottom: 1px solid #444;
+  font-size: 11px;
+  color: #ccc;
+}
+.pp-tree-wrap {
+  padding: 8px;
+}
+.pp-tree-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pp-tree-head label {
+  font-size: 11px;
+  color: #aaa;
+}
+.pp-tree-head-btns {
+  display: flex;
+  gap: 2px;
+}
+.pp-tree-head-btns button {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #1a2a3a;
+  border: 1px solid #2a4a5a;
+  color: #aaa;
+  cursor: pointer;
+}
+#pp-tree {
+  max-height: 600px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.pp-kind { margin-bottom: 2px; }
+.pp-kind-head {
+  font-size: 11px;
+  padding: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  font-weight: bold;
+}
+.pp-kind-body,
+.pp-model-body {
+  padding-left: 14px;
+}
+.pp-model-head {
+  font-size: 10px;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #bbb;
+  user-select: none;
+}
+.pp-patch-row {
+  font-size: 10px;
+  padding: 1px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ccc;
+}
+.pp-caret {
+  display: inline-block;
+  width: 10px;
+  font-size: 8px;
+  cursor: pointer;
+}
+.pp-internal-row {
+  font-size: 11px;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ccc;
+}
+#pp-tree-zones {
+  font-size: 11px;
+  padding: 2px 0;
+  color: #ccc;
+}
+#pp-tree-zones.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.dim { color: #666; font-size: 10px; }
+
+/* ── the floating colorbar ──────────────────────────────────────────────
+   Ported from the legacy widget's inline styles (STL_generate.html:19943).
+   It renders into document.body, so nothing here may depend on a panel
+   ancestor. */
+.pp-colorbar {
+  position: fixed;
+  width: 30px;
+  height: 200px;
+  border: 1px solid #666;
+  z-index: 500; /* Keep field legends beneath movable monitor windows. */
+  background: #222;
+  padding: 2px;
+  cursor: grab;
+}
+.pp-colorbar-field {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  right: 0;
+  width: max-content;
+  max-width: 82px;
+  text-align: right;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #fff;
+  font-weight: bold;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.pp-colorbar-max {
+  position: absolute;
+  top: -14px;
+  right: 0;
+  text-align: right;
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+.pp-colorbar-min {
+  position: absolute;
+  bottom: -14px;
+  right: 0;
+  text-align: right;
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+.pp-colorbar-dialog {
+  position: fixed;
+  z-index: 1100;
+  /* Parked clear of the right panel, but never off the left edge: a constant
+     380px inset plus a 220px minimum needs a 600px window to stay visible. */
+  right: min(380px, max(12px, calc(100vw - 240px)));
+  max-width: calc(100vw - 24px);
+  top: 30%;
+  background: #1a1a2e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 220px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: #ccc;
+}
+.pp-cbw-head {
+  font-size: 13px;
+  color: #fff;
+  font-weight: bold;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pp-cbw-head > span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-cbw-close {
+  cursor: pointer;
+  color: #888;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+  line-height: 1;
+  font-size: 16px;
+  margin-left: 8px;
+}
+.pp-cbw-close:hover,
+.pp-cbw-close:focus-visible {
+  color: var(--accent);
+}
+.pp-cbw-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pp-cbw-field {
+  margin-bottom: 8px;
+}
+.pp-cbw-field label,
+.pp-cbw-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #aaa;
+}
+.pp-cbw-field select,
+.pp-colorbar-dialog select {
+  width: 100%;
+  padding: 4px;
+  font-size: 12px;
+  background: var(--bg-input);
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 3px;
+}
+.pp-cbw-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.pp-cbw-row label {
+  width: 30px;
+}
+.pp-cbw-row input {
+  flex: 1;
+  padding: 3px;
+  font-size: 12px;
+  background: var(--bg-input);
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 3px;
+}
+.pp-cbw-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.pp-cbw-auto {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #1a2a3a;
+  border: 1px solid #2a4a5a;
+  color: #6af;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.pp-cbw-apply {
+  padding: 4px 16px;
+  font-size: 12px;
+  background: #1a3a2a;
+  border: 1px solid #2a5a3a;
+  color: #6f6;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+/* Streamline / slice set rows (#pp-streamline-list, #pp-slice-list). */
+.pp-set-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 0.72rem;
+}
+.pp-set-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  cursor: pointer;
+}
+.pp-set-opacity {
+  width: 50px;
+  flex-shrink: 0;
+}
+.pp-set-delete {
+  background: none;
+  border: none;
+  color: var(--error-color, #f66);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 4px;
+}
+.pp-row-buttons {
+  justify-content: flex-end;
+  gap: 4px;
+}
+.pp-row-buttons .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* The 🔄 beside 求解记录: a button in a prop-row would otherwise take the
+   .btn full width and squeeze the select to nothing. */
+#pp-refresh-runs {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+}
+#postprocess-settings-panel #pp-log-run {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The colour swatch on a patch or server node. */
+.node-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #555;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* The custom-angle box beside a rotation dropdown. */
+.rot-custom {
+  width: 52px;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 3px;
+}
+
+/* ── export dialog ──────────────────────────────────────────────────────
+   Modal, because the model list has to be read before the export runs — a
+   panel would let a click elsewhere change the selection mid-export. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.modal {
+  background: var(--panel-gradient, #14141f);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  padding: 14px;
+  /* min-width beats max-width in CSS, so a bare `min-width: 420px` pushed the
+     dialog past the edge of any window under 467px instead of shrinking. */
+  min-width: min(420px, 90vw);
+  max-width: 90vw;
+  max-height: 86vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+.modal-title {
+  font-size: 0.95rem;
+  color: var(--highlight);
+  margin-bottom: 8px;
+}
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.modal-buttons .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+.export-model-list {
+  margin-top: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  padding: 6px;
+}
+.export-model-actions {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.export-model-actions button {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #1a2a3a;
+  border: 1px solid #2a4a5a;
+  color: #aaa;
+  cursor: pointer;
+}
+.export-model-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--text);
+  padding: 1px 0;
+}
+.export-model-row .dim {
+  margin-left: auto;
+}
+.export-error {
+  color: #e06c75;
+  white-space: pre-wrap;
+}
+
+/* ── solver monitoring (right panel) ────────────────────────────────────── */
+#solver-monitoring-right {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+.sm-section {
+  padding: 8px;
+  border-bottom: 1px solid #333;
+  font-size: 11px;
+  color: #ccc;
+}
+.sm-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.sm-section-head label {
+  font-size: 11px;
+  color: #aaa;
+}
+.sm-section-btns {
+  display: flex;
+  gap: 2px;
+}
+.sm-section-btns button {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #1a2a3a;
+  border: 1px solid #2a4a5a;
+  color: #aaa;
+  cursor: pointer;
+}
+#sm-server-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+#sm-acu-return-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.sm-row {
+  font-size: 10px;
+  padding: 1px 0;
+  color: #ccc;
+}
+.sm-empty {
+  font-size: 10px;
+  color: #666;
+  padding: 4px;
+}
+.sm-error {
+  font-size: 10px;
+  color: #f66;
+  padding: 4px 8px;
+}
+
+/* Patch inspector: the derived STL solid name, and the colour palette. */
+.patch-final-name {
+  padding: 5px 8px;
+  background: rgba(229, 192, 123, 0.06);
+  border: 1px solid rgba(229, 192, 123, 0.2);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--hint-color);
+  letter-spacing: 0;
+  word-break: break-all;
+}
+.color-swatches {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  opacity: 0.6;
+}
+.color-swatch.active {
+  border: 2px solid #fff;
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+/* Volume resolution radios sit inline in their row. */
+.pp-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--text);
+  margin-left: 6px;
+}
+.pp-radio input {
+  width: auto;
+  margin: 0;
+}
+
+/* ── sensors ────────────────────────────────────────────────────────────── */
+#solver-sensor-right {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+.sensor-entry {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto 1fr auto auto;
+  gap: 2px 4px;
+  align-items: center;
+  font-size: 0.72rem;
+}
+.sensor-entry input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 3px;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+.sensor-entry button {
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sensor-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  padding: 1px 0;
+  color: var(--text);
+}
+/* The name is the handle for the rename dialog (double-click), so it has to
+   read as clickable — with no cursor change the affordance is invisible and the
+   only way to rename a probe is to know it is there. */
+.sensor-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sensor-name:hover {
+  color: var(--highlight);
+}
+/* Narrower than the export dialog: four short rows, and a 420px box around
+   them looks like a form that lost its contents. */
+.sensor-edit-dialog {
+  min-width: min(280px, 90vw);
+}
+
+/* ── transform block ────────────────────────────────────────────────────
+   The axis choices under the move and rotate toggles sit on ONE row, as the
+   legacy block and the multi-select panel lay them out: this block opens every
+   inspector panel, so a row per axis would push the rest of the panel down by
+   four rows that only matter while the gizmo is on. */
+.transform-axis-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+.transform-axis-choices label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  cursor: pointer;
+}
+.transform-axis-choices input {
+  margin: 0;
+}
+/* The block's last line on a part pick (a box face, a rack slot): "these act
+   on the whole model". Under the groups, lined up with their text, so no row
+   above it moves between a model pick and a part pick. */
+.transform-parent-hint {
+  margin: -2px 21px 8px;
+}
+
+/* ── keyboard-shortcut dialog ───────────────────────────────────────────
+   The export dialog's chrome, with a table: action | key | change. */
+#shortcut-settings-btn {
+  margin-left: 6px;
+}
+.shortcut-settings-dialog {
+  min-width: min(460px, 90vw);
+  max-width: min(560px, 90vw);
+}
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin: 4px 0 8px;
+}
+.shortcut-table th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--text-dim);
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border-bright);
+}
+.shortcut-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+.shortcut-table tr.listening td {
+  background: rgba(0, 255, 136, 0.06);
+}
+.shortcut-table .shortcut-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.shortcut-table .shortcut-actions .btn {
+  display: inline-block;
+  width: auto;
+  margin: 0;
+  padding: 2px 10px;
+}
+.shortcut-key {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border: 1px solid var(--border-bright);
+  border-radius: 3px;
+  background: var(--bg-input);
+  font-family: var(--font-primary);
+  text-align: center;
+  white-space: nowrap;
+}
+.shortcut-key.listening {
+  border-color: var(--highlight);
+  color: var(--highlight);
+  box-shadow: 0 0 8px var(--glow-dim);
+  white-space: normal;
+}
+.shortcut-conflict {
+  margin: 4px 0 8px;
+}
+.shortcut-subtitle {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* ── remaining-area block ───────────────────────────────────────────────
+   The boundary condition of everything no patch covers, boxed off inside the
+   sheet's CFD group. A floor's panel carries two unrelated decisions — is this
+   floor the room's boundary, and what is the rest of it made of — and run
+   together as flat rows they read as one setting with a stray extra select. */
+.remaining-area-block {
+  margin: 8px 0;
+  padding: 6px;
+  border-left: 2px solid #7d8590;
+  background: rgba(255, 255, 255, 0.03);
+}
+.remaining-area-title {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* ── panel resizers ─────────────────────────────────────────────────────
+   Wide pointer targets with a quiet grip; focus reveals the keyboard edge. */
+.resize-handle,
+.resize-handle-h {
+  position: fixed;
+  z-index: 40;
+  background: transparent;
+}
+.resize-handle {
+  top: 0;
+  bottom: var(--log-dock-height);
+  width: 8px;
+  cursor: col-resize;
+}
+.resize-handle-h {
+  left: var(--left-panel-w);
+  right: var(--right-panel-w);
+  height: 8px;
+  cursor: row-resize;
+}
+#left-resizer {
+  left: calc(var(--left-panel-w) - 4px);
+}
+#right-resizer {
+  right: calc(var(--right-panel-w) - 4px);
+}
+/* `top` is written by PanelResizers from the toolbar's MEASURED bottom edge, so
+   only the pre-mount fallback lives here. The toolbar wraps — it is 129px tall
+   at 1920 wide and 403px at 1000 — so a constant here parks an invisible
+   row-resize strip in the middle of the canvas, where it swallows clicks meant
+   for the scene. Matching the toolbar's own 8px insets keeps the handle from
+   overhanging the side panels. */
+#toolbar-resizer {
+  top: 0;
+  left: calc(var(--left-panel-w) + 8px);
+  right: calc(var(--right-panel-w) + 8px);
+  z-index: 43;
+}
+#log-resizer {
+  bottom: calc(var(--log-dock-height) - 4px);
+  left: 0;
+  right: 0;
+}
+.resize-handle:hover,
+.resize-handle-h:hover,
+body.resizing .resize-handle,
+body.resizing .resize-handle-h {
+  background: var(--glow-dim);
+}
+.resize-handle::after,
+.resize-handle-h::after {
+  content: '';
+  position: absolute;
+  background: var(--border-bright);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.resize-handle::after {
+  top: calc(50% - 18px);
+  left: 3px;
+  width: 2px;
+  height: 36px;
+}
+.resize-handle-h::after {
+  top: 3px;
+  left: calc(50% - 20px);
+  width: 40px;
+  height: 2px;
+}
+.resize-handle:focus-visible,
+.resize-handle-h:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: -2px;
+  background: var(--glow-dim);
+}
+.resize-handle:focus-visible::after,
+.resize-handle-h:focus-visible::after {
+  background: var(--highlight);
+}
+.resize-help {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* While dragging, nothing else should take the pointer — a text selection or a
+   canvas orbit starting mid-drag makes the panel jump. */
+body.resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+body.resizing #center-view {
+  pointer-events: none;
+}
+
+/* The terminal fills the log dock; xterm sizes itself to this box.
+   `.log-view` has to carry the flex rules too: it is the dock's flex ITEM, and
+   without them it takes its height from its content — xterm then kept whatever
+   24 rows it started with (360px inside a 160px dock), so the shell was cropped
+   by the dock instead of fitted to it, and dragging the dock taller gave the
+   terminal no more rows. */
+.log-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* `display: flex` outranks the UA's `[hidden] { display: none }`, so the view
+   switch needs saying again here — the same trap `.panel[hidden]` documents.
+   Without it the shell shows THROUGH the operation log. */
+.log-view[hidden] {
+  display: none;
+}
+#terminal-container {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+.log-actions button.active {
+  background: rgba(0, 255, 136, 0.14);
+  border-color: rgba(0, 255, 136, 0.4);
+  color: var(--highlight);
+}
+
+/* Solver right-column sub-tabs (monitor / sensors).
+   Colours come from the same --tab-* variables the left tab bar uses, so the
+   two bars stay in step under either theme. */
+.subtab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--tab-bar-border);
+  background: var(--tab-bar-bg);
+  flex-shrink: 0;
+}
+.subtab {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 11px;
+  border: none;
+  cursor: pointer;
+  /* The legacy page names --tab-active-* / --tab-inactive-* but never defines
+     them, so those buttons render in the browser default. The fallbacks here
+     are the left tab bar's own colours: same bar, same look, under either
+     theme. */
+  background: var(--tab-inactive-bg, transparent);
+  color: var(--tab-inactive-text, var(--text-dim));
+  border-bottom: 2px solid transparent;
+}
+.subtab:hover {
+  color: var(--text);
+}
+.subtab.active {
+  background: var(--tab-active-bg, transparent);
+  color: var(--tab-active-text, var(--highlight));
+  border-bottom: 2px solid var(--tab-active-border, var(--highlight));
+}
+
+/* The percent readout beside a rack-detail slider. Monospace so the number
+   does not jitter the slider's width as it counts up. */
+.mono-pct {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Liquid runtime controls stay compact beside the modelling viewport. */
+.liquid-experiment h3 { margin: 8px 0 12px; font-size: 15px; }
+.liquid-experiment h4 { margin: 14px 0 4px; font-size: 12px; font-weight: 600; }
+.liquid-experiment fieldset { border: 0; margin: 12px 0; padding: 0; min-width: 0; }
+.liquid-experiment legend { font-weight: 600; padding: 10px 0 8px; }
+.liquid-experiment-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; font-size: 12px; }
+.liquid-experiment-field input, .liquid-experiment-field select { width: 48%; min-width: 0; padding: 5px; background: var(--input-bg, #252526); color: var(--text, #ddd); border: 1px solid var(--border, #555); border-radius: 3px; }
+.liquid-experiment-check { display: flex; align-items: center; gap: 7px; font-size: 12px; margin: 10px 0; }
+.liquid-experiment-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.liquid-experiment-actions .btn { flex: 1 1 auto; width: auto; min-width: 65px; }
+.liquid-experiment-note { font-size: 11px; line-height: 1.55; color: var(--text-dim, #aaa); }
+.liquid-experiment-status { padding: 10px 0; border-top: 1px solid var(--border, #555); font-size: 12px; }
+.liquid-experiment-status progress { display: block; width: 100%; margin: 9px 0; height: 5px; accent-color: #65b7df; }
+.liquid-experiment-status small { display: block; color: var(--text-dim, #aaa); }
+.liquid-experiment-warning { color: #e9b869; font-size: 11px; line-height: 1.5; }
+.liquid-experiment-legacy { margin-top: 20px; border-top: 1px solid var(--border, #555); padding-top: 12px; }
+.liquid-experiment-legacy summary { cursor: pointer; color: var(--text-dim, #aaa); font-size: 12px; }
+
+/* Renderer switch (Three.js / Omniverse) portalled into the top bar by
+   RendererControl. The slot takes the right-cluster auto margin so the
+   language/theme/shortcut group keeps sitting right after it. */
+#renderer-switch-slot {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+#renderer-switch-slot:empty {
+  display: none;
+}
+#renderer-switch-slot:not(:empty) + #lang-selector {
+  margin-left: 10px;
+}
+#renderer-switch-slot label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+#renderer-switch-slot select {
+  background: #1e1e28;
+  color: var(--highlight);
+  border: 1px solid var(--border-bright);
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  letter-spacing: 0.06em;
+}
+#renderer-switch-slot .renderer-connection {
+  position: relative;
+  font-size: 0.68rem;
+}
+#renderer-switch-slot .renderer-connection > div {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 240px;
+}
+
+.renderer-connection > div {
+  min-width: 240px;
+  max-width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.renderer-connection > div > label {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  color: var(--text-dim);
+}
+.renderer-connection input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border-bright);
+  border-radius: 5px;
+  font-family: var(--font-primary);
+  font-size: 12px;
+}
+.renderer-connection small {
+  display: block;
+  color: var(--text-dim);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* Analysis mode (E8b): 稳态 | 瞬态 for the cooling domain on screen. One click
+   per change; steady paints cyan, transient magenta (the timeline's colour). */
+.mode-switch {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  background: var(--bg-input);
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+}
+.mode-switch-domain {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: var(--text-dim);
+  border-right: 1px solid var(--border-bright);
+  white-space: nowrap;
+}
+.mode-switch-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+.mode-switch-seg + .mode-switch-seg { border-left: 1px solid var(--border); }
+.mode-switch-seg:hover:not(:disabled):not(.on) { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.mode-switch-seg:focus-visible { outline: 1px solid var(--highlight); outline-offset: -2px; }
+.mode-switch-seg:disabled { cursor: default; opacity: 0.5; }
+.mode-switch-seg[data-mode="steady"].on {
+  color: var(--accent3);
+  background: rgba(0, 212, 255, 0.14);
+  box-shadow: inset 0 -2px 0 var(--accent3);
+}
+.mode-switch-seg[data-mode="transient"].on {
+  color: var(--accent2);
+  background: rgba(255, 0, 112, 0.14);
+  box-shadow: inset 0 -2px 0 var(--accent2);
+}
+.mode-switch-icon { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mode-switch-other {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-left: 1px solid var(--border-bright);
+  color: var(--hint-color);
+  white-space: nowrap;
+}
+
+/* ── Transient timeline (transient design §2): the last row of #toolbar ─────── */
+#timeline-strip {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 8px;
+  padding: 3px 0 1px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text);
+}
+#timeline-strip select,
+#timeline-strip input { font-size: 11px; }
+.timeline-uniform { display: inline-flex; gap: 6px; }
+.timeline-uniform label,
+.timeline-duration { display: inline-flex; align-items: center; gap: 3px; color: var(--text-dim); }
+#timeline-bar {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 160px;
+  height: 18px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-bright);
+  border-radius: 3px;
+  cursor: pointer;
+  touch-action: none;
+}
+.timeline-diamond {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--accent3);
+  border: 1px solid var(--bg);
+  cursor: ew-resize;
+}
+.timeline-diamond.at-playhead { background: var(--highlight); box-shadow: 0 0 6px var(--glow); }
+.timeline-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent2);
+  pointer-events: none;
+}
+#timeline-time { min-width: 72px; color: var(--highlight); }
+#timeline-exact { width: 64px; }
+.timeline-refusal { color: var(--danger); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Track panel: the selected object's parameter tracks, under the top bar ── */
+#track-panel {
+  position: fixed;
+  left: calc(var(--left-panel-w) + 8px);
+  right: calc(var(--right-panel-w) + 8px);
+  z-index: 41;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 6px 10px;
+  background: rgba(26, 26, 34, 0.96);
+  border: 1px solid var(--border-bright);
+  border-radius: 0 0 4px 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+.track-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.track-row.highlighted .track-label { color: var(--highlight); }
+.track-label { flex: 0 0 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-label em { color: var(--text-dim); font-style: normal; }
+.track-lane { flex: 1 1 auto; height: 40px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 3px; touch-action: none; }
+.track-line { fill: none; stroke: var(--accent3); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.track-playhead { stroke: var(--accent2); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.track-key { fill: var(--accent3); stroke: var(--bg); stroke-width: 1; cursor: ew-resize; }
+.track-key.at-playhead { fill: var(--highlight); }
+.track-ramp { fill: var(--hint-color); opacity: 0.85; cursor: ew-resize; }
+#track-key-editor { display: flex; align-items: center; gap: 10px; padding: 6px 0 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+#track-key-editor label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); }
+
+/* Inspector time semantics (transient design §2) */
+.kf-badge { margin-left: 4px; font-size: 10px; cursor: help; color: var(--accent, #4fc3f7); }
+.kf-badge--key { color: #f5b942; }
+.kf-badge--ramp { color: #4fc3f7; }
+.kf-badge--hold { color: var(--text-dim, #8a94a6); }
+.frozen-banner { display: flex; align-items: center; gap: 6px; margin: 4px 6px; padding: 4px 8px; font-size: 11px; line-height: 1.4;
+  border-left: 3px solid #f5b942; background: rgba(245, 185, 66, 0.10); color: var(--text, #d7dde8); }
+.frozen-banner span { flex: 1; min-width: 0; }
+.frozen-notice { margin: 0 6px 4px; padding: 2px 8px; font-size: 11px; color: var(--danger, #ff6b6b); }
+/* Static fields off t = 0: the store refuses their edits; this is the visible half.
+   FrozenInspector applies native disabled to static fields (including keyboard).
+   Static edit buttons share that lock. Navigation/display controls opt out with
+   .frozen-ok, and tracked fields/actions with .kf-field. */
+.inspector-frozen :is(input, select, textarea, button):not(.frozen-ok):not(.kf-field *):not(.frozen-ok *) {
+  opacity: 0.45; cursor: not-allowed;
+}
+
+/* Calm engineering workspace. Requested panel widths and existing resizers
+   remain authoritative; the shared cap leaves a useful modelling viewport. */
+:root { --font-mono: Consolas, 'SFMono-Regular', monospace; }
+:root[data-theme="vscode-dark"] {
+  --bg: #171a20; --panel: #20242d; --bg-input: #171b22;
+  --panel-gradient: linear-gradient(180deg, #252a34, #20242d);
+  --header-bg: #262c37; --file-bar-bg: #262c37; --tab-bar-bg: #20242d;
+  --border: #3b4350; --border-bright: #515d6c;
+  --highlight: #8bb9ec; --active: #263f59;
+  --viewport-bg: #15191f;
+  --viewport-glow: radial-gradient(ellipse at 50% 45%, #26313e 0%, #15191f 75%);
+}
+button, select, input, textarea { font-family: var(--font-primary); }
+/* Every theme is dark. A control no panel rule styles fell back to the
+   browser's light grey-on-white (the hybrid flow's run/sample pickers, the
+   cold-plate filter); :where() keeps this at zero specificity so each panel's
+   own rule still wins. */
+:root { color-scheme: dark; }
+:where(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"])) {
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px;
+}
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--highlight); outline-offset: 2px;
+}
+#left-panel, #right-panel { box-shadow: 0 0 16px rgba(0, 0, 0, 0.24); border-color: var(--border); }
+.panel { backdrop-filter: none; }
+.file-bar { gap: 7px; padding: 10px; }
+.file-btn, .btn, .tool-btn, .rot-apply-btn, .left-tab-btn, .badge,
+#lang-selector, #theme-selector {
+  font-family: var(--font-primary); letter-spacing: 0; text-transform: none;
+}
+.file-btn { min-height: 40px; font-size: 12px; background: var(--panel); border-radius: 6px; }
+#btn-mode-liquid.active, #btn-mode-air.active { box-shadow: none; }
+#btn-mode-liquid.active { color: var(--accent3); background: #213648; border-color: #4b779b; }
+#btn-mode-air.active { color: var(--hint-color); background: #3c3223; border-color: #8c7350; }
+.left-tab-btn { font-size: 12px; padding: 10px 2px; }
+.header { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; padding: 10px 12px; border-left: none; color: var(--text); }
+.header.section-cyan { background: var(--header-bg); border-color: var(--border); color: var(--accent3); padding: 8px 10px; }
+.badge { font-size: 11px; border-color: var(--border-bright); border-radius: 4px; padding: 2px 6px; }
+.btn { padding: 8px 10px; font-size: 12px; line-height: 1.45; border-radius: 6px; background: var(--panel); }
+.btn.primary { color: #101b22; background: var(--highlight); border-color: var(--highlight); box-shadow: none; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--highlight) 85%, white); color: #101b22; box-shadow: none; }
+.btn.success { font-size: 12px; padding: 12px; letter-spacing: 0; font-family: var(--font-primary); background: var(--active); border-top: 1px solid var(--border-bright); }
+.btn:hover:not(:disabled), .file-btn:hover:not(:disabled), .tool-btn:hover:not(:disabled) { box-shadow: none; }
+.prop-group { margin: 9px 8px; padding: 11px; background: color-mix(in srgb, var(--panel) 85%, var(--bg)); border: 1px solid var(--border); border-radius: 7px; box-shadow: none; }
+.prop-group::before, .prop-title::before { display: none; }
+.prop-title { color: var(--text); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.prop-row { gap: 6px 10px; font-size: 12px; line-height: 1.5; margin-bottom: 8px; }
+.prop-row:has(> label:first-child):has(> :nth-child(2):last-child) {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 1fr);
+}
+.prop-row:has(> label:first-child):has(> :nth-child(2):last-child) > :is(input:not([type="checkbox"]):not([type="radio"]), select) { width: 100%; }
+.prop-row input, .prop-row select, .liquid-experiment-field input, .liquid-experiment-field select {
+  min-height: 30px; padding: 5px 7px; color: var(--text); border: 1px solid var(--border-bright); border-radius: 5px; font-size: 12px; background: var(--bg-input);
+}
+.prop-row input[type="checkbox"], .prop-row input[type="radio"] { min-height: 0; width: auto; justify-self: start; }
+.prop-row input:focus, .prop-row select:focus { box-shadow: 0 0 0 1px var(--highlight); }
+.prop-hint { font-size: 11px; line-height: 1.6; }
+#project-description {
+  box-sizing: border-box; min-width: 0; padding: 7px 9px;
+  color: var(--text); background: var(--bg-input);
+  border: 1px solid var(--border-bright); border-radius: 5px;
+  font-size: 12px; line-height: 1.6;
+}
+#project-description::placeholder { color: var(--text-dim); opacity: 1; }
+.mesh-engine-details { margin: 8px 0 12px; }
+.mesh-engine-details > summary {
+  font-size: 11px; line-height: 1.6; color: var(--text-dim); cursor: pointer;
+}
+.mesh-engine-details[open] > summary { margin-bottom: 6px; color: var(--highlight); }
+
+.liquid-experiment h3 { font-size: 15px; line-height: 1.45; margin-top: 0; }
+.liquid-experiment h4, .liquid-experiment legend { color: var(--text); font-size: 12px; letter-spacing: 0; }
+.liquid-experiment-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, 1fr); gap: 10px; line-height: 1.5; }
+.liquid-experiment-field input, .liquid-experiment-field select { width: 100%; }
+.liquid-experiment-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.liquid-experiment-actions .btn { width: 100%; min-width: 0; margin-bottom: 0; }
+.liquid-experiment-note, .liquid-experiment-warning { overflow-wrap: anywhere; line-height: 1.65; }
+.liquid-experiment-warning { padding: 8px 10px; border: 1px solid #80683f; border-radius: 6px; background: #322b20; color: #e4c891; }
+.liquid-experiment-status { margin-top: 12px; padding: 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-input); line-height: 1.6; }
+.liquid-experiment-status small { overflow-wrap: anywhere; }
+
+#toolbar {
+  top: 8px; padding: 9px 10px; display: grid; overflow: visible;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: start;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  border: 1px solid var(--border); border-radius: 8px; backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); transform: none;
+}
+#toolbar[data-scrollable="true"] #toolbar-body { overflow-y: auto; overflow-x: hidden; }
+#toolbar[data-footer-scrollable="true"] #timeline-strip { overflow-y: auto; overflow-x: hidden; }
+#toolbar.collapsed { padding: 4px; min-height: 30px; width: 40px; right: auto; grid-template-columns: 1fr; }
+#toolbar-content { display: flex; flex-direction: column; gap: var(--toolbar-content-gap, 8px); min-width: 0; min-height: 0; height: 100%; grid-column: 1; grid-row: 1; }
+#toolbar-header { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; max-height: var(--toolbar-header-available-height, none); overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+#toolbar-header > * { flex-shrink: 0; }
+#toolbar-header:focus-visible, #toolbar-body:focus-visible { outline: 2px solid var(--highlight); outline-offset: -2px; }
+#toolbar-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; min-height: var(--toolbar-body-floor, 32px); overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+#toolbar-body > * { flex-shrink: 0; }
+#toolbar-body[hidden] { display: none; }
+#toolbar-content > #timeline-strip { flex: 0 0 auto; min-height: 0; max-height: var(--timeline-available-height, none); }
+#toolbar-collapse-btn { position: absolute; top: 9px; right: 10px; width: 28px; height: 30px; padding: 0; font-size: 18px; line-height: 1; border-radius: 5px; }
+#toolbar-collapse-btn:hover { background: var(--bg-input); }
+#toolbar.collapsed #toolbar-collapse-btn { position: static; width: 30px; }
+.toolbar-primary { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 8px; min-width: 0; min-height: 30px; padding-right: 36px; }
+.toolbar-primary > * { min-width: 0; max-width: 100%; }
+.toolbar-groups { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.toolbar-group-tabs { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-self: stretch; align-items: start; }
+.toolbar-group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-width: 0; height: 32px; min-height: 32px; align-self: start; padding: 4px 8px; font: inherit; font-size: 12px; line-height: 1.15; cursor: pointer; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-input); }
+.toolbar-group-toggle > span:first-child { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.toolbar-group-toggle > span:last-child { flex: 0 0 auto; }
+.toolbar-group-toggle:hover, .toolbar-group-toggle[aria-expanded="true"] { color: var(--highlight); border-color: var(--border-bright); background: var(--active); }
+.toolbar-group-toggle:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
+.toolbar-tool-group { min-width: 0; width: 100%; border-top: 1px solid var(--border); }
+.toolbar-tool-group[hidden] { display: none; }
+.toolbar-tool-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); align-items: center; gap: 8px; padding: 8px 0 1px; }
+.toolbar-tool-content > :is(.tool-inline, .flow-monitor) { grid-column: 1 / -1; }
+.toolbar-tool-content > .rot-group { width: 100%; min-width: 0; }
+.toolbar-tool-content > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.toolbar-tool-content > :is(.tool-btn, select) { width: 100%; }
+#toolbar .toolbar-tool-content > :is(button, select) { margin: 0; }
+.toolbar-tool-content > .warn { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.tool-btn { min-height: 29px; padding: 5px 9px; font-size: 12px; background: var(--bg-input); border-radius: 5px; line-height: 1.3; }
+.tool-btn.active { background: var(--active); border-color: var(--highlight); box-shadow: none; }
+.tool-btn[data-tone="danger"] { color: var(--danger); border-color: #80565f; }
+.rot-group { height: 30px; padding: 0 0 0 5px; border-radius: 5px; background: var(--bg-input); }
+.rot-select, .rot-custom, .rot-apply-btn { font-size: 12px; letter-spacing: 0; }
+.rot-custom { width: 48px; min-width: 0; padding: 3px; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.rot-apply-btn { padding: 3px 8px; border-color: var(--border); background: var(--active); }
+.tool-inline { flex-wrap: wrap; padding: 0; font-size: 12px; }
+.tool-inline .badge { min-width: 68px; }
+#lang-selector, #theme-selector { min-height: 30px; padding: 5px 8px; margin: 0; font-size: 12px; border-radius: 5px; background: var(--bg-input); }
+.renderer-switch-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#renderer-switch-slot { display: block; margin-left: 0; min-width: 0; width: 100%; }
+#renderer-switch-slot .renderer-switch-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; width: 100%; min-width: 0; align-items: start; }
+#renderer-switch-slot .renderer-selector-label, #renderer-switch-slot .renderer-selector-label select { min-width: 0; max-width: 100%; }
+#renderer-switch-slot .renderer-connection { min-width: 0; }
+#renderer-switch-slot .renderer-connection[open] { grid-column: 1 / -1; }
+#renderer-switch-slot .renderer-connection > div { position: static; min-width: 0; max-width: none; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 8px; margin-top: 6px; }
+#renderer-switch-slot .renderer-connection > div > label { grid-template-columns: max-content minmax(0, 1fr); min-width: 0; margin-bottom: 0; white-space: normal; }
+#renderer-switch-slot .renderer-connection small { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.renderer-selector-label { display: inline-flex; gap: 6px; align-items: center; }
+#renderer-switch-slot .renderer-selector-caption { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+#renderer-switch-slot .renderer-connection > summary { min-height: 30px; display: list-item; padding: 5px 4px; cursor: pointer; white-space: nowrap; }
+#renderer-switch-slot label, #renderer-switch-slot select, #renderer-switch-slot .renderer-connection { font-size: 12px; letter-spacing: 0; font-family: var(--font-primary); }
+#renderer-switch-slot select { padding: 5px 7px; min-height: 30px; border-radius: 5px; background: var(--bg-input); }
+.mode-switch { font-family: var(--font-primary); font-size: 12px; letter-spacing: 0; }
+.toolbar-primary .mode-switch { flex-wrap: wrap; }
+.toolbar-primary .mode-switch-other { flex: 0 1 auto; min-width: 0; white-space: normal; border-left: 1px solid var(--border); border-top: 0; padding: 0 7px; }
+.mode-switch-seg { padding: 5px 8px; }
+.mode-switch-domain, .mode-switch-other { padding: 0 7px; }
+.mode-switch-seg[data-mode="steady"].on { background: #223b4c; }
+.mode-switch-seg[data-mode="transient"].on { background: #352c49; }
+.flow-monitor { padding: 4px 7px; background: var(--bg-input); height: 43px; margin: 0; gap: 7px; }
+.flow-monitor::before { display: none; }
+.toolbar-tool-content > .flow-monitor { height: auto; min-height: 24px; padding: 3px 7px; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.toolbar-tool-content .flow-gauge { flex-direction: row; gap: 5px; min-width: 0; }
+.toolbar-tool-content .flow-gauge .flow-bar { width: 26px; height: 4px; }
+.toolbar-tool-content .flow-balance { flex-direction: row; gap: 5px; padding-left: 10px; margin-left: auto; }
+.flow-gauge .flow-label { font-size: 10px; letter-spacing: 0; }
+.flow-gauge .flow-unit { font-size: 9px; }
+.flow-gauge .flow-value > span:first-child { text-shadow: none; }
+#timeline-strip { padding-top: 7px; gap: 6px; font-size: 12px; }
+#timeline-strip input, #timeline-strip select { font-size: 12px; }
+#timeline-bar { height: 22px; }
+#timeline-bar:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
+#track-panel { background: var(--panel); border-radius: 7px; font-size: 12px; }
+.track-row { flex-wrap: wrap; gap: 6px; }
+.track-label { flex-basis: 145px; }
+.track-lane { min-width: 130px; }
+#track-key-editor { flex-wrap: wrap; font-size: 12px; }
+.ts-chart-card { width: 100%; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-input); margin-bottom: 8px; }
+.ts-chart { border: 0; background: transparent; }
+.ts-chart-legend { display: flex; flex-wrap: wrap; gap: 5px 12px; padding: 1px 1px 6px; line-height: 1.4; }
+.ts-chart-legend-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+.ts-chart-legend-label { overflow-wrap: anywhere; color: var(--text-dim); }
+.ts-chart-swatch { width: 13px; flex: 0 0 13px; border-top: 2px solid currentColor; }
+.ts-chart-swatch.dashed { border-top-style: dashed; }
+@media (max-width: 760px) {
+  :root { --panel-floor: 185px; --min-viewport-width: 180px; }
+  .prop-row:has(> label:first-child):has(> :nth-child(2):last-child),
+  .liquid-experiment-field { grid-template-columns: 1fr; gap: 4px; }
+  .liquid-experiment-actions { grid-template-columns: 1fr; }
+}
+
+/* Five air tabs fit the narrower panel without clipping translated labels. */
+.left-tab-btn { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; min-width: 0; padding: 7px 2px; min-height: 51px; }
+.left-tab-icon { font-size: 14px; line-height: 18px; }
+.left-tab-label { font-size: 11px; line-height: 1.2; white-space: nowrap; }
+
+/* Live actuator groups contain full label/value rows before their action. */
+.liquid-experiment-actions:has(> .liquid-experiment-field) { display: block; }
+.liquid-experiment-actions:has(> .liquid-experiment-field) > .btn { margin-top: 8px; }
+
+#timeline-strip :is(input, select), .timeline-settings-panel :is(input, select), #track-key-editor :is(input, select) {
+  color: var(--text); background: var(--bg-input); border: 1px solid var(--border-bright);
+  border-radius: 5px; padding: 4px 6px; min-height: 28px; color-scheme: dark;
+}
+#timeline-strip :is(input, select):focus, .timeline-settings-panel :is(input, select):focus, #track-key-editor :is(input, select):focus { border-color: var(--highlight); }
+
+/* Keep the three related load presets on one aligned row in the side panel. */
+.liquid-experiment-actions.liquid-heat-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.liquid-heat-presets .btn { white-space: nowrap; }
+
+/* Keep each monitor patch suffix readable in narrow engineering panels. */
+.sm-row { font-size: 12px; line-height: 1.5; padding: 3px 0; }
+.sm-row label { display: flex; align-items: flex-start; gap: 5px; }
+.sm-row input { flex: 0 0 auto; margin-top: 3px; }
+.sm-patch-caption { min-width: 0; overflow-wrap: anywhere; }
+
+/* Timeline settings stay compact in the strip and open beside the playhead. */
+.timeline-settings { position: relative; flex: 0 0 auto; }
+.timeline-settings > summary {
+  cursor: pointer; padding: 5px 8px; color: var(--text-dim); background: var(--bg-input);
+  border: 1px solid var(--border); border-radius: 5px; white-space: nowrap;
+}
+.timeline-settings[open] > summary { color: var(--highlight); border-color: var(--highlight); }
+.timeline-settings > summary:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
+.timeline-settings-panel {
+  position: fixed; z-index: 46; max-height: calc(100vh - 16px); overflow-y: auto;
+  width: min(310px, calc(100vw - 16px)); box-sizing: border-box; padding: 12px;
+  border: 1px solid var(--border-bright); border-radius: 7px; background: var(--panel);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+}
+.timeline-settings-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.timeline-settings-fields > label { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text); }
+.timeline-settings-fields input { box-sizing: border-box; min-width: 0; }
+.timeline-settings-panel p { margin: 10px 0 0; line-height: 1.5; font-size: 12px; color: var(--text-dim); }
+.timeline-settings-panel .timeline-settings-error { color: var(--danger); }
+
+/* Keep the three solver presets legible and aligned in narrow side panels. */
+.solver-preset-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.solver-preset-row > .btn {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 6px 4px;
+}
+.solver-advanced-toggle {
+  width: 100%;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.solver-pressure-title { margin-top: 6px; font-weight: 600; }
+
+
+/* A selected cold plate opens in view, with room for its three temperature series. */
+.lr-chart-dialog {
+  width: min(860px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.5);
+}
+.lr-chart-dialog::backdrop { background: rgba(5, 10, 18, 0.62); }
+.lr-chart-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+.lr-chart-header > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.lr-chart-close { flex-shrink: 0; padding: 2px 6px; text-decoration: none; font-size: 18px; }
+.lr-chart-dialog .ts-chart { width: 100%; box-sizing: border-box; border-radius: 6px; }
+
+/* OV display controls share the editor palette and stay above the log dock. */
+.ov-postprocess-panel {
+  box-sizing: border-box; min-width: 0; width: 100%; overflow: auto;
+  padding: 10px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border-bright); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3); font: 12px/1.5 var(--font-primary);
+  pointer-events: auto; scrollbar-gutter: stable;
+}
+.ov-postprocess-panel > summary {
+  position: sticky; top: -10px; z-index: 1; margin: -10px -10px 0; padding: 9px 10px;
+  background: var(--header-bg); color: var(--highlight); cursor: pointer; font-weight: 600;
+}
+.ov-postprocess-panel[open] > summary { margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+.ov-postprocess-panel summary:focus-visible { outline: 2px solid var(--highlight); outline-offset: -2px; }
+.ov-postprocess-panel fieldset {
+  display: grid; gap: 8px; min-width: 0; margin: 0 0 12px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.ov-postprocess-panel fieldset:last-of-type { margin-bottom: 0; }
+.ov-postprocess-panel legend { padding: 0 5px; color: var(--accent3); font-weight: 600; }
+.ov-postprocess-panel label {
+  display: grid; grid-template-columns: minmax(70px, .95fr) minmax(0, 1.25fr);
+  align-items: center; gap: 8px; min-width: 0;
+}
+.ov-postprocess-panel label.ov-dataset-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.ov-postprocess-panel :is(input[type=number], select) {
+  box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-height: 30px;
+  padding: 5px 7px; border: 1px solid var(--border-bright); border-radius: 5px;
+  background: var(--bg-input); color: var(--text); color-scheme: dark; font: inherit;
+}
+.ov-postprocess-panel :is(input[type=number], select):focus { outline: 1px solid var(--highlight); border-color: var(--highlight); }
+.ov-postprocess-panel :is(input, select, button):disabled { opacity: .55; cursor: default; }
+.ov-postprocess-panel :is(input[type=checkbox], input[type=radio]) { accent-color: var(--highlight); margin: 0; flex: 0 0 auto; }
+.ov-postprocess-panel label:has(input[type=checkbox]), .ov-volume-options > label {
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+}
+.ov-volume-options { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.ov-postprocess-panel p { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.ov-postprocess-panel .liquid-experiment-note { color: var(--text-dim); font-size: 11px; line-height: 1.6; }
+.ov-postprocess-panel .btn { margin: 0; min-width: 0; width: 100%; white-space: normal; }
+
+/* Narrow sidebars use explicit label/control rows after an actual panel resize. */
+.panel[data-compact="true"] .prop-row:has(> label:first-child):has(> :nth-child(2):last-child):not(:has(> input[type="checkbox"])) { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.panel[data-compact="true"] .prop-row > :is(input:not([type="checkbox"]):not([type="radio"]), select, .value),
+.panel[data-compact="true"] .liquid-experiment-field :is(input, select) { width: 100%; min-width: 0; }
+.panel[data-compact="true"] .liquid-experiment-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.case-path-display { min-width: 0; margin-bottom: 8px; }
+.case-path-display > summary { display: flex; align-items: center; gap: 6px; min-height: 26px; cursor: pointer; }
+.case-path-display > summary::before { content: '▸'; flex: 0 0 auto; color: var(--text-dim); }
+.case-path-display[open] > summary::before { content: '▾'; }
+.case-path-display > summary > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.case-path-full { margin-top: 5px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text-dim); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; user-select: text; }
+
+/* One task-tab style in air and liquid; label, focus and active state share a hierarchy. */
+#left-tab-bar { padding: 5px; gap: 3px; }
+#left-tab-bar .left-tab-btn { border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text-dim); min-height: 52px; }
+#left-tab-bar .left-tab-btn:hover:not(:disabled) { color: var(--text); background: var(--bg-input); }
+#left-tab-bar .left-tab-btn.active { color: var(--highlight); background: var(--active); border-color: var(--border-bright); box-shadow: none; }
+#left-tab-bar .left-tab-btn:disabled { opacity: .45; }
+#left-tab-bar .left-tab-btn.active .left-tab-label { font-weight: 600; }
+#left-tab-bar { border-bottom-color: var(--border); }
+#left-tab-bar .left-tab-label { white-space: normal; overflow-wrap: anywhere; text-align: center; }
+
+/* Liquid solve content follows the shared card hierarchy. Presentation only. */
+#liquid-experiment-panel {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#liquid-experiment-panel > h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+#liquid-experiment-panel > p,
+#liquid-experiment-panel > .liquid-experiment-field,
+#liquid-experiment-panel > .liquid-experiment-actions {
+  margin: 0;
+}
+#liquid-experiment-panel > fieldset {
+  min-width: 0;
+  margin: 2px 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-input);
+}
+#liquid-experiment-panel > fieldset > legend {
+  padding: 0 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+#liquid-experiment-panel > fieldset > legend:not(:first-child) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 15px 0 8px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+}
+#liquid-experiment-panel .liquid-experiment-field {
+  min-width: 0;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 8px 10px;
+}
+#liquid-experiment-panel .liquid-experiment-field > span:first-child {
+  min-width: 0;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+#liquid-experiment-panel .liquid-experiment-field > :is(input, select, .value) {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+#liquid-experiment-panel .liquid-experiment-field .value {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+#liquid-experiment-panel .liquid-experiment-field .value .prop-hint {
+  display: block;
+  margin: 4px 0 0 !important;
+}
+#liquid-experiment-panel .liquid-experiment-note,
+#liquid-experiment-panel .liquid-experiment-warning,
+#liquid-experiment-panel .prop-hint,
+#liquid-experiment-panel .error {
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+#liquid-experiment-panel fieldset > .liquid-experiment-note {
+  margin: 6px 0 10px;
+}
+#liquid-experiment-panel details > summary {
+  margin: 8px 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+#liquid-experiment-panel [data-primary-circuit],
+#liquid-experiment-panel > .prop-group {
+  min-width: 0;
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 6px;
+}
+#liquid-experiment-panel [data-primary-circuit] > strong,
+#liquid-experiment-panel > .prop-group > strong {
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#liquid-experiment-panel .liquid-experiment-actions {
+  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+#liquid-experiment-panel > .liquid-experiment-actions {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-input);
+}
+#liquid-experiment-panel .liquid-experiment-actions:has(> .liquid-experiment-field) {
+  display: block;
+  margin: 12px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+#liquid-experiment-panel .btn {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.45;
+}
+#liquid-experiment-panel .liquid-heat-presets {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+#liquid-experiment-panel .liquid-heat-presets .btn {
+  padding: 7px 4px;
+}
+#liquid-experiment-panel .liquid-experiment-status {
+  margin: 2px 0;
+}
+#liquid-experiment-panel .liquid-experiment-status > .btn {
+  width: 100%;
+  margin: 4px 0;
+}
+@container (max-width: 265px) {
+  #liquid-experiment-panel .liquid-experiment-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  #liquid-experiment-panel .liquid-experiment-actions:not(.liquid-heat-presets) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.panel[data-compact="true"] #liquid-experiment-panel .liquid-experiment-field {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+/* Shared solver controls: consistent rows and one secondary-fluid editor. */
+.liquid-fluid-fieldset { border: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0; }
+.liquid-fluid-editor, .liquid-execution-settings { border-left-color: var(--accent, #74c7ec); }
+.liquid-fluid-editor .prop-title, .liquid-execution-settings .prop-title { color: var(--text-main, #e5e8ef); }
+.liquid-fluid-editor .prop-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 44%); gap: 10px; align-items: center; }
+.liquid-fluid-editor .prop-row input, .liquid-fluid-editor .prop-row select { width: 100% !important; min-width: 0; box-sizing: border-box; }
+.liquid-execution-settings .lc-details-body { padding-top: 8px; }
+.liquid-execution-settings .liquid-experiment-field input { width: 100%; min-width: 0; }
+
+/* ══ Design layer ════════════════════════════════════════════════════════════
+   One look for every panel, tab and mode: outline icons in the theme colour,
+   one card for every group, one header bar, one button and one slider. Kept last
+   so it settles the earlier, per-panel rules. */
+:root {
+  --card-bg: color-mix(in srgb, var(--panel) 82%, var(--bg));
+  --card-border: color-mix(in srgb, var(--border) 85%, transparent);
+  --card-radius: 8px;
+  --control-h: 30px;
+  --icon-tint: var(--highlight);
+}
+
+/* Icons */
+.icon { flex: none; display: inline-block; vertical-align: -0.17em; }
+.btn, .file-btn, .tool-btn, .subtab, .left-tab-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn:not(.primary):not(.danger) > .icon, .file-btn > .icon { color: var(--icon-tint); }
+.btn:disabled > .icon, .file-btn:disabled > .icon { color: inherit; opacity: 0.6; }
+.status-mark { vertical-align: -0.2em; stroke-width: 2.2; }
+.status-ok { color: var(--highlight); }
+.status-error { color: var(--danger); }
+.status-warn { color: var(--hint-color); }
+.status-busy { color: var(--accent3); animation: icon-spin 1.4s linear infinite; }
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+
+/* Buttons: one height, one radius, neutral face; the icon carries the colour */
+.btn, .file-btn {
+  min-height: var(--control-h); border-radius: 6px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font-size: 12px; line-height: 1.3;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.btn:hover:not(:disabled), .file-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--highlight) 55%, var(--border)); background: var(--glow-dim);
+}
+.file-btn { min-height: 36px; justify-content: flex-start; padding: 0 12px; }
+.file-btn.cooling-mode-btn.active { border-color: var(--highlight); color: var(--highlight); background: var(--glow); }
+#btn-mode-liquid.active { color: var(--accent3); border-color: color-mix(in srgb, var(--accent3) 70%, transparent); background: color-mix(in srgb, var(--accent3) 12%, transparent); }
+#btn-mode-liquid.active > .icon { color: var(--accent3); }
+
+/* Left tab bar: icon over label, an underline marks the active tab */
+.left-tab-btn { flex-direction: column; gap: 4px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text-dim); }
+.left-tab-btn .left-tab-icon { display: flex; line-height: 0; }
+.left-tab-btn:hover:not(:disabled) { color: var(--text); background: var(--glow-dim); }
+.left-tab-btn.active { color: var(--highlight); background: var(--glow); border-color: color-mix(in srgb, var(--highlight) 40%, transparent); }
+
+/* Header bars and sub-tab bars: the same strip at the top of every column */
+#left-panel > .header, #right-panel > .header, #right-panel .header, .subtab-bar {
+  min-height: 34px; box-sizing: border-box; display: flex; align-items: center; gap: 8px;
+  background: var(--header-bg); border-bottom: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text); padding: 0 12px;
+}
+.subtab-bar { padding: 0 6px; gap: 2px; align-items: stretch; }
+.subtab { font-size: 12px; padding: 0 8px; min-height: 33px; }
+.collapse-header { cursor: pointer; user-select: none; }
+.collapse-caret { display: inline-flex; color: var(--text-dim); }
+.header.section-cyan { color: var(--text); }
+
+/* Cards: every group of controls, in every column, tab and mode */
+.prop-group, .sm-section, .pp-display-options, .pp-tree-wrap, .liquid-monitor-card, #creation-toolbar .stack {
+  margin: 8px; padding: 10px 11px; background: var(--card-bg);
+  border: 1px solid var(--card-border); border-radius: var(--card-radius); box-shadow: none;
+}
+.prop-group .prop-group { margin: 8px 0; background: color-mix(in srgb, var(--card-bg) 70%, var(--bg)); }
+#creation-toolbar { padding: 0; border-bottom: 0; }
+#creation-toolbar .stack { gap: 6px; }
+#creation-toolbar .stack .btn { justify-content: flex-start; padding: 0 12px; }
+#creation-toolbar .stack .btn.primary { justify-content: flex-start; }
+.prop-title, .pp-section-label, .sm-section-head label, .liquid-monitor-section-heading {
+  font-size: 12px; font-weight: 600; color: var(--text); letter-spacing: 0.01em;
+}
+.prop-title { display: flex; align-items: center; gap: 7px; }
+.pp-section-label { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.sm-section { font-size: 12px; color: var(--text-dim); }
+.sm-section-btns button {
+  font-size: 11px; padding: 2px 8px; border-radius: 5px; background: transparent;
+  border: 1px solid var(--border); color: var(--text-dim);
+}
+.sm-section-btns button:hover { color: var(--highlight); border-color: var(--highlight); }
+.pp-slider-row label { font-size: 12px; color: var(--text-dim); }
+.pp-slider-row span { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* Sliders: a thin track filled to the thumb in the theme colour; no box around the input */
+input[type='range'], .prop-row input[type='range'] {
+  -webkit-appearance: none; appearance: none; padding: 0; margin: 0; border: 0; border-radius: 0;
+  background: transparent; height: 18px; min-width: 60px; cursor: pointer; box-shadow: none;
+}
+input[type='range']:focus { box-shadow: none; }
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--highlight) var(--fill, 0%), var(--border) var(--fill, 0%));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--highlight); transition: transform 0.1s;
+}
+input[type='range']:hover::-webkit-slider-thumb { transform: scale(1.15); }
+input[type='range']:disabled { opacity: 0.45; cursor: default; }
+input[type='range']::-moz-range-track { height: 4px; border-radius: 2px; background: var(--border); }
+input[type='range']::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--highlight); }
+input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 2px solid var(--highlight); }
+
+/* Numbers line up */
+.value, .badge, .mono-pct, input[type='number'] { font-variant-numeric: tabular-nums; }
+
+/* Group titles and card edges in one colour: several panels set their own inline. */
+.prop-group { border-color: var(--card-border) !important; border-left-width: 1px !important; }
+.prop-title { color: var(--text) !important; }
+.prop-title .icon { color: var(--icon-tint); }
+
+/* Max / min of the drawn layers */
+.extremes { display: grid; gap: 6px; margin: 4px 0 2px; }
+.extreme-row { border: 1px solid var(--card-border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 55%, transparent); padding: 7px 8px 8px; }
+.extreme-name { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); margin-bottom: 6px; min-width: 0; }
+.extreme-name .icon { color: var(--icon-tint); }
+.extreme-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.extreme-values { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.extreme { display: flex; align-items: baseline; gap: 4px; padding: 4px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+.extreme .icon { align-self: center; }
+.extreme b { font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+.extreme small { font-size: 10px; opacity: 0.75; }
+.extreme-max { color: #ff8f8f; background: rgba(255, 92, 92, 0.1); box-shadow: inset 2px 0 0 #ff6b6b; }
+.extreme-min { color: #8fc6ff; background: rgba(92, 179, 255, 0.1); box-shadow: inset 2px 0 0 #5cb3ff; }
+
+/* Headers and liquid panels in the same colours as the rest */
+#left-panel .header, #right-panel .header { color: var(--text) !important; }
+.lq-pp-details { border: 1px solid var(--card-border); border-radius: var(--card-radius); background: var(--card-bg); }
+.creation-section-title { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.04em; padding: 4px 2px 2px; }
+#creation-liquid-section, #creation-common-section { border-top: 1px solid var(--card-border) !important; margin: 8px 0 0 !important; padding-top: 8px !important; }
+.liquid-monitor-header { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; margin: 0 0 4px; background: var(--header-bg); border-bottom: 1px solid var(--border); }
+.liquid-monitor-header > div { flex: 1; min-width: 0; }
+.liquid-monitor-header h3 { font-size: 12px; font-weight: 600; margin: 0; color: var(--text); }
+.liquid-monitor-header p { display: none; }
+
+/* Max / min tags over the viewport: ring on the point, leader line, draggable tag */
+.extreme-tags { position: fixed; inset: 0; pointer-events: none; z-index: 900; }
+.extreme-tag-lines { position: fixed; inset: 0; width: 100vw; height: 100vh; overflow: visible; }
+.extreme-tag-lines line { stroke-width: 1.4; }
+.extreme-tag-lines circle { fill: none; stroke-width: 2; }
+.extreme-tag-lines .extreme-tag-max line, .extreme-tag-lines .extreme-tag-max circle { stroke: #ff6b6b; }
+.extreme-tag-lines .extreme-tag-min line, .extreme-tag-lines .extreme-tag-min circle { stroke: #5cb3ff; }
+.extreme-tag {
+  position: fixed; left: 0; top: 0; pointer-events: auto; cursor: grab; user-select: none; touch-action: none;
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text);
+  background: color-mix(in srgb, var(--bg) 88%, transparent); border: 1px solid var(--card-border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); backdrop-filter: blur(4px);
+}
+.extreme-tag.dragging { cursor: grabbing; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+.extreme-tag-max { border-left: 3px solid #ff6b6b; }
+.extreme-tag-max > .icon { color: #ff8f8f; }
+.extreme-tag-min { border-left: 3px solid #5cb3ff; }
+.extreme-tag-min > .icon { color: #8fc6ff; }
+.extreme-tag-close {
+  display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer;
+}
+.extreme-tag-close:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.pp-model-opacity-row { gap: 8px; }
+.pp-model-opacity-row label { white-space: nowrap; flex: none; }
+.pp-model-opacity-row input[type='range'] { flex: 1; min-width: 0; }
+
+/* Hints: explanations on hover, not in the panel's text */
+.hint-mark { display: inline-flex; align-items: center; vertical-align: -0.15em; margin-left: 5px; color: var(--text-dim); cursor: help; }
+.hint-mark:hover { color: var(--highlight); }
+.lce-badge-warn {
+  display: inline-flex; align-items: center; gap: 5px; margin: 4px 0 6px; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; color: var(--hint-color); border: 1px solid color-mix(in srgb, var(--hint-color) 45%, transparent);
+  background: color-mix(in srgb, var(--hint-color) 10%, transparent); cursor: help;
+}
+.lce-meta { font-size: 11px; color: var(--text-dim); margin: 6px 0 0; }
+#liquid-experiment-panel > h3 { font-size: 13px; font-weight: 600; margin: 8px 12px 4px; cursor: help; }
+/* Readiness: passed checks as chips, problems as rows */
+.liquid-readiness-summary { font-size: 12px; font-weight: 600; margin: 2px 0 6px; }
+.liquid-readiness-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.liquid-readiness-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 10px; font-size: 11px;
+  color: var(--text-dim); border: 1px solid var(--card-border); background: color-mix(in srgb, var(--bg) 50%, transparent); cursor: help;
+}
+.liquid-readiness-problems { list-style: none; margin: 6px 0 0; padding: 0; }
+.liquid-readiness-problems li { display: flex; gap: 6px; font-size: 11.5px; line-height: 1.45; margin: 3px 0; }
+.liquid-readiness-details { display: block; color: var(--text-dim); word-break: break-word; }
+
+/* Two-thumb window slider: both inputs overlay one track; only the thumbs take the pointer */
+.range-slider { width: 100%; padding: 2px 0; }
+.range-slider-track {
+  position: relative; height: 18px;
+  --track-on: var(--highlight); --track-off: var(--border);
+}
+.range-slider-track::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 7px; height: 4px; border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--track-off) var(--lo), var(--track-on) var(--lo), var(--track-on) var(--hi), var(--track-off) var(--hi));
+}
+.range-slider.inverted .range-slider-track { --track-on: var(--border); --track-off: var(--highlight); }
+.range-slider-track input[type='range'] {
+  position: absolute; inset: 0; width: 100%; pointer-events: none; background: transparent;
+}
+.range-slider-track input[type='range']::-webkit-slider-runnable-track { background: transparent; }
+.range-slider-track input[type='range']::-moz-range-track { background: transparent; }
+.range-slider-track input[type='range']::-moz-range-progress { background: transparent; }
+.range-slider-track input[type='range']::-webkit-slider-thumb { pointer-events: auto; cursor: grab; }
+.range-slider-track input[type='range']::-moz-range-thumb { pointer-events: auto; cursor: grab; }
+.range-slider-values {
+  display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);
+  font-variant-numeric: tabular-nums; margin-top: 2px;
+}
+.pp-threshold { display: flex; flex-direction: column; gap: 4px; }
+.pp-threshold-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.pp-threshold-head label { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); cursor: pointer; }
+
+/* Two-way choice as one control */
+.seg { display: inline-flex; flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg > button {
+  flex: 1; min-width: 0; padding: 3px 8px; font-size: 12px; border: 0; border-radius: 0; background: transparent;
+  color: var(--text-dim); cursor: pointer; white-space: nowrap;
+}
+.seg > button + button { border-left: 1px solid var(--border); }
+.seg > button.on { background: var(--highlight); color: var(--bg); }
+.seg > button:disabled { opacity: 0.5; cursor: default; }
+
+/* AI solve region box */
+.scano-roi { margin: 4px 0 6px; padding: 6px 8px; border: 1px dashed var(--border); border-radius: 6px; }
+.scano-roi-grid { display: grid; grid-template-columns: 30px repeat(3, minmax(0, 1fr)); gap: 3px 4px; align-items: center; }
+.scano-roi-grid input { width: 100%; min-width: 0; }
+.scano-roi-axis { font-size: 11px; color: var(--text-dim); text-align: center; }
+.scano-roi-end { font-size: 11px; color: var(--text-dim); }
+.scano-roi-actions { display: flex; gap: 6px; margin-top: 6px; }
+.scano-roi-actions .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.scano-region-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); margin: 8px 0 4px; }
+#scano-region, #scano-inference { display: flex; width: 100%; }
+#scano-inference button { flex: 1; }
+/* The AI tab's live GPU line */
+.scano-gpu { margin: 6px 0 2px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
+  line-height: 1.5; display: flex; flex-direction: column; gap: 2px; }
+.scano-gpu-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: space-between; }
+.scano-gpu-row > span:first-child:not(.scano-gpu-dot) { flex: 1; min-width: 0; }
+.scano-gpu-dim { color: var(--text-dim); }
+.scano-gpu-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); flex: none; }
+.scano-gpu-dot[data-state='ready'] { background: var(--success, #3fb950); }
+.scano-gpu-dot[data-state='busy'] { background: var(--warning, #d29922); }
+.scano-gpu-bar { position: relative; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden;
+  margin: 2px 0; }
+.scano-gpu-bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text-dim); }
+.scano-gpu-bar > i { position: absolute; top: 0; bottom: 0; background: var(--section-header-solver, #58a6ff);
+  opacity: 0.55; }
+.scano-gpu[data-fits='false'] .scano-gpu-bar > i { background: var(--danger, #f85149); }
+.scano-gpu-plan { margin-top: 3px; padding-top: 4px; border-top: 1px dashed var(--border); }
+/* The solve page's GPU block (GPU engine selected): one of these per card */
+.gpu-solver-card { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; }
+.gpu-solver-card + .gpu-solver-card { border-top: 1px dashed var(--border); padding-top: 5px; }
+.gpu-solver-warn { color: var(--warning, #d29922); }
+.gpu-solver-alert { margin-bottom: 4px; padding: 6px 8px; border: 1px solid var(--danger, #f85149); border-radius: 6px;
+  color: var(--danger, #f85149); display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.scano-roi-grid input { padding: 2px 4px; font-size: 12px; text-align: right; }
+.pp-threshold-head { width: 100%; }
+
+/* Whether the mesh still fits the geometry */
+.mesh-change { margin: 6px 0; padding: 6px 8px; border-radius: 6px; font-size: 12px; line-height: 1.45;
+  border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.mesh-change > div:first-child, .mesh-change[data-kind='none'], .mesh-change[data-kind='checking'],
+.mesh-change[data-kind='geometry'], .mesh-change[data-kind='mesh'], .mesh-change[data-kind='error'] { display: block; }
+.mesh-change.ok { border-color: color-mix(in srgb, var(--success, #98c379) 45%, transparent); }
+.mesh-change.warn { border-color: color-mix(in srgb, #e5c07b 55%, transparent); }
+.mesh-change.error { border-color: color-mix(in srgb, #e06c75 55%, transparent); }
+.mesh-change-names { color: var(--text-dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesh-change .btn { width: 100%; }
+.acu-standby { margin: 4px 0 8px; padding: 6px 8px; border: 1px solid color-mix(in srgb, #e5c07b 55%, transparent);
+  border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.acu-standby .btn { width: 100%; }
+.scano-roi-actions #scano-roi-fit { flex: 1 1 0; min-width: 0; width: auto; }
+.scano-roi-actions #scano-roi-reset { flex: 0 0 auto; width: auto; padding-left: 10px; padding-right: 10px; }
+.scano-roi-fit-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#acu-run-state .acu-running { flex: 1; display: inline-flex; align-items: center; gap: 4px; }
+#acu-run-state #acu-turn-off { flex: 0 0 auto; width: auto; padding: 2px 12px; }

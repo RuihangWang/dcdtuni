@@ -1,0 +1,2068 @@
+{
+  "sourceCopies": [
+    {
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/cli/main.cpp",
+      "copy": "source/main.cpp",
+      "bytes": 109738,
+      "sha256": "c517355861137b7d571189b9e4ca974d1c7e16af39770b6a19919c73fd3e3dae",
+      "sourceCopySourceExact": true
+    },
+    {
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/CartesianCfdrun.cpp",
+      "copy": "source/CartesianCfdrun.cpp",
+      "bytes": 114166,
+      "sha256": "7fb9faf8d1e3b813328bc91912fac88d33628964471ace7a5dcb03a692b5d7ae",
+      "sourceCopySourceExact": true
+    }
+  ],
+  "references": {
+    "Cartesian.cpp": {
+      "sha256": "6200ab2a4c86aa8e7b69f28d630a97d79a680360e0a688c2e58ee6edd0c6e43b",
+      "ranges": [
+        {
+          "first": 1441,
+          "last": 1486,
+          "lines": [
+            {
+              "line": 1441,
+              "text": "bool loadAsciiSTL(std::ifstream& f, TriSurface& s) {"
+            },
+            {
+              "line": 1442,
+              "text": "    struct ParsedTri { Vec3 v[3]; int patch; };"
+            },
+            {
+              "line": 1443,
+              "text": "    std::vector<ParsedTri> parsed;"
+            },
+            {
+              "line": 1444,
+              "text": "    double maxNorm = 0;"
+            },
+            {
+              "line": 1445,
+              "text": "    std::string tok;"
+            },
+            {
+              "line": 1446,
+              "text": "    Vec3 cur[3];"
+            },
+            {
+              "line": 1447,
+              "text": "    int got = 0;"
+            },
+            {
+              "line": 1448,
+              "text": "    int curPatch = 0;"
+            },
+            {
+              "line": 1449,
+              "text": "    int unnamed = 0;"
+            },
+            {
+              "line": 1450,
+              "text": "    std::unordered_map<std::string, int> nameToPatch;"
+            },
+            {
+              "line": 1451,
+              "text": "    while (f >> tok) {"
+            },
+            {
+              "line": 1452,
+              "text": "        if (tok == \"solid\") {"
+            },
+            {
+              "line": 1453,
+              "text": "            std::string name;"
+            },
+            {
+              "line": 1454,
+              "text": "            std::getline(f, name);"
+            },
+            {
+              "line": 1455,
+              "text": "            const size_t a = name.find_first_not_of(\" \\t\\r\\n\");"
+            },
+            {
+              "line": 1456,
+              "text": "            const size_t b = name.find_last_not_of(\" \\t\\r\\n\");"
+            },
+            {
+              "line": 1457,
+              "text": "            name = (a == std::string::npos) ? \"\" : name.substr(a, b - a + 1);"
+            },
+            {
+              "line": 1458,
+              "text": "            auto it = nameToPatch.find(name);"
+            },
+            {
+              "line": 1459,
+              "text": "            if (it != nameToPatch.end()) {"
+            },
+            {
+              "line": 1460,
+              "text": "                curPatch = it->second;"
+            },
+            {
+              "line": 1461,
+              "text": "            } else {"
+            },
+            {
+              "line": 1462,
+              "text": "                curPatch = (int)s.patchNames.size();"
+            },
+            {
+              "line": 1463,
+              "text": "                if (name.empty()) name = \"solid\" + std::to_string(unnamed++);"
+            },
+            {
+              "line": 1464,
+              "text": "                nameToPatch[name] = curPatch;"
+            },
+            {
+              "line": 1465,
+              "text": "                s.patchNames.push_back(name);"
+            },
+            {
+              "line": 1466,
+              "text": "                s.firstLayer.push_back(-1);"
+            },
+            {
+              "line": 1467,
+              "text": "            }"
+            },
+            {
+              "line": 1468,
+              "text": "        } else if (tok == \"vertex\") {"
+            },
+            {
+              "line": 1469,
+              "text": "            f >> cur[got].x >> cur[got].y >> cur[got].z;"
+            },
+            {
+              "line": 1470,
+              "text": "            if (++got == 3) {"
+            },
+            {
+              "line": 1471,
+              "text": "                for (int k = 0; k < 3; ++k) maxNorm = std::max(maxNorm, cur[k].norm());"
+            },
+            {
+              "line": 1472,
+              "text": "                parsed.push_back({{cur[0], cur[1], cur[2]}, curPatch});"
+            },
+            {
+              "line": 1473,
+              "text": "                got = 0;"
+            },
+            {
+              "line": 1474,
+              "text": "            }"
+            },
+            {
+              "line": 1475,
+              "text": "        }"
+            },
+            {
+              "line": 1476,
+              "text": "    }"
+            },
+            {
+              "line": 1477,
+              "text": "    if (s.patchNames.size() == 1) s.patchNames[0] = \"wall\";  // 单块兼容旧命名"
+            },
+            {
+              "line": 1478,
+              "text": "    else if (s.patchNames.empty()) return false;"
+            },
+            {
+              "line": 1479,
+              "text": "    if (parsed.empty()) return false;"
+            },
+            {
+              "line": 1480,
+              "text": "    VertMerger vm;"
+            },
+            {
+              "line": 1481,
+              "text": "    vm.prepare(maxNorm);"
+            },
+            {
+              "line": 1482,
+              "text": "    for (const auto& t : parsed) {"
+            },
+            {
+              "line": 1483,
+              "text": "        s.tris.push_back({vm.vid(t.v[0], s), vm.vid(t.v[1], s), vm.vid(t.v[2], s)});"
+            },
+            {
+              "line": 1484,
+              "text": "        s.patch.push_back(t.patch);"
+            },
+            {
+              "line": 1485,
+              "text": "    }"
+            },
+            {
+              "line": 1486,
+              "text": "    return !s.tris.empty();"
+            }
+          ]
+        },
+        {
+          "first": 11933,
+          "last": 11963,
+          "lines": [
+            {
+              "line": 11933,
+              "text": "                        auto sideOfPt3 = [&](const Vec3& p) -> int {"
+            },
+            {
+              "line": 11934,
+              "text": "                            dcSignature(c, bar, p, clipTol, clsSig);"
+            },
+            {
+              "line": 11935,
+              "text": "                            for (int f2 = 0; f2 < 6; ++f2)"
+            },
+            {
+              "line": 11936,
+              "text": "                                for (const auto& cc2 : P.faceComps[(size_t)f2])"
+            },
+            {
+              "line": 11937,
+              "text": "                                    if (cc2.side >= 0 && cc2.sig == clsSig)"
+            },
+            {
+              "line": 11938,
+              "text": "                                        return cc2.side;"
+            },
+            {
+              "line": 11939,
+              "text": "                            // H13：可见性回退 = 多代表点逐一试（任一未阻断 ⇒ 同侧；"
+            },
+            {
+              "line": 11940,
+              "text": "                            // 首 rep 命中 = 旧单 rep 行为逐点同一）"
+            },
+            {
+              "line": 11941,
+              "text": "                            for (int s = 0; s < (int)P.nSides; ++s) {"
+            },
+            {
+              "line": 11942,
+              "text": "                                for (const Vec3& rpS : sideReps[(size_t)s]) {"
+            },
+            {
+              "line": 11943,
+              "text": "                                    bool blocked = false;"
+            },
+            {
+              "line": 11944,
+              "text": "                                    for (int t : bar) {"
+            },
+            {
+              "line": 11945,
+              "text": "                                        const auto& tr = c.surf.tris[(size_t)t];"
+            },
+            {
+              "line": 11946,
+              "text": "                                        if (dcSegTriCross(p, rpS,"
+            },
+            {
+              "line": 11947,
+              "text": "                                                          c.surf.verts[(size_t)tr[0]],"
+            },
+            {
+              "line": 11948,
+              "text": "                                                          c.surf.verts[(size_t)tr[1]],"
+            },
+            {
+              "line": 11949,
+              "text": "                                                          c.surf.verts[(size_t)tr[2]],"
+            },
+            {
+              "line": 11950,
+              "text": "                                                          clipTol)) {"
+            },
+            {
+              "line": 11951,
+              "text": "                                            blocked = true;"
+            },
+            {
+              "line": 11952,
+              "text": "                                            break;"
+            },
+            {
+              "line": 11953,
+              "text": "                                        }"
+            },
+            {
+              "line": 11954,
+              "text": "                                    }"
+            },
+            {
+              "line": 11955,
+              "text": "                                    if (!blocked) return s;"
+            },
+            {
+              "line": 11956,
+              "text": "                                }"
+            },
+            {
+              "line": 11957,
+              "text": "                            }"
+            },
+            {
+              "line": 11958,
+              "text": "                            // （Hamming-最近签名兜底曾在此试验——曲面近点分类的"
+            },
+            {
+              "line": 11959,
+              "text": "                            // 兜底会把 F5 类\"双邻固体贴片=零发射\"误判成发射 ⇒ 已撤。"
+            },
+            {
+              "line": 11960,
+              "text": "                            // 曲面 barrier 的 dcMode 构造 = 登记在案的 WIP 缺口，"
+            },
+            {
+              "line": 11961,
+              "text": "                            // dc_export 引擎块随 F13 翻转以平面几何重建。）"
+            },
+            {
+              "line": 11962,
+              "text": "                            return -1;"
+            },
+            {
+              "line": 11963,
+              "text": "                        };"
+            }
+          ]
+        },
+        {
+          "first": 12450,
+          "last": 12525,
+          "lines": [
+            {
+              "line": 12450,
+              "text": "                        for (int t : cellHitList) {   // cellHitList 升序 ⇒ 确定"
+            },
+            {
+              "line": 12451,
+              "text": "                            Vec3 nn = c.bvh.triN[t];"
+            },
+            {
+              "line": 12452,
+              "text": "                            if (nn.norm2() < 0.5) continue;"
+            },
+            {
+              "line": 12453,
+              "text": "                            if (!dcTriIsBarrier(c, t)) {   // 透明非发射（B1 同规）"
+            },
+            {
+              "line": 12454,
+              "text": "                                dcP1TranspTile.fetch_add(1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12455,
+              "text": "                                // E3e 候选收集：轴对齐 + 严格内部平面（H12 iPlanes 同判据）"
+            },
+            {
+              "line": 12456,
+              "text": "                                int axT3 = -1;"
+            },
+            {
+              "line": 12457,
+              "text": "                                for (int k3 = 0; k3 < 3; ++k3)"
+            },
+            {
+              "line": 12458,
+              "text": "                                    if (std::abs((&nn.x)[k3]) > 1.0 - 1e-6) { axT3 = k3; break; }"
+            },
+            {
+              "line": 12459,
+              "text": "                                if (axT3 >= 0) {"
+            },
+            {
+              "line": 12460,
+              "text": "                                    const double pvT3 ="
+            },
+            {
+              "line": 12461,
+              "text": "                                        (&surf.verts[(size_t)surf.tris[(size_t)t][0]].x)[axT3];"
+            },
+            {
+              "line": 12462,
+              "text": "                                    if (pvT3 > (&bmn.x)[axT3] + clipTol &&"
+            },
+            {
+              "line": 12463,
+              "text": "                                        pvT3 < (&bmx.x)[axT3] - clipTol)"
+            },
+            {
+              "line": 12464,
+              "text": "                                        transpTris.push_back(ComplTri{t, axT3, pvT3});"
+            },
+            {
+              "line": 12465,
+              "text": "                                }"
+            },
+            {
+              "line": 12466,
+              "text": "                                continue;"
+            },
+            {
+              "line": 12467,
+              "text": "                            }"
+            },
+            {
+              "line": 12468,
+              "text": "                            std::vector<Vec3> wpts = {surf.verts[surf.tris[t][0]],"
+            },
+            {
+              "line": 12469,
+              "text": "                                                      surf.verts[surf.tris[t][1]],"
+            },
+            {
+              "line": 12470,
+              "text": "                                                      surf.verts[surf.tris[t][2]]};"
+            },
+            {
+              "line": 12471,
+              "text": "                            for (int f = 0; f < 6 && wpts.size() >= 3; ++f) {"
+            },
+            {
+              "line": 12472,
+              "text": "                                const int axis = f / 2, sd = f % 2;"
+            },
+            {
+              "line": 12473,
+              "text": "                                Vec3 inN{0, 0, 0};"
+            },
+            {
+              "line": 12474,
+              "text": "                                (&inN.x)[axis] = sd ? -1.0 : 1.0;"
+            },
+            {
+              "line": 12475,
+              "text": "                                Vec3 pp = bmn;"
+            },
+            {
+              "line": 12476,
+              "text": "                                if (sd) (&pp.x)[axis] = (&bmx.x)[axis];"
+            },
+            {
+              "line": 12477,
+              "text": "                                wpts = clipFaceByPlane(wpts, inN, pp, clipTol);"
+            },
+            {
+              "line": 12478,
+              "text": "                                const double pv = (&pp.x)[axis];"
+            },
+            {
+              "line": 12479,
+              "text": "                                for (auto& wp : wpts)"
+            },
+            {
+              "line": 12480,
+              "text": "                                    if (std::abs((&wp.x)[axis] - pv) <= clipTol)"
+            },
+            {
+              "line": 12481,
+              "text": "                                        (&wp.x)[axis] = pv;"
+            },
+            {
+              "line": 12482,
+              "text": "                            }"
+            },
+            {
+              "line": 12483,
+              "text": "                            if (wpts.size() < 3) continue;"
+            },
+            {
+              "line": 12484,
+              "text": "                            // 贴片按叶内其余 barrier 平面细分（跨侧贴片：墙面贴片被"
+            },
+            {
+              "line": 12485,
+              "text": "                            // sheet 平面跨越 = T-junction 带叶常态；不细分则分类点"
+            },
+            {
+              "line": 12486,
+              "text": "                            // 骑带 ⇒ 可见性保守阻塞 ⇒ 丢片 ⇒ ΣSf 洞。精确交点 ="
+            },
+            {
+              "line": 12487,
+              "text": "                            // 构造（E-A2/K3-7：clipFaceByPlane SH，clipTol 既有）。"
+            },
+            {
+              "line": 12488,
+              "text": "                            std::vector<std::vector<Vec3>> frags;"
+            },
+            {
+              "line": 12489,
+              "text": "                            frags.push_back(wpts);"
+            },
+            {
+              "line": 12490,
+              "text": "                            for (int tk : bar) {"
+            },
+            {
+              "line": 12491,
+              "text": "                                if (tk == t) continue;"
+            },
+            {
+              "line": 12492,
+              "text": "                                const Vec3& nk = c.bvh.triN[(size_t)tk];"
+            },
+            {
+              "line": 12493,
+              "text": "                                if (nk.norm2() < 0.5) continue;"
+            },
+            {
+              "line": 12494,
+              "text": "                                const Vec3 v0k ="
+            },
+            {
+              "line": 12495,
+              "text": "                                    surf.verts[(size_t)surf.tris[(size_t)tk][0]];"
+            },
+            {
+              "line": 12496,
+              "text": "                                std::vector<std::vector<Vec3>> next;"
+            },
+            {
+              "line": 12497,
+              "text": "                                for (auto& fr : frags) {"
+            },
+            {
+              "line": 12498,
+              "text": "                                    double dmin = 1e300, dmax = -1e300;"
+            },
+            {
+              "line": 12499,
+              "text": "                                    for (const auto& q : fr) {"
+            },
+            {
+              "line": 12500,
+              "text": "                                        const double d = (q - v0k).dot(nk);"
+            },
+            {
+              "line": 12501,
+              "text": "                                        dmin = std::min(dmin, d);"
+            },
+            {
+              "line": 12502,
+              "text": "                                        dmax = std::max(dmax, d);"
+            },
+            {
+              "line": 12503,
+              "text": "                                    }"
+            },
+            {
+              "line": 12504,
+              "text": "                                    if (dmin >= -clipTol || dmax <= clipTol) {"
+            },
+            {
+              "line": 12505,
+              "text": "                                        next.push_back(std::move(fr));  // 单侧/骑带：不切"
+            },
+            {
+              "line": 12506,
+              "text": "                                        continue;"
+            },
+            {
+              "line": 12507,
+              "text": "                                    }"
+            },
+            {
+              "line": 12508,
+              "text": "                                    auto hi = clipFaceByPlane(fr, nk, v0k, clipTol);"
+            },
+            {
+              "line": 12509,
+              "text": "                                    auto lo = clipFaceByPlane(fr, nk * -1.0, v0k, clipTol);"
+            },
+            {
+              "line": 12510,
+              "text": "                                    const bool okH2 = hi.size() >= 3, okL2 = lo.size() >= 3;"
+            },
+            {
+              "line": 12511,
+              "text": "                                    if (okH2) next.push_back(std::move(hi));"
+            },
+            {
+              "line": 12512,
+              "text": "                                    if (okL2) next.push_back(std::move(lo));"
+            },
+            {
+              "line": 12513,
+              "text": "                                    if (!okH2 && !okL2)"
+            },
+            {
+              "line": 12514,
+              "text": "                                        dcP1TileFragLost.fetch_add("
+            },
+            {
+              "line": 12515,
+              "text": "                                            1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12516,
+              "text": "                                }"
+            },
+            {
+              "line": 12517,
+              "text": "                                frags.swap(next);"
+            },
+            {
+              "line": 12518,
+              "text": "                            }"
+            },
+            {
+              "line": 12519,
+              "text": "                            const Vec3 nhat = nn / nn.norm();"
+            },
+            {
+              "line": 12520,
+              "text": "                            int copies = 0;"
+            },
+            {
+              "line": 12521,
+              "text": "                            for (const auto& fr : frags) {"
+            },
+            {
+              "line": 12522,
+              "text": "                                Vec3 tc{0, 0, 0};"
+            },
+            {
+              "line": 12523,
+              "text": "                                for (const auto& q : fr) tc = tc + q;"
+            },
+            {
+              "line": 12524,
+              "text": "                                tc = tc / (double)fr.size();"
+            },
+            {
+              "line": 12525,
+              "text": "                                // 主判据：共边已分类组件 ⇒ (侧, 半空间) 对（每侧至多"
+            }
+          ]
+        },
+        {
+          "first": 12545,
+          "last": 12562,
+          "lines": [
+            {
+              "line": 12545,
+              "text": "                                int frCopies = 0;"
+            },
+            {
+              "line": 12546,
+              "text": "                                int fragSide0 = -1, fragSide1 = -1;"
+            },
+            {
+              "line": 12547,
+              "text": "                                // 主判据 = p± 点分类（碎片质心 ± ε·n̂ = 贴片【面邻接】"
+            },
+            {
+              "line": 12548,
+              "text": "                                // 的局部半空间测试；F5 cell49 实证：共边组件在绕角"
+            },
+            {
+              "line": 12549,
+              "text": "                                // 构型只是【切向边接触】（wrap-around 角），其 rep 半"
+            },
+            {
+              "line": 12550,
+              "text": "                                // 空间 ≠ 贴片脸邻接侧 ⇒ 共边判据不得作主判据）。"
+            },
+            {
+              "line": 12551,
+              "text": "                                const int sPlus = sideOfPt3(tc + nhat * (clipTol * 10));"
+            },
+            {
+              "line": 12552,
+              "text": "                                const int sMinus = sideOfPt3(tc - nhat * (clipTol * 10));"
+            },
+            {
+              "line": 12553,
+              "text": "                                if (envDbg6() &&"
+            },
+            {
+              "line": 12554,
+              "text": "                                    dbgCellHitCen(ci, Vec3{(bmn.x + bmx.x) * 0.5,"
+            },
+            {
+              "line": 12555,
+              "text": "                                                             (bmn.y + bmx.y) * 0.5,"
+            },
+            {
+              "line": 12556,
+              "text": "                                                             (bmn.z + bmx.z) * 0.5})) {"
+            },
+            {
+              "line": 12557,
+              "text": "                                    // H13 取证：逐碎片 p± 分类值（DBG_CELL/CEN 过滤）"
+            },
+            {
+              "line": 12558,
+              "text": "                                    static std::mutex muTf;"
+            },
+            {
+              "line": 12559,
+              "text": "                                    std::lock_guard<std::mutex> lkTf(muTf);"
+            },
+            {
+              "line": 12560,
+              "text": "                                    std::fprintf(stderr,"
+            },
+            {
+              "line": 12561,
+              "text": "                                        \"[DC-SB-TNF] ci=%zu t=%d tc=(%.9g,%.9g,%.9g) \""
+            },
+            {
+              "line": 12562,
+              "text": "                                        \"nhat=(%.6g,%.6g,%.6g) s+=%d s-=%d eS=%zu\\n\","
+            }
+          ]
+        },
+        {
+          "first": 12603,
+          "last": 12716,
+          "lines": [
+            {
+              "line": 12603,
+              "text": "                                int sRes[2] = {sPlus, sMinus};"
+            },
+            {
+              "line": 12604,
+              "text": "                                bool inhRes[2] = {false, false};"
+            },
+            {
+              "line": 12605,
+              "text": "                                if (!wrapSigs.empty()) {"
+            },
+            {
+              "line": 12606,
+              "text": "                                    for (int half = 0; half < 2; ++half) {"
+            },
+            {
+              "line": 12607,
+              "text": "                                        // dc17 E3d FIX-1（继承收紧）：直接分类【成功】"
+            },
+            {
+              "line": 12608,
+              "text": "                                        // （sRes≥0，含 dropped 侧）= 终判，不再被 wrap-inh"
+            },
+            {
+              "line": 12609,
+              "text": "                                        // sig 匹配覆盖；继承仅服务直接分类【失败】(s=-1)"
+            },
+            {
+              "line": 12610,
+              "text": "                                        // ——E3b 设计文本原意（\"碎片 p± 探针直接分类失败"
+            },
+            {
+              "line": 12611,
+              "text": "                                        // …时\"）的实现收紧。Tri 475/14596 实测：dropped 侧"
+            },
+            {
+              "line": 12612,
+              "text": "                                        // 直接探针 (s-=2) 被 sheet 平面 wrap 记录 sig 覆盖"
+            },
+            {
+              "line": 12613,
+              "text": "                                        // ⇒ 伪 fin 成对删除 ⇒ 1.49e-5 壁片丢失（斜墙铰链"
+            },
+            {
+              "line": 12614,
+              "text": "                                        // 处 sig 只编码平面符号组合，柱体楔与开口共符号 ⇒"
+            },
+            {
+              "line": 12615,
+              "text": "                                        // E3b 安全性论证在斜 barrier 上证伪，§5b-E3d.0）。"
+            },
+            {
+              "line": 12616,
+              "text": "                                        // BL 保全：BL FINP 30/30 = s+=0 s-=-1（失败探针，"
+            },
+            {
+              "line": 12617,
+              "text": "                                        // 收紧不触发）⇒ no-op（重跑字节门实证）。"
+            },
+            {
+              "line": 12618,
+              "text": "                                        // 消融口径（CART_E3D_NO_INHTIGHT）：置位 ="
+            },
+            {
+              "line": 12619,
+              "text": "                                        // branch-point 原式（仅 kept 侧跳过继承）。"
+            },
+            {
+              "line": 12620,
+              "text": "                                        if (sRes[half] >= 0 &&"
+            },
+            {
+              "line": 12621,
+              "text": "                                            (envE3dNoInhTight()"
+            },
+            {
+              "line": 12622,
+              "text": "                                                 ? (sRes[half] < (int)P.nSides &&"
+            },
+            {
+              "line": 12623,
+              "text": "                                                    sideKept(sRes[half]))"
+            },
+            {
+              "line": 12624,
+              "text": "                                                 : true)) {"
+            },
+            {
+              "line": 12625,
+              "text": "                                            if (!envE3dNoInhTight() &&"
+            },
+            {
+              "line": 12626,
+              "text": "                                                sRes[half] < (int)P.nSides &&"
+            },
+            {
+              "line": 12627,
+              "text": "                                                !sideKept(sRes[half]))"
+            },
+            {
+              "line": 12628,
+              "text": "                                                dcE3dInhTight.fetch_add("
+            },
+            {
+              "line": 12629,
+              "text": "                                                    1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12630,
+              "text": "                                            continue;"
+            },
+            {
+              "line": 12631,
+              "text": "                                        }"
+            },
+            {
+              "line": 12632,
+              "text": "                                        const Vec3 probeF ="
+            },
+            {
+              "line": 12633,
+              "text": "                                            tc + (((half == 0) ? nhat : nhat * -1.0) *"
+            },
+            {
+              "line": 12634,
+              "text": "                                                  (clipTol * 10));"
+            },
+            {
+              "line": 12635,
+              "text": "                                        std::vector<int8_t> sigF;"
+            },
+            {
+              "line": 12636,
+              "text": "                                        dcSignature(c, bar, probeF, clipTol, sigF);"
+            },
+            {
+              "line": 12637,
+              "text": "                                        for (const auto& wr : wrapSigs) {"
+            },
+            {
+              "line": 12638,
+              "text": "                                            if (wr.sig != sigF) continue;"
+            },
+            {
+              "line": 12639,
+              "text": "                                            sRes[half] = wr.side;"
+            },
+            {
+              "line": 12640,
+              "text": "                                            inhRes[half] = true;"
+            },
+            {
+              "line": 12641,
+              "text": "                                            break;   // 首记录优先（表序确定 ⇒ 决定性）"
+            },
+            {
+              "line": 12642,
+              "text": "                                        }"
+            },
+            {
+              "line": 12643,
+              "text": "                                    }"
+            },
+            {
+              "line": 12644,
+              "text": "                                }"
+            },
+            {
+              "line": 12645,
+              "text": "                                const bool k0W = (sRes[0] >= 0 && sRes[0] < (int)P.nSides &&"
+            },
+            {
+              "line": 12646,
+              "text": "                                                  sideKept(sRes[0]));"
+            },
+            {
+              "line": 12647,
+              "text": "                                const bool k1W = (sRes[1] >= 0 && sRes[1] < (int)P.nSides &&"
+            },
+            {
+              "line": 12648,
+              "text": "                                                  sideKept(sRes[1]));"
+            },
+            {
+              "line": 12649,
+              "text": "                                if (k0W && k1W && (inhRes[0] || inhRes[1]) &&"
+            },
+            {
+              "line": 12650,
+              "text": "                                    sRes[0] == sRes[1]) {"
+            },
+            {
+              "line": 12651,
+              "text": "                                    dcP1TileWrapInh.fetch_add(1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12652,
+              "text": "                                    if (xvOn) xvEvPts.push_back(tc);   // XV 事件点（FINP）"
+            },
+            {
+              "line": 12653,
+              "text": "                                    if (envDbg6() && dbgCellHit(ci)) {"
+            },
+            {
+              "line": 12654,
+              "text": "                                        static std::mutex muWf;"
+            },
+            {
+              "line": 12655,
+              "text": "                                        std::lock_guard<std::mutex> lkWf(muWf);"
+            },
+            {
+              "line": 12656,
+              "text": "                                        std::fprintf(stderr,"
+            },
+            {
+              "line": 12657,
+              "text": "                                            \"[DC-SB-FINP] ci=%zu t=%d tc=(%.9g,%.9g,%.9g) \""
+            },
+            {
+              "line": 12658,
+              "text": "                                            \"s+=%d s-=%d inh=%d/%d => 成对删除（wrap-fin）\\n\","
+            },
+            {
+              "line": 12659,
+              "text": "                                            ci, t, tc.x, tc.y, tc.z, sPlus, sMinus,"
+            },
+            {
+              "line": 12660,
+              "text": "                                            (int)inhRes[0], (int)inhRes[1]);"
+            },
+            {
+              "line": 12661,
+              "text": "                                    }"
+            },
+            {
+              "line": 12662,
+              "text": "                                    continue;   // 胞内 fin：± 成对删除（ΣSf 中性）"
+            },
+            {
+              "line": 12663,
+              "text": "                                }"
+            },
+            {
+              "line": 12664,
+              "text": "                                for (int half = 0; half < 2; ++half) {"
+            },
+            {
+              "line": 12665,
+              "text": "                                    const int s = sRes[half];"
+            },
+            {
+              "line": 12666,
+              "text": "                                    if (s < 0 || s >= (int)P.nSides || !sideKept(s))"
+            },
+            {
+              "line": 12667,
+              "text": "                                        continue;"
+            },
+            {
+              "line": 12668,
+              "text": "                                    if (inhRes[half]) {"
+            },
+            {
+              "line": 12669,
+              "text": "                                        dcP1TileWrapInh.fetch_add("
+            },
+            {
+              "line": 12670,
+              "text": "                                            1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12671,
+              "text": "                                        if (xvOn) xvEvPts.push_back(tc);   // XV 事件点（WINH）"
+            },
+            {
+              "line": 12672,
+              "text": "                                        if (envDbg6() && dbgCellHit(ci)) {"
+            },
+            {
+              "line": 12673,
+              "text": "                                            static std::mutex muWi;"
+            },
+            {
+              "line": 12674,
+              "text": "                                            std::lock_guard<std::mutex> lkWi(muWi);"
+            },
+            {
+              "line": 12675,
+              "text": "                                            std::fprintf(stderr,"
+            },
+            {
+              "line": 12676,
+              "text": "                                                \"[DC-SB-WINH] ci=%zu t=%d half=%d \""
+            },
+            {
+              "line": 12677,
+              "text": "                                                \"inherit side=%d tc=(%.9g,%.9g,%.9g)\\n\","
+            },
+            {
+              "line": 12678,
+              "text": "                                                ci, t, half, s, tc.x, tc.y, tc.z);"
+            },
+            {
+              "line": 12679,
+              "text": "                                        }"
+            },
+            {
+              "line": 12680,
+              "text": "                                    }"
+            },
+            {
+              "line": 12681,
+              "text": "                                    // 外法向 = 离该侧流体（流体在 p± ⇒ 外法向 = ∓n̂）"
+            },
+            {
+              "line": 12682,
+              "text": "                                    // ——keep/side 语义导出；(s,方向) 配对绕向不变"
+            },
+            {
+              "line": 12683,
+              "text": "                                    const Vec3 want = (half == 0) ? -nhat : nhat;"
+            },
+            {
+              "line": 12684,
+              "text": "                                    std::vector<Vec3> cp = fr;"
+            },
+            {
+              "line": 12685,
+              "text": "                                    if (faceAreaVec(cp).dot(want) < 0)"
+            },
+            {
+              "line": 12686,
+              "text": "                                        std::reverse(cp.begin(), cp.end());"
+            },
+            {
+              "line": 12687,
+              "text": "                                    PFace wf;"
+            },
+            {
+              "line": 12688,
+              "text": "                                    wf.pts = std::move(cp);"
+            },
+            {
+              "line": 12689,
+              "text": "                                    wf.patch = surf.patch[t];"
+            },
+            {
+              "line": 12690,
+              "text": "                                    wf.side = -1;"
+            },
+            {
+              "line": 12691,
+              "text": "                                    sideFaces[(size_t)s].push_back(std::move(wf));"
+            },
+            {
+              "line": 12692,
+              "text": "                                    if (fragSide0 < 0) fragSide0 = s;"
+            },
+            {
+              "line": 12693,
+              "text": "                                    else if (fragSide1 < 0) fragSide1 = s;"
+            },
+            {
+              "line": 12694,
+              "text": "                                    ++frCopies;"
+            },
+            {
+              "line": 12695,
+              "text": "                                }"
+            },
+            {
+              "line": 12696,
+              "text": "                                if (frCopies == 0 && !edgeSides.empty()) {"
+            },
+            {
+              "line": 12697,
+              "text": "                                    // 回退：共边已分类组件（曲面/密表面近点 p± 签名"
+            },
+            {
+              "line": 12698,
+              "text": "                                    // 落空时的第二判据——球面 dc_export 实证人口；"
+            },
+            {
+              "line": 12699,
+              "text": "                                    // 平面 DC 案 p± 为主 ⇒ 本回退 ≈ 稀疏）"
+            },
+            {
+              "line": 12700,
+              "text": "                                    for (const auto& pr : edgeSides) {"
+            },
+            {
+              "line": 12701,
+              "text": "                                        const int s = pr.first;"
+            },
+            {
+              "line": 12702,
+              "text": "                                        if (s < 0 || s >= (int)P.nSides || !sideKept(s))"
+            },
+            {
+              "line": 12703,
+              "text": "                                            continue;"
+            },
+            {
+              "line": 12704,
+              "text": "                                        const Vec3 want = nhat * (-pr.second);"
+            },
+            {
+              "line": 12705,
+              "text": "                                        std::vector<Vec3> cp = fr;"
+            },
+            {
+              "line": 12706,
+              "text": "                                        if (faceAreaVec(cp).dot(want) < 0)"
+            },
+            {
+              "line": 12707,
+              "text": "                                            std::reverse(cp.begin(), cp.end());"
+            },
+            {
+              "line": 12708,
+              "text": "                                        PFace wf;"
+            },
+            {
+              "line": 12709,
+              "text": "                                        wf.pts = std::move(cp);"
+            },
+            {
+              "line": 12710,
+              "text": "                                        wf.patch = surf.patch[t];"
+            },
+            {
+              "line": 12711,
+              "text": "                                        wf.side = -1;"
+            },
+            {
+              "line": 12712,
+              "text": "                                        sideFaces[(size_t)s].push_back(std::move(wf));"
+            },
+            {
+              "line": 12713,
+              "text": "                                        if (fragSide0 < 0) fragSide0 = s;"
+            },
+            {
+              "line": 12714,
+              "text": "                                        else if (fragSide1 < 0) fragSide1 = s;"
+            },
+            {
+              "line": 12715,
+              "text": "                                        ++frCopies;"
+            },
+            {
+              "line": 12716,
+              "text": "                                    }"
+            }
+          ]
+        },
+        {
+          "first": 12737,
+          "last": 12754,
+          "lines": [
+            {
+              "line": 12737,
+              "text": "                                dcP1TileNone.fetch_add(1, std::memory_order_relaxed);"
+            },
+            {
+              "line": 12738,
+              "text": "                                // E5c/M4（E3e/Q3）：轴对齐严格内部平面的 tileNone 三角"
+            },
+            {
+              "line": 12739,
+              "text": "                                // = complement 救援候选（环已裁剪/细分完毕，直接收集；"
+            },
+            {
+              "line": 12740,
+              "text": "                                // Phase B 仅对【全覆盖平面】消费 ⇒ 部分覆盖平面既有"
+            },
+            {
+              "line": 12741,
+              "text": "                                // 行为逐字节不动——Q3 条款）。"
+            },
+            {
+              "line": 12742,
+              "text": "                                int axN = -1;"
+            },
+            {
+              "line": 12743,
+              "text": "                                for (int k4 = 0; k4 < 3; ++k4)"
+            },
+            {
+              "line": 12744,
+              "text": "                                    if (std::abs((&nn.x)[k4]) > 1.0 - 1e-6) { axN = k4; break; }"
+            },
+            {
+              "line": 12745,
+              "text": "                                if (axN >= 0) {"
+            },
+            {
+              "line": 12746,
+              "text": "                                    const double pvN ="
+            },
+            {
+              "line": 12747,
+              "text": "                                        (&surf.verts[(size_t)surf.tris[(size_t)t][0]].x)[axN];"
+            },
+            {
+              "line": 12748,
+              "text": "                                    if (pvN > (&bmn.x)[axN] + clipTol &&"
+            },
+            {
+              "line": 12749,
+              "text": "                                        pvN < (&bmx.x)[axN] - clipTol)"
+            },
+            {
+              "line": 12750,
+              "text": "                                        for (const auto& frN : frags)"
+            },
+            {
+              "line": 12751,
+              "text": "                                            if (frN.size() >= 3)"
+            },
+            {
+              "line": 12752,
+              "text": "                                                noneFrags.push_back("
+            },
+            {
+              "line": 12753,
+              "text": "                                                    NoneFrag{t, axN, pvN, frN});"
+            },
+            {
+              "line": 12754,
+              "text": "                                }"
+            }
+          ]
+        },
+        {
+          "first": 31493,
+          "last": 31528,
+          "lines": [
+            {
+              "line": 31493,
+              "text": "                        jcells.push_back({{\"cell\", (long)ci},"
+            },
+            {
+              "line": 31494,
+              "text": "                                          {\"sigmaSf\", fails[ci].val},"
+            },
+            {
+              "line": 31495,
+              "text": "                                          {\"hasChord\", hc},"
+            },
+            {
+              "line": 31496,
+              "text": "                                          {\"allVertsInBand\", ab},"
+            },
+            {
+              "line": 31497,
+              "text": "                                          {\"droppedChain\", dc}});"
+            },
+            {
+              "line": 31498,
+              "text": "                    // dc17 Step 5b KB-1（H9 后修正诊断口径）：kind1 全量遍历中前 6 胞"
+            },
+            {
+              "line": 31499,
+              "text": "                    // 逐面 dump（refusal 环在首败即断 ⇒ kind3 先拒时 kind1 人口不可见）"
+            },
+            {
+              "line": 31500,
+              "text": "                    if (envDbg6() &&"
+            },
+            {
+              "line": 31501,
+              "text": "                        (jcells.size() <= 6 ||"
+            },
+            {
+              "line": 31502,
+              "text": "                         (envDbgCellVal() >= 0 && dbgCellHit(ci)))) {"
+            },
+            {
+              "line": 31503,
+              "text": "                        // dc17 E3d：CART_DBG_CELL 过滤扩展——任意 kind1 胞可点名全量"
+            },
+            {
+              "line": 31504,
+              "text": "                        // 逐面 dump（纯诊断；CART_DBG_CELL 缺省时 = 前 7 胞旧口径逐字同）"
+            },
+            {
+              "line": 31505,
+              "text": "                        const CellRec& crK = cells[ci];"
+            },
+            {
+              "line": 31506,
+              "text": "                        std::fprintf(stderr,"
+            },
+            {
+              "line": 31507,
+              "text": "                            \"[DC-S10K] ci=%zu SigmaSf=%.12g nfaces=%zu level=%d \""
+            },
+            {
+              "line": 31508,
+              "text": "                            \"cen=(%.9g,%.9g,%.9g) splitPiece=%d\\n\","
+            },
+            {
+              "line": 31509,
+              "text": "                            ci, fails[ci].val, crK.faces.size(), crK.level, crK.cen.x,"
+            },
+            {
+              "line": 31510,
+              "text": "                            crK.cen.y, crK.cen.z, (int)crK.splitPiece);"
+            },
+            {
+              "line": 31511,
+              "text": "                        for (size_t fj = 0; fj < crK.faces.size(); ++fj) {"
+            },
+            {
+              "line": 31512,
+              "text": "                            const auto& fkk = crK.faces[fj];"
+            },
+            {
+              "line": 31513,
+              "text": "                            Vec3 SfK = faceAreaVecFromIds(fkk.pts, gpts);"
+            },
+            {
+              "line": 31514,
+              "text": "                            std::fprintf(stderr,"
+            },
+            {
+              "line": 31515,
+              "text": "                                \"   f%zu nbr=%d patch=%d npts=%zu Sf=(%.9g,%.9g,%.9g) \""
+            },
+            {
+              "line": 31516,
+              "text": "                                \"home=(%.9g,%.9g,%.9g):\","
+            },
+            {
+              "line": 31517,
+              "text": "                                fj, fkk.nbr, fkk.patch, fkk.pts.size(), SfK.x, SfK.y,"
+            },
+            {
+              "line": 31518,
+              "text": "                                SfK.z, fkk.home.x, fkk.home.y, fkk.home.z);"
+            },
+            {
+              "line": 31519,
+              "text": "                            for (int id : fkk.pts)"
+            },
+            {
+              "line": 31520,
+              "text": "                                std::fprintf(stderr, \" %d(%.9g,%.9g,%.9g)\", id,"
+            },
+            {
+              "line": 31521,
+              "text": "                                             gpts[(size_t)id].x, gpts[(size_t)id].y,"
+            },
+            {
+              "line": 31522,
+              "text": "                                             gpts[(size_t)id].z);"
+            },
+            {
+              "line": 31523,
+              "text": "                            std::fprintf(stderr, \"\\n\");"
+            },
+            {
+              "line": 31524,
+              "text": "                        }"
+            },
+            {
+              "line": 31525,
+              "text": "                        std::fflush(stderr);"
+            },
+            {
+              "line": 31526,
+              "text": "                    }"
+            },
+            {
+              "line": 31527,
+              "text": "                    if (nK1 <= 32)"
+            },
+            {
+              "line": 31528,
+              "text": "                        std::fprintf(stderr,"
+            }
+          ]
+        },
+        {
+          "first": 32668,
+          "last": 32702,
+          "lines": [
+            {
+              "line": 32668,
+              "text": "                                         fj, fj2.nbr, fj2.patch, fj2.pts.size(), Sf.x, Sf.y,"
+            },
+            {
+              "line": 32669,
+              "text": "                                         Sf.z);"
+            },
+            {
+              "line": 32670,
+              "text": "                            for (int id : fj2.pts)"
+            },
+            {
+              "line": 32671,
+              "text": "                                std::fprintf(stderr, \" %d(%.9g,%.9g,%.9g)\", id,"
+            },
+            {
+              "line": 32672,
+              "text": "                                             gpts[(size_t)id].x, gpts[(size_t)id].y,"
+            },
+            {
+              "line": 32673,
+              "text": "                                             gpts[(size_t)id].z);"
+            },
+            {
+              "line": 32674,
+              "text": "                            std::fprintf(stderr, \"\\n\");"
+            },
+            {
+              "line": 32675,
+              "text": "                        }"
+            },
+            {
+              "line": 32676,
+              "text": "                        std::fflush(stderr);"
+            },
+            {
+              "line": 32677,
+              "text": "                    }"
+            },
+            {
+              "line": 32678,
+              "text": "                }"
+            },
+            {
+              "line": 32679,
+              "text": "                if (fr.kind == 1)"
+            },
+            {
+              "line": 32680,
+              "text": "                    err = \"S10 闭合断言失败：单元 \" + std::to_string(ci) + \" 的 ΣSf=\" +"
+            },
+            {
+              "line": 32681,
+              "text": "                          std::to_string(fr.val) + \" > 容差 \" + std::to_string(tolClose) +"
+            },
+            {
+              "line": 32682,
+              "text": "                          \"（开放单元，拒绝导出）\";"
+            },
+            {
+              "line": 32683,
+              "text": "                else if (fr.kind == 2)"
+            },
+            {
+              "line": 32684,
+              "text": "                    err = \"S10 面锥校验失败：单元 \" + std::to_string(ci) +"
+            },
+            {
+              "line": 32685,
+              "text": "                          \" 存在错向面（精确局部复核确认面法向指向胞内）\";"
+            },
+            {
+              "line": 32686,
+              "text": "                else"
+            },
+            {
+              "line": 32687,
+              "text": "                    err = \"S10 面锥质心终检失败：单元 \" + std::to_string(ci) +"
+            },
+            {
+              "line": 32688,
+              "text": "                          \"（级 \" + std::to_string(cr.level) +"
+            },
+            {
+              "line": 32689,
+              "text": "                          (cr.merged ? \"，合并胞\" : \"\") +"
+            },
+            {
+              "line": 32690,
+              "text": "                          \"）的 OpenFOAM 口径胞心越过面平面 \" + std::to_string(fr.val) +"
+            },
+            {
+              "line": 32691,
+              "text": "                          \" > 容差 \" + std::to_string(gateTolF) +"
+            },
+            {
+              "line": 32692,
+              "text": "                          \"（S9 无可行合并修复）——拒绝导出\";"
+            },
+            {
+              "line": 32693,
+              "text": "                return false;"
+            },
+            {
+              "line": 32694,
+              "text": "            }"
+            },
+            {
+              "line": 32695,
+              "text": "            if (nGateWarn) std::fprintf(stderr, \"[cartesian] warn: S10 降级告警共 %zu 胞（qualityGate=warn）\\n\", nGateWarn);"
+            },
+            {
+              "line": 32696,
+              "text": "#if defined(MESHGEN_WITH_MPI)"
+            },
+            {
+              "line": 32697,
+              "text": "            }"
+            },
+            {
+              "line": 32698,
+              "text": "#endif"
+            },
+            {
+              "line": 32699,
+              "text": "        } else"
+            },
+            {
+              "line": 32700,
+              "text": "        for (size_t ci = 0; ci < cells.size(); ++ci) {"
+            },
+            {
+              "line": 32701,
+              "text": "            CellRec& cr = cells[ci];"
+            },
+            {
+              "line": 32702,
+              "text": "            Vec3 sum{0, 0, 0};"
+            }
+          ]
+        }
+      ]
+    },
+    "main.cpp": {
+      "sha256": "c517355861137b7d571189b9e4ca974d1c7e16af39770b6a19919c73fd3e3dae",
+      "ranges": [
+        {
+          "first": 1482,
+          "last": 1515,
+          "lines": [
+            {
+              "line": 1482,
+              "text": "bool buildDcRawSurface(const DcRawMapping& map, const std::string& surfaceDir, TriSurface& out,"
+            },
+            {
+              "line": 1483,
+              "text": "                       std::vector<uint8_t>& barrierByPatch, long& nSkippedZeroTriangle,"
+            },
+            {
+              "line": 1484,
+              "text": "                       long& nRoleConflicts, std::string& err) {"
+            },
+            {
+              "line": 1485,
+              "text": "    out = TriSurface{};"
+            },
+            {
+              "line": 1486,
+              "text": "    barrierByPatch.clear();"
+            },
+            {
+              "line": 1487,
+              "text": "    nSkippedZeroTriangle = 0;"
+            },
+            {
+              "line": 1488,
+              "text": "    nRoleConflicts = 0;  // dc17 Step 5a-ii：角色表冲突计数（首记录优先覆盖次数，静默通道 #6）"
+            },
+            {
+              "line": 1489,
+              "text": "    // record 按 stlFile 分组（map.solids 已按文件名字典序+文件内序 ⇒ 首现序即确定序）"
+            },
+            {
+              "line": 1490,
+              "text": "    std::vector<std::string> files;"
+            },
+            {
+              "line": 1491,
+              "text": "    std::map<std::string, std::vector<const DcRawSolidRecord*>> byFile;"
+            },
+            {
+              "line": 1492,
+              "text": "    for (const auto& r : map.solids) {"
+            },
+            {
+              "line": 1493,
+              "text": "        if (!byFile.count(r.stlFile)) files.push_back(r.stlFile);"
+            },
+            {
+              "line": 1494,
+              "text": "        byFile[r.stlFile].push_back(&r);"
+            },
+            {
+              "line": 1495,
+              "text": "    }"
+            },
+            {
+              "line": 1496,
+              "text": "    for (const auto& stlFile : files) {"
+            },
+            {
+              "line": 1497,
+              "text": "        const std::string path = surfaceDir + \"/\" + stlFile;"
+            },
+            {
+              "line": 1498,
+              "text": "        if (!std::ifstream(path).good()) {"
+            },
+            {
+              "line": 1499,
+              "text": "            CART_ROOT_BLOCK"
+            },
+            {
+              "line": 1500,
+              "text": "            std::cerr << \"[dc-raw] warn: STL 缺失(\" << path << \")——该文件固体无几何跳过\\n\";"
+            },
+            {
+              "line": 1501,
+              "text": "            continue;"
+            },
+            {
+              "line": 1502,
+              "text": "        }"
+            },
+            {
+              "line": 1503,
+              "text": "        TriSurface part;"
+            },
+            {
+              "line": 1504,
+              "text": "        if (!part.loadSTL(path, err)) {"
+            },
+            {
+              "line": 1505,
+              "text": "            // 经典装载容忍语义镜像（step3b §4.1，Polygon_Room INGEST-REFUSAL 修复）："
+            },
+            {
+              "line": 1506,
+              "text": "            // loadSTL 对\"每个 solid 块都零 facet\"的 ASCII STL 返回 false（parsed.empty()，"
+            },
+            {
+              "line": 1507,
+              "text": "            // Cartesian.cpp:1033）——但它并非损坏，而是\"清单声明、磁盘零几何\"的空表面。"
+            },
+            {
+              "line": 1508,
+              "text": "            // 扫描器已把这些 solid 记为 triCount==0；故一个文件的 record 全为零三角 ⇒"
+            },
+            {
+              "line": 1509,
+              "text": "            // 无几何即无屏障，逐 solid 响亮告警后跳过（对齐经典非 dc-raw 路径对空 solid"
+            },
+            {
+              "line": 1510,
+              "text": "            // 块的容忍），而不是拒载整次摄入。若该文件存在任一非零 record 却仍装载失败，"
+            },
+            {
+              "line": 1511,
+              "text": "            // 则是真正的损坏/畸形 ⇒ 照旧硬失败（不掩盖）。"
+            },
+            {
+              "line": 1512,
+              "text": "            const auto& zrecs = byFile[stlFile];"
+            },
+            {
+              "line": 1513,
+              "text": "            bool allZero = !zrecs.empty();"
+            },
+            {
+              "line": 1514,
+              "text": "            for (const auto* r : zrecs)"
+            },
+            {
+              "line": 1515,
+              "text": "                if (r->triCount != 0) { allZero = false; break; }"
+            }
+          ]
+        },
+        {
+          "first": 1528,
+          "last": 1575,
+          "lines": [
+            {
+              "line": 1528,
+              "text": "        if (part.patchNames.size() == 1 && !recs.empty() && part.patchNames[0] != recs[0]->solidName)"
+            },
+            {
+              "line": 1529,
+              "text": "            part.patchNames[0] = recs[0]->solidName;"
+            },
+            {
+              "line": 1530,
+              "text": "        // part patch（=solidName）→ record（同文件内按 solidName 匹配）"
+            },
+            {
+              "line": 1531,
+              "text": "        for (size_t p = 0; p < part.patchNames.size(); ++p) {"
+            },
+            {
+              "line": 1532,
+              "text": "            const DcRawSolidRecord* rec = nullptr;"
+            },
+            {
+              "line": 1533,
+              "text": "            for (const auto* r : recs)"
+            },
+            {
+              "line": 1534,
+              "text": "                if (r->solidName == part.patchNames[p]) { rec = r; break; }"
+            },
+            {
+              "line": 1535,
+              "text": "            if (!rec) {"
+            },
+            {
+              "line": 1536,
+              "text": "                CART_ROOT_BLOCK"
+            },
+            {
+              "line": 1537,
+              "text": "                std::cerr << \"[dc-raw] warn: \" << stlFile << \" 内 solid \" << part.patchNames[p]"
+            },
+            {
+              "line": 1538,
+              "text": "                          << \" 无扫描记录（装载/扫描口径分歧）——按 solidName 直通\\n\";"
+            },
+            {
+              "line": 1539,
+              "text": "            }"
+            },
+            {
+              "line": 1540,
+              "text": "            const std::string target = rec ? rec->patchName : part.patchNames[p];"
+            },
+            {
+              "line": 1541,
+              "text": "            // 合并入 out（按 target 名去重；跨文件同名 = 同 patch 合并）"
+            },
+            {
+              "line": 1542,
+              "text": "            int found = -1;"
+            },
+            {
+              "line": 1543,
+              "text": "            for (size_t q = 0; q < out.patchNames.size(); ++q)"
+            },
+            {
+              "line": 1544,
+              "text": "                if (out.patchNames[q] == target) { found = (int)q; break; }"
+            },
+            {
+              "line": 1545,
+              "text": "            if (found < 0) {"
+            },
+            {
+              "line": 1546,
+              "text": "                found = (int)out.patchNames.size();"
+            },
+            {
+              "line": 1547,
+              "text": "                out.patchNames.push_back(target);"
+            },
+            {
+              "line": 1548,
+              "text": "                barrierByPatch.push_back(rec ? (uint8_t)(rec->floodBarrier ? 1 : 0) : (uint8_t)1);"
+            },
+            {
+              "line": 1549,
+              "text": "            } else if (rec && (barrierByPatch[(size_t)found] ? 1 : 0) != (rec->floodBarrier ? 1 : 0)) {"
+            },
+            {
+              "line": 1550,
+              "text": "                ++nRoleConflicts;  // dc17 Step 5a-ii：首记录优先覆盖 = 静默通道 #6 计数"
+            },
+            {
+              "line": 1551,
+              "text": "                CART_ROOT_BLOCK"
+            },
+            {
+              "line": 1552,
+              "text": "                std::cerr << \"[dc-raw] warn: patch \" << target << \" 的 floodBarrier 声明冲突（\""
+            },
+            {
+              "line": 1553,
+              "text": "                          << stlFile << \"：\" << (int)rec->floodBarrier << \" vs 首记录 \""
+            },
+            {
+              "line": 1554,
+              "text": "                          << (int)barrierByPatch[(size_t)found] << \"）——取首记录\\n\";"
+            },
+            {
+              "line": 1555,
+              "text": "            }"
+            },
+            {
+              "line": 1556,
+              "text": "            part.patchNames[p] = target;  // 供下方 pmap"
+            },
+            {
+              "line": 1557,
+              "text": "        }"
+            },
+            {
+              "line": 1558,
+              "text": "        // 顶点/三角形/patch 合并（loadCfdrunSurface 同款 pmap 口径）"
+            },
+            {
+              "line": 1559,
+              "text": "        const int voff = (int)out.verts.size();"
+            },
+            {
+              "line": 1560,
+              "text": "        for (const auto& v : part.verts) out.verts.push_back(v);"
+            },
+            {
+              "line": 1561,
+              "text": "        std::vector<int> pmap(part.patchNames.size(), -1);"
+            },
+            {
+              "line": 1562,
+              "text": "        for (size_t p = 0; p < part.patchNames.size(); ++p) {"
+            },
+            {
+              "line": 1563,
+              "text": "            for (size_t q = 0; q < out.patchNames.size(); ++q)"
+            },
+            {
+              "line": 1564,
+              "text": "                if (out.patchNames[q] == part.patchNames[p]) { pmap[p] = (int)q; break; }"
+            },
+            {
+              "line": 1565,
+              "text": "        }"
+            },
+            {
+              "line": 1566,
+              "text": "        for (const auto& t : part.tris) out.tris.push_back({t[0] + voff, t[1] + voff, t[2] + voff});"
+            },
+            {
+              "line": 1567,
+              "text": "        for (size_t i = 0; i < part.patch.size(); ++i)"
+            },
+            {
+              "line": 1568,
+              "text": "            out.patch.push_back(pmap[(size_t)part.patch[i]]);"
+            },
+            {
+              "line": 1569,
+              "text": "    }"
+            },
+            {
+              "line": 1570,
+              "text": "    out.firstLayer.assign(out.patchNames.size(), -1.0);"
+            },
+            {
+              "line": 1571,
+              "text": "    if (out.tris.empty()) { err = \"[dc-raw] 桥接表面为空（无三角形）\"; return false; }"
+            },
+            {
+              "line": 1572,
+              "text": "    return true;"
+            },
+            {
+              "line": 1573,
+              "text": "}"
+            },
+            {
+              "line": 1574,
+              "text": ""
+            },
+            {
+              "line": 1575,
+              "text": "// 房间壳 bbox（E-A7 报告的 kept 体积内/外拆分用；仅报告，不参与任何谓词）。"
+            }
+          ]
+        }
+      ]
+    },
+    "CartesianCfdrun.cpp": {
+      "sha256": "7fb9faf8d1e3b813328bc91912fac88d33628964471ace7a5dcb03a692b5d7ae",
+      "ranges": [
+        {
+          "first": 1178,
+          "last": 1195,
+          "lines": [
+            {
+              "line": 1178,
+              "text": "    out.nSolidsOnDisk = (long)out.solids.size();"
+            },
+            {
+              "line": 1179,
+              "text": "    for (const auto& r : out.solids) {"
+            },
+            {
+              "line": 1180,
+              "text": "        if (r.region == \"STL_ONLY\") {"
+            },
+            {
+              "line": 1181,
+              "text": "            if (r.explained) ++out.nStlOnlyClassified;"
+            },
+            {
+              "line": 1182,
+              "text": "            else ++out.nUnexplained;"
+            },
+            {
+              "line": 1183,
+              "text": "        } else {"
+            },
+            {
+              "line": 1184,
+              "text": "            ++out.nBoundManifest;"
+            },
+            {
+              "line": 1185,
+              "text": "        }"
+            },
+            {
+              "line": 1186,
+              "text": "    }"
+            },
+            {
+              "line": 1187,
+              "text": "    out.baffleZones.assign(baffleZoneSet.begin(), baffleZoneSet.end());"
+            },
+            {
+              "line": 1188,
+              "text": "    out.patchNames.assign(patchNameSet.begin(), patchNameSet.end());"
+            },
+            {
+              "line": 1189,
+              "text": ""
+            },
+            {
+              "line": 1190,
+              "text": "    if (out.nSolidsOnDisk == 0)"
+            },
+            {
+              "line": 1191,
+              "text": "        warn.push_back(\"[dc-raw] 磁盘扫描 0 个 solid——surface-dir 可能为空/路径错（INFEASIBLE：无几何可分类）\");"
+            },
+            {
+              "line": 1192,
+              "text": ""
+            },
+            {
+              "line": 1193,
+              "text": "    // out.name 已由 parseCfdrun 取清单 name；manifestPath/surfaceDir 由 ingestDcRaw 填实际路径。"
+            },
+            {
+              "line": 1194,
+              "text": "    out.valid = true;"
+            },
+            {
+              "line": 1195,
+              "text": "    return true;"
+            }
+          ]
+        },
+        {
+          "first": 2100,
+          "last": 2115,
+          "lines": [
+            {
+              "line": 2100,
+              "text": "    root[\"keepPoints\"] = kp;"
+            },
+            {
+              "line": 2101,
+              "text": "    // refinementZones"
+            },
+            {
+              "line": 2102,
+              "text": "    json rz = json::array();"
+            },
+            {
+              "line": 2103,
+              "text": "    for (const auto& z : m.refineZones)"
+            },
+            {
+              "line": 2104,
+              "text": "        rz.push_back({{\"name\", z.name}, {\"level\", z.level},"
+            },
+            {
+              "line": 2105,
+              "text": "                      {\"min\", {{\"x\", z.mn.x}, {\"y\", z.mn.y}, {\"z\", z.mn.z}}},"
+            },
+            {
+              "line": 2106,
+              "text": "                      {\"max\", {{\"x\", z.mx.x}, {\"y\", z.mx.y}, {\"z\", z.mx.z}}}});"
+            },
+            {
+              "line": 2107,
+              "text": "    root[\"refinementZones\"] = rz;"
+            },
+            {
+              "line": 2108,
+              "text": "    root[\"baffleZones\"] = m.baffleZones;"
+            },
+            {
+              "line": 2109,
+              "text": "    root[\"patchNames\"] = m.patchNames;"
+            },
+            {
+              "line": 2110,
+              "text": "    // ---- dc17 E-A4：种子合成 ----"
+            },
+            {
+              "line": 2111,
+              "text": "    {"
+            },
+            {
+              "line": 2112,
+              "text": "        json sd;"
+            },
+            {
+              "line": 2113,
+              "text": "        sd[\"meshMode\"] = m.meshMode;"
+            },
+            {
+              "line": 2114,
+              "text": "        sd[\"hLocal\"] = m.seedHLocal;"
+            },
+            {
+              "line": 2115,
+              "text": "        sd[\"defaultOffset\"] = m.seedDefaultOffset;"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "scope": "Read-only held producer source; no production edit, compile or execution."
+}

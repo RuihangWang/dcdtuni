@@ -1,0 +1,28 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+__________ test_ascii_hashset_under_binary_header_is_read_as_written ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/mesh-geometry-audit-tests/test_ascii_hashset_under_binar0')
+
+    def test_ascii_hashset_under_binary_header_is_read_as_written(tmp_path):
+        path=tmp_path/"concaveCells"
+        path.write_text("FoamFile { format binary; class cellSet; }\\n3\\n(\\n1\\n2\\n8\\n)\\n")
+>       assert module.cell_set(path).tolist()==[1,2,8]
+
+src/backend/tests/test_audit_air_mesh_geometry.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/mesh-geometry-audit-tests/test_ascii_hashset_under_binar0/concaveCells')
+
+    def cell_set(path):
+        if not path.exists():return np.empty(0,dtype=np.int64)
+        # v2412 labelHashSet writes ASCII data even under a binary FoamFile header.
+        raw=path.read_bytes()
+        hit=re.search(rb"\\n(\\d+)\\n\\(\\s*([0-9\\s]*)\\)",raw)
+>       if not hit:raise ValueError(f"Unsupported diagnostic set payload: {path}")
+E       ValueError: Unsupported diagnostic set payload: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/mesh-geometry-audit-tests/test_ascii_hashset_under_binar0/concaveCells
+
+tools/audit_air_mesh_geometry.py:35: ValueError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_audit_air_mesh_geometry.py::test_ascii_hashset_under_binary_header_is_read_as_written
+1 failed, 4 passed in 0.31s

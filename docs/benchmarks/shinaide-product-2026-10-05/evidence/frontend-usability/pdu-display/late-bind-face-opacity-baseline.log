@@ -1,0 +1,83 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/pduSceneDisplay.test.ts -t pending PBR|FaceInspector --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/pduSceneDisplay.test.ts (25 tests | 3 failed | 22 skipped) 172ms
+   × PDU local material lifetime > keeps local powder-coat normal strength when actual pending PBR maps bind later 111ms
+     → expected [ 0.6, 0.6 ] to deeply equal [ 0.16, 0.16 ]
+   × existing BOX face opacity stays effective on PDU display skins > respects actual FaceInspector updateFace(front, opacity, 0) after targeted rebuild 31ms
+     → generic-pdu-cabinet: expected 1 to be +0 // Object.is equality
+   × existing BOX face opacity stays effective on PDU display skins > respects actual FaceInspector updateFace(front, opacity, 0.35) after targeted rebuild 26ms
+     → generic-pdu-cabinet: expected 1 to be 0.35 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > PDU local material lifetime > keeps local powder-coat normal strength when actual pending PBR maps bind later
+AssertionError: expected [ 0.6, 0.6 ] to deeply equal [ 0.16, 0.16 ]
+
+- Expected
++ Received
+
+  Array [
+-   0.16,
+-   0.16,
++   0.6,
++   0.6,
+  ]
+
+ ❯ test/pduSceneDisplay.test.ts:228:73
+    226|   for(const map of ['diffuse','normal','roughness'] as const)lib.regis…
+    227|   for(const mat of painted.map(m=>m.material as THREE.MeshStandardMate…
+    228|    expect(mat.normalMap).toBeTruthy();expect(mat.normalScale.toArray()…
+       |                                                                         ^
+    229|   }
+    230|  })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > existing BOX face opacity stays effective on PDU display skins > respects actual FaceInspector updateFace(front, opacity, 0) after targeted rebuild
+AssertionError: generic-pdu-cabinet: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ test/pduSceneDisplay.test.ts:257:34
+    255|   for(const mesh of detail){
+    256|    const mat=mesh.material as THREE.Material
+    257|    expect(mat.opacity,mesh.name).toBe(mesh.userData.faceId==='front'?o…
+       |                                  ^
+    258|    expect(mat.depthWrite,mesh.name).toBe(mesh.userData.faceId==='front…
+    259|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > existing BOX face opacity stays effective on PDU display skins > respects actual FaceInspector updateFace(front, opacity, 0.35) after targeted rebuild
+AssertionError: generic-pdu-cabinet: expected 1 to be 0.35 // Object.is equality
+
+- Expected
++ Received
+
+- 0.35
++ 1
+
+ ❯ test/pduSceneDisplay.test.ts:257:34
+    255|   for(const mesh of detail){
+    256|    const mat=mesh.material as THREE.Material
+    257|    expect(mat.opacity,mesh.name).toBe(mesh.userData.faceId==='front'?o…
+       |                                  ^
+    258|    expect(mat.depthWrite,mesh.name).toBe(mesh.userData.faceId==='front…
+    259|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 22 skipped (25)
+   Start at  06:50:01
+   Duration  4.11s (transform 1.10s, setup 0ms, collect 2.69s, tests 172ms, environment 819ms, prepare 71ms)
+

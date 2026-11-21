@@ -1,0 +1,2530 @@
+{
+  "$defs": {
+    "Actuator": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "rpm_ratio",
+            "opening"
+          ],
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "field"
+      ],
+      "title": "Actuator",
+      "type": "object"
+    },
+    "Analysis": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "steady",
+            "transient"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "initialization": {
+          "enum": [
+            "steady",
+            "consistent"
+          ],
+          "title": "Initialization",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "initialization"
+      ],
+      "title": "Analysis",
+      "type": "object"
+    },
+    "BenchmarkUnits": {
+      "additionalProperties": false,
+      "properties": {
+        "pressure": {
+          "const": "Pa",
+          "title": "Pressure",
+          "type": "string"
+        },
+        "temperature": {
+          "const": "K",
+          "title": "Temperature",
+          "type": "string"
+        },
+        "mass_flow": {
+          "const": "kg/s",
+          "title": "Mass Flow",
+          "type": "string"
+        },
+        "power": {
+          "const": "W",
+          "title": "Power",
+          "type": "string"
+        },
+        "time": {
+          "const": "s",
+          "title": "Time",
+          "type": "string"
+        },
+        "temperature_rate": {
+          "const": "K/s",
+          "title": "Temperature Rate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pressure",
+        "temperature",
+        "mass_flow",
+        "power",
+        "time",
+        "temperature_rate"
+      ],
+      "title": "BenchmarkUnits",
+      "type": "object"
+    },
+    "ColdPlateEdgeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "cold_plate",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ColdPlateParamsV4"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "ColdPlateEdgeV4",
+      "type": "object"
+    },
+    "ColdPlateParamsV4": {
+      "additionalProperties": false,
+      "properties": {
+        "dp_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp A"
+        },
+        "dp_b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp B"
+        },
+        "UA_W_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ua W Per K"
+        },
+        "C_solid_J_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "C Solid J Per K"
+        },
+        "V_fluid_m3": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V Fluid M3"
+        },
+        "Q_W": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Q W"
+        },
+        "heat_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "power",
+                "temperature_rise"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heat Mode"
+        },
+        "dT_set_K": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dt Set K"
+        }
+      },
+      "title": "ColdPlateParamsV4",
+      "type": "object"
+    },
+    "Controller": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "measurement": {
+          "$ref": "#/$defs/Measurement"
+        },
+        "actuator": {
+          "$ref": "#/$defs/Actuator"
+        },
+        "pid": {
+          "$ref": "#/$defs/PID"
+        },
+        "sample_period_s": {
+          "exclusiveMinimum": 0,
+          "title": "Sample Period S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "measurement",
+        "actuator",
+        "pid",
+        "sample_period_s"
+      ],
+      "title": "Controller",
+      "type": "object"
+    },
+    "DAEExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "const": "pytorch",
+          "title": "Backend",
+          "type": "string"
+        },
+        "device": {
+          "pattern": "^(cpu|cuda(?::[0-9]+)?)$",
+          "title": "Device",
+          "type": "string"
+        },
+        "dtype": {
+          "enum": [
+            "float32",
+            "float64"
+          ],
+          "title": "Dtype",
+          "type": "string"
+        },
+        "max_threads": {
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Max Threads",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "backend",
+        "device",
+        "dtype",
+        "max_threads"
+      ],
+      "title": "DAEExecution",
+      "type": "object"
+    },
+    "DAEParameterPack": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "mock",
+            "vendor",
+            "calibrated"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterProfile"
+          },
+          "minProperties": 1,
+          "title": "Profiles",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "revision",
+        "source",
+        "description",
+        "profiles"
+      ],
+      "title": "DAEParameterPack",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "time_s": {
+          "minimum": 0,
+          "title": "Time S",
+          "type": "number"
+        },
+        "target": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Target",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "rpm_ratio",
+            "opening",
+            "Q_W"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "time_s",
+        "target",
+        "field",
+        "value"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "Fluid": {
+      "additionalProperties": false,
+      "properties": {
+        "rho_kg_m3": {
+          "exclusiveMinimum": 0,
+          "title": "Rho Kg M3",
+          "type": "number"
+        },
+        "cp_J_kgK": {
+          "exclusiveMinimum": 0,
+          "title": "Cp J Kgk",
+          "type": "number"
+        },
+        "mu_Pa_s": {
+          "exclusiveMinimum": 0,
+          "title": "Mu Pa S",
+          "type": "number"
+        },
+        "k_W_mK": {
+          "exclusiveMinimum": 0,
+          "title": "K W Mk",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rho_kg_m3",
+        "cp_J_kgK",
+        "mu_Pa_s",
+        "k_W_mK"
+      ],
+      "title": "Fluid",
+      "type": "object"
+    },
+    "Initial": {
+      "additionalProperties": false,
+      "properties": {
+        "water_temperature_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "solid_temperature_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "hx_secondary_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "hx_primary_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "node_pressure_Pa": {
+          "$ref": "#/$defs/Vector"
+        },
+        "flow_kg_s": {
+          "$ref": "#/$defs/Vector"
+        },
+        "node_temperature_K": {
+          "$ref": "#/$defs/Vector"
+        }
+      },
+      "required": [
+        "water_temperature_K",
+        "solid_temperature_K",
+        "hx_secondary_K",
+        "hx_primary_K",
+        "node_pressure_Pa",
+        "flow_kg_s",
+        "node_temperature_K"
+      ],
+      "title": "Initial",
+      "type": "object"
+    },
+    "InitialConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "T_fluid_K": {
+          "exclusiveMinimum": 0,
+          "title": "T Fluid K",
+          "type": "number"
+        },
+        "T_solid_K": {
+          "exclusiveMinimum": 0,
+          "title": "T Solid K",
+          "type": "number"
+        },
+        "P_uniform_Pa": {
+          "title": "P Uniform Pa",
+          "type": "number"
+        }
+      },
+      "required": [
+        "T_fluid_K",
+        "T_solid_K",
+        "P_uniform_Pa"
+      ],
+      "title": "InitialConditions",
+      "type": "object"
+    },
+    "LegacyManifold": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "D_m": {
+          "default": 0.019,
+          "exclusiveMinimum": 0,
+          "title": "D M",
+          "type": "number"
+        },
+        "n_cells": {
+          "default": 3,
+          "minimum": 1,
+          "title": "N Cells",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "node_id"
+      ],
+      "title": "LegacyManifold",
+      "type": "object"
+    },
+    "LegacyPair": {
+      "additionalProperties": false,
+      "properties": {
+        "server_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Server Id",
+          "type": "string"
+        },
+        "cold_plate_edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Cold Plate Edge Id",
+          "type": "string"
+        },
+        "power_W": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Power W",
+          "type": "number"
+        },
+        "T_inlet_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T Inlet K"
+        }
+      },
+      "required": [
+        "server_id",
+        "cold_plate_edge_id"
+      ],
+      "title": "LegacyPair",
+      "type": "object"
+    },
+    "ManufacturedBenchmark": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "dcdtuni-manufactured-benchmark",
+          "title": "Format",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "provenance": {
+          "const": "synthetic-research",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "formula_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Formula Id",
+          "type": "string"
+        },
+        "source_reference": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "graph_layout_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Graph Layout Sha256",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "units": {
+          "$ref": "#/$defs/BenchmarkUnits"
+        },
+        "sampling": {
+          "const": "endpoint_hold",
+          "title": "Sampling",
+          "type": "string"
+        },
+        "times_s": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 10000,
+          "title": "Times S",
+          "type": "array"
+        },
+        "sources": {
+          "$ref": "#/$defs/Sources"
+        },
+        "initial_state": {
+          "$ref": "#/$defs/Initial"
+        },
+        "initial_temperature_rate": {
+          "$ref": "#/$defs/Storage"
+        },
+        "flow_signs": {
+          "$ref": "#/$defs/Vector"
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "provenance",
+        "formula_id",
+        "source_reference",
+        "graph_layout_sha256",
+        "source_sha256",
+        "units",
+        "sampling",
+        "times_s",
+        "sources",
+        "initial_state",
+        "initial_temperature_rate",
+        "flow_signs"
+      ],
+      "title": "ManufacturedBenchmark",
+      "type": "object"
+    },
+    "Matrix": {
+      "additionalProperties": false,
+      "properties": {
+        "ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "maxItems": 4000,
+          "title": "Ids",
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 10000,
+            "type": "array"
+          },
+          "maxItems": 4000,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ids",
+        "values"
+      ],
+      "title": "Matrix",
+      "type": "object"
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "node_temperature",
+            "pressure_difference",
+            "solid_temperature",
+            "mass_flow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "reference_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Id"
+        }
+      },
+      "required": [
+        "kind",
+        "target_id"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "NewtonConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "max_iterations": {
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "atol": {
+          "exclusiveMinimum": 0,
+          "title": "Atol",
+          "type": "number"
+        },
+        "rtol": {
+          "minimum": 0,
+          "title": "Rtol",
+          "type": "number"
+        },
+        "max_backtracks": {
+          "minimum": 1,
+          "title": "Max Backtracks",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_iterations",
+        "atol",
+        "rtol",
+        "max_backtracks"
+      ],
+      "title": "NewtonConfig",
+      "type": "object"
+    },
+    "NodeBCV4": {
+      "additionalProperties": false,
+      "properties": {
+        "P_Pa": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          ],
+          "title": "P Pa"
+        },
+        "T_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T K"
+        }
+      },
+      "required": [
+        "P_Pa"
+      ],
+      "title": "NodeBCV4",
+      "type": "object"
+    },
+    "NodeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "pressure_bc",
+            "junction"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "position_m": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Position M",
+          "type": "array"
+        },
+        "bc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NodeBCV4"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "position_m"
+      ],
+      "title": "NodeV4",
+      "type": "object"
+    },
+    "ObjectBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Kind",
+          "type": "string"
+        },
+        "node_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "parent_uid": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Uid"
+        }
+      },
+      "required": [
+        "label",
+        "kind",
+        "node_ids",
+        "edge_ids"
+      ],
+      "title": "ObjectBinding",
+      "type": "object"
+    },
+    "PID": {
+      "additionalProperties": false,
+      "properties": {
+        "kp": {
+          "minimum": 0,
+          "title": "Kp",
+          "type": "number"
+        },
+        "ki": {
+          "minimum": 0,
+          "title": "Ki",
+          "type": "number"
+        },
+        "kd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Kd",
+          "type": "number"
+        },
+        "setpoint": {
+          "default": 0.0,
+          "title": "Setpoint",
+          "type": "number"
+        },
+        "bias": {
+          "default": 0.0,
+          "title": "Bias",
+          "type": "number"
+        },
+        "output_min": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Output Min",
+          "type": "number"
+        },
+        "output_max": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Output Max",
+          "type": "number"
+        },
+        "action": {
+          "default": "reverse",
+          "enum": [
+            "direct",
+            "reverse"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "rate_limit_per_s": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate Limit Per S"
+        },
+        "derivative_tau_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Derivative Tau S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kp",
+        "ki"
+      ],
+      "title": "PID",
+      "type": "object"
+    },
+    "Pair": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "Q_W": {
+          "minimum": 0,
+          "title": "Q W",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "edge_id",
+        "Q_W"
+      ],
+      "title": "Pair",
+      "type": "object"
+    },
+    "ParameterProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "pipe",
+            "pump",
+            "valve",
+            "cold_plate",
+            "heat_exchanger",
+            "fluid"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "minProperties": 1,
+          "title": "Params",
+          "type": "object"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "params",
+        "units"
+      ],
+      "title": "ParameterProfile",
+      "type": "object"
+    },
+    "PipeEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "pipe",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PipeParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "PipeEdge",
+      "type": "object"
+    },
+    "PipeParams": {
+      "additionalProperties": false,
+      "properties": {
+        "D_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "D M"
+        },
+        "roughness_m": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roughness M"
+        },
+        "n_cells": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Cells"
+        },
+        "waypoints_m": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Waypoints M"
+        },
+        "K_minor_per_bend": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K Minor Per Bend"
+        },
+        "heat_source_W_per_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heat Source W Per M"
+        }
+      },
+      "title": "PipeParams",
+      "type": "object"
+    },
+    "PrimaryCircuitBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "flow_kg_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          ],
+          "title": "Flow Kg S"
+        },
+        "inlet_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          ],
+          "title": "Inlet K"
+        },
+        "cp_J_kgK": {
+          "exclusiveMinimum": 0,
+          "title": "Cp J Kgk",
+          "type": "number"
+        },
+        "rho_kg_m3": {
+          "exclusiveMinimum": 0,
+          "title": "Rho Kg M3",
+          "type": "number"
+        },
+        "primary_volume_m3": {
+          "exclusiveMinimum": 0,
+          "title": "Primary Volume M3",
+          "type": "number"
+        },
+        "secondary_volume_m3": {
+          "exclusiveMinimum": 0,
+          "title": "Secondary Volume M3",
+          "type": "number"
+        },
+        "source": {
+          "enum": [
+            "mock",
+            "vendor",
+            "calibrated"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "source_reference": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Source Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "flow_kg_s",
+        "inlet_K",
+        "cp_J_kgK",
+        "rho_kg_m3",
+        "primary_volume_m3",
+        "secondary_volume_m3",
+        "source",
+        "source_reference"
+      ],
+      "title": "PrimaryCircuitBinding",
+      "type": "object"
+    },
+    "PumpEdgeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "pump",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PumpParamsV4"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "PumpEdgeV4",
+      "type": "object"
+    },
+    "PumpParamsV4": {
+      "additionalProperties": false,
+      "properties": {
+        "H0_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H0 M"
+        },
+        "a_coef": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "A Coef"
+        },
+        "rpm_ratio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rpm Ratio"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "curve",
+                "flow"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "flow_set_kg_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flow Set Kg S"
+        }
+      },
+      "title": "PumpParamsV4",
+      "type": "object"
+    },
+    "Rack": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "position_m": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position M"
+        },
+        "n_slots": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Slots"
+        },
+        "manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RackManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "servers": {
+          "items": {
+            "$ref": "#/$defs/Server"
+          },
+          "title": "Servers",
+          "type": "array"
+        },
+        "supply_manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "return_manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "servers"
+      ],
+      "title": "Rack",
+      "type": "object"
+    },
+    "RackManifold": {
+      "additionalProperties": false,
+      "properties": {
+        "supply_node": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Supply Node",
+          "type": "string"
+        },
+        "return_node": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Return Node",
+          "type": "string"
+        },
+        "layout": {
+          "title": "Layout",
+          "type": "string"
+        },
+        "D_m": {
+          "exclusiveMinimum": 0,
+          "title": "D M",
+          "type": "number"
+        }
+      },
+      "required": [
+        "supply_node",
+        "return_node",
+        "layout",
+        "D_m"
+      ],
+      "title": "RackManifold",
+      "type": "object"
+    },
+    "Server": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "slot_range": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slot Range"
+        },
+        "z_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Z M"
+        },
+        "cp_cu_pairs": {
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "title": "Cp Cu Pairs",
+          "type": "array"
+        },
+        "inlet_node": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inlet Node"
+        },
+        "outlet_node": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outlet Node"
+        },
+        "slot_u": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Slot U",
+          "type": "integer"
+        },
+        "span_u": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Span U",
+          "type": "integer"
+        },
+        "cp_cu": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyPair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Server",
+      "type": "object"
+    },
+    "SourceProject": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "cfdproj",
+          "title": "Format",
+          "type": "string"
+        },
+        "schema_version": {
+          "enum": [
+            4,
+            5
+          ],
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "project_uid": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Project Uid",
+          "type": "string"
+        },
+        "project_name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Project Name",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        }
+      },
+      "required": [
+        "format",
+        "schema_version",
+        "project_uid",
+        "project_name"
+      ],
+      "title": "SourceProject",
+      "type": "object"
+    },
+    "Sources": {
+      "additionalProperties": false,
+      "properties": {
+        "momentum_Pa": {
+          "$ref": "#/$defs/Matrix"
+        },
+        "water_W": {
+          "$ref": "#/$defs/Matrix"
+        },
+        "solid_W": {
+          "$ref": "#/$defs/Matrix"
+        },
+        "hx_secondary_W": {
+          "$ref": "#/$defs/Matrix"
+        },
+        "hx_primary_W": {
+          "$ref": "#/$defs/Matrix"
+        }
+      },
+      "required": [
+        "momentum_Pa",
+        "water_W",
+        "solid_W",
+        "hx_secondary_W",
+        "hx_primary_W"
+      ],
+      "title": "Sources",
+      "type": "object"
+    },
+    "Storage": {
+      "additionalProperties": false,
+      "properties": {
+        "water_temperature_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "solid_temperature_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "hx_secondary_K": {
+          "$ref": "#/$defs/Vector"
+        },
+        "hx_primary_K": {
+          "$ref": "#/$defs/Vector"
+        }
+      },
+      "required": [
+        "water_temperature_K",
+        "solid_temperature_K",
+        "hx_secondary_K",
+        "hx_primary_K"
+      ],
+      "title": "Storage",
+      "type": "object"
+    },
+    "Time": {
+      "additionalProperties": false,
+      "properties": {
+        "dt_s": {
+          "exclusiveMinimum": 0,
+          "title": "Dt S",
+          "type": "number"
+        },
+        "N_t": {
+          "minimum": 1,
+          "title": "N T",
+          "type": "integer"
+        },
+        "bdf_order": {
+          "const": 1,
+          "title": "Bdf Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dt_s",
+        "N_t",
+        "bdf_order"
+      ],
+      "title": "Time",
+      "type": "object"
+    },
+    "TransientProvenance": {
+      "additionalProperties": false,
+      "description": "Which project timeline this run was sampled from (cfdproj v5).",
+      "properties": {
+        "durationS": {
+          "exclusiveMinimum": 0,
+          "title": "Durations",
+          "type": "number"
+        },
+        "start": {
+          "$ref": "#/$defs/TransientStart"
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/TransientTrack"
+          },
+          "title": "Tracks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "durationS",
+        "start",
+        "tracks"
+      ],
+      "title": "TransientProvenance",
+      "type": "object"
+    },
+    "TransientStart": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "steadyConverged",
+            "uniform"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "uniform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransientStartUniform"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TransientStart",
+      "type": "object"
+    },
+    "TransientStartUniform": {
+      "additionalProperties": false,
+      "properties": {
+        "airT_C": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Airt C"
+        },
+        "waterT_C": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Watert C"
+        },
+        "solidT_C": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solidt C"
+        }
+      },
+      "title": "TransientStartUniform",
+      "type": "object"
+    },
+    "TransientTrack": {
+      "additionalProperties": false,
+      "properties": {
+        "modelUid": {
+          "minLength": 1,
+          "title": "Modeluid",
+          "type": "string"
+        },
+        "param": {
+          "minLength": 1,
+          "title": "Param",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelUid",
+        "param",
+        "target"
+      ],
+      "title": "TransientTrack",
+      "type": "object"
+    },
+    "TwoVolumeHXEdgeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "heat_exchanger",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/TwoVolumeHXParamsV4"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "TwoVolumeHXEdgeV4",
+      "type": "object"
+    },
+    "TwoVolumeHXParamsV4": {
+      "additionalProperties": false,
+      "properties": {
+        "dp_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp A"
+        },
+        "dp_b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp B"
+        },
+        "UA_W_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ua W Per K"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "physics",
+                "setpoint"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "T_set_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T Set K"
+        }
+      },
+      "title": "TwoVolumeHXParamsV4",
+      "type": "object"
+    },
+    "Units": {
+      "additionalProperties": false,
+      "properties": {
+        "length": {
+          "const": "m",
+          "title": "Length",
+          "type": "string"
+        },
+        "time": {
+          "const": "s",
+          "title": "Time",
+          "type": "string"
+        },
+        "temperature": {
+          "const": "K",
+          "title": "Temperature",
+          "type": "string"
+        },
+        "pressure": {
+          "const": "Pa",
+          "title": "Pressure",
+          "type": "string"
+        },
+        "mass_flow": {
+          "const": "kg/s",
+          "title": "Mass Flow",
+          "type": "string"
+        },
+        "power": {
+          "const": "W",
+          "title": "Power",
+          "type": "string"
+        }
+      },
+      "required": [
+        "length",
+        "time",
+        "temperature",
+        "pressure",
+        "mass_flow",
+        "power"
+      ],
+      "title": "Units",
+      "type": "object"
+    },
+    "ValveEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "valve",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ValveParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "ValveEdge",
+      "type": "object"
+    },
+    "ValveParams": {
+      "additionalProperties": false,
+      "properties": {
+        "D_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "D M"
+        },
+        "Kv_max": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kv Max"
+        },
+        "opening": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opening"
+        },
+        "characteristic": {
+          "anyOf": [
+            {
+              "enum": [
+                "linear",
+                "equal_percentage",
+                "quick_opening"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Characteristic"
+        }
+      },
+      "title": "ValveParams",
+      "type": "object"
+    },
+    "Vector": {
+      "additionalProperties": false,
+      "properties": {
+        "ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "maxItems": 4000,
+          "title": "Ids",
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 10000,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ids",
+        "values"
+      ],
+      "title": "Vector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "liquidrun",
+      "title": "Format",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 4,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "version": {
+      "const": "4.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "equation_system": {
+      "const": "incompressible_thermal_dae",
+      "title": "Equation System",
+      "type": "string"
+    },
+    "source": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Source",
+      "type": "string"
+    },
+    "projectName": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Projectname",
+      "type": "string"
+    },
+    "source_project": {
+      "$ref": "#/$defs/SourceProject"
+    },
+    "units": {
+      "$ref": "#/$defs/Units"
+    },
+    "execution": {
+      "$ref": "#/$defs/DAEExecution"
+    },
+    "gravity": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Gravity",
+      "type": "array"
+    },
+    "fluid": {
+      "$ref": "#/$defs/Fluid"
+    },
+    "time": {
+      "$ref": "#/$defs/Time"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/NodeV4"
+      },
+      "minItems": 1,
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "cold_plate": "#/$defs/ColdPlateEdgeV4",
+            "heat_exchanger": "#/$defs/TwoVolumeHXEdgeV4",
+            "pipe": "#/$defs/PipeEdge",
+            "pump": "#/$defs/PumpEdgeV4",
+            "valve": "#/$defs/ValveEdge"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/PipeEdge"
+          },
+          {
+            "$ref": "#/$defs/PumpEdgeV4"
+          },
+          {
+            "$ref": "#/$defs/ValveEdge"
+          },
+          {
+            "$ref": "#/$defs/ColdPlateEdgeV4"
+          },
+          {
+            "$ref": "#/$defs/TwoVolumeHXEdgeV4"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Edges",
+      "type": "array"
+    },
+    "racks": {
+      "items": {
+        "$ref": "#/$defs/Rack"
+      },
+      "title": "Racks",
+      "type": "array"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "maxItems": 0,
+      "title": "Events",
+      "type": "array"
+    },
+    "initial_conditions": {
+      "$ref": "#/$defs/InitialConditions"
+    },
+    "object_bindings": {
+      "patternProperties": {
+        "\\S": {
+          "$ref": "#/$defs/ObjectBinding"
+        }
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Object Bindings",
+      "type": "object"
+    },
+    "parameter_pack": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DAEParameterPack"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "controllers": {
+      "items": {
+        "$ref": "#/$defs/Controller"
+      },
+      "maxItems": 0,
+      "title": "Controllers",
+      "type": "array"
+    },
+    "analysis": {
+      "$ref": "#/$defs/Analysis"
+    },
+    "newton": {
+      "$ref": "#/$defs/NewtonConfig"
+    },
+    "primary_circuits": {
+      "items": {
+        "$ref": "#/$defs/PrimaryCircuitBinding"
+      },
+      "title": "Primary Circuits",
+      "type": "array"
+    },
+    "transient": {
+      "$ref": "#/$defs/TransientProvenance"
+    },
+    "manufactured_benchmark": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ManufacturedBenchmark"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "format",
+    "schemaVersion",
+    "version",
+    "equation_system",
+    "source",
+    "projectName",
+    "source_project",
+    "units",
+    "execution",
+    "gravity",
+    "fluid",
+    "time",
+    "nodes",
+    "edges",
+    "racks",
+    "events",
+    "initial_conditions",
+    "object_bindings",
+    "analysis",
+    "newton",
+    "primary_circuits",
+    "transient"
+  ],
+  "title": "LiquidrunDAEV4",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schemas/liquidrun-v4.schema.json",
+  "description": "Strict acausal incompressible/thermal DAE input. Python adds profile completeness, graph/HX references, exact series/grid lengths and fixed valve active-set validation."
+}

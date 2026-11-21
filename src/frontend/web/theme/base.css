@@ -1,0 +1,347 @@
+/* ═══════════════════════════════════════════════════════
+ *  base.css — Shared layout (no colors, no visual styling)
+ *  Shared by the available theme stylesheets.
+ * ═══════════════════════════════════════════════════════ */
+:root {
+    --left-panel-width: 330px;
+    --right-panel-width: 340px;
+    --log-panel-height: 160px;
+    /* Scrollbar geometry (shared by every theme; themes only supply colours).
+       --scrollbar-size is the GRAB AREA; --scrollbar-pad is transparent border
+       painted inside it, so the visible bar stays slim while the hit target
+       stays large. --scrollbar-thumb-min keeps the thumb grabbable on very long
+       lists (a 500-node feature tree otherwise renders a 4px sliver). */
+    --scrollbar-size: 14px;
+    --scrollbar-pad: 3px;
+    --scrollbar-thumb-min: 48px;
+}
+* { box-sizing: border-box; user-select: none; }
+
+/* ── Scrollbars (geometry only — colours come from the active theme) ──────── */
+::-webkit-scrollbar { width: var(--scrollbar-size); height: var(--scrollbar-size); }
+::-webkit-scrollbar-track { background: var(--scrollbar-track, transparent); }
+::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb, #6a6a6a);
+    border: var(--scrollbar-pad) solid transparent;
+    background-clip: padding-box;
+    border-radius: calc(var(--scrollbar-size) / 2);
+}
+/* Split per orientation: setting BOTH min-width and min-height on the shared
+   thumb rule makes Chrome ignore the constraint (a vertical thumb cannot be
+   48px wide), which is how the thumb stayed a 17px sliver on a 500-node tree. */
+::-webkit-scrollbar-thumb:vertical   { min-height: var(--scrollbar-thumb-min); }
+::-webkit-scrollbar-thumb:horizontal { min-width:  var(--scrollbar-thumb-min); }
+/* No stepper arrows — they eat track length and are not themed. */
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-thumb:hover  { background-color: var(--scrollbar-thumb-hover, #9a9a9a); }
+::-webkit-scrollbar-thumb:active { background-color: var(--scrollbar-thumb-active, #c8c8c8); }
+::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox only. Chrome must NOT be given `scrollbar-color`: Blink treats a
+   non-auto value as "use the standard scrollbar" and then IGNORES every
+   ::-webkit-scrollbar rule — including the thumb min-height — which is exactly
+   how the tree thumb stayed a 17px sliver. @supports selector(::-webkit-scrollbar)
+   is true in Chrome and false in Firefox, so this block reaches Firefox only. */
+@supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: auto; scrollbar-color: var(--scrollbar-thumb, #6a6a6a) var(--scrollbar-track, transparent); }
+}
+
+/* ── Core layout ── */
+body { margin: 0; position: relative; height: 100vh; overflow: hidden; }
+body.resizing { cursor: ew-resize; }
+body.resizing-toolbar { cursor: ns-resize; }
+body.resizing-log { cursor: ns-resize; }
+
+.panel { position: absolute; top: 0; bottom: var(--log-panel-height); display: flex; flex-direction: column; z-index: 40; }
+#left-panel  { left: 0; width: var(--left-panel-width); min-width: 260px; max-width: 680px; }
+#right-panel { right: 0; width: var(--right-panel-width); min-width: 280px; max-width: 760px; }
+#center-view { position: absolute; top: 0; left: 0; right: 0; bottom: var(--log-panel-height); outline: none; z-index: 1; }
+
+/* ── Resize handles ── */
+.resize-handle { width: 8px; cursor: ew-resize; position: absolute; top: 0; bottom: var(--log-panel-height); z-index: 45; }
+.resize-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; }
+#left-resizer  { left: calc(var(--left-panel-width) - 4px); }
+#right-resizer { right: calc(var(--right-panel-width) - 4px); }
+
+/* ── Toolbar ── */
+#toolbar { position: fixed; top: 0; left: calc(var(--left-panel-width) + 8px); right: calc(var(--right-panel-width) + 8px); z-index: 42; display: flex; flex-wrap: wrap; align-items: center; transform-origin: top center; overflow: hidden; }
+#toolbar.collapsed #toolbar-content { display: none; }
+#toolbar-content { display: contents; }
+#toolbar-collapse-btn { background: none; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+#toolbar-resizer { cursor: ns-resize; position: fixed; left: calc(var(--left-panel-width) + 8px); right: calc(var(--right-panel-width) + 8px); z-index: 43; }
+#toolbar.collapsed ~ #toolbar-resizer { display: none; }
+.tool-inline { display: flex; align-items: center; }
+.tool-inline .badge { min-width: 44px; text-align: center; }
+
+/* ── View cube ── */
+#view-cube { position: relative; top: auto; right: auto; background: transparent; cursor: grab; overflow: hidden; }
+#view-cube.dragging { cursor: grabbing; }
+#view-cube canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+
+/* ── Panel collapse buttons ── */
+.panel-collapse-btn { position: absolute; top: 50%; z-index: 46; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+#left-collapse-btn  { left: var(--left-panel-width); transform: translateY(-50%); border-left: none; }
+#right-collapse-btn { right: var(--right-panel-width); transform: translateY(-50%); border-right: none; }
+#left-panel.collapsed-panel  { width: 0 !important; min-width: 0 !important; overflow: hidden; border-right: none; }
+#right-panel.collapsed-panel { width: 0 !important; min-width: 0 !important; overflow: hidden; border-left: none; }
+body.panel-left-collapsed  #left-collapse-btn  { left: 0; }
+body.panel-right-collapsed #right-collapse-btn { right: 0; }
+
+/* ── Feature-tree header (title + sort badge + mode badge on one row) ── */
+#left-geo-header { display: flex; align-items: center; gap: 8px; }
+#left-geo-header > #tree-header-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#left-geo-header > .badge { flex: 0 0 auto; white-space: nowrap; }
+.tree-sort-badge { cursor: pointer; }
+
+/* ── Content area ── */
+.content { flex: 1; overflow-y: auto; }
+
+/* ── Tree ── */
+ul.tree { list-style: none; padding-left: 0; margin: 0; }
+li.tree-node { }
+.node-label { cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; }
+.node-label.selected { color: #fff; }
+.node-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.node-visibility-toggle { margin: 0; cursor: pointer; flex: 0 0 auto; }
+.node-actions { display: flex; align-items: center; }
+
+/* ── Property groups ── */
+.prop-row { display: flex; justify-content: space-between; align-items: center; }
+.prop-row label { flex: 1 1 auto; min-width: 0; }
+.prop-row input, .prop-row select { min-width: 0; box-sizing: border-box; }
+.prop-title { text-transform: uppercase; }
+
+/* Prevent overflow in side panels */
+#left-panel, #right-panel { overflow-x: hidden; }
+
+/* Force prop-group styling in right panel inspector */
+#prop-content > .prop-group {
+    margin-bottom: 12px !important;
+    padding: 12px !important;
+    border-radius: 6px !important;
+    border: 1px solid #3c3c3c !important;
+    background: rgba(30,30,40,0.9) !important;
+}
+
+/* ── File bar ── */
+.file-bar { display: grid; grid-template-columns: 1fr 1fr; }
+.file-btn { cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; }
+
+/* ── Cooling-mode segmented selector (file-bar row 3) ──
+   The active mode stays highlighted with a colored glow; the inactive mode is
+   dimmed so the current cooling mode is always obvious. Liquid = cyan, Air = amber. */
+.cooling-mode-btn { opacity: 0.5; filter: grayscale(0.55); }
+.cooling-mode-btn:hover { opacity: 0.8; filter: grayscale(0.2); }
+#btn-mode-liquid.active {
+    opacity: 1; filter: none;
+    background: rgba(0,180,220,0.18) !important;
+    border-color: #00b4dc !important;
+    color: #5fd9f5 !important;
+    box-shadow: inset 0 0 12px rgba(0,180,220,0.45), 0 0 10px rgba(0,180,220,0.4);
+}
+#btn-mode-air.active {
+    opacity: 1; filter: none;
+    background: rgba(255,152,0,0.16) !important;
+    border-color: #FF9800 !important;
+    color: #ffc046 !important;
+    box-shadow: inset 0 0 12px rgba(255,152,0,0.4), 0 0 10px rgba(255,152,0,0.35);
+}
+
+/* ── Collapse section headers (shared style — Create Geometry is the reference) ──
+   A clickable section header with a ▼/▶ caret on the left. Reused by the file bar,
+   the Create Geometry toolbar, and any other foldable panel section so all collapse
+   controls look and behave identically. */
+.collapse-header { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.collapse-caret { display: inline-block; width: 14px; text-align: center; flex-shrink: 0; color: #00b4dc; transition: color 0.15s; }
+.collapse-header:hover .collapse-caret { color: #5fd9f5; }
+
+/* ── Buttons ── */
+.btn { width: 100%; cursor: pointer; }
+.btn.danger { background: transparent; }
+.alert { display: none; }
+
+/* ── Log panel ── */
+#log-panel { position: absolute; left: 0; right: 0; bottom: 0; height: var(--log-panel-height); min-height: 28px; max-height: 50vh; display: flex; flex-direction: column; z-index: 50; }
+#log-resizer { cursor: ns-resize; position: absolute; left: 0; right: 0; z-index: 51; }
+#log-header { display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
+#log-header .log-actions { display: flex; }
+#log-header .log-actions button { cursor: pointer; }
+#log-content { flex: 1; overflow-y: auto; }
+.log-entry { white-space: nowrap; }
+
+/* ── Left panel tabs ── */
+#left-tab-bar { display: flex; flex-shrink: 0; }
+.left-tab-btn { flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+.left-tab-btn:disabled { cursor: not-allowed; }
+
+/* ── Mesh/Solver/PP settings panels ── */
+#mesh-settings-panel  { display: none; flex-direction: column; overflow-y: auto; flex: 1; padding: 0; }
+#solver-settings-panel { display: none; flex-direction: column; overflow-y: auto; flex: 1; padding: 0; }
+#postprocess-settings-panel { display: none; flex-direction: column; overflow-y: auto; flex: 1; padding: 0; }
+/* Prevent flex shrinking */
+#mesh-settings-panel > *,
+#solver-settings-panel > *,
+#postprocess-settings-panel > * { flex-shrink: 0; }
+.mesh-refine-row { display: flex; align-items: center; }
+.mesh-refine-row label { flex: 1; }
+
+/* ── Post-processing ── */
+.pp-btn { width: 100%; cursor: pointer; text-align: left; }
+.pp-btn:disabled { cursor: not-allowed; }
+.pp-btn-sm { cursor: pointer; }
+#pp-colorbar { position: fixed; z-index: 9999; display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: grab; user-select: none; }
+#pp-colorbar.dragging { cursor: grabbing; }
+#pp-colorbar-popup { position: fixed; z-index: 10000; display: none; }
+#pp-colorbar-popup .cb-manual-row { display: flex; align-items: center; }
+
+/* ── Role-based UI hiding for viewer ── */
+body.role-viewer #terminal-container { display: none !important; }
+body.role-viewer .admin-only { display: none !important; }
+body.role-viewer .admin-write-action { display: none !important; }
+body.role-viewer .admin-mesh-action {
+    opacity: 0.4;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+/* ── Loading overlay ── */
+#loading { position: absolute; inset: 0; z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; }
+.spinner { border-radius: 50%; }
+
+/* ── Flow-rate monitor (top toolbar) ── */
+/* Shows Σ送风 / Σ回风 from state.models ACU patches and a balance icon.
+ * Structural rules live here; colors are tuned to read on every theme
+ * so they don't need per-theme overrides. */
+.flow-monitor {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    height: 34px;
+    padding: 2px 10px 2px 10px;
+    margin: 0 2px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.10));
+    border: 1px solid var(--border, #3c3c3c);
+    border-radius: 3px;
+    font-family: 'Share Tech Mono', 'Segoe UI', monospace;
+    color: var(--text, #ccc);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.flow-monitor::before {
+    /* hairline grid — subtle industrial instrument texture */
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(0deg,  rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 6px 6px;
+    opacity: 0.6;
+    mix-blend-mode: screen;
+}
+.flow-gauge {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    min-width: 56px;
+    position: relative;
+    z-index: 1;
+}
+.flow-gauge .flow-label {
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    color: var(--text-dim, #888);
+    text-transform: uppercase;
+    line-height: 1;
+}
+.flow-gauge .flow-bar {
+    width: 46px;
+    height: 6px;
+    background: rgba(0,0,0,0.55);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 1px rgba(0,0,0,0.5);
+}
+.flow-gauge .flow-bar-fill {
+    height: 100%;
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.33, 1, 0.68, 1),
+                box-shadow 0.3s ease;
+    background: linear-gradient(90deg, var(--flow-color-dim), var(--flow-color));
+    box-shadow: 0 0 5px var(--flow-color);
+    border-right: 1px solid rgba(255,255,255,0.45);
+}
+.flow-gauge[data-role="supply"] {
+    --flow-color: #4daafc;
+    --flow-color-dim: #0b4a78;
+}
+.flow-gauge[data-role="return"] {
+    --flow-color: #e5c07b;
+    --flow-color-dim: #6f5a2a;
+}
+.flow-gauge .flow-value {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    line-height: 1;
+}
+.flow-gauge .flow-value > span:first-child {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--flow-color, #fff);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--flow-color) 45%, transparent);
+    letter-spacing: 0.3px;
+    min-width: 30px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.flow-gauge .flow-unit {
+    font-size: 7.5px;
+    color: var(--text-dim, #888);
+    font-weight: 400;
+    letter-spacing: 0.4px;
+}
+.flow-balance {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    min-width: 44px;
+    padding-left: 8px;
+    border-left: 1px dashed var(--border, #3c3c3c);
+    position: relative;
+    z-index: 1;
+}
+.flow-balance .flow-balance-icon {
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-dim, #666);
+    transition: color 0.3s, text-shadow 0.3s;
+}
+.flow-balance .flow-balance-delta {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--text-dim, #888);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    transition: color 0.3s;
+}
+.flow-balance[data-state="ok"]   .flow-balance-icon  { color: #2fd673; text-shadow: 0 0 8px rgba(47,214,115,0.6); }
+.flow-balance[data-state="ok"]   .flow-balance-delta { color: #2fd673; }
+.flow-balance[data-state="fail"] .flow-balance-icon  { color: #f14c4c; text-shadow: 0 0 10px rgba(241,76,76,0.7); animation: flow-pulse 1.4s ease-in-out infinite; }
+.flow-balance[data-state="fail"] .flow-balance-delta { color: #f14c4c; }
+.flow-balance[data-state="idle"] .flow-balance-icon  { color: var(--text-dim, #666); }
+@keyframes flow-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+/* ── Keyframes (shared) ── */
+@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }

@@ -1,0 +1,146 @@
+--- src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py race-v1
++++ src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py display-order-v2
+@@ -298,11 +298,14 @@
+         elif command_name == "loadDataset":
+             handlers.handle_load_dataset(s, stage, parsers.parse_load_dataset(message))
+         elif command_name == "setStreamlines":
+-            handlers.handle_set_streamlines(s, stage, **parsers.parse_set_streamlines(message))
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_set_streamlines,
++                parsers.parse_set_streamlines(message), self._display_generation))
+         elif command_name == "setSeedSphere":
+-            handlers.handle_set_seed_sphere(s, stage, **parsers.parse_set_seed_sphere(message))
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_set_seed_sphere,
++                parsers.parse_set_seed_sphere(message), self._display_generation))
+         elif command_name == "syncFromViewport":
+-            handlers.handle_sync_from_viewport(s, stage)
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_sync_from_viewport,
++                {}, self._display_generation))
+         elif command_name == "resetScene":
+             handlers.handle_reset_scene(s, stage)
+         else:
+@@ -380,6 +383,39 @@
+             counts[t['kind']] = counts.get(t['kind'], 0) + 1
+         return {'sample': frame['sample'], 'timeSeconds': frame['timeSeconds'], 'groups': frame['groups'],
+                 'targets': counts, 'painted': painted, 'unmatched': unmatched}
++
++    async def _display_mutation(self, generation, operation):
++        """Serialize actual display writers with dataset/scene installation.
++
++        operation is lazy: a queued old command cannot even change the new
++        scene's parameters. No new ACK is introduced for legacy fire commands.
++        """
++        async with self._display_commit_lock:
++            if generation != self._display_generation:
++                raise RuntimeError('display command refused: scene changed while queued')
++            return await operation()
++
++    async def _legacy_display(self, stage, handler, args, generation):
++        async def operation():
++            pending = []
++            try:
++                # Preserve handler arithmetic; capture its coroutine instead
++                # of launching a second background task outside the barrier.
++                handler(self._scene, stage, **args, _schedule=pending.append)
++                for coroutine in pending:
++                    await coroutine
++            finally:
++                for coroutine in pending:
++                    coroutine.close()
++        try:
++            await self._display_mutation(generation, operation)
++        except Exception as exc:  # legacy fire has no ACK; failure stays visible
++            print(f'[dc.cfd_bridge] display command {handler.__name__} failed: {exc}')
++
++    async def _set_slice(self, stage, parsed):
++        from . import handlers
++        handlers.handle_set_slice(self._scene, stage, **parsed)
++        return await self._slice_rebuild(stage)
+ 
+     async def _volume_display(self, stage, field, domain):
+         return {'volume': await self._scene.show_volume_display(stage, field, domain)}
+@@ -718,17 +754,17 @@
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 parsed = parsers.parse_set_slice(message)
+-                handlers.handle_set_slice(self._scene, stage, **parsed)
+-                # Ack only after the cut is authored, so "ok" means the slice
+-                # the user sees is the one the ack describes.
+-                self._ack_after(request_id, command, self._slice_rebuild(stage))
++                # Adopt parameters and author the cut inside the commit barrier.
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._set_slice(stage, parsed)))
+                 return
+             elif command == 'getSliceState':
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 # "Read back the viewport drag": adopt a dragged preview disc,
+                 # re-cut there, and report the state Kit now holds.
+-                self._ack_after(request_id, command, self._slice_readback(stage))
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._slice_readback(stage)))
+                 return
+             elif command == 'loadLiquidResult':
+                 from . import display_grant
+@@ -762,7 +798,8 @@
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 parsed = parsers.parse_set_volume_display(message)
+-                self._ack_after(request_id, command, self._volume_display(stage, **parsed))
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._volume_display(stage, **parsed)))
+                 return
+             elif command == 'loadResultDataset':
+                 from . import display_grant
+--- src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py race-v1
++++ src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py display-order-v2
+@@ -591,7 +591,7 @@
+ 
+ 
+ def handle_set_streamlines(scene, stage, enabled, field, seed_center, seed_radius,
+-                           n_seeds, max_steps, direction):
++                           n_seeds, max_steps, direction, *, _schedule=None):
+     """Generate (enabled) or remove (disabled) the streamlines. Integration ALWAYS uses
+     the vec3 U field; ``field`` (T|U) is only the COLOUR field. Seeds + lines are
+     confined to the ROI box when clipping is active (enforced in generate_streamlines)."""
+@@ -604,12 +604,12 @@
+     if direction in ("forward", "backward", "both"):
+         scene.sl_direction = direction
+     if enabled:
+-        asyncio.ensure_future(scene.generate_streamlines(stage))
++        (_schedule or asyncio.ensure_future)(scene.generate_streamlines(stage))
+     else:
+-        asyncio.ensure_future(scene.remove_streamlines(stage))
+-
+-
+-def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds):
++        (_schedule or asyncio.ensure_future)(scene.remove_streamlines(stage))
++
++
++def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds, *, _schedule=None):
+     """Create / move / show / hide the draggable seed-sphere preview (no re-trace).
+     Mirrors the ROI-box show pattern: showing it selects the prim so the transform
+     gizmo attaches for dragging."""
+@@ -617,7 +617,7 @@
+     _resolve_seed_center(scene, stage, center)
+     scene.seed_radius = float(radius)
+     scene.n_seeds = int(n_seeds)
+-    asyncio.ensure_future(scene.update_seed_sphere(stage, bool(visible)))
++    (_schedule or asyncio.ensure_future)(scene.update_seed_sphere(stage, bool(visible)))
+ 
+ 
+ def handle_set_slice(scene, stage, visible, origin, normal, radius, field, domain):
+@@ -636,7 +636,7 @@
+     scene.resolve_slice_origin(stage, origin)
+ 
+ 
+-def handle_sync_from_viewport(scene, stage):
++def handle_sync_from_viewport(scene, stage, *, _schedule=None):
+     """Re-render whatever the user DRAGGED in the viewport.
+ 
+     Kit emits no drag events over the one-way command channel, so a gizmo drag cannot
+@@ -674,4 +674,4 @@
+             # Nothing to re-render, but the ROI numbers still moved — say so, otherwise
+             # the button looks dead when the user drags before showing a field.
+             print("[dc.cfd_bridge] syncFromViewport: ROI updated (nothing rendered yet)")
+-    asyncio.ensure_future(_apply())
++    (_schedule or asyncio.ensure_future)(_apply())

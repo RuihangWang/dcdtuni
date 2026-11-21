@@ -1,0 +1,11 @@
+# Actual private axis and bounded point repair
+
+The authentic .25 m explicit-wall case remains strictly rejected. Existing axis Pareto flags reduce D13/W8/VR2 to D4/W0/VR0; adding the existing bounded installed-point stage then reduces D4 to D1 (written1547). N warnings18→3→1. No added failure-set labels under unchanged topology; all physical boundary points and original non-derived inputs remain exact. Both calls retain stock allTopology/allGeometry and all quality thresholds. Exit0 is not mesh acceptance. Native times here are tiny-case internal times, not complete Shinaide or universal five-minute proof.
+
+Only two interior installed points move in the second trial. The selected generic stage keeps its20s stage/256requests per proposal, source proof, whole-star/halo geometry and installed rollback guards. It records2 accepted/2 refused; the unknown refused first predicates are not inferred from aggregate request-cap counts. No hardcoded diagnostic point is used.
+
+The separate four-to-eight physical-edge search is negative: all8 scientific mesh files and all quality sets match OFF/ON, no point staged/committed. Only the first fraction has a complete determinant map; the early D-count refusal means four face statistics are unevaluated. It is not a normal-source repair.
+
+All five immutable packets are copied completely and byte-exact; their original manifests remain unchanged. Primary logs, inputs, final meshes and sets remain available for pure offline comparison. Root FULL-read receipts and independent reviews are separate from implementation and browser acceptance. Original F3 source/build scope is archived in ../dccart-physical-f3-negative-20261007/; native ELF identities remain exact external bindings, not binaries copied by this packet. Original absolute source/process/build guards may become intentionally unavailable after authorized worktree cleanup. Reproduction must restore/rebind the recorded sources and inputs inside dcdtuni; an obsolete absolute path is not a working installer.
+
+Normal native sources/ELFs/services were unchanged. Large Shinaide still has no accepted mesh or air steady/transient solve; the complete goal and all-worktree main merge/cleanup remain open.

@@ -1,0 +1,56 @@
+--- a/src/frontend/react/src/renderer/RendererControl.tsx
++++ b/src/frontend/react/src/renderer/RendererControl.tsx
+@@ -212,7 +212,7 @@
+   projectUid.current=project?.uid??null
+   const hasOverlay=useRef(false)
+   const session=useRef(0)
+-  const revision=useSyncExternalStore(store.subscribe,store.revision)
++  useSyncExternalStore(store.subscribe,store.revision)
+   const sample=useSyncExternalStore(subscribeResultSample,selectedResultSample)
+   const visualRevision=useSyncExternalStore(subscribeResultSample,resultRenderRevision)
+   const displayRevision=useSyncExternalStore(subscribeClosedCabinetDisplay,leafDisplayRevision)
+@@ -235,7 +235,10 @@
+   // Selection is view state, not scene content: it reaches Kit through
+   // updateViewState below. Keyed here, every click resent the whole scene
+   // (~40 MB, over a minute on Shinaide) and starved every other command.
+-  const key=displaySceneKey(project?.uid??'',revision,[keySample,keyTime,keyVisual],displayRevision)
++  // Repaint notifications (logs/save) do not replace acknowledged scene content.
++  // Hash the current source rather than its object identity: live edits may mutate it.
++  const sourceHash=project?.uid?cfdrunExport().projectContentHashSync(project):''
++  const key=displaySceneKey(project?.uid??'',sourceHash,[keySample,keyTime,keyVisual],displayRevision)
+   const canonicalMesh=currentResultLayerOwner()==='mesh-preview'&&currentResultLayerSet()?.schema==='dcdtuni.render-result-layers/v4'
+   const overlayKey=JSON.stringify([project?.uid??'',previewRevision,canonicalMesh])
+   const resultKey=JSON.stringify([project?.uid??'',sceneEpoch.current,layerRevision])
+--- a/src/frontend/react/src/renderer/ovEditBridge.ts
++++ b/src/frontend/react/src/renderer/ovEditBridge.ts
+@@ -80,7 +80,6 @@
+   if (!project?.uid || project.uid !== options.snapshot.project.uid) throw new Error('OV scene does not match loaded project')
+   const projectUid = project.uid
+   const projectHash = currentHash(project)
+-  const storeRevision = store.revision()
+   const primitives = new Map(options.snapshot.primitives.map(p => [p.id, p]))
+   const editable = new Set(options.editablePrimitiveIds)
+   for (const id of editable) if (!primitives.has(id)) throw new Error(`Editable OV primitive is absent from scene: ${id}`)
+@@ -96,7 +95,9 @@
+       return { ok: false, reason: 'stale_scene' }
+     }
+     const live = store.getProject()
+-    if (!live || store.revision() !== storeRevision || live.uid !== projectUid ||
++    // Store repaint counters include logs/save. Source UID/hash and the accepted
++    // scene generation continue to fence geometry, hidden models and late events.
++    if (!live || live.uid !== projectUid ||
+         currentHash(live) !== projectHash || event.projectHash !== projectHash) {
+       return { ok: false, reason: 'stale_project' }
+     }
+--- a/src/frontend/react/src/liquid/closedCabinetDisplay.ts
++++ b/src/frontend/react/src/liquid/closedCabinetDisplay.ts
+@@ -34,7 +34,7 @@
+   })
+ }
+ /** The display revision stays live even when OV owns the liquid result frame. */
+-export function displaySceneKey(projectUid:string,projectRevision:number,
++export function displaySceneKey(projectUid:string,sourceIdentity:string|number,
+   frozenResult:readonly [number,number|null,number],revision:number){
+-  return JSON.stringify([projectUid,projectRevision,...frozenResult,revision])
++  return JSON.stringify([projectUid,sourceIdentity,...frozenResult,revision])
+ }

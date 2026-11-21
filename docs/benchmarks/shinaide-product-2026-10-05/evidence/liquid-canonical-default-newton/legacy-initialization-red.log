@@ -1,0 +1,35 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/liquidDefaultNewton.test.tsx --minWorkers=1 --maxWorkers=2
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidDefaultNewton.test.tsx (16 tests | 1 failed) 1419ms
+   ✓ canonical and default Newton entry > the canonical real loader exports one steady point, then the original 180s/1s v4 timeline 303ms
+   × canonical and default Newton entry > saved unmarked steady DAE retains steady initialization when a legacy document has a transient uniform timeline 47ms
+     → expected 'Initialization: project storage initi…' to contain 'steady-state initialization'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > saved unmarked steady DAE retains steady initialization when a legacy document has a transient uniform timeline
+AssertionError: expected 'Initialization: project storage initi…' to contain 'steady-state initialization'
+
+Expected: "steady-state initialization"
+Received: "Initialization: project storage initial values + consistent algebraic state. Execution: CPU · float64 · 2 threads (saved project settings)."
+
+ ❯ test/liquidDefaultNewton.test.tsx:153:31
+    151|     expect(host.querySelector('#lce-analysis-mode')?.textContent).toCo…
+    152|     const note=[...host.querySelectorAll('.liquid-experiment-note')].f…
+    153|     expect(note?.textContent).toContain(t('lce.init_steady'))
+       |                               ^
+    154|     expect(note?.textContent).not.toContain(t('lce.init_consistent'))
+    155|     const run=experiments.compileSavedExperiment(store.getProject()!).…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 passed (16)
+   Start at  09:52:07
+   Duration  17.60s (transform 2.06s, setup 0ms, collect 4.78s, tests 1.42s, environment 10.56s, prepare 472ms)
+

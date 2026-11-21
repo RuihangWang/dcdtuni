@@ -1,0 +1,9 @@
+# Literal two-cell union: isolated API smoke
+
+Job `42cbe8e9` used the production React exporter and the normal mesh API on the isolated 8394 server. No agent operated a browser. The original seven-model straight-channel geometry and all run defaults were retained; only project name and owned case metadata changed. The final two-rank OpenFOAM check ran both `-allTopology` and `-allGeometry`: 511 cells, Mesh OK, zero failed checks and warnings. Its mesh identity equals the earlier accepted straight-channel mesh.
+
+The complete recorded preparation/export/close/mesh/log sequence took 29.769108 s: React load/export 18.523120 s, owned software worker close 4.491929 s, and mesh API job 4.032290 s. The remaining time is request, selection and log retrieval overhead. Raw monotonic and UTC events remain in `matrix.json`; this timing does not establish a large-case budget.
+
+The literal union operator examined and accepted zero pairs. This proves the normal zero-candidate path and strict API gate, not the acceptance or candidate-cap paths. Its maximum local wall was 0.000179748 s (cache 0.000140714, census 0.000002855, local 0.000036451). The 64 actual processor faces have exact reciprocal polygons, relative order, common first point and reversed remaining order; cyclic and processorCyclic faces were absent.
+
+The three native source snapshots, incremental union patch, native build log, exact input identity, full raw case archive, SSE and strict quality receipt are preserved here. Experimental native switches remain opt-in. Main has a newer frontend build; the frontend identity file records both trees without treating this AIR API result as main E2E validation. The excerpt retains the original logger prefixes. The authoritative original checker stream is the SSE; the server receipt binds its captured stdout hash, but that unprefixed captured byte stream was not separately persisted.

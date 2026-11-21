@@ -1,0 +1,9 @@
+P19 PRIVATE binding 独立只读审查
+
+源码层面未发现阻止诊断性 normal apply/build 的问题。139 payload/62,380,915B 与指定 manifest SHA 全一致；双 header 以外16份 private 文件逐字节不变，18 live source 均仍绑定。默认OFF仍为原 OBSERVE 环境变量恰为1。Record/Store、Caps、current及其后续源码保持；12 overlap谓词和原clock表达式保持。
+
+新增字段是第一次匹配项与计数，entry零基，snapshotSide0/1=before/after，mask1/2/4=core/outside/secondHalo。face相关cell字段是选定endpoint，不能把单endpoint mask当作整face的core/halo分类；origin/facet/parent/alias类别独立。mask0仅无已知membership，不给准入授权。
+
+原123非binding控制、138 stored state records、charged sizes、callback/clock trace四控制完全一致。before-on12 RED为新metadata缺失负对照；另外三组137全绿。未重跑。14份实际JSONL除新增binding后原行字节完全一致。worst输出26行，含首因1/样本23/summary1，36,212B，最大行1519B不含换行；summary全部U64max的静态数字上界3834B。26*4096<128KiB且26<32，sidecar fit失败保持原行；无新增record挤出。
+
+证据计数标签需解释性修正：all20LiveProductSourcesExact实际绑定18，privateNonTargetEighteenCopiesExact实际仅16 non-target。冻结包不改，在P19外层回执纠正。真实ON额外wall time未测；实际P18绑定尚无，normal run后方可分类。

@@ -1,0 +1,61 @@
+{
+  "prefix": "PRIVATE finite DW veto observation: ",
+  "version": 1,
+  "flag": "DCCART_PRIVATE_DW_VETO_OBSERVE=1",
+  "defaultOff": true,
+  "serialOnly": true,
+  "proposalCap": 16,
+  "fractionCap": 128,
+  "PODStackBytesActual": 36760,
+  "serialLineCapWithNewline": 65536,
+  "summaryArray": [
+    "stateValid",
+    "completeStencilCellCount",
+    "noncoupledStencilFaceCount",
+    "D_bad_lt.001",
+    "W_bad_lt.05",
+    "R_bad_lt.01",
+    "S_bad_gt4",
+    "N_warning_gt70",
+    "minD_bits",
+    "minW_bits",
+    "minR_bits",
+    "maxS_bits",
+    "maxN_bits",
+    "minD_meshCellID",
+    "minW_meshFaceID",
+    "minR_meshFaceID",
+    "maxS_meshFaceID",
+    "maxN_meshFaceID"
+  ],
+  "summaryInvalid": "stateValid0: all numeric placeholders unobserved; never interpret as healthy",
+  "veto": {
+    "0": "none/all leaves passed",
+    "1": "invalid state",
+    "2": "R target ratio condition (DW noop)",
+    "3": "hardDWCount next >= before",
+    "4": "qualityLineage combined guard",
+    "5": "geometricGuard combined guard",
+    "6": "pointClearance combined guard",
+    "7": "prefixRoles combined guard"
+  },
+  "calledBits": "bit0..6 record each actually-called leaf, later bits0 after first veto",
+  "firstInvalidEval": {
+    "0": "none observed",
+    "1": "original parameter validity failed",
+    "2": "original stencil.evaluate State invalid",
+    "3": "original computed objective/constraints invalid"
+  },
+  "breakReason": {
+    "0": "not observed",
+    "1": "search.improved false (no available call)",
+    "2": "original fraction available() false"
+  },
+  "qbits": "decimal uint64, decode with arbitrary precision integer; no IEEE Number identity",
+  "metricFreshness": "summary reads current already-owned before/after State; does not call an oracle; invalid summary explicitly unobserved",
+  "metricScope": "same complete stencil determinant vector and noncoupled face qualities as original qualityLineage; includes core and outside, not invented remote geometry",
+  "firstVetoLimit": "reports combined lineage/geometric/prefix leaf only, not their internal first subpredicate",
+  "seenLimit": "fractionSeen counts only recorder-admitted proposal rows; incomplete true rejects whole evidence completeness after any overflow",
+  "labels": "existing polyMesh mesh labels only, no native/source identity asserted",
+  "time": "enabled observation has bounded arithmetic/serialization overhead and may affect near-cap scheduling; no hard wall/no time-neutral claim"
+}

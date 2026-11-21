@@ -1,0 +1,56 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/pduSceneDisplay.test.ts test/pduEquipmentVisuals.test.ts test/cduWholeModelHighlight.test.ts test/selectionHighlight.test.ts test/modelOpacity.test.ts test/viewFades.test.ts test/sceneBuilder.test.ts test/pbrMaterials.test.ts test/liquidEquipmentVisualInteraction.test.ts --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/pduSceneDisplay.test.ts > PDU display keeps selection ownership, physics and shared OV buffers > has identical structural registry buffers, grouped STL bytes and saved JSON with the display builder disabled
+[STLExport] rackStlCache: 0.046ms
+[STLExport] groups: 1.364ms
+[STLExport] buckets: 0.23ms
+[STLExport] rackStlCache: 0.009ms
+[STLExport] groups: 0.354ms
+[STLExport] buckets: 0.017ms
+[STLExport] rackStlCache: 0.008ms
+[STLExport] groups: 0.167ms
+[STLExport] buckets: 0.014ms
+
+ ❯ test/pduSceneDisplay.test.ts (20 tests | 1 failed) 451ms
+   × PDU visual eligibility does not survive a changed original BOX > clears role and detail on fresh and targeted roots after patch 53ms
+     → Input geometry is not a valid Polygon or MultiPolygon
+ ✓ test/sceneBuilder.test.ts (17 tests) 139ms
+ ✓ test/cduWholeModelHighlight.test.ts (15 tests) 575ms
+ ✓ test/viewFades.test.ts (12 tests) 78ms
+ ✓ test/liquidEquipmentVisualInteraction.test.ts (10 tests) 121ms
+ ✓ test/selectionHighlight.test.ts (15 tests) 6ms
+ ✓ test/pbrMaterials.test.ts (10 tests) 17ms
+ ✓ test/modelOpacity.test.ts (20 tests) 66ms
+ ✓ test/pduEquipmentVisuals.test.ts (31 tests) 350ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > PDU visual eligibility does not survive a changed original BOX > clears role and detail on fresh and targeted roots after patch
+Error: Input geometry is not a valid Polygon or MultiPolygon
+ ❯ new RingIn ../shared/vendor/polygon-clipping.umd.js:1778:15
+    1776| 
+    1777|       if (typeof geomRing[0][0] !== 'number' || typeof geomRing[0][1] …
+    1778|         throw new Error('Input geometry is not a valid Polygon or Mult…
+       |               ^
+    1779|       }
+    1780| 
+ ❯ new PolyIn ../shared/vendor/polygon-clipping.umd.js:1841:27
+ ❯ new MultiPolyIn ../shared/vendor/polygon-clipping.umd.js:1914:20
+ ❯ Operation.run ../shared/vendor/polygon-clipping.umd.js:2413:27
+ ❯ Object.difference ../shared/vendor/polygon-clipping.umd.js:2545:22
+ ❯ ../shared/js/geometry_scene.js:2250:44
+ ❯ _buildSingleBoxFace ../shared/js/geometry_scene.js:2249:42
+ ❯ ../shared/js/geometry_scene.js:1480:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 8 passed (9)
+      Tests  1 failed | 149 passed (150)
+   Start at  06:44:39
+   Duration  15.23s (transform 951ms, setup 0ms, collect 4.40s, tests 1.80s, environment 6.86s, prepare 585ms)
+

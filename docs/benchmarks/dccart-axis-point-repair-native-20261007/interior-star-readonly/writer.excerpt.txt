@@ -1,0 +1,52 @@
+16794:     verifyWeightStage(true,true);
+16795:     verifyCompleteCavityStage(false);
+16796:     if (!baselineOnly && remainingPointRepairSeconds)
+16797:     {
+16798:         // All ranks enter every gate, including false/empty ranks. The
+16799:         // default false proof cannot authorize singleton3 via empty zones.
+16800:         const label minimumSourceProof=returnReduce
+16801:             (label(singletonSourceRoleEligible),minOp<label>());
+16802:         const label maximumSourceProof=returnReduce
+16803:             (label(singletonSourceRoleEligible),maxOp<label>());
+16804:         const label anyCellZones=returnReduce
+16805:             (label(!mesh.cellZones().empty()),maxOp<label>());
+16806:         const bool sourceScopeEligible=minimumSourceProof==1
+16807:             && maximumSourceProof==1 && !anyCellZones;
+16808:         if (Pstream::master() && minimumSourceProof!=maximumSourceProof)
+16809:         {
+16810:             WarningInFunction
+16811:                 << "singleton3 source proof differs across ranks; refused" << nl;
+16812:         }
+16813:         if (Pstream::master() && anyCellZones)
+16814:         {
+16815:             WarningInFunction
+16816:                 << "singleton3 requires globally empty installed cellZones; refused" << nl;
+16817:         }
+16818:         std::function<bool(const std::vector<label>&)> singletonSourceRoleContract;
+16819:         if (sourceScopeEligible)
+16820:         {
+16821:             // These are FINAL compact writer bindings, produced above after
+16822:             // aliasing/face ordering. Boundary/faceZone/pointZone/coreCoupled
+16823:             // incident protection remains in the V5 eligible/Stencil guards;
+16824:             // no point-to-surface/material identity is invented for interiors.
+16825:             singletonSourceRoleContract=[&](const std::vector<label>& moving) -> bool
+16826:             {
+16827:                 if (!bindings || bindings->cell.size()!=size_t(m.nCells)
+16828:                  || bindings->face.size()!=m.faces.size()
+16829:                  || bindings->point.size()!=m.points.size()
+16830:                  || bindings->alias.size()!=m.points.size()
+16831:                  || moving.size()!=1) return false;
+16832:                 const label p=moving.front();
+16833:                 return p>=0 && p<mesh.nPoints();
+16834:             };
+16835:         }
+16836:         // Requires the separately reviewed V5 three-argument stage header.
+16837:         // Empty callback preserves all previous non-singleton behavior.
+16838:         dcCartFinitePointRepair::apply
+16839:             (mesh,remainingPointRepairSeconds,singletonSourceRoleContract);
+16840:     }
+16841:     // The ACTUAL final installed state, after any point-repair refresh.
+16842:     verifyWeightStage(false,false);
+16843:     verifyCompleteCavityStage(true);
+16844:     if (!baselineOnly && m.writerBaseline)
+16845:     {

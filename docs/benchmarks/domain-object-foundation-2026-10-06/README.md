@@ -1,0 +1,41 @@
+# Renderer-independent domain objects — stage plan, 2026-10-06
+
+The user requires each rack, server, wall, baffle and all engineering objects to have a domain type, common base and geometry/material/physics capabilities. `.cfdproj` remains the recoverable authoritative document; `.cfdrun` is the derived in-memory runtime snapshot. Three.js and OV/USD carry derived representations. This is the DCTwin contract, not a file format mandated by NVIDIA.
+
+Official [DSX asset guidance](https://docs.omniverse.nvidia.com/dsx/latest/simready-assets.html) separates geometric asset work from metadata and ports; [DSX architecture](https://docs.omniverse.nvidia.com/dsx/latest/system-architecture.html) separates asset data, simulation and runtime. [SimReady FAQ](https://docs.omniverse.nvidia.com/simready/latest/simready-faq.html) does not make runtime programming methods a serialized asset requirement; method behavior is restored by versioned code registries. Its FMI/FMU behavior packaging is still prototyping. No new dependency or conformity claim follows from this research.
+
+Stages:
+
+1. Inventory current schema/load/save/render/solver paths. Introduce versioned entity registry and BaseEntity/DomainProject derived from plain records. Cover all18 construction buckets, room/singletons and nested equipment explicitly; preserve stable identities, parent links, unknown extensions and undo/input revisions. No class instances or function text enter the store or cfdproj.
+2. Route shared geometry and visual-material descriptions through adapters for Three and OV/USD. Retain selection/part IDs and visibility separately from physical inclusion. Keep old factories as checked delegates during migration, then remove renderer dependencies from geometry generation.
+3. Route air boundary export and liquid graph compilation through explicit domain physics/ports capabilities. Retain strict cfdproj/cfdrun/liquidrun contracts and exact graph/parameter identities. Make runtime snapshots reproducible from the engineering input and compiler version.
+4. Export USD hierarchy, material bindings, connection points and semantic metadata with declared adapter/profile version and field-level units. A rack containing server models is assembly/group; server is component, following [OpenUSD model hierarchy](https://openusd.org/release/api/_usd__page__properties_of_scene_description.html). [Connection points0.2.0](https://nvidia.github.io/simready-foundation/latest/features/FET_201-connection_points.html) have per-domain properties. Core dimensionsmm, port Celsius/L/s and equipment K/LPM/m³/s need distinct conversion, density and pressure references. Do not claim all objects belong to the currently defined AIF equipment profile.
+5. Exercise save/load/edit/undo, same-UID selection, Three↔OV, port orientation/units, air export and full liquid compile/solve in the actual browser. Preserve strict mesh/physics validation as separate gates. Check target USD/SimReady validators before claiming conformance.
+
+Current stage: the compatible entity/identity/document foundation is accepted in source and the actual normal browser; numerical geometry, material/physics ownership, RAM-only air execution and USD profile export remain to be implemented. This is not a finished domain architecture or a certified SimReady asset. `research/sources.json` links15official pages with retrieval/version observations; `research/design-research.json` separates official observations from11proposed engineering requirements.
+
+
+## Foundation acceptance, 2026-10-06
+
+Source integration `0bdfcf247d6865fa4bb342f9fa2607a5a2f52128` was cherry-picked to main `75eec1b81afabcd21027e79ac33c783720c5b44f`: eleven exact source/test paths, with user-owned engineering files unchanged. Versioned named entity classes cover18construction buckets, room/singletons and real nested children; the underlying cfdproj records stay plain JSON. Enumeration preserves caller bucket order and insertion order, stable IDs, source paths and parent links. Explicit PDU asset type restores its class while retaining its existing physical box contract; equipment names alone do not invent physics.
+
+Document codecs preserve unknown root/nested JSON extensions and own prototype-like keys, reject unsafe/future schema numbers before migration, and keep unsupported declared geometry loadable/saveable while refusing physical air export. Additional migration defects in UID/type/library/physics dictionaries were exposed by retained failing tests and repaired. No full historical byte-equivalence or general security audit is claimed.
+
+[Source and regression proof](source-and-tests/README.md) records108PASS across seven relevant files, a successful typecheck and original red fixtures. [Independent final review](independent-final/FINAL_REVIEW_20261006.md) checks all eleven source identities and four actual engineering inputs, including LiquidSingle94records and Shinaide1385records. Those inventory counts do not imply an equal number of active solver or rendered objects. Original checkpoint failures remain in independent-checkpoint-red.
+
+[Actual browser compatibility](browser-compatibility/README.md) proves the prior unknown-field save loss, the fixed Save As/reload and an intentionally rejected future schema. The normal Prepare/Start path then completed full liquid run `1001e46a01e0488b8990b982a554c821`:50frames at24.5s,56servers/2800heat closures with maximum3.38e-8W. Independent JSON comparison finds graph/physical parameters/schedules and every physical result field exactly equal to previously accepted actual run dbdc69c33840479bbd761ee79c96af78; only stated engineering/runtime metadata differs. The retained screenshot includes an expected earlier future-schema refusal notice, not a run failure. This is product compatibility evidence, not a new MMS or gradient experiment.
+
+[Normal IT build](normal-it-build/README.md) preserves all previously served hashed assets and exact browser proof images. [Normal MAIN build](normal-main-build/README.md) passed in48.776s and is tracked separately; the existing main OV browser was retained on its live bundle, without reload or runtime restart.
+
+## Next numerical carrier work
+
+[Author implementation plan](stage2-author-plan/README.md) and [independent seam review](stage2-independent-plan/INDEPENDENT_STAGE2_PLAN_20261006.md) identify actual ownership boundaries. Next implement renderer-free pose/port math and an owned numeric geometry product; make compatibility Three helpers allocate vectors only. Retain shape clipping, face IDs, triangle order, Float32/STL behavior, mirrored/nonuniform transforms and physical/display/helper roles. Then adapt the one existing liquid compiler to explicit context, preserving graph IDs, SI values, active cpCuPairs membership and hashes; do not create a parallel graph compiler.
+
+The current geometry/render/physics methods describe records; most numerical shape/port/material logic still resides in shared Three builders. OV presently receives a Three-derived neutral wire snapshot and authors USD in memory. Air cfdrun/STL is derived in frontend RAM but the server persists cfdrun and the runner reads that file. These are existing integration seams, not accepted RAM-only or carrier-independent capabilities. Keep strict mesh quality, solver physics and actual browser acceptance as separate gates during migration.
+
+`initial-publication/` retains the original research-stage index and all four old publication-bound files byte-exact. The refreshed root publication-manifest binds the accepted source/test/browser/build/plan packet; nested original manifests and failing evidence are preserved. Source tips above were verified pushed to origin and shared; later documentation commit IDs may advance them.
+
+
+## Accepted numerical pose/ports continuation
+
+[Exact source, independent review and normal browser/build packet](../domain-pose-ports-2026-10-06/README.md) advances source IT57d7a3a2→MAIN05f5f845, origin/shared verified. Actual full50frame liquid compatibility and byte-identical engineering Save As passed. BOX/CDU numerical structural product is now being implemented against original-source golden controls; its PBR/image/material behavior stays on the current carrier in this first slice. RAM-only air execution/all-kind physics/USD remain pending.

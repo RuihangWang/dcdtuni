@@ -1,0 +1,247 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/liquidDefaultNewton.test.tsx --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/liquidDefaultNewton.test.tsx (11 tests | 10 failed) 526ms
+   × canonical and default Newton entry > canonical saved inputs explicitly use synthetic DAE at the original 180s/1s without a load step 40ms
+     → expected undefined to match object { engine: 'newton-dae', …(4) }
+   × canonical and default Newton entry > reading and rendering a missing experiment never compiles or edits even an unconnected project 63ms
+     → expected { duration_s: 180, dt_s: 1, …(1) } to match object { engine: 'newton-dae', dt_s: 1 }
+(12 matching properties omitted from actual)
+   × canonical and default Newton entry > a pure compile resolves missing default to one steady sample without mutating or materializing it 69ms
+     → expected 2 to be 3 // Object.is equality
+   × canonical and default Newton entry > preparing after a time edit saves the actual assumptions before hashing the submitted project 111ms
+     → expected { duration_s: 180, dt_s: 2, …(2) } to match object { engine: 'newton-dae', dt_s: 2, …(1) }
+(19 matching properties omitted from actual)
+   × canonical and default Newton entry > download also materializes first and binds the saved project, without starting a runtime 74ms
+     → expected undefined to be '6f20afae70ef09d23df94cfc1a7c2f8235871…' // Object.is equality
+   × canonical and default Newton entry > only the top-bar mode switch enables the v4 timeline and a saved/reopened export is identical 8ms
+     → resolveSavedExperiment is not a function
+   × canonical and default Newton entry > an edited duration survives default resolution before timeline mode is chosen 16ms
+     → resolveSavedExperiment is not a function
+   × canonical and default Newton entry > Newton intent never silently discards saved PID 27ms
+     → expected [Function] to throw error matching /manual|PID/ but got 'Select a pump from this physical model'
+   × canonical and default Newton entry > rejects an unknown engine in the shared document validator and compile entry 29ms
+     → expected [Function] to throw an error
+   × canonical and default Newton entry > does not alter any effective DAE-CPU physics, times or MMS binding when provenance wording is corrected 29ms
+     → expected '8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX …' to match /14/
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > canonical saved inputs explicitly use synthetic DAE at the original 180s/1s without a load step
+AssertionError: expected undefined to match object { engine: 'newton-dae', …(4) }
+
+- Expected: 
+Object {
+  "dae": Object {
+    "analysis": Object {
+      "initialization": "steady",
+      "mode": "steady",
+    },
+    "execution": Object {
+      "device": "cpu",
+      "max_threads": 2,
+    },
+  },
+  "dt_s": 1,
+  "duration_s": 180,
+  "engine": "newton-dae",
+  "settings": Object {
+    "loadStep": false,
+    "mode": "manual",
+  },
+}
+
++ Received: 
+undefined
+
+ ❯ test/liquidDefaultNewton.test.tsx:75:47
+     73|   it('canonical saved inputs explicitly use synthetic DAE at the origi…
+     74|     const raw = canonical() as any
+     75|     expect(raw.runDefaults.liquid.experiment).toMatchObject({
+       |                                               ^
+     76|       engine: 'newton-dae', duration_s: 180, dt_s: 1, settings: { mode…
+     77|       dae: { analysis: { mode: 'steady', initialization: 'steady' }, e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > reading and rendering a missing experiment never compiles or edits even an unconnected project
+AssertionError: expected { duration_s: 180, dt_s: 1, …(1) } to match object { engine: 'newton-dae', dt_s: 1 }
+(12 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+    "dt_s": 1,
+-   "engine": "newton-dae",
+  }
+
+ ❯ test/liquidDefaultNewton.test.tsx:90:60
+     88|     const host = await panel(p)
+     89|     const before = serializeProjectState(store.getProject()!), rev = s…
+     90|     expect(experiments.readExperiment(store.getProject())).toMatchObje…
+       |                                                            ^
+     91|     expect(host.textContent).toContain(t('lce.default_newton_assumptio…
+     92|     input(host, t('lce.timestep'), 2)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > a pure compile resolves missing default to one steady sample without mutating or materializing it
+AssertionError: expected 2 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ test/liquidDefaultNewton.test.tsx:103:31
+    101|     const before = serializeProjectState(p)
+    102|     const run = experiments.compileSavedExperiment(p).liquidrun as any
+    103|     expect(run.schemaVersion).toBe(3)
+       |                               ^
+    104|     expect(run.analysis).toEqual({ mode: 'steady', initialization: 'st…
+    105|     expect(run.time).toEqual({ dt_s: 1, N_t: 1 })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > preparing after a time edit saves the actual assumptions before hashing the submitted project
+AssertionError: expected { duration_s: 180, dt_s: 2, …(2) } to match object { engine: 'newton-dae', dt_s: 2, …(1) }
+(19 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "dae": Object {
+-     "analysis": Object {
+-       "mode": "steady",
+-     },
+-     "execution": Object {
+-       "device": "cpu",
+-       "max_threads": 2,
+-     },
+-   },
+    "dt_s": 2,
+-   "engine": "newton-dae",
+  }
+
+ ❯ test/liquidDefaultNewton.test.tsx:119:19
+    117|     const submitted = mocks.create.mock.calls[0]![0] as any
+    118|     const saved = experiments.readExperiment(store.getProject())
+    119|     expect(saved).toMatchObject({ engine: 'newton-dae', dt_s: 2, dae: …
+       |                   ^
+    120|     expect(saved.parameterPack?.source).toBe('mock')
+    121|     expect(saved.dae!.primary_circuits[0]).toMatchObject({ edge_id: 'm…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > download also materializes first and binds the saved project, without starting a runtime
+AssertionError: expected undefined to be '6f20afae70ef09d23df94cfc1a7c2f8235871…' // Object.is equality
+
+- Expected: 
+"6f20afae70ef09d23df94cfc1a7c2f82358714e591bf90977c59acd160c3e8c9"
+
++ Received: 
+undefined
+
+ ❯ test/liquidDefaultNewton.test.tsx:144:41
+    142|       })
+    143|       const run = JSON.parse(text)
+    144|       expect(run.source_project.sha256).toBe(cfdrunExport().projectCon…
+       |                                         ^
+    145|       expect(experiments.readExperiment(store.getProject()).dae).toBeD…
+    146|       expect(mocks.create).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > only the top-bar mode switch enables the v4 timeline and a saved/reopened export is identical
+TypeError: resolveSavedExperiment is not a function
+ ❯ test/liquidDefaultNewton.test.tsx:151:60
+    149|   it('only the top-bar mode switch enables the v4 timeline and a saved…
+    150|     const p = loaded(noExperiment())
+    151|     store.setRunConfig('liquid', 'experiment', experiments.resolveSave…
+       |                                                            ^
+    152|     expect(experiments.compileSavedExperiment(store.getProject()!).liq…
+    153|     expect(setSimulationMode('transient', 'liquid')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > an edited duration survives default resolution before timeline mode is chosen
+TypeError: resolveSavedExperiment is not a function
+ ❯ test/liquidDefaultNewton.test.tsx:171:34
+    169|     const p = loaded(noExperiment())
+    170|     store.setRunConfig('liquid', 'experiment', { ...experiments.readEx…
+    171|     const resolved = experiments.resolveSavedExperiment(store.getProje…
+       |                                  ^
+    172|     expect(resolved).toMatchObject({ engine: 'newton-dae', duration_s:…
+    173|     expect(experiments.readExperiment(store.getProject()).dae).toBeUnd…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > Newton intent never silently discards saved PID
+AssertionError: expected [Function] to throw error matching /manual|PID/ but got 'Select a pump from this physical model'
+
+- Expected: 
+/manual|PID/
+
++ Received: 
+"Select a pump from this physical model"
+
+ ❯ test/liquidDefaultNewton.test.tsx:192:75
+    190|     const p = loaded(noExperiment())
+    191|     store.setRunConfig('liquid', 'experiment', { ...experiments.readEx…
+    192|     expect(() => experiments.compileSavedExperiment(store.getProject()…
+       |                                                                           ^
+    193|   })
+    194|   it('rejects an unknown engine in the shared document validator and c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > rejects an unknown engine in the shared document validator and compile entry
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/liquidDefaultNewton.test.tsx:198:57
+    196|     p.runDefaults.liquid.experiment = { ...experiments.readExperiment(…
+    197|     expect(checkProjectDocument(p).ok).toBe(false)
+    198|     expect(() => experiments.compileSavedExperiment(p)).toThrow(/engin…
+       |                                                         ^
+    199|   })
+    200|   it('does not alter any effective DAE-CPU physics, times or MMS bindi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  test/liquidDefaultNewton.test.tsx > canonical and default Newton entry > does not alter any effective DAE-CPU physics, times or MMS binding when provenance wording is corrected
+AssertionError: expected '8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX …' to match /14/
+
+- Expected: 
+/14/
+
++ Received: 
+"8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX 的单环路。自有 Shinaide 合成夹具,不是 NV 现场 P&ID。"
+
+ ❯ test/liquidDefaultNewton.test.tsx:205:52
+    203|     expect(p.constructions).toEqual(old.constructions)
+    204|     expect(p.runDefaults).toEqual(old.runDefaults)
+    205|     expect(p.meta.provenance.topology.description).toMatch(/14/)
+       |                                                    ^
+    206|     expect(JSON.stringify(p.meta.provenance.display_only)).toMatch(/cu…
+    207|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 1 passed (11)
+   Start at  09:30:27
+   Duration  4.33s (transform 914ms, setup 0ms, collect 2.69s, tests 526ms, environment 792ms, prepare 74ms)
+

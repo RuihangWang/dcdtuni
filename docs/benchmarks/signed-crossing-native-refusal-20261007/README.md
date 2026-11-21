@@ -1,0 +1,9 @@
+# Guarded signed-crossing: real native refusal retained
+
+Root reopened all35 final callback-kernel payloads,114 clean native observation payloads,14 corrected whole-plan payloads and116 complete result payloads. Actual604 wmake dependency files were independently rehashed,7units/ownAPP+LIB+probe bound. Root standalone callback replay passed709 analytic/9floating environments/3callback-mode/16degenerate/12actual saved queries. One native prepared probe2.3698s,closed7 known12/open6 unknown12,known-side differences0,24 original full sums and all geometry/IDs/query bytes held;73 actual FP samples supported. That probe does not establish all whole-case winding-query parity.
+
+One approved original23eef/c209 historical36-model case used55 immutable inputs,CPU16-23/8MPI/emptyCUDA. Native RC1,29.228314s,not timeout; shared quality29.721777s. Original cutBaffles line6840 rejected Rack_B_02_Rack_B_02_server_3_front coverage0.669975 (0.0559028/0.0834401m2),56faces and existing quantisation allowance0.0192515m2 insufficient. No checker invoked,no accepted64-file mesh,no retries/threshold/input/EPS/baseSize changes,no normal native promotion. Rank0 carving wall14.6077s is actual completed-stage timing,not accepted5min mesh.
+
+All8 actual ownAPP/LIB/rank CPU bindings,inputs55,normal source/PID guards held;owned process exit receipts preserved. CollectorRC0 records receipt collection and is not nativeRC0. Current normalgeometry142 is only a sourceguard: this run did not export/stage the newer source into the scientific input.
+
+Lossless archive includes immutable final kernel,actual clean native observations,original refusedv3 stale metadata and correctedv4 whole plan,actual preflight/result and Root callback replay. Every regular tar member was streamed and size/SHA verified; no tar path escapes. Source-only candidate remains private. Whole mesh quality/wind steady/transient/overall goal remain open.

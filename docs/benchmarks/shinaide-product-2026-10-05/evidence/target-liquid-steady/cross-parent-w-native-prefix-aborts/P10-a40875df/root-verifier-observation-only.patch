@@ -1,0 +1,104 @@
+--- frozen-W-helper
++++ actual-helper-diagnostic
+@@ -435,68 +435,82 @@
+     label failures=0;
+     for(const Packet& p:state.committed) {
+         bool ok=true;Stats old,next;
++        const char* firstRefusal="none";label firstDetail=-1;
++        auto refuse=[&](const char* reason,label detail)
++        { if(ok) {firstRefusal=reason;firstDetail=detail;}ok=false; };
+         const label keep=mappedCell(b,p.keep);
+-        if(keep<0||mappedCell(b,p.drop)>=0||mesh.cells()[keep].size()!=6) {++failures;continue;}
++        if(keep<0||mappedCell(b,p.drop)>=0||mesh.cells()[keep].size()!=6) {
++            ++failures;Pout<<"W installed packet refused: keep/drop "<<p.keep<<'/'<<p.drop
++                <<", shared "<<p.nativeFace<<", first reason survivor-map-or-six-face-shell"<<endl;continue;
++        }
+         std::set<label> counted;
+         for(const RawCell& c:p.cells) {
+             const label dest=mappedCell(b,c.id==p.drop?p.keep:c.id);
+             old.add(c.d,0);
+-            if(dest<0||zonedCell(mesh,dest)||!cellGeometry(mesh,dest)) {ok=false;break;}
++            if(dest<0||zonedCell(mesh,dest)||!cellGeometry(mesh,dest)) {refuse("cell-map-zone-geometry",c.id);break;}
+             const scalar d=determinant(mesh,dest);
+-            if(pass(c.d,0)&&!pass(d,0)) ok=false;
++            if(pass(c.d,0)&&!pass(d,0)) refuse("passing-cell-determinant",c.id);
+             if(counted.insert(dest).second) next.add(d,0);
+         }
+-        if(!pass(determinant(mesh,keep),0)) ok=false;
++        if(!pass(determinant(mesh,keep),0)) refuse("survivor-determinant",p.keep);
+         for(const auto& alias:p.aliases) {
+             const label n=alias.first;
+             if(n<0||n>=label(b.alias.size())||b.alias[n]!=alias.second.first
+               ||b.alias[n]<0||b.alias[n]>=label(raw.points.size())
+-              ||(literalShell&&!bits(raw.points[b.alias[n]],alias.second.second))) {ok=false;break;}
++              ||(literalShell&&!bits(raw.points[b.alias[n]],alias.second.second))) {refuse("point-alias-or-coordinate",n);break;}
+         }
+         for(const RawFace& f:p.faces) {
+             for(unsigned k=0;k<4;++k) old.add(f.quality[k],k+1);
+             if(f.id==p.nativeFace) {
+                 // Deleted passing R/S/N roles inherit every literal shell interface.
+                 for(label n:p.outer) {
+-                    if(n<0||n>=label(b.face.size())||b.face[n]<0) {ok=false;break;}
++                    if(n<0||n>=label(b.face.size())||b.face[n]<0) {refuse("deleted-interface-inherited-map",n);break;}
+                     const auto q=metrics(mesh,b.face[n]);
+                     for(unsigned k=1;k<4;++k)
+-                        if(pass(f.quality[k],k+1)&&!pass(q[k],k+1)) ok=false;
++                        if(pass(f.quality[k],k+1)&&!pass(q[k],k+1)) refuse("passing-face-quality",f.id);
+                 }
+-                if(f.id>=label(b.face.size())||b.face[f.id]>=0) ok=false;
++                if(f.id>=label(b.face.size())||b.face[f.id]>=0) refuse("deleted-shared-face-still-mapped",f.id);
+                 continue;
+             }
+-            if(f.id<0||f.id>=label(b.face.size())||b.face[f.id]<0) {ok=false;break;}
++            if(f.id<0||f.id>=label(b.face.size())||b.face[f.id]<0) {refuse("retained-face-map",f.id);break;}
+             const label x=b.face[f.id];
+-            if(coupled(mesh,x)||zonedFace(mesh,x)||!tets(mesh,x)) {ok=false;break;}
++            if(coupled(mesh,x)||zonedFace(mesh,x)||!tets(mesh,x)) {refuse("face-coupled-zone-tets",f.id);break;}
+             const label oldO=mappedCell(b,f.installedOwner==p.drop?p.keep:f.installedOwner);
+             const label oldN=f.installedNeighbour<0?-1:mappedCell(b,
+                 f.installedNeighbour==p.drop?p.keep:f.installedNeighbour);
+             const label nowO=mesh.faceOwner()[x],nowN=x<mesh.nInternalFaces()?mesh.faceNeighbour()[x]:-1;
+             const bool flip=oldN>=0&&oldO>oldN;
+-            if(nowO!=(flip?oldN:oldO)||nowN!=(flip?oldO:oldN)) {ok=false;break;}
++            if(nowO!=(flip?oldN:oldO)||nowN!=(flip?oldO:oldN)) {refuse("canonical-owner-neighbour",f.id);break;}
+             auto expected=f.installedCoordinates;
+             if(flip) std::reverse(expected.begin()+1,expected.end()); // point0 remains explicit
+             const auto& ring=mesh.faces()[x];
+-            if(ring.size()!=label(expected.size())) {ok=false;break;}
++            if(ring.size()!=label(expected.size())) {refuse("ring-size",f.id);break;}
+             if(literalShell||f.patch>=0)
+-                forAll(ring,j) if(!bits(mesh.points()[ring[j]],expected[j])) ok=false;
++                forAll(ring,j) if(!bits(mesh.points()[ring[j]],expected[j])) refuse("ordered-ring-coordinate",f.id);
+             if(f.patch>=0) {
+                 if(x<mesh.nInternalFaces()||patchRole(mesh.boundaryMesh()[mesh.boundaryMesh().patchID(x)])
+                       !=physicalRoleAfter(f.physicalPatchRole,state.authorizedPhysicalPruned[f.patch]))
+-                    ok=false;
+-            } else if(x>=mesh.nInternalFaces()) ok=false;
++                    refuse("physical-patch-role",f.id);
++            } else if(x>=mesh.nInternalFaces()) refuse("internal-face-now-boundary",f.id);
+             const auto q=metrics(mesh,x);
+             for(unsigned k=0;k<4;++k) {
+-                if(pass(f.quality[k],k+1)&&!pass(q[k],k+1)) ok=false;
++                if(pass(f.quality[k],k+1)&&!pass(q[k],k+1)) refuse("passing-face-quality",f.id);
+                 next.add(q[k],k+1);
+             }
+         }
+         // Actual installed totals and worst severity. These are not compact expectations.
+         for(unsigned k=0;k<5;++k)
+-            if(next.bad[k]>old.bad[k]||next.worst[k]>old.worst[k]) ok=false;
+-        if(next.bad[0]+next.bad[1]>=old.bad[0]+old.bad[1]) ok=false;
+-        if(!ok) ++failures;
++            if(next.bad[k]>old.bad[k]||next.worst[k]>old.worst[k]) refuse("bad-count-or-worst-severity",k);
++        if(next.bad[0]+next.bad[1]>=old.bad[0]+old.bad[1]) refuse("no-installed-DW-count-decrease",-1);
++        if(!ok) {
++            ++failures;OStringStream diagnostic;diagnostic.precision(std::numeric_limits<scalar>::max_digits10);
++            diagnostic<<"W installed packet refused: keep/drop "<<p.keep<<'/'<<p.drop<<", shared "<<p.nativeFace
++                <<", first reason "<<firstRefusal<<", native detail "<<firstDetail
++                <<", literal/prefix "<<literalShell<<'/'<<capturePrefix<<", old/new counts ";
++            for(unsigned k=0;k<5;++k)diagnostic<<old.bad[k]<<'/'<<next.bad[k]<<' ';
++            diagnostic<<", old/new worst ";for(unsigned k=0;k<5;++k)diagnostic<<old.worst[k]<<'/'<<next.worst[k]<<' ';
++            Pout<<diagnostic.str()<<endl;
++        }
+         else if(capturePrefix) {
+             for(const auto& c:p.cells) {
+                 const label native=c.id==p.drop?p.keep:c.id;

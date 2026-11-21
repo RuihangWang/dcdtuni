@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "dcdtuni.render-result-layers/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "revision", "source", "coordinateSystem", "timeSeconds", "layers"],
+  "properties": {
+    "schema": { "const": "dcdtuni.render-result-layers/v1" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "source": { "$ref": "#/$defs/source" },
+    "coordinateSystem": { "$ref": "#/$defs/coordinateSystem" },
+    "timeSeconds": { "type": ["number", "null"], "minimum": 0 },
+    "layers": { "type": "array", "items": { "oneOf": [
+      { "$ref": "#/$defs/meshEdges" },
+      { "$ref": "#/$defs/surfaceField" },
+      { "$ref": "#/$defs/slice" },
+      { "$ref": "#/$defs/streamline" }
+    ] } }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["projectUid", "projectContentSha256", "cfdrunSha256", "meshReceiptSha256", "meshQuality", "run"],
+      "properties": {
+        "projectUid": { "type": "string", "minLength": 1 },
+        "projectContentSha256": { "$ref": "#/$defs/sha256" },
+        "cfdrunSha256": { "$ref": "#/$defs/sha256" },
+        "meshReceiptSha256": { "$ref": "#/$defs/sha256" },
+        "meshQuality": { "enum": ["accepted", "diagnostic"] },
+        "run": { "oneOf": [
+          { "type": "null" },
+          { "type": "object", "additionalProperties": false,
+            "required": ["uid", "receiptSha256"],
+            "properties": {
+              "uid": { "type": "string", "minLength": 1 },
+              "receiptSha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        ] }
+      }
+    },
+    "coordinateSystem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["upAxis", "metersPerUnit", "handedness"],
+      "properties": {
+        "upAxis": { "const": "Y" }, "metersPerUnit": { "const": 1 }, "handedness": { "const": "right" }
+      }
+    },
+    "positions": { "type": "array", "items": { "type": "number" } },
+    "indices": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+    "sourceFaceUids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "field": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "unit"],
+      "properties": { "name": { "type": "string", "minLength": 1 }, "unit": { "type": "string", "minLength": 1 } }
+    },
+    "lut": {
+      "type": "object", "additionalProperties": false,
+      "required": ["palette", "range", "opacity"],
+      "properties": {
+        "palette": { "enum": ["coolwarm", "jet", "viridis"] },
+        "range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "meshEdges": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "visible", "meshPatchName", "sourceFaceUids", "positions", "indices", "opacity"],
+      "properties": {
+        "kind": { "const": "meshEdges" }, "layerId": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean" },
+        "meshPatchName": { "type": "string", "minLength": 1 },
+        "sourceFaceUids": { "$ref": "#/$defs/sourceFaceUids" },
+        "positions": { "$ref": "#/$defs/positions" },
+        "indices": { "$ref": "#/$defs/indices" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "surfaceField": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "visible", "meshPatchName", "sourceFaceUids", "positions", "indices", "values", "field", "lut"],
+      "properties": {
+        "kind": { "const": "surfaceField" }, "layerId": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean" },
+        "meshPatchName": { "type": "string", "minLength": 1 },
+        "sourceFaceUids": { "$ref": "#/$defs/sourceFaceUids" },
+        "positions": { "$ref": "#/$defs/positions" },
+        "indices": { "$ref": "#/$defs/indices" },
+        "values": { "type": "array", "items": { "type": "number" } },
+        "field": { "$ref": "#/$defs/field" },
+        "lut": { "$ref": "#/$defs/lut" }
+      }
+    },
+    "slice": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "visible", "sourceSliceUid", "originMeters", "normal", "positions", "indices", "values", "field", "lut"],
+      "properties": {
+        "kind": { "const": "slice" }, "layerId": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean" }, "sourceSliceUid": { "type": "string", "minLength": 1 },
+        "originMeters": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+        "normal": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+        "positions": { "$ref": "#/$defs/positions" },
+        "indices": { "$ref": "#/$defs/indices" },
+        "values": { "type": "array", "items": { "type": "number" } },
+        "field": { "$ref": "#/$defs/field" },
+        "lut": { "$ref": "#/$defs/lut" }
+      }
+    },
+    "streamline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "visible", "sourceSeedUid", "lines", "field", "lut", "tubeRadiusMeters"],
+      "properties": {
+        "kind": { "const": "streamline" }, "layerId": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean" }, "sourceSeedUid": { "type": "string", "minLength": 1 },
+        "lines": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/streamlineLine" } },
+        "field": { "$ref": "#/$defs/field" },
+        "lut": { "$ref": "#/$defs/lut" },
+        "tubeRadiusMeters": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "streamlineLine": {
+      "type": "object", "additionalProperties": false,
+      "required": ["positions", "values"],
+      "properties": {
+        "positions": { "$ref": "#/$defs/positions" },
+        "values": { "type": "array", "items": { "type": "number" }, "minItems": 2 }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/toolbarExpandedBudget.test.tsx > opens the actual shared View Tools within the half-window budget instead of clipping its123px content
+AssertionError: expected 201.60000000000002 to be close to 266.4, received difference is 64.79999999999995, but expected 0.005
+ ❯ test/toolbarExpandedBudget.test.tsx:65:19
+     63|   await open()
+     64|   expect(toolbar.dataset.layout).toBe('compact')
+     65|   expect(drawn()).toBeCloseTo(266.4)
+       |                   ^
+     66|   expect(body.getBoundingClientRect().height).toBeCloseTo(123)
+     67|   expect(toolbar.dataset.scrollable).toBe('false')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/toolbarExpandedBudget.test.tsx > caps oversized explicitly opened controls at the existing360px ceiling and retains scrolling
+AssertionError: expected 201.60000000000002 to be 360 // Object.is equality
+
+- Expected
++ Received
+
+- 360
++ 201.60000000000002
+
+ ❯ test/toolbarExpandedBudget.test.tsx:75:19
+     73|   bodyNatural = 500
+     74|   await open('toolbar-model-tools-toggle')
+     75|   expect(drawn()).toBe(360)
+       |                   ^
+     76|   expect(toolbar.dataset.scrollable).toBe('true')
+     77|   expect(body.getBoundingClientRect().height).toBeGreaterThan(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/toolbarExpandedBudget.test.tsx > honours a manual shrink across closing and reopening tools without resetting its remembered height
+AssertionError: expected 191.60000000000002 to be close to 256.4, received difference is 64.79999999999995, but expected 0.005
+ ❯ test/toolbarExpandedBudget.test.tsx:83:19
+     81|   await open()
+     82|   act(() => document.getElementById('toolbar-resizer')!.dispatchEvent(…
+     83|   expect(drawn()).toBeCloseTo(256.4)
+       |                   ^
+     84|   await open(); expect(body.hidden).toBe(true); expect(drawn()).toBeCl…
+     85|   await open(); expect(drawn()).toBeCloseTo(256.4)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/toolbarExpandedBudget.test.tsx > makes the arithmetic expansion explicit while retaining default-call auto behavior
+AssertionError: expected 201.60000000000002 to be close to 266.4, received difference is 64.79999999999995, but expected 0.005
+ ❯ test/toolbarExpandedBudget.test.tsx:103:62
+    101| })
+    102| it('makes the arithmetic expansion explicit while retaining default-ca…
+    103|   expect(toolbarTargetHeight(266.4, null, 720, 175.4, true)).toBeClose…
+       |                                                              ^
+    104|   expect(toolbarTargetHeight(266.4, null, 720, 175.4)).toBeCloseTo(201…
+    105|   expect(toolbarTargetHeight(500, null, 720, 175.4, true)).toBe(360)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

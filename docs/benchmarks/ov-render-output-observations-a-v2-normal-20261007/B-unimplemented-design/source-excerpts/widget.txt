@@ -1,0 +1,153 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.widget.viewport-e33603573147cc56/omni/kit/widget/viewport/widget.py
+FULL_SHA256 05b000e92fec9e624844196260c7404de6a3e5589a9db524291ac8b5814d2170
+LINES 51–69
+51:     @property
+52:     def viewport_api(self):
+53:         """Return the active omni.kit.widget.viewport.ViewportAPI for the ViewportWidget"""
+54:         return self.__proxy_api
+55: 
+56:     @property
+57:     def name(self):
+58:         """Return the name of the ViewportWidget"""
+59:         return self.__ui_frame.name
+60: 
+61:     @property
+62:     def visible(self):
+63:         """Set the visibility of this ViewportWidget"""
+64:         return self.__ui_frame.visible
+65: 
+66:     @visible.setter
+67:     def visible(self, value) -> bool:
+68:         """Get the visibility of this ViewportWidget"""
+69:         self.__ui_frame.visible = bool(value)
+LINES 191–221
+191:     @property
+192:     def display_delegate(self):
+193:         return self.__display_delegate
+194: 
+195:     @display_delegate.setter
+196:     def display_delegate(self, display_delegate: ViewportDisplayDelegate):
+197:         if not isinstance(display_delegate, ViewportDisplayDelegate):
+198:             raise RuntimeError('display_delegate must be a ViewportDisplayDelegate, {display_delegate} is not')
+199: 
+200:         # Store the previous delegate for return value and comparison wtether anything is actually changing
+201:         prev_delegate = self.__display_delegate
+202:         # If the delegate is different, call the create method and change this instance's value if succesful
+203:         if prev_delegate != display_delegate:
+204:             self.__ui_frame.clear()
+205:             display_delegate.create(self.__ui_frame, prev_delegate)
+206:             self.__display_delegate = display_delegate
+207:         # Return the previous delegate so callers can swap and restore
+208:         return prev_delegate
+209: 
+210:     def _viewport_changed(self, camera_path: Sdf.Path, stage: Usd.Stage, time: Usd.TimeCode | None = None):
+211:         # During re-open camera_path can wind up in an empty state, so be careful around getting the UsdGeom.Camera
+212:         prim = stage.GetPrimAtPath(camera_path) if (camera_path and stage) else None
+213:         camera = UsdGeom.Camera(prim) if prim else None
+214:         if not camera:
+215:             return None, None, None
+216:         if time is None:
+217:             time = Usd.TimeCode.Default()
+218: 
+219:         canvas_size = self.__display_delegate.size
+220:         force_update = self.__size_changed
+221:         self.__vp_api._sync_viewport_api(camera, canvas_size, time, force_update=force_update)  # noqa PLW0212
+LINES 501–517
+501:     def __set_image_data(self, texture, presentation_key=0):
+502:         vp_api = self.__vp_api
+503: 
+504:         prim = self.__ensure_usd_stage().GetPrimAtPath(vp_api.camera_path)
+505:         camera = UsdGeom.Camera(prim) if prim else None
+506: 
+507:         frame_info = vp_api.frame_info
+508:         lock_to_render = vp_api.lock_to_render_result
+509:         metadata = frame_info.get('metadata', None)
+510: 
+511:         view = frame_info.get('view', None) if lock_to_render else None
+512:         # omni.ui.scene may not handle RTX projection yet, so calculate from USD camera
+513:         projection = None  # frame_info.get('projection', None) if lock_to_render else None
+514: 
+515:         canvas_size = self.__display_delegate.update(viewport_api=vp_api, texture=texture, view=view, projection=projection, presentation_key=presentation_key, metadata=metadata)
+516:         vp_api._sync_viewport_api(camera, canvas_size, vp_api.time, view, projection, force_update=True)  # noqa PLW0212
+517:         vp_api._notify_frame_change()  # noqa PLW0212
+LINES 549–597
+549:     # XXX: Temporary API for driving Viewport resolution based on UI.  These may be removed.
+550:     @property
+551:     def resolution_uses_dpi(self) -> bool:
+552:         """Whether to account for DPI when driving the Viewport texture resolution"""
+553:         return self.__resolution_uses_dpi
+554: 
+555:     @property
+556:     def fill_frame(self) -> bool:
+557:         """Whether the ui object containing the Viewport texture expands both dimensions of resolution based on the ui size"""
+558:         return self.__push_ui_to_viewport
+559: 
+560:     @property
+561:     def expand_viewport(self) -> bool:
+562:         """Whether the ui object containing the Viewport texture expands one dimension of resolution to cover the full ui size"""
+563:         return self.__expand_viewport_to_ui
+564: 
+565:     @resolution_uses_dpi.setter
+566:     def resolution_uses_dpi(self, value: bool) -> None:
+567:         """Tell the ui object whether to use DPI scale when driving the Viewport texture resolution"""
+568:         value = bool(value)
+569:         if self.__resolution_uses_dpi != value:
+570:             self.__resolution_uses_dpi = value
+571:             self.__root_size_changed()
+572: 
+573:     @fill_frame.setter
+574:     def fill_frame(self, value: bool) -> None:
+575:         """Tell the ui object containing the Viewport texture to expand both dimensions of resolution based on the ui size"""
+576:         value = bool(value)
+577:         if self.__push_ui_to_viewport != value:
+578:             self.__push_ui_to_viewport = value
+579:             if not self.__root_size_changed():
+580:                 self.__vp_api.resolution = self.__full_resolution
+581: 
+582:     @expand_viewport.setter
+583:     def expand_viewport(self, value: bool) -> None:
+584:         """Tell the ui object containing the Viewport texture to expand one dimension of resolution to cover the full ui size"""
+585:         value = bool(value)
+586:         if self.__expand_viewport_to_ui != value:
+587:             self.__expand_viewport_to_ui = value
+588:             if not self.__root_size_changed():
+589:                 self.__vp_api.resolution = self.__full_resolution
+590: 
+591:     def set_resolution(self, resolution: Tuple[float, float]) -> None:
+592:         self.__full_resolution = resolution
+593:         # When resolution is <= 0, that means ui.Frame drives Viewport resolution
+594:         self.__push_ui_to_viewport = (resolution is None) or (resolution[0] <= 0) or (resolution[1] <= 0)
+595:         if not self.__root_size_changed():
+596:             # If neither option is enabled, then just set the resolution directly
+597:             self.__vp_api.resolution = resolution
+LINES 614–643
+614:     def __root_size_changed(self, *args, **kwargs):
+615:         # If neither options are enabled, then do nothing to the Viewport's resolution
+616:         if not self.__push_ui_to_viewport and not self.__expand_viewport_to_ui:
+617:             return False
+618: 
+619:         # Match the legacy Viewport resolution and fit
+620:         # XXX: Note for a down-sampled constant resolution, that is expanded to the Viewport dimensions
+621:         # the order of operation is off if one expects 512 x 512 @ 1 to 1024 x 1024 @ 0.5 to expand to the same result
+622: 
+623:         # Get the omni.ui.Widget computed size
+624:         ui_frame = self.__ui_frame
+625:         res_x, res_y = int(ui_frame.computed_width), int(ui_frame.computed_height)
+626:         # Scale by DPI as legacy Viewport (to match legacy Viewport calculations)
+627:         dpi_scale = ui.Workspace.get_dpi_scale() if self.__resolution_uses_dpi else 1.0
+628:         res_x, res_y = res_x * dpi_scale, res_y * dpi_scale
+629:         # Full resolution width and hight
+630:         fres_x, fres_y = self.__full_resolution if self.__full_resolution else (res_x, res_y)
+631:         if self.__expand_viewport_to_ui and (fres_y > 0) and (res_y > 0):
+632:             tex_ratio = fres_x / fres_y
+633:             ui_ratio = res_x / res_y
+634:             if tex_ratio < ui_ratio:
+635:                 fres_x = fres_x * (ui_ratio / tex_ratio)
+636:             else:
+637:                 fres_y = fres_y * (tex_ratio / ui_ratio)
+638: 
+639:             # Limit the resolution to not grow too large
+640:             res_x, res_y = min(res_x, fres_x), min(res_y, fres_y)
+641: 
+642:         self.__vp_api.resolution = res_x, res_y
+643:         return True

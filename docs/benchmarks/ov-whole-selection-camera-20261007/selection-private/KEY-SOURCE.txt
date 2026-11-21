@@ -1,0 +1,707 @@
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/Ref_code/kit-cae/_build/linux-x86_64/release/extscache/omni.kit.widget.viewport-109.0.4+62477c11/omni/kit/widget/viewport/api.py SHA256 0f2ed3f0b60162aca96ab7d0bac983f4735a88e786acfd6c77ce0c348d01a22c
+
+43:             self.destroy()
+44: 
+45:     def __init__(self, usd_context_name: str, viewport_id: str, viewport_changed_fn: Optional[Callable]):
+46:         self.__usd_context_name = usd_context_name
+47:         self.__viewport_id = viewport_id
+48:         self.__viewport_changed = viewport_changed_fn
+49:         self.__viewport_texture, self.__hydra_texture = None, None
+50:         self.__aspect_ratios = (1, 1)
+
+376: 
+377:     @property
+378:     def id(self) -> str: # noqa A003
+379:         return self.__viewport_id
+380: 
+381:     @property
+382:     def usd_context_name(self) -> str:
+383:         """Return the name of the omni.usd.UsdContext this Viewport is attached to"""
+384:         return self.__usd_context_name
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/Ref_code/kit-cae/_build/linux-x86_64/release/extscache/omni.kit.viewport.window-109.0.1+62477c11/omni/kit/viewport/window/scene/scenes.py SHA256 d92c2faa4411e0b32c895f5d9cb4907709ef4a631f6f57b8c3a738cd841a3c70
+
+220: 
+221:         self.__vc_change = viewport_api.subscribe_to_view_change(self.__view_changed)
+222: 
+223:         self.__viewport_api_id: str = str(viewport_api.id)
+224:         self.__change_event_subs = (
+225:             settings.subscribe_to_node_change_events(
+226:                 f"/persistent/app/viewport/{self.__viewport_api_id}/guide/axis/visible",
+227:                 self.__viewport_axis_display_changed
+228:             ),
+229:             settings.subscribe_to_tree_change_events(
+230:                 f"{self.get_axis_size_setting_path(self.__viewport_api_id)}", self.__viewport_axis_size_changed
+231:             ),
+232:         )
+233: 
+234:         self.__viewport_axis_display_changed(None, carb.settings.ChangeEventType.CHANGED)
+235: 
+236:     def __view_changed(self, viewport_api):
+237:         self.__transform.transform = _flatten_rot_matrix(viewport_api.view.GetOrthonormalized().ExtractRotationMatrix())
+238: 
+239:     def __viewport_axis_display_changed(self, item: carb.dictionary.Item, event_type: carb.settings.ChangeEventType) -> None:
+240:         if event_type == carb.settings.ChangeEventType.CHANGED:
+241:             key = f"/persistent/app/viewport/{self.__viewport_api_id}/guide/axis/visible"
+242:             self.visible = bool(carb.settings.get_settings().get(key))
+243: 
+244:     def __viewport_axis_size_changed(
+245:         self,
+
+FILE /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/App.tsx SHA256 46428eb2fa6da7d92dee22e79c180443f051be5ff1232ca8b48e29e44f60cb4f
+
+392:    * Without it the tree spells a set out as a run of single clicks, which on a
+393:    * large case is hundreds of updates and hundreds of `allModels` walks. The
+394:    * two paths are pinned to the same result by `applyMany`'s own test.
+395:    */
+396:   const selectMany = useCallback(
+397:     (uids: string[], additive: boolean, active?: string | null) => {
+398:       setSelection((prev) =>
+399:         applyMany(prev.uids, prev.active, uids, additive, modelOrderRef.current, active ?? null),
+400:       )
+401:       setSelectedNode(null)
+402:       // The liquid chart follows the model the inspector follows, so the batch
+403:       // reports its active one rather than every member of it.
+404:       const target = active ?? uids[uids.length - 1] ?? null
+405:       if (target) treeClickPostProcess(target, null)
+406:     },
+407:     [],
+
+802:           activeTab={leftTab}
+803:         />
+804:         <RendererControl project={project} selectedUids={selectedUids}
+805:           activeTab={leftTab} airMode={coolingMode === 'air'} view={view}
+806:           onSelection={uids=>selectMany(uids,false)}/>
+807:         <div id="view-cube-panel"><ViewCube /></div>
+
+CANDIDATE src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py SHA256 da989242cba297809315c6fbe10189dbf9efa9a5201262441d6b6bb609701a5f
+
+145:     async def _hide_native_ui(self):
+146:         """Strip the native editor chrome so only the 3D render streams, while
+147:         keeping the RTX render intact.
+148: 
+149:         We deliberately do NOT use ``/app/window/hideUi``: in the headless
+150:         ``--no-window`` streaming config it suppresses the RTX geometry render
+151:         (only scene-overlay layers such as the grid survive). Instead we hide
+152:         the viewport's menubar + axis-gizmo *layers* directly — the exact layers
+153:         ``ViewportWindow.hide_ui`` toggles — plus the FPS/memory HUD, the docked
+154:         side/bottom panels, the main menu bar and the status bar. None of these
+155:         touch the render product. Each step is guarded so one failure cannot
+156:         leave the UI half-stripped."""
+157:         app = omni.kit.app.get_app()
+158:         # Let the editor build + auto-dock its windows first.
+159:         for _ in range(90):
+160:             await app.next_update_async()
+161: 
+162:         # FPS/memory HUD off (does not affect the render product).
+163:         try:
+164:             import carb.settings
+165:             s = carb.settings.get_settings()
+166:             # OV displays the common React selection; modelling remains in Three.
+167:             # Keep native selection/outline and camera/seed/slice interactions,
+168:             # while the public select operation disables transform manipulators.
+169:             # Both reviewed RTX modes must honour fractional PreviewSurface
+170:             # opacity. Do not force a renderer mode or rewrite scene materials.
+171:             for path, value in (
+172:                 ("/app/transform/operation", "select"),
+173:                 ("/rtx/raytracing/fractionalCutoutOpacity", True),
+174:                 ("/rtx/pathtracing/fractionalCutoutOpacity", True),
+175:             ):
+176:                 try:
+177:                     s.set(path, value)
+178:                 except Exception:
+179:                     print(f"[dc.cfd_bridge] display setting unavailable: {path}")
+180:             s.set("/persistent/app/viewport/Viewport/Viewport0/hud/visible", False)
+181:             s.set("/app/viewport/forceHideFps", True)
+182:             # Hide the legacy_gizmos editor overlay ICONS (the yellow "sun"
+183:             # light gizmos, camera gizmos, audio) — they are editor aids, not
+184:             # part of the data-center scene, and must not appear in the render.
+185:             # The actual lights under /World/Env still illuminate the scene.
+186:             s.set("/app/viewport/show/lights", False)
+187:             # Disable the native procedural viewport grid: re-investigated per user
+188:             # request, it is zoom-adaptive (cannot be pinned to 0.6 m) and renders only
+189:             # its axis lines (no cells) in the --no-window stream. The custom 0.6 m
+190:             # /World/FloorGrid (scene.py) is used instead, made non-selectable so it is
+191:             # not a pickable USD object.
+192:             s.set("/app/viewport/grid/enabled", False)
+193:             s.set("/app/viewport/show/cameras", False)
+194:             s.set("/app/viewport/show/audio", False)
+195:         except Exception as e:
+196:             print(f"[dc.cfd_bridge] hide_ui: hud settings failed: {e}")
+197: 
+198:         # Hide the viewport's own menubar layer (without the window-flag changes
+199:         # that break the render). React owns the shared axis and orientation cube.
+200:         try:
+201:             from omni.kit.viewport.window import get_viewport_window_instances
+202:             for vw in get_viewport_window_instances():
+203:                 try:
+204:                     viewport_id = vw.viewport_api.id
+205:                     if (isinstance(viewport_id, str) and viewport_id
+206:                             and len(viewport_id.encode("utf-8")) <= 128):
+207:                         carb.settings.get_settings().set(
+208:                             f"/persistent/app/viewport/{viewport_id}/guide/axis/visible", False)
+209:                     else:
+210:                         print("[dc.cfd_bridge] native axis setting unavailable")
+211:                 except Exception:
+212:                     print("[dc.cfd_bridge] native axis setting unavailable")
+213:                 for name, cat in (("Menubar", "menubar"),):
+214:                     try:
+215:                         layer = vw._find_viewport_layer(name, cat)
+216:                         if layer is not None:
+217:                             layer.visible = False
+218:                     except Exception:
+219:                         pass
+220:                 try:
+221:                     vw.dock_tab_bar_enabled = False
+222:                 except Exception:
+223:                     pass
+224:         except Exception as e:
+225:             print(f"[dc.cfd_bridge] hide_ui: viewport layers failed: {e}")
+226: 
+227:         # Hide every docked panel; the viewport then expands to fill the frame.
+228:         try:
+229:             import omni.ui as ui
+230:             keep = {"Viewport", "DockSpace"}
+231:             for w in ui.Workspace.get_windows():
+232:                 try:
+233:                     if w.title not in keep:
+234:                         w.visible = False
+235:                 except Exception:
+236:                     pass
+237:         except Exception as e:
+238:             print(f"[dc.cfd_bridge] hide_ui: window sweep failed: {e}")
+239: 
+240:         # Hide the main menu bar + status bar.
+241:         try:
+242:             from omni.kit.mainwindow import get_main_window
+243:             mw = get_main_window()
+244:             mw.get_main_menu_bar().visible = False
+245:             mw.get_status_bar_frame().visible = False
+246:         except Exception as e:
+247:             print(f"[dc.cfd_bridge] hide_ui: menubar/status hide failed: {e}")
+248: 
+249:         for _ in range(5):
+250:             await app.next_update_async()
+251:         print("[dc.cfd_bridge] native UI hidden (render-only viewport)")
+252: 
+
+689:     def _apply_render_view(self, stage, view):
+690:         from . import render_scene
+691:         if view.get('camera'):
+692:             from omni.kit.viewport.utility import get_active_viewport
+693:             viewport = get_active_viewport()
+694:             if viewport:
+695:                 viewport.camera_path = render_scene.CAMERA
+696:         ctx = omni.usd.get_context()
+697:         from pxr import UsdGeom
+698:         # Hidden source children must not contaminate a later native Shift hit.
+699:         visible_paths = {}
+700:         for uid in view['selectedUids']:
+701:             visible_paths[uid] = []
+702:             for path in self._render_uid_paths.get(uid, ()):
+703:                 prim = stage.GetPrimAtPath(path)
+704:                 if prim and UsdGeom.Imageable(prim).ComputeVisibility() != UsdGeom.Tokens.invisible:
+705:                     visible_paths[uid].append(path)
+706:         paths = [path for children in visible_paths.values() for path in children]
+707:         self._suppress_ov_pick = True
+708:         try:
+709:             ctx.get_selection().set_selected_prim_paths(paths, True)
+710:             # Native notifications can arrive after this call returns. Remember
+711:             # the complete successfully applied UID set, not its first primitive.
+712:             self._last_ov_pick = (self._scene_revision, tuple(sorted(
+713:                 uid for uid, children in visible_paths.items() if children)))
+714:         finally:
+715:             self._suppress_ov_pick = False
+716:         self._prepare_output_layout(stage)
+717:         self._observe_grid_viewport()
+718:         grid = self._ensure_grid_raster()
+719:         grid.offer(stage,view)
+720:         return {'view': view, 'gridDisplay': dict(grid.receipt), 'primitives': sum(len(x) for x in self._render_uid_paths.values()),
+721:                 'sceneRevision': self._scene_revision, 'projectHash': self._render_project_hash}
+722: 
+
+760:     def _emit_source_pick(self):
+761:         """Publish the complete visible source-object selection, including clear.
+762: 
+763:         Kit Shift adds USD primitives. React owns whole-object highlighting, so
+764:         deduplicate their acknowledged model UIDs without discarding later hits.
+765:         Native Ctrl primitive inversion is not inferred to be a UID toggle.
+766:         """
+767:         if self._suppress_ov_pick or not self._render_project_hash:
+768:             return
+769:         from pxr import UsdGeom
+770:         ctx = omni.usd.get_context()
+771:         stage = ctx.get_stage()
+772:         if stage is None:
+773:             return
+774:         paths = ctx.get_selection().get_selected_prim_paths()
+775:         if len(paths) > 65536:
+776:             return
+777:         selected = {}
+778:         for path in paths:
+779:             # A mixed/unknown/hidden native selection is unresolved, never a clear
+780:             # or a partial snapshot of the remaining valid objects.
+781:             if not isinstance(path, str) or not path.startswith('/World/RenderScene/Geometry/'):
+782:                 return
+783:             prim = stage.GetPrimAtPath(path)
+784:             if not prim or UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible:
+785:                 return
+786:             prim_id = prim.GetCustomDataByKey('dcdtuni:primitiveId')
+787:             model_uid = prim.GetCustomDataByKey('dcdtuni:modelUid')
+788:             if (not isinstance(prim_id, str) or not 1 <= len(prim_id) <= 1024
+789:                     or not isinstance(model_uid, str) or not 1 <= len(model_uid) <= 256
+790:                     or self._render_primitive_ids.get(prim_id) != model_uid
+791:                     or path not in self._render_uid_paths.get(model_uid, ())):
+792:                 return
+793:             selected[model_uid] = min(prim_id, selected.get(model_uid, prim_id))
+794:         if len(selected) > 1024:
+795:             return
+796:         identity = (self._scene_revision, tuple(sorted(selected)))
+797:         if identity == self._last_ov_pick:
+798:             return
+799:         payload = {
+800:             'schema': 'dcdtuni.ov-edit/v1',
+801:             'sceneRevision': self._scene_revision,
+802:             'projectHash': self._render_project_hash,
+803:             'coordinateSystem': {'upAxis': 'Y', 'handedness': 'right', 'metersPerUnit': 1},
+804:             'action': {'type': 'selection'},
+805:             # Keep native first-seen order so a Shift-appended object remains
+806:             # the common driver's last (active) UID; set identity stays order-free.
+807:             'selection': [{'primId': prim_id, 'modelUid': uid} for uid, prim_id in selected.items()],
+808:         }
+809:         if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > 65536:
+810:             return
+811:         self._last_ov_pick = identity
+812:         signal = carb.events.type_from_string('dcdtuni:ovEditEvent')
+813:         omni.kit.app.get_app().get_message_bus_event_stream().push(signal, payload=payload)
+814: 
+
+CANDIDATE src/frontend/react/src/renderer/ovEditBridge.ts SHA256 1b8ee98a118e0b2c010c3cf617a4fbad42952522a8063c3dc76cb2bc7321dc59
+
+/**
+ * CPU-testable Kit -> source project edit gate. The live Kit selection stream
+ * supplies picks; motion commands remain gated on an explicit edit whitelist.
+ * The world pose is the MODEL ANCHOR, not an arbitrary child USD prim matrix.
+ */
+import Ajv2020 from 'ajv/dist/2020'
+import schema from '../../../shared/schema/ov-edit-event.schema.json'
+import * as store from '../projectStore'
+import { cfdrunExport } from '../legacy/cfdrunBuild'
+import type { SceneSnapshot } from './sceneSnapshot'
+import { validateSceneSnapshot } from './validateScene'
+
+type Axis = 'x' | 'y' | 'z'
+type Quaternion = { x: number; y: number; z: number; w: number }
+type Vec = { x: number; y: number; z: number }
+interface OvEventIdentity {
+  schema: 'dcdtuni.ov-edit/v1'
+  sceneRevision: number
+  projectHash: string
+  coordinateSystem: { upAxis: 'Y'; handedness: 'right'; metersPerUnit: 1 }
+}
+interface OvModelEditEvent extends OvEventIdentity {
+  primId: string
+  modelUid: string
+  action: { type: 'pick' } | { type: 'translate' } | { type: 'rotate'; axis: Axis; degrees: number }
+  worldTransform?: { positionMeters: [number, number, number]; quaternion: [number, number, number, number]; scale: [number, number, number] }
+}
+interface OvSelectionEvent extends OvEventIdentity {
+  action: { type: 'selection' }
+  selection: {primId: string; modelUid: string}[]
+}
+export type OvEditEvent = OvModelEditEvent | OvSelectionEvent
+function isSelectionEvent(event: OvEditEvent): event is OvSelectionEvent { return event.action.type === 'selection' }
+export type OvEditResult =
+  | { ok: true; action: 'selection'; modelUids: string[] }
+  | { ok: true; action: OvModelEditEvent['action']['type']; modelUid: string }
+  | { ok: false; reason: 'invalid_event' | 'stale_scene' | 'stale_project' |
+      'unknown_primitive' | 'not_editable' | 'model_mismatch' | 'unsupported_model' |
+      'axis_locked' | 'transform_mismatch' | 'no_change' | 'rejected_by_project' | 'editing_disabled' }
+
+export interface OvEditBridgeOptions {
+  snapshot: SceneSnapshot
+  /** Monotone scene generation issued when this exact packet is ACKed by Kit. */
+  sceneRevision: number
+  /** Must change on every load, visual-layer swap or replacement snapshot. */
+  currentSceneRevision(): number
+  /** Explicit source-geometry whitelist; no primitive is editable by default. */
+  editablePrimitiveIds: ReadonlySet<string>
+  /** Selection can include source geometry that is not yet safe to move. */
+  pickablePrimitiveIds?: ReadonlySet<string>
+  /** Host checks the same active-tab/job freeze as the Three viewport. */
+  canEdit(): boolean
+  onSelection(uids: string[]): void
+}
+
+const validate = new Ajv2020({ strict: true, strictNumbers: true }).compile<OvEditEvent>(schema)
+const POS_TOL_M = 1e-6
+const Q_TOL = 1e-6
+
+function near(a: number, b: number, tolerance: number) { return Math.abs(a - b) <= tolerance }
+function samePosition(a: readonly number[], b: Vec) {
+  return near(a[0]!, b.x, POS_TOL_M) && near(a[1]!, b.y, POS_TOL_M) && near(a[2]!, b.z, POS_TOL_M)
+}
+function sameRotation(a: readonly number[], b: Quaternion) {
+  const values = [b.x, b.y, b.z, b.w]
+  return [1, -1].some(sign => a.every((v, i) => near(v, sign * values[i]!, Q_TOL)))
+}
+function sameScale(a: readonly number[], b: Vec) {
+  return near(a[0]!, b.x, Q_TOL) && near(a[1]!, b.y, Q_TOL) && near(a[2]!, b.z, Q_TOL)
+}
+function normalized(q: readonly number[]) {
+  return near(Math.hypot(...q), 1, Q_TOL)
+}
+function currentHash(project: unknown) { return cfdrunExport().projectContentHashSync(project) }
+
+export function createOvEditBridge(options: OvEditBridgeOptions) {
+  validateSceneSnapshot(options.snapshot)
+  if (!Number.isSafeInteger(options.sceneRevision) || options.sceneRevision < 0) throw new Error('Invalid OV scene revision')
+  const project = store.getProject()
+  if (!project?.uid || project.uid !== options.snapshot.project.uid) throw new Error('OV scene does not match loaded project')
+  const projectUid = project.uid
+  const projectHash = currentHash(project)
+  const storeRevision = store.revision()
+  const primitives = new Map(options.snapshot.primitives.map(p => [p.id, p]))
+  const editable = new Set(options.editablePrimitiveIds)
+  for (const id of editable) if (!primitives.has(id)) throw new Error(`Editable OV primitive is absent from scene: ${id}`)
+  const pickable = new Set(options.pickablePrimitiveIds ?? options.editablePrimitiveIds)
+  for (const id of pickable) if (!primitives.has(id)) throw new Error(`Pickable OV primitive is absent from scene: ${id}`)
+
+  function apply(raw: unknown): OvEditResult {
+    if (!validate(raw) || (!isSelectionEvent(raw) && raw.worldTransform && !normalized(raw.worldTransform.quaternion))) {
+      return { ok: false, reason: 'invalid_event' }
+    }
+    const event = raw
+    if (event.sceneRevision !== options.sceneRevision || options.currentSceneRevision() !== options.sceneRevision) {
+      return { ok: false, reason: 'stale_scene' }
+    }
+    const live = store.getProject()
+    if (!live || store.revision() !== storeRevision || live.uid !== projectUid ||
+        currentHash(live) !== projectHash || event.projectHash !== projectHash) {
+      return { ok: false, reason: 'stale_project' }
+    }
+    if (!options.canEdit()) return { ok: false, reason: 'editing_disabled' }
+    if (isSelectionEvent(event)) {
+      const uids: string[] = []
+      for (const item of event.selection) {
+        const primitive = primitives.get(item.primId)
+        if (!primitive) return { ok: false, reason: 'unknown_primitive' }
+        if (!pickable.has(item.primId) || !primitive.visible) return { ok: false, reason: 'not_editable' }
+        if (primitive.modelUid !== item.modelUid || uids.includes(item.modelUid)) return { ok: false, reason: 'model_mismatch' }
+        const hit = store.findConstruction(live, item.modelUid)
+        if (!hit || hit.model.uid !== item.modelUid) return { ok: false, reason: 'model_mismatch' }
+        uids.push(item.modelUid)
+      }
+      // Apply only after every item validates: a malformed mixed event must not
+      // silently clear or partially replace the common React selection.
+      options.onSelection(uids)
+      return { ok: true, action: 'selection', modelUids: uids }
+    }
+    const primitive = primitives.get(event.primId)
+    if (!primitive) return { ok: false, reason: 'unknown_primitive' }
+    if (event.action.type === 'pick' ? !pickable.has(event.primId) : !editable.has(event.primId)) {
+      return { ok: false, reason: 'not_editable' }
+    }
+    if (primitive.modelUid !== event.modelUid) return { ok: false, reason: 'model_mismatch' }
+    const hit = store.findConstruction(live, event.modelUid)
+    if (!hit || hit.model.uid !== event.modelUid) return { ok: false, reason: 'model_mismatch' }
+    if (event.action.type === 'pick') {
+      options.onSelection([event.modelUid])
+      return { ok: true, action: 'pick', modelUid: event.modelUid }
+    }
+    if (hit.bucket === 'pipeSegments' || !hit.model.geometry?.location || !event.worldTransform) {
+      return { ok: false, reason: 'unsupported_model' }
+    }
+    const location = hit.model.geometry.location
+    const quaternion = hit.model.geometry.quaternion ?? { x: 0, y: 0, z: 0, w: 1 }
+    const { positionMeters, quaternion: resultQ, scale: resultScale } = event.worldTransform
+    if (!sameScale(resultScale, hit.model.geometry.scale ?? { x: 1, y: 1, z: 1 })) {
+      return { ok: false, reason: 'transform_mismatch' }
+    }
+    if (event.action.type === 'translate') {
+      if (!sameRotation(resultQ, quaternion)) return { ok: false, reason: 'transform_mismatch' }
+      const tool = hit.model.moveTool as { enabled?: boolean; axes?: Record<Axis, boolean> } | undefined
+      const delta = { x: positionMeters[0]! - location.x, y: positionMeters[1]! - location.y,
+        z: positionMeters[2]! - location.z }
+      const axes: Axis[] = ['x', 'y', 'z']
+      if (axes.every(axis => near(delta[axis], 0, POS_TOL_M))) return { ok: false, reason: 'no_change' }
+      if (!tool?.enabled || axes.some(axis => !near(delta[axis], 0, POS_TOL_M) && !tool.axes?.[axis])) {
+        return { ok: false, reason: 'axis_locked' }
+      }
+      if (!store.setModelLocation(event.modelUid, { x: positionMeters[0]!, y: positionMeters[1]!, z: positionMeters[2]! })) {
+        return { ok: false, reason: 'rejected_by_project' }
+      }
+      return { ok: true, action: 'translate', modelUid: event.modelUid }
+    }
+    if (!samePosition(positionMeters, location)) return { ok: false, reason: 'transform_mismatch' }
+    const { axis, degrees } = event.action
+    if (Math.abs(degrees) < 1e-6) return { ok: false, reason: 'no_change' }
+    const tool = hit.model.rotateTool as { enabled?: boolean; axes?: { yaw?: boolean; pitch?: boolean; roll?: boolean } } | undefined
+    const ring = axis === 'y' ? 'yaw' : axis === 'x' ? 'pitch' : 'roll'
+    if (!tool?.enabled || !tool.axes?.[ring]) return { ok: false, reason: 'axis_locked' }
+    const letter = axis.toUpperCase() as 'X' | 'Y' | 'Z'
+    const expected = store.multiplyQuaternions(store.axisQuaternion(letter, degrees), quaternion)
+    if (!sameRotation(resultQ, expected)) return { ok: false, reason: 'transform_mismatch' }
+    store.applyModelTransform(event.modelUid, { kind: 'rot', axis: letter, deg: degrees })
+    return { ok: true, action: 'rotate', modelUid: event.modelUid }
+  }
+  return { projectHash, apply }
+}
+
+
+CANDIDATE src/frontend/shared/schema/ov-edit-event.schema.json SHA256 96b00f8c5c19b14dde02fc46de8b141c65d7d530aa4a769e135169d24a5167d9
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schema/ov-edit-event-v1",
+  "title": "Omniverse editor interaction event V1",
+  "description": "Scene-bound source model actions and complete visible source-object selection. Result primitives never authorize source selection or motion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sceneRevision",
+    "projectHash",
+    "coordinateSystem",
+    "action"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "translate",
+                  "rotate"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "worldTransform": {}
+        },
+        "required": [
+          "worldTransform"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "properties": {
+              "type": {
+                "const": "selection"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "required": [
+          "selection"
+        ],
+        "properties": {
+          "primId": false,
+          "modelUid": false,
+          "worldTransform": false,
+          "selection": {}
+        },
+        "type": "object"
+      },
+      "else": {
+        "required": [
+          "primId",
+          "modelUid"
+        ],
+        "properties": {
+          "selection": false,
+          "primId": {},
+          "modelUid": {}
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "properties": {
+    "schema": {
+      "const": "dcdtuni.ov-edit/v1"
+    },
+    "sceneRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "projectHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "primId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "modelUid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "coordinateSystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upAxis",
+        "handedness",
+        "metersPerUnit"
+      ],
+      "properties": {
+        "upAxis": {
+          "const": "Y"
+        },
+        "handedness": {
+          "const": "right"
+        },
+        "metersPerUnit": {
+          "const": 1
+        }
+      }
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "pick"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "translate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "axis",
+            "degrees"
+          ],
+          "properties": {
+            "type": {
+              "const": "rotate"
+            },
+            "axis": {
+              "enum": [
+                "x",
+                "y",
+                "z"
+              ]
+            },
+            "degrees": {
+              "type": "number",
+              "minimum": -360,
+              "maximum": 360
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "selection"
+            }
+          }
+        }
+      ]
+    },
+    "worldTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "positionMeters",
+        "quaternion",
+        "scale"
+      ],
+      "properties": {
+        "positionMeters": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "quaternion": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "scale": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primId",
+          "modelUid"
+        ],
+        "properties": {
+          "primId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "modelUid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      }
+    }
+  }
+}
+

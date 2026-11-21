@@ -1,0 +1,123 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ✓ test/viewFades.test.ts (12 tests) 134ms
+ ✓ test/selectionHighlight.test.ts (15 tests) 7ms
+ ✓ test/liquidEquipmentVisualInteraction.test.ts (9 tests) 181ms
+ ✓ test/modelOpacity.test.ts (20 tests) 68ms
+ ❯ test/cduWholeModelHighlight.test.ts (7 tests | 2 failed) 150ms
+   × whole CDU readable material highlight > paints actual saved m30 structural and detail surfaces and restores every original material 57ms
+     → expected undefined to be +0 // Object.is equality
+   × whole CDU readable material highlight > keeps the ordinary face highlight narrow and textured after whole-model selection 19ms
+     → expected null to be { Object (isTexture, uuid, ...) } // Object.is equality
+ ✓ test/highlightFade.test.ts (7 tests) 14ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cduWholeModelHighlight.test.ts > whole CDU readable material highlight > paints actual saved m30 structural and detail surfaces and restores every original material
+AssertionError: expected undefined to be +0 // Object.is equality
+
+- Expected: 
+0
+
++ Received: 
+undefined
+
+ ❯ test/cduWholeModelHighlight.test.ts:44:72
+     42|   select(h)
+     43|   all.forEach((m,i)=>{expect(m.material).not.toBe(originals[i]);for(co…
+     44|    expect(mat.color.getHex(),m.name).toBe(COLOR);expect(mat.metalness)…
+       |                                                                        ^
+     45|    for(const key of ['map','normalMap','roughnessMap','metalnessMap','…
+     46|   }})
+ ❯ test/cduWholeModelHighlight.test.ts:43:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/cduWholeModelHighlight.test.ts > whole CDU readable material highlight > keeps the ordinary face highlight narrow and textured after whole-model selection
+AssertionError: expected null to be { Object (isTexture, uuid, ...) } // Object.is equality
+
+- Expected: 
+Texture {
+  "anisotropy": 1,
+  "center": Vector2 {
+    "x": 0,
+    "y": 0,
+  },
+  "channel": 0,
+  "colorSpace": "",
+  "flipY": true,
+  "format": 1023,
+  "generateMipmaps": true,
+  "internalFormat": null,
+  "isArrayTexture": false,
+  "isRenderTargetTexture": false,
+  "isTexture": true,
+  "magFilter": 1006,
+  "mapping": 300,
+  "matrix": Matrix3 {
+    "elements": Array [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+    ],
+  },
+  "matrixAutoUpdate": true,
+  "minFilter": 1008,
+  "mipmaps": Array [],
+  "name": "",
+  "normalized": false,
+  "offset": Vector2 {
+    "x": 0,
+    "y": 0,
+  },
+  "onUpdate": null,
+  "pmremVersion": 0,
+  "premultiplyAlpha": false,
+  "renderTarget": null,
+  "repeat": Vector2 {
+    "x": 1,
+    "y": 1,
+  },
+  "rotation": 0,
+  "source": Source {
+    "data": null,
+    "dataReady": true,
+    "isSource": true,
+    "uuid": "05ba7826-4d5a-4e9f-9799-721283c7124c",
+    "version": 0,
+  },
+  "type": 1009,
+  "unpackAlignment": 4,
+  "updateRanges": Array [],
+  "userData": Object {},
+  "uuid": "6ed3583d-19d2-4919-bc99-5bba79b6209f",
+  "version": 0,
+  "wrapS": 1001,
+  "wrapT": 1001,
+}
+
++ Received: 
+null
+
+ ❯ test/cduWholeModelHighlight.test.ts:55:39
+     53|   expect(front).toBeDefined();const original=front.material as Std,tex…
+     54|   select(h);select(h,{type:'face',uid:'m_30',faceId:'front'})
+     55|   expect((front.material as Std).map).toBe(texture);expect((front.mate…
+       |                                       ^
+     56|   for(const m of all.filter(m=>m.userData.faceId!=='front'))expect(m.u…
+     57|  })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed | 5 passed (6)
+      Tests  2 failed | 68 passed (70)
+   Start at  05:50:12
+   Duration  9.69s (transform 1.21s, setup 0ms, collect 3.01s, tests 554ms, environment 4.55s, prepare 392ms)
+

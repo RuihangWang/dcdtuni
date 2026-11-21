@@ -1,0 +1,143 @@
+{
+  "src/backend/liquidcooling/dae_experiment.py": {
+    "identity": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/liquidcooling/dae_experiment.py",
+      "bytes": 16846,
+      "sha256": "7e390b6f2c94aa7ab33e4fc5dba9c909737703a4c40fe72f8d778fcb0af50d79"
+    },
+    "lines": {
+      "79": "    @property",
+      "80": "    def tensor_state(self):return self._state.clone()",
+      "81": "",
+      "82": "    def tensor_series(self,field):",
+      "83": "        return torch.stack([self.equation_graph.unpack(y,p)[field] for y,p in zip(self._states,self._parameters)],dim=1)",
+      "84": ""
+    }
+  },
+  "src/backend/liquidcooling/solver/equation_graph.py": {
+    "identity": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/liquidcooling/solver/equation_graph.py",
+      "bytes": 32900,
+      "sha256": "a1cb2fcd92c414faffe4601d8ed344aa731084c377a4a1f01c7a8eaaae9040d2"
+    },
+    "lines": {
+      "493": "        ids = self._ids['hx']",
+      "494": "        secondary,primary = s['hx_secondary_temperature'],s['primary_return_temperature']",
+      "495": "        secondary_capacity = rho*cp*p['secondary_volume']",
+      "496": "        primary_capacity = p['primary_rho']*p['primary_cp']*p['primary_volume']",
+      "497": "        inflow = weight[ids]*cp*(s['node_temperature'][up[ids]]-secondary)",
+      "498": "        # Physics: UA exchange between the two mixed volumes. Set point: the",
+      "499": "        # secondary is held at T_set and the duty is whatever the secondary",
+      "500": "        # energy balance needs (ideal control), C_s\u00b7dT_set/dt included.",
+      "501": "        exchange = torch.where(self._hx_setpoint,inflow-secondary_capacity*p['hx_T_set_rate'],p['hx_UA']*(secondary-primary))",
+      "502": "        secondary_residual = torch.where(self._hx_setpoint,self._node_gauge_conductance*(secondary-p['hx_T_set']),",
+      "503": "                                         secondary_capacity*d['hx_secondary_temperature']-inflow+exchange)",
+      "504": "        primary_residual = primary_capacity*d['primary_return_temperature']-p['primary_flow_kg_s']*p['primary_cp']*(p['primary_inlet_K']-primary)-exchange",
+      "505": "        return torch.cat((mass,momentum,node_residual,water_residual,solid_residual,secondary_residual,primary_residual))"
+    }
+  },
+  "src/backend/liquidcooling/graphcompiling/compiler.py": {
+    "identity": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/liquidcooling/graphcompiling/compiler.py",
+      "bytes": 33185,
+      "sha256": "2f1a8139d07fda5f35bb153b20f7ec287f2fd239d7cd5c5a91a81b2d366405f9"
+    },
+    "lines": {
+      "208": "    cell_offset = 0",
+      "209": "",
+      "210": "    for pipe_idx, (edge_idx, edge, nf, nt) in enumerate(pipe_edges):",
+      "211": "        params = edge.params",
+      "212": "        D = float(params[\"D_m\"])",
+      "213": "        roughness = float(params.get(\"roughness_m\", 1.5e-6))",
+      "214": "        n_cells = int(params[\"n_cells\"])",
+      "215": "        waypoints = params[\"waypoints_m\"]",
+      "216": "        K_minor_per_bend = float(params.get(\"K_minor_per_bend\", 0.5))",
+      "217": "        heat_source = params.get(\"heat_source_W_per_m\", 0.0)",
+      "218": "",
+      "219": "        pts = torch.tensor(waypoints, dtype=dtype)  # [N_wp, 3]",
+      "220": "        cumlen = _compute_cumlen(pts)",
+      "221": "        total_L = cumlen[-1].item()",
+      "222": "",
+      "254": "        cell_start_list.append(cell_offset)",
+      "255": "        cell_end_list.append(cell_offset + n_cells)",
+      "256": "",
+      "257": "        # Subdivide pipe into thermal cells",
+      "258": "        cell_ds_val = total_L / n_cells if n_cells > 0 else 0.0",
+      "259": "        cell_vol = A * cell_ds_val",
+      "260": "",
+      "261": "        for c in range(n_cells):",
+      "262": "            s_center = (c + 0.5) * cell_ds_val",
+      "263": "            s_lo = c * cell_ds_val",
+      "264": "            s_hi = (c + 1) * cell_ds_val",
+      "265": "",
+      "266": "            # Cell position at center",
+      "267": "            pos = _interp_polyline(pts, cumlen, s_center)",
+      "268": "            all_cell_pos.append(pos.tolist())",
+      "269": "",
+      "270": "            # Cell elevation change",
+      "271": "            p_lo = _interp_polyline(pts, cumlen, s_lo)",
+      "272": "            p_hi = _interp_polyline(pts, cumlen, s_hi)",
+      "273": "            seg_vec = p_hi - p_lo",
+      "274": "            cell_dh_val = -(seg_vec @ g_unit).item()",
+      "275": "",
+      "276": "            all_cell_edge_id.append(pipe_idx)",
+      "277": "            all_cell_ds.append(cell_ds_val)",
+      "278": "            all_cell_volume.append(cell_vol)",
+      "279": "            all_cell_dh.append(cell_dh_val)",
+      "280": "            all_cell_heat_W.append("
+    }
+  },
+  "tools/shinaide_liquid_verification.py": {
+    "identity": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/shinaide_liquid_verification.py",
+      "bytes": 25569,
+      "sha256": "3062e11276c6073afa96d24c442edc6d277d020b56023cdffa639f8e414a7aa6"
+    },
+    "lines": {
+      "76": "def assemble(definition, state):",
+      "77": "    \"\"\"Independent node elimination and water/solid/two-fluid heat balances.",
+      "78": "",
+      "79": "    Read topology/property VALUES, not production residual coefficients. This",
+      "80": "    implementation handles every pipe, every cold plate and every exchanger.",
+      "81": "    \"\"\"",
+      "108": "    cp = float(p['fluid_cp'][0])",
+      "109": "    rho = float(p['fluid_rho'][0])",
+      "110": "    epsilon = np.array([1 - np.exp(-p['cp_UA'][i] / (weight[e] * cp)) if weight[e] > 0 else 0.",
+      "135": "    cw = rho * cp * p['cell_volume']",
+      "136": "    cs = p['cp_Csolid']",
+      "137": "    ch = rho * cp * p['secondary_volume']",
+      "138": "    cpri = p['primary_rho'] * p['primary_cp'] * p['primary_volume']",
+      "139": "    C = np.concatenate([cw, cs, ch, cpri])",
+      "140": "    A, b = np.zeros((nx, nx)), np.zeros(nx)",
+      "141": "    for cell, edge in enumerate(owner):",
+      "142": "        wc = weight[edge] * cp",
+      "143": "        A[cell, cell] -= wc / cw[cell]",
+      "144": "        if (actual[edge] >= 0 and cell == first[edge]) or (actual[edge] < 0 and cell == last[edge]):",
+      "145": "            A[cell] += wc / cw[cell] * S[up[edge]]",
+      "146": "            b[cell] += wc / cw[cell] * g[up[edge]]",
+      "147": "        else:",
+      "148": "            A[cell, cell - 1 if actual[edge] >= 0 else cell + 1] += wc / cw[cell]",
+      "149": "        b[cell] += p['cell_heat_W'][cell] / cw[cell]",
+      "150": "    for local, edge in enumerate(ids['cp']):",
+      "151": "        index = ss.start + local",
+      "152": "        G = weight[edge] * cp * epsilon[local]",
+      "153": "        A[index, index] -= G / cs[local]",
+      "154": "        A[index] += G / cs[local] * S[up[edge]]",
+      "155": "        b[index] += G / cs[local] * g[up[edge]] + p['heat_W'][local] / cs[local]",
+      "156": "    for local, edge in enumerate(ids['hx']):",
+      "157": "        isec, ipri = sh.start + local, sp.start + local",
+      "158": "        wc, ua = weight[edge] * cp, p['hx_UA'][local]",
+      "159": "        mc = p['primary_flow_kg_s'][local] * p['primary_cp'][local]",
+      "160": "        A[isec, isec] -= (wc + ua) / ch[local]",
+      "161": "        A[isec, ipri] += ua / ch[local]",
+      "162": "        A[isec] += wc / ch[local] * S[up[edge]]",
+      "163": "        b[isec] += wc / ch[local] * g[up[edge]]",
+      "164": "        A[ipri, isec] += ua / cpri[local]",
+      "165": "        A[ipri, ipri] -= (ua + mc) / cpri[local]",
+      "166": "        b[ipri] += mc / cpri[local] * p['primary_inlet_K'][local]",
+      "167": "    return dict(A=A, b=b, S=S, g=g, C=C, p=p, ids=ids, owner=owner, first=first, last=last,",
+      "168": "                cw=cw, cs=cs, ch=ch, cpri=cpri, up=up, down=down, weight=weight,",
+      "169": "                actual=actual, dynamic=dynamic, sw=sw, ss=ss, sh=sh, sp=sp, layout=layout,"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import vm from 'node:vm';
+import * as THREE from '../../src/frontend/react/node_modules/three/build/three.module.js';
+const base=new URL('./before/src/frontend/shared/js/',import.meta.url);
+const context=vm.createContext({window:{},THREE});
+for(const file of ['rack_state.js','geometry_pure.js']) vm.runInContext(readFileSync(new URL(file,base),'utf8'),context);
+const model={geometry:{location:{x:Infinity,y:'2',z:NaN},quaternion:{x:Number.MAX_VALUE,y:Number.MAX_VALUE,z:0,w:0},scale:{x:'2',y:-0,z:Infinity}}};
+const point={x:Infinity,y:NaN,z:'3'},direction={x:0,y:0,z:0};
+const bits=(a)=>{const b=Buffer.alloc(a.length*8);a.forEach((v,i)=>b.writeDoubleLE(v,i*8));return b.toString('hex');};
+const fixtureUrl=new URL('../../src/frontend/react/test/fixtures/modelPosePortsParity.json',import.meta.url);
+const fixture=JSON.parse(readFileSync(fixtureUrl,'utf8'));
+fixture.nonfiniteOriginal={pointFloat64LEHex:bits(context.window.geometryPure.modelLocalPointToWorld(model,point).toArray()),directionFloat64LEHex:bits(context.window.geometryPure.modelLocalDirectionToWorld(model,direction).toArray())};
+writeFileSync(fixtureUrl,JSON.stringify(fixture,null,2)+'\n');
+console.log(JSON.stringify(fixture.nonfiniteOriginal));

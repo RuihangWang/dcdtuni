@@ -1,0 +1,26 @@
+--- a/dcCartCompleteCavityAuthority.H
++++ b/dcCartCompleteCavityAuthority.H
+@@ -2,6 +2,7 @@
+ #define dcCartCompleteCavityAuthority_H
+ #include "dcCartPostCarveFluidOwnershipPreview.H"
+ #include "dcCartCompleteCavityOriginCore.H"
++#include "dcCartCompleteCavityReplaySourceSidecar.H"
+ namespace Foam { namespace dcCartCompleteCavityAuthority
+ {
+ inline bool available(const std::function<scalar()>& remaining)
+@@ -19,6 +20,7 @@
+     const std::function<scalar()>& actualRemainingSeconds
+ )
+ {
++    dcCartCompleteCavityReplaySourceSidecar::resetIfEnabled();
+     dcCartCutCells::completeCavityAuthority out;
+     const auto material=dcCartWeightUnionSourceContract::readLocal(meshDict);
+     const auto necessary=dcCartPointRepairSourceContract::readLocal(meshDict);
+@@ -82,6 +84,7 @@
+             (*snapshot,records,fresh,actualRank,[actualRemainingSeconds]()
+                 { return available(actualRemainingSeconds); });
+     };
++    dcCartCompleteCavityReplaySourceSidecar::bindIfEnabled(snapshot,actualRank);
+     return out;
+ }
+ // A future topology consumer must still prove the complete current cavity,

@@ -1,0 +1,17 @@
+# MAIN normal frontend build 2026-10-06
+
+ROOT明确BUILD GO后唯一一次 `/usr/bin/npm run build`，MAIN237d66bb49d9c5bad1b4c26b4ff4a011f1d2db09 /IT16557402de55870a62f31467968121fbc6590134，CPU28–31/CUDA空；rc0，52.511827s。正规tsc-b+Vite5.4.21，stdout/stderr全文保留。TMP与npm/XDG缓存指向本B-owned目录。
+
+新index-C4h0pw9c.js2962949B/SHA29f590e8f55df0e0138884733640edbc633ae4de38669e90d84da73bbac9c39f；CSS index-DT1zrFvW.css62790B/SHAa7e00e7916771fbcf6bbbf24ee20ce03b6113d456a3a226d44270e9e80ae9f58。新index917B/SHA11c6996b9285742d1da970809710374baf5073486cd73438aec1850db04c4a56保持，未恢复旧index。
+
+旧dist完整36files/20,889,875B复制后逐SHA/mode核验。构建后只恢复缺失旧hashedassets及全部proof，28files（24旧assets+4proof）恢复，7sameNameSameBytes，0collision。backup完整在dist-before/；per-fileSHA/长度/mode在dist-before.json。原缓存浏览器可继续取得旧hashedresources，本次没有browser reload/Kit restart或服务操作。
+
+前后Main144输入（140stage源码/vendor+reader/base test/原nativeopenfoam_case/HANDOFF_ACCOUNT）、IT140全部SHA/长度一致；Main6原用户case/lock字节与flags/ignore一致；6PID的startTicks/argv/cwd/exe/CPU/nativeflags/CUDAvisibility及5listener inode/owners一致；Main/IT HEAD与空index内容相同。当前ITlauncher745627/start129560431、backend745658/start129560442；ROOT已正式加入4diagnostic flags，原Main/Kit4PID保持。ROOT可能在IT运行小job，不能把6PID固定说成没有其他短child活动。
+
+构建之前的首次preflight仅因ROOT完成cherry时追加HANDOFF_ACCOUNT元数据造成旧测试窗口SHA不同，未启动npm/触dist；原script/controls/error在preflight-initial/保持。按新HEAD已提交HANDOFF字节核验d98b0604…31824B后更新元数据基线，143产品依赖+IT140当时无漂移。只存在一次npm build，不用preflight失败混作build失败。
+
+dependency-closure/保原11file148PASS/1FAIL：IT WIP点修复receipt断言与MAIN有意缺61侧线行不兼容；ROOT两断言窄修后dependency-closure-v2/同11file149PASS/7.27s。reader/base test精确补acceptedfoundation，最新Snapshotdf296保留。MAIN140内138equal+2 deliberatebranch differences为oldnativeauthority runnercc4c9def及test1f1f710；不引point/weight contracts或openfoam_case WIP。v1后复制test恰碰ROOT并发修复，误命名原RED文件实际绿版，v2已有原c970字节和澄清。两包原manifest不覆盖。
+
+本包证明源码依赖闭环、受控units与一次正常MAIN构建/资产保全。没有MAIN UI/raster/GPU/OV picking验收、后端重启、mesh/checkMesh/solve/native或API/服务/Git mutation。ROOT后续正常MAIN browser验收另计，不能把build等同UI已过。
+
+顶manifest收所有small evidence/source/script/closure原包，不收npm/tmp/pytestcache与旧dist实体备份；后者独立完整存于dist-before/并由已验证inventory逐文件绑定，不作为Git候选。

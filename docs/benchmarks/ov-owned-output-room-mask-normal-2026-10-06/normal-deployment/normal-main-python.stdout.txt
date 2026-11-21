@@ -1,0 +1,94 @@
+.........................................................FFFF........... [ 69%]
+................................                                         [100%]
+=================================== FAILURES ===================================
+_______ test_bridge_rejects_missing_or_outside_cache_before_author[None] _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9696657880>
+cache = None
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+        assert calls == []
+        assert len(acks) == 1 and acks[0][0] == "cache-boundary"
+        assert acks[0][1]["ok"] is False
+>       assert "DCDTUNI_RENDER_TEXTURE_CACHE" in acks[0][1]["error"]
+E       assert 'DCDTUNI_RENDER_TEXTURE_CACHE' in "'CfdBridgeExtension' object has no attribute '_display_generation'"
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:52: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command loadRenderScene rejected: 'CfdBridgeExtension' object has no attribute '_display_generation'
+_ test_bridge_rejects_missing_or_outside_cache_before_author[relative-textures] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9671b56aa0>
+cache = 'relative-textures'
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+        assert calls == []
+        assert len(acks) == 1 and acks[0][0] == "cache-boundary"
+        assert acks[0][1]["ok"] is False
+>       assert "DCDTUNI_RENDER_TEXTURE_CACHE" in acks[0][1]["error"]
+E       assert 'DCDTUNI_RENDER_TEXTURE_CACHE' in "'CfdBridgeExtension' object has no attribute '_display_generation'"
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:52: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command loadRenderScene rejected: 'CfdBridgeExtension' object has no attribute '_display_generation'
+_ test_bridge_rejects_missing_or_outside_cache_before_author[/tmp/dcdtuni-render-textures] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9671a75db0>
+cache = '/tmp/dcdtuni-render-textures'
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+        assert calls == []
+        assert len(acks) == 1 and acks[0][0] == "cache-boundary"
+        assert acks[0][1]["ok"] is False
+>       assert "DCDTUNI_RENDER_TEXTURE_CACHE" in acks[0][1]["error"]
+E       assert 'DCDTUNI_RENDER_TEXTURE_CACHE' in "'CfdBridgeExtension' object has no attribute '_display_generation'"
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:52: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command loadRenderScene rejected: 'CfdBridgeExtension' object has no attribute '_display_generation'
+_______ test_bridge_valid_cache_is_forwarded_absolute_without_cli_change _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f967186fc70>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-normal-deployment-20261006/tmp/pytest-normal-main/test_bridge_valid_cache_is_for0')
+
+    def test_bridge_valid_cache_is_forwarded_absolute_without_cli_change(monkeypatch, tmp_path):
+        extension, acks, calls = bridge_route(monkeypatch)
+        cache = tmp_path / "runtime" / "render-textures"
+        monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", str(cache))
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "owned-cache"}))
+>       assert calls == [str(cache.resolve())]
+E       AssertionError: assert [] == ['/mnt/lv/hom...der-textures']
+E         
+E         Right contains one more item: '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-normal-deployment-20261006/tmp/pytest-normal-main/test_bridge_valid_cache_is_for0/runtime/render-textures'
+E         Use -v to get more diff
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:60: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command loadRenderScene rejected: 'CfdBridgeExtension' object has no attribute '_display_generation'
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[None]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[relative-textures]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[/tmp/dcdtuni-render-textures]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_valid_cache_is_forwarded_absolute_without_cli_change
+4 failed, 100 passed in 16.85s

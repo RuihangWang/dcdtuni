@@ -1,0 +1,40 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/SeedInspector.test.tsx (7 tests | 2 failed) 238ms
+   × SeedInspector > writes the offset into the project when the box is committed 39ms
+     → expected undefined to be close to 0.2, received difference is NaN, but expected 5e-11
+   × SeedInspector > flips the status badge once the surface carries an override 28ms
+     → expected '默认' not to be '默认' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/SeedInspector.test.tsx > SeedInspector > writes the offset into the project when the box is committed
+AssertionError: expected undefined to be close to 0.2, received difference is NaN, but expected 5e-11
+ ❯ test/components/SeedInspector.test.tsx:118:45
+    116|     const openings = (raisedFloor().geometry as { openings: { seedConf…
+    117|       .openings
+    118|     expect(openings[0]?.seedConfig?.offset).toBeCloseTo(0.2, 10)
+       |                                             ^
+    119|   })
+    120| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/components/SeedInspector.test.tsx > SeedInspector > flips the status badge once the surface carries an override
+AssertionError: expected '默认' not to be '默认' // Object.is equality
+ ❯ test/components/SeedInspector.test.tsx:140:65
+    138|     render(<SeedInspector {...props} model={raisedFloor()} />)
+    139|     expect(surface.isCustom).toBe(false)
+    140|     expect(host.querySelector('#seed-status')?.textContent).not.toBe(b…
+       |                                                                 ^
+    141|   })
+    142| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 5 passed (7)
+   Start at  09:47:23
+   Duration  2.78s (transform 728ms, setup 0ms, collect 1.41s, tests 238ms, environment 816ms, prepare 76ms)
+

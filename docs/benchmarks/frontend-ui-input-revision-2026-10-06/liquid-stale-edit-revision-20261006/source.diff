@@ -1,0 +1,91 @@
+--- src/frontend/react/src/projectStore.ts before
++++ src/frontend/react/src/projectStore.ts after
+@@ -89,6 +89,13 @@
+  * rebuild per opacity nudge — which is why the counter is separate.
+  */
+ let stateRevision = 0
++// A prepared run follows committed document inputs, not view/log/save repaint.
++// Keep the rendering revision independent so existing subscribers still repaint.
++let documentEditRevision = 0
++
++export function documentInputRevision(): number {
++  return documentEditRevision
++}
+ 
+ /** Bumped whenever listeners are told; see `stateRevision`. */
+ export function revision(): number {
+@@ -211,7 +218,8 @@
+   return () => { projectLoadListeners.delete(fn) }
+ }
+ 
+-function emit() {
++function emit(documentChanged = false) {
++  if (documentChanged) documentEditRevision += 1
+   stateRevision += 1
+   listeners.forEach((fn) => fn())
+ }
+@@ -300,7 +308,7 @@
+   log.length = 0
+   logOperation('loadProject', path ?? '(in memory)')
+   projectLoadListeners.forEach((fn) => fn())
+-  emit()
++  emit(true)
+ }
+ 
+ /**
+@@ -363,7 +371,7 @@
+   state = { ...state, project: draft, dirty: true }
+   refreshFrozenRef()
+   logOperation(action, detail)
+-  emit()
++  emit(true)
+   return true
+ }
+ 
+@@ -374,7 +382,7 @@
+   state = { ...state, project: transientModel().materializeAt(prev, playhead), dirty: true }
+   refreshFrozenRef()
+   logOperation('undo', '')
+-  emit()
++  emit(true)
+ }
+ 
+ export function redo() {
+@@ -384,7 +392,7 @@
+   state = { ...state, project: transientModel().materializeAt(next, playhead), dirty: true }
+   refreshFrozenRef()
+   logOperation('redo', '')
+-  emit()
++  emit(true)
+ }
+ 
+ export function markSaved(path: string) {
+@@ -732,7 +740,7 @@
+   state = { ...state, dirty: true }
+   refreshFrozenRef()
+   if (action !== 'liveEdit') logOperation(action, detail)
+-  emit()
++  emit(true)
+ }
+ 
+ /**
+--- src/frontend/react/src/components/LiquidExperimentPanel.tsx before
++++ src/frontend/react/src/components/LiquidExperimentPanel.tsx after
+@@ -21,7 +21,7 @@
+ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+   const {t}=useTranslation()
+   const state=useSyncExternalStore(runtime.subscribeRuntime,runtime.runtimeState)
+-  const revision=useSyncExternalStore(store.subscribe,store.revision)
++  const revision=useSyncExternalStore(store.subscribe,store.documentInputRevision)
+   const experiment=readExperiment(project)
+   const {duration_s:duration,dt_s:dt,settings}=experiment
+   // In a transient project the timeline owns the duration and load / supply
+@@ -161,7 +161,7 @@
+     setCreating(true)
+     try {
+       const scenario=compilePersistedScenario()
+-      await runtime.createRuntimeSession(scenario.liquidrun,scenario.controllers,store.revision())
++      await runtime.createRuntimeSession(scenario.liquidrun,scenario.controllers,store.documentInputRevision())
+     }catch(e){setError(e instanceof Error?e.message:String(e))}
+     finally {setCreating(false)}
+   }

@@ -1,0 +1,1950 @@
+--- /dev/null
++++ b/src/frontend/shared/schema/ov-postprocess-previews.schema.json
+@@ -0,0 +1,328 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "dcdtuni.ov-postprocess-previews/v1",
++  "$defs": {
++    "sha256": {
++      "type": "string",
++      "pattern": "^[0-9a-f]{64}$"
++    },
++    "source": {
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "projectUid",
++        "projectContentSha256",
++        "cfdrunSha256",
++        "meshReceiptSha256",
++        "meshQuality",
++        "run"
++      ],
++      "properties": {
++        "projectUid": {
++          "type": "string",
++          "minLength": 1,
++          "maxLength": 1024
++        },
++        "projectContentSha256": {
++          "$ref": "#/$defs/sha256"
++        },
++        "cfdrunSha256": {
++          "$ref": "#/$defs/sha256"
++        },
++        "meshReceiptSha256": {
++          "$ref": "#/$defs/sha256"
++        },
++        "meshQuality": {
++          "enum": [
++            "accepted",
++            "diagnostic"
++          ]
++        },
++        "run": {
++          "oneOf": [
++            {
++              "type": "null"
++            },
++            {
++              "type": "object",
++              "additionalProperties": false,
++              "required": [
++                "uid",
++                "receiptSha256"
++              ],
++              "properties": {
++                "uid": {
++                  "type": "string",
++                  "minLength": 1,
++                  "maxLength": 1024
++                },
++                "receiptSha256": {
++                  "$ref": "#/$defs/sha256"
++                }
++              }
++            }
++          ]
++        }
++      }
++    },
++    "binding": {
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "source",
++        "packetSha256",
++        "timeSeconds",
++        "sceneRevision",
++        "displayGeneration",
++        "scopeKey",
++        "ownerKey"
++      ],
++      "properties": {
++        "source": {
++          "$ref": "#/$defs/source"
++        },
++        "packetSha256": {
++          "$ref": "#/$defs/sha256"
++        },
++        "timeSeconds": {
++          "type": "number",
++          "minimum": 0,
++          "maximum": 1e+18
++        },
++        "sceneRevision": {
++          "type": "integer",
++          "minimum": 0,
++          "maximum": 9007199254740991
++        },
++        "displayGeneration": {
++          "type": "integer",
++          "minimum": 0,
++          "maximum": 9007199254740991
++        },
++        "scopeKey": {
++          "type": "string",
++          "minLength": 1,
++          "maxLength": 4096
++        },
++        "ownerKey": {
++          "type": "string",
++          "pattern": "^[0-9a-f]{32}$"
++        }
++      }
++    },
++    "packet": {
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "schema",
++        "binding",
++        "handles"
++      ],
++      "properties": {
++        "schema": {
++          "const": "dcdtuni.ov-postprocess-previews/v1"
++        },
++        "binding": {
++          "$ref": "#/$defs/binding"
++        },
++        "handles": {
++          "type": "array",
++          "maxItems": 2,
++          "items": {
++            "oneOf": [
++              {
++                "type": "object",
++                "additionalProperties": false,
++                "required": [
++                  "kind",
++                  "setId",
++                  "origin",
++                  "normal",
++                  "radius"
++                ],
++                "properties": {
++                  "kind": {
++                    "const": "ring"
++                  },
++                  "setId": {
++                    "oneOf": [
++                      {
++                        "type": "integer",
++                        "minimum": 0,
++                        "maximum": 9007199254740991
++                      },
++                      {
++                        "const": "draft"
++                      }
++                    ]
++                  },
++                  "origin": {
++                    "type": "array",
++                    "minItems": 3,
++                    "maxItems": 3,
++                    "items": {
++                      "type": "number",
++                      "minimum": -1e+18,
++                      "maximum": 1e+18
++                    }
++                  },
++                  "normal": {
++                    "type": "array",
++                    "minItems": 3,
++                    "maxItems": 3,
++                    "items": {
++                      "type": "number",
++                      "minimum": -1e+18,
++                      "maximum": 1e+18
++                    }
++                  },
++                  "radius": {
++                    "type": "number",
++                    "exclusiveMinimum": 0,
++                    "maximum": 1e+18
++                  }
++                }
++              },
++              {
++                "type": "object",
++                "additionalProperties": false,
++                "required": [
++                  "kind",
++                  "setId",
++                  "centre",
++                  "radius"
++                ],
++                "properties": {
++                  "kind": {
++                    "const": "seed"
++                  },
++                  "setId": {
++                    "oneOf": [
++                      {
++                        "type": "integer",
++                        "minimum": 0,
++                        "maximum": 9007199254740991
++                      },
++                      {
++                        "const": "draft"
++                      }
++                    ]
++                  },
++                  "centre": {
++                    "type": "array",
++                    "minItems": 3,
++                    "maxItems": 3,
++                    "items": {
++                      "type": "number",
++                      "minimum": -1e+18,
++                      "maximum": 1e+18
++                    }
++                  },
++                  "radius": {
++                    "type": "number",
++                    "exclusiveMinimum": 0,
++                    "maximum": 1e+18
++                  }
++                }
++              }
++            ]
++          }
++        }
++      }
++    },
++    "ack": {
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "schema",
++        "packet",
++        "leaseKey",
++        "ready"
++      ],
++      "properties": {
++        "schema": {
++          "const": "dcdtuni.ov-postprocess-previews-ack/v1"
++        },
++        "packet": {
++          "$ref": "#/$defs/packet"
++        },
++        "leaseKey": {
++          "type": "string",
++          "pattern": "^[0-9a-f]{32}$"
++        },
++        "ready": {
++          "const": true
++        }
++      }
++    },
++    "event": {
++      "type": "object",
++      "additionalProperties": false,
++      "required": [
++        "schema",
++        "binding",
++        "leaseKey",
++        "sequence",
++        "kind",
++        "setId",
++        "position"
++      ],
++      "properties": {
++        "schema": {
++          "const": "dcdtuni.ov-postprocess-preview-event/v1"
++        },
++        "binding": {
++          "$ref": "#/$defs/binding"
++        },
++        "leaseKey": {
++          "type": "string",
++          "pattern": "^[0-9a-f]{32}$"
++        },
++        "sequence": {
++          "type": "integer",
++          "minimum": 1,
++          "maximum": 9007199254740991
++        },
++        "kind": {
++          "enum": [
++            "ring",
++            "seed"
++          ]
++        },
++        "setId": {
++          "oneOf": [
++            {
++              "type": "integer",
++              "minimum": 0,
++              "maximum": 9007199254740991
++            },
++            {
++              "const": "draft"
++            }
++          ]
++        },
++        "position": {
++          "type": "array",
++          "minItems": 3,
++          "maxItems": 3,
++          "items": {
++            "type": "number",
++            "minimum": -1e+18,
++            "maximum": 1e+18
++          }
++        }
++      }
++    }
++  },
++  "oneOf": [
++    {
++      "$ref": "#/$defs/packet"
++    },
++    {
++      "$ref": "#/$defs/ack"
++    },
++    {
++      "$ref": "#/$defs/event"
++    }
++  ]
++}
+--- /dev/null
++++ b/src/frontend/react/src/renderer/ovPostprocessPreviews.ts
+@@ -0,0 +1,58 @@
++/** Non-numeric previews of the same shared form. They cannot request a cut/trace. */
++import Ajv2020 from 'ajv/dist/2020'
++import schema from '../../../shared/schema/ov-postprocess-previews.schema.json'
++import type {ResultSource} from './resultLayers'
++import type {DisplaySnapshot,DisplaySetId} from '../postprocess/displaySession'
++import type {CanonicalRenderReceipt} from '../postprocess/commonRenderIntent'
++export interface PreviewBinding {
++ source:ResultSource;packetSha256:string;timeSeconds:number;sceneRevision:number
++ displayGeneration:number;scopeKey:string;ownerKey:string
++}
++export type PreviewHandle = {kind:'ring';setId:DisplaySetId;origin:[number,number,number];normal:[number,number,number];radius:number} |
++ {kind:'seed';setId:DisplaySetId;centre:[number,number,number];radius:number}
++export interface PreviewPacket {schema:'dcdtuni.ov-postprocess-previews/v1';binding:PreviewBinding;handles:PreviewHandle[]}
++export interface PreviewAck {schema:'dcdtuni.ov-postprocess-previews-ack/v1';packet:PreviewPacket;leaseKey:string;ready:true}
++export interface PreviewEvent {schema:'dcdtuni.ov-postprocess-preview-event/v1';binding:PreviewBinding;leaseKey:string;sequence:number;kind:'ring'|'seed';setId:DisplaySetId;position:[number,number,number]}
++type PreviewWire=PreviewPacket|PreviewAck|PreviewEvent
++const validate=new Ajv2020({strict:true,strictNumbers:true}).compile<PreviewWire>(schema)
++function semanticPacket(packet:PreviewPacket) {
++ if(!packet.binding.source.run)return false
++ const kinds=new Set<string>()
++ for(const handle of packet.handles){
++  if(kinds.has(handle.kind))return false;kinds.add(handle.kind)
++  if(handle.kind==='ring'&&!(Math.hypot(...handle.normal)>1e-12))return false
++ }
++ return true
++}
++function valid(value:unknown):value is PreviewWire {
++ try {
++  if(new TextEncoder().encode(JSON.stringify(value)).byteLength>16384||!validate(value))return false
++  if(value.schema==='dcdtuni.ov-postprocess-previews/v1')return semanticPacket(value)
++  if(value.schema==='dcdtuni.ov-postprocess-previews-ack/v1')return semanticPacket(value.packet)
++  return value.binding.source.run!==null
++ }catch{return false}
++}
++export function parsePreviewEvent(value:unknown):PreviewEvent|null {
++ return valid(value)&&value.schema==='dcdtuni.ov-postprocess-preview-event/v1'?value:null
++}
++export function parsePreviewAck(value:unknown):PreviewAck|null {
++ return valid(value)&&value.schema==='dcdtuni.ov-postprocess-previews-ack/v1'?value:null
++}
++export function assertPreviewPacket(value:unknown):asserts value is PreviewPacket {
++ if(!valid(value)||value.schema!=='dcdtuni.ov-postprocess-previews/v1')throw new Error('Invalid owned shared preview packet')
++}
++function canonical(value:unknown):string {
++ if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`
++ if(value!==null&&typeof value==='object')return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`
++ return JSON.stringify(value)
++}
++export function samePreviewValue(a:unknown,b:unknown){return canonical(a)===canonical(b)}
++export function previewOwnerKey():string {
++ const bytes=crypto.getRandomValues(new Uint8Array(16));return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')
++}
++export function buildPreviewPacket(frame:DisplaySnapshot,receipt:CanonicalRenderReceipt,ownerKey:string):PreviewPacket {
++ const packet:PreviewPacket={schema:'dcdtuni.ov-postprocess-previews/v1',binding:{source:structuredClone(receipt.source),packetSha256:receipt.sha256,timeSeconds:receipt.timeSeconds,sceneRevision:receipt.sceneRevision,displayGeneration:frame.generation,scopeKey:frame.scopeKey,ownerKey},handles:[]}
++ if(frame.layers.ring?.show)packet.handles.push({kind:'ring',setId:frame.handles.ringSetId,origin:[...frame.layers.ring.origin],normal:[...frame.layers.ring.normal],radius:frame.layers.ring.radius})
++ if(frame.layers.seed?.show)packet.handles.push({kind:'seed',setId:frame.handles.seedSetId,centre:[...frame.layers.seed.centre],radius:frame.layers.seed.radius})
++ assertPreviewPacket(packet);return packet
++}
+--- a/src/frontend/react/src/renderer/ovProtocol.ts
++++ b/src/frontend/react/src/renderer/ovProtocol.ts
+@@ -1,3 +1,4 @@
++import {assertPreviewPacket,parsePreviewEvent,type PreviewPacket,type PreviewAck,type PreviewBinding,type PreviewEvent} from './ovPostprocessPreviews'
+ import type {SourcePickRequest} from './sourceViewportPick'
+ import {captureDiagnosticContext,diagnosticRequest,validateDiagnosticReply,type DiagnosticContext, type DiagnosticReply} from './ovDisplayDiagnostics'
+ import type { RenderViewState, SceneSnapshot } from './sceneSnapshot'
+@@ -6,7 +7,10 @@
+ import { validateRenderOverlay } from './validateOverlay'
+ import { assertResultLayerCompatibility, type ResultLayerSet, type ResultSource } from './resultLayers'
+ 
+-export interface RenderAck { sourcePickJSON?:string; diagnostics?:Record<string,unknown>; packetSha256?:string; source?:ResultSource;timeSeconds?:number|null;displayGeneration?:number;requestId: string; ok: boolean; error?: string; view?: RenderViewState; primitives?: number; received?: number; revision?: number; layers?: number; sceneRevision?: number; projectHash?: string;
++export interface RenderAck {
++  postprocessPreviews?: PreviewAck
++  retiredPostprocessPreviews?: boolean
++  sourcePickJSON?:string; diagnostics?:Record<string,unknown>; packetSha256?:string; source?:ResultSource;timeSeconds?:number|null;displayGeneration?:number;requestId: string; ok: boolean; error?: string; view?: RenderViewState; primitives?: number; received?: number; revision?: number; layers?: number; sceneRevision?: number; projectHash?: string;
+   /** Common view decoration status; never a numeric/source authorisation. */
+   gridDisplay?: {phase:'pending'|'unsupported'|'rejected'|'rendered'|'hidden';reason?:string;viewRevision?:number}
+   /** setSlice/getSliceState reply: the slice state Kit actually holds. */
+@@ -150,6 +154,7 @@
+   private requestSequence = 0
+   private closed = false
+   private diagnosticInFlight = false
++  private previewEventHandlers = new Set<(event:PreviewEvent)=>void>()
+   private editEventHandler: ((event: unknown) => void) | null = null
+   private sceneProgressHandler: ((progress: SceneProgress) => void) | null = null
+   private transferQueue: Promise<void> = Promise.resolve()
+@@ -181,6 +186,11 @@
+         value = value.message
+         continue
+       }
++      if(value.event_type==='dcdtuni:postprocessPreviewEvent') {
++        const preview=parsePreviewEvent(value.payload)
++        if(preview)for(const handler of [...this.previewEventHandlers]) {try{handler(preview)}catch{/* event listeners cannot interrupt transport */}}
++        return
++      }
+       if (value.event_type === 'dcdtuni:ovEditEvent') {
+         if (this.editEventHandler && record(value.payload)) {
+           try {
+@@ -325,29 +335,41 @@
+     }
+   }
+ 
+-  private request(send: (id: string) => Promise<void>, timeoutMs = this.timeoutMs, settleAny = false, diagnostics?:DiagnosticContext): Promise<RenderAck> {
++  private request(send: (id: string) => Promise<void>, timeoutMs = this.timeoutMs, settleAny = false, diagnostics?:DiagnosticContext, signal?:AbortSignal): Promise<RenderAck> {
+     if (this.closed) return Promise.reject(new Error('Omniverse disconnected'))
+-    const id = requestUuid()
+-    if (this.pending.has(id)) return Promise.reject(new Error('Duplicate Omniverse request identifier'))
+-    const sequence = ++this.requestSequence
+-    return new Promise((resolve, reject) => {
+-      const fail = (e: Error) => {
+-        const pending = this.pending.get(id)
+-        if (!pending || pending.sequence !== sequence) return
+-        clearTimeout(pending.timer)
+-        this.pending.delete(id)
+-        this.pruneAckGroups()
+-        reject(e)
+-      }
+-      this.pending.set(id, { resolve, reject, sequence, settleAny, diagnostics,
+-        timer: setTimeout(() => fail(new Error('Omniverse command submission timed out')), timeoutMs) })
+-      void send(id).then(() => {
+-        const current = this.pending.get(id)
+-        if (!current || current.sequence !== sequence) return
+-        clearTimeout(current.timer)
+-        current.timer = setTimeout(() => fail(new Error('Omniverse acknowledgement timed out')), timeoutMs)
+-      }).catch(e => fail(e instanceof Error ? e : new Error(String(e))))
++    if(signal?.aborted)return Promise.reject(new Error('Omniverse owned request aborted'))
++    const id=requestUuid()
++    if(this.pending.has(id))return Promise.reject(new Error('Duplicate Omniverse request identifier'))
++    const sequence=++this.requestSequence
++    return new Promise((resolve,reject)=>{
++      const cleanup=()=>signal?.removeEventListener('abort',abort)
++      const fail=(error:Error)=>{
++        const pending=this.pending.get(id)
++        if(!pending||pending.sequence!==sequence)return
++        clearTimeout(pending.timer);this.pending.delete(id);this.pruneAckGroups();cleanup();reject(error)
++      }
++      const abort=()=>fail(new Error('Omniverse owned request aborted'))
++      this.pending.set(id,{resolve:ack=>{cleanup();resolve(ack)},reject:error=>{cleanup();reject(error)},sequence,settleAny,diagnostics,
++        timer:setTimeout(()=>fail(new Error('Omniverse command submission timed out')),timeoutMs)})
++      signal?.addEventListener('abort',abort,{once:true})
++      if(signal?.aborted){abort();return}
++      void send(id).then(()=>{
++        const current=this.pending.get(id)
++        if(!current||current.sequence!==sequence)return
++        clearTimeout(current.timer);current.timer=setTimeout(()=>fail(new Error('Omniverse acknowledgement timed out')),timeoutMs)
++      }).catch(error=>fail(error instanceof Error?error:new Error(String(error))))
+     })
++  }
++  setCommonPostprocessPreviews(packet:PreviewPacket,signal?:AbortSignal):Promise<RenderAck> {
++    assertPreviewPacket(packet)
++    return this.request(id=>this.command('setCommonPostprocessPreviews',{requestId:id,packet}),this.timeoutMs,false,undefined,signal)
++  }
++  retireCommonPostprocessPreviews(binding:PreviewBinding):Promise<RenderAck> {
++    assertPreviewPacket({schema:'dcdtuni.ov-postprocess-previews/v1',binding,handles:[]})
++    return this.request(id=>this.command('retireCommonPostprocessPreviews',{requestId:id,binding}),3000)
++  }
++  subscribePostprocessPreviewEvents(handler:(event:PreviewEvent)=>void):()=>void {
++    this.previewEventHandlers.add(handler);return ()=>{this.previewEventHandlers.delete(handler)}
+   }
+   private async command(name: string, args: object) {
+     if (this.closed) throw new Error('Omniverse disconnected')
+@@ -528,6 +550,7 @@
+   }
+   dispose() {
+     this.closed = true
++    this.previewEventHandlers.clear()
+     this.editEventHandler = null
+     for (const p of this.pending.values()) {
+       clearTimeout(p.timer)
+--- a/src/frontend/react/src/renderer/ovPostprocessAdapter.ts
++++ b/src/frontend/react/src/renderer/ovPostprocessAdapter.ts
+@@ -1,21 +1,42 @@
++import {buildPreviewPacket,parsePreviewAck,parsePreviewEvent,previewOwnerKey,samePreviewValue,type PreviewBinding,type PreviewPacket,type PreviewAck} from './ovPostprocessPreviews'
+ /** OV realizes the same accepted numeric product, never chooses a run/time or
+  * computes a second singleton slice/trace. Capability gaps remain explicit. */
+ import type { OvCommandClient } from './ovProtocol'
+ import {requestCanonicalRenderGrant,type CommonRenderIntent,type CanonicalRenderReply} from '../postprocess/commonRenderIntent'
+-import type { DisplayApplyContext, DisplaySnapshot, PostprocessRendererAdapter } from '../postprocess/displaySession'
++import type { DisplayApplyContext, DisplaySnapshot, PostprocessRendererAdapter,DisplayInteractionReadback } from '../postprocess/displaySession'
+ import { currentResultLayerContext, currentLiveAirResultSelection, currentResultLayerOwner } from './resultLayerRevision'
+ import { assertResultLayerCompatibility,sameResultSource } from './resultLayers'
+ import { enqueueOvResultMutation, clearOwnedOvResultLayers, setOvResultStage } from './ovResultMutationQueue'
+ export interface AcknowledgedDisplayScene {projectUid:string;projectHash:string;sceneRevision:number}
+ export interface OvPostprocessAdapterOptions {
+-  client: Pick<OvCommandClient,'loadVerifiedResultLayers'|'clearResultLayers'>
++  client: Pick<OvCommandClient,'loadVerifiedResultLayers'|'clearResultLayers'> & Partial<Pick<OvCommandClient,'setCommonPostprocessPreviews'|'retireCommonPostprocessPreviews'|'subscribePostprocessPreviewEvents'>>
+   requestGrant?(intent:CommonRenderIntent,scene:AcknowledgedDisplayScene,generation:number,signal:AbortSignal):Promise<CanonicalRenderReply>
++  onInteraction?(event:DisplayInteractionReadback):boolean
+   sceneIdle(): Promise<void>
+   scene(): AcknowledgedDisplayScene | null
+ }
+ export function createOvPostprocessAdapter(options: OvPostprocessAdapterOptions): PostprocessRendererAdapter {
+   let closed = false
+-  const controller=new AbortController()
++  const controller=new AbortController(),ownerKey=previewOwnerKey()
++  let pendingPreview:AbortController|null=null,lastBinding:PreviewBinding|null=null,retireError=''
++  let retirement:Promise<void>|null=null
++  let preview:{packet:PreviewPacket;ack:PreviewAck;frame:DisplaySnapshot;context:DisplayApplyContext;scene:AcknowledgedDisplayScene;accepted:NonNullable<ReturnType<typeof currentResultLayerContext>>;lastSequence:number}|null=null
++  function retireInteraction() {
++    pendingPreview?.abort();pendingPreview=null;preview=null
++    const binding=lastBinding;lastBinding=null
++    if(binding&&options.client.retireCommonPostprocessPreviews) {
++      const task=options.client.retireCommonPostprocessPreviews(binding).then(ack=>{if(ack.retiredPostprocessPreviews!==true)throw new Error('OV preview retirement was not acknowledged')}).catch(error=>{retireError=error instanceof Error?error.message:String(error)})
++      retirement=Promise.all([retirement??Promise.resolve(),task]).then(()=>{})
++    }
++  }
++  const unsubscribe=options.client.subscribePostprocessPreviewEvents?.(raw=>{
++    const event=parsePreviewEvent(raw),active=preview
++    if(!event||!active||event.sequence<=active.lastSequence||event.leaseKey!==active.ack.leaseKey||
++       !samePreviewValue(event.binding,active.packet.binding)||!current(active.frame,active.context,active.scene)||
++       currentResultLayerOwner()!=='air-postprocess'||currentResultLayerContext()!==active.accepted||
++       !sameResultSource(active.accepted.source,event.binding.source)||active.accepted.timeSeconds!==event.binding.timeSeconds||!active.packet.handles.some(h=>h.kind===event.kind&&h.setId===event.setId))return
++    if(options.onInteraction?.({kind:event.kind,setId:event.setId,position:[...event.position],generation:event.binding.displayGeneration,scopeKey:event.binding.scopeKey}))active.lastSequence=event.sequence
++  })
+   function current(frame: DisplaySnapshot, context: DisplayApplyContext, scene: AcknowledgedDisplayScene) {
+     const now = options.scene(), packet = frame.packet
+     return !closed && context.isCurrent() && frame.isCurrent() && !!packet &&
+@@ -23,9 +44,12 @@
+       now.sceneRevision === scene.sceneRevision && now.projectHash === scene.projectHash
+   }
+   return {kind:'ov',async render(frame,context) {
++    preview=null
++    if(retirement)await retirement
++    if(retireError)return {status:'rejected',message:`OV preview retirement failed: ${retireError}`}
+     if (!frame.packet) return {status:'rejected',message:'OV requires the same accepted mesh/run/frame receipt as the shared result producer'}
+     await options.sceneIdle()
+-    const scene = options.scene(), packet = frame.packet
++    const acknowledgedScene=options.scene(),scene=acknowledgedScene?{...acknowledgedScene}:null,packet=frame.packet
+     if (!scene || !current(frame,context,scene)) return {status:'rejected',message:'OV has not acknowledged this project display generation'}
+     setOvResultStage(options.client,scene)
+     const accepted = currentResultLayerContext(), selected = currentLiveAirResultSelection()
+@@ -47,6 +71,20 @@
+     if(!ack)return {status:'rejected',message:'OV result mutation was superseded before stage authoring'}
+     if (!current(frame,context,scene)) return {status:'rejected',message:'OV result acknowledgement belongs to an older display generation'}
+     if(ack.revision!==packet.revision||ack.packetSha256!==reply.packetReceipt.sha256||ack.timeSeconds!==packet.timeSeconds||ack.sceneRevision!==scene.sceneRevision||ack.displayGeneration!==frame.generation||!sameResultSource(ack.source,packet.source))throw new Error('OV result acknowledgement differs from the verified source/frame')
++    let interactionReady=false
++    const supportsPreviews=!!(options.client.setCommonPostprocessPreviews&&options.client.retireCommonPostprocessPreviews&&options.client.subscribePostprocessPreviewEvents&&options.onInteraction)
++    if(supportsPreviews) {
++      const packet=buildPreviewPacket(frame,reply.packetReceipt,ownerKey),pending=new AbortController()
++      pendingPreview=pending;lastBinding=packet.binding
++      const abort=()=>pending.abort();controller.signal.addEventListener('abort',abort,{once:true})
++      try {
++        const previewReply=await options.client.setCommonPostprocessPreviews!(packet,pending.signal)
++        if(!current(frame,context,scene)||currentResultLayerContext()!==accepted)return {status:'rejected',message:'Preview source changed before acknowledgement'}
++        const ack=parsePreviewAck(previewReply.postprocessPreviews)
++        if(!ack||!samePreviewValue(ack.packet,packet))throw new Error('OV preview acknowledgement differs from owned source/frame/handles')
++        preview={packet,ack,frame,context,scene,accepted,lastSequence:0};interactionReady=packet.handles.length>0
++      }finally{controller.signal.removeEventListener('abort',abort);if(pendingPreview===pending)pendingPreview=null}
++    }
+     // ResultLayerSet transports every numeric surface/cut/trace list entry.
+     // The signed canonical product also carries the common nodal volume grid
+     // and transfer function. Geometry appearance and interactive handles still
+@@ -55,10 +93,11 @@
+     if(frame.appearance?.ao) unsupported.push('geometry depth enhancement')
+     if(frame.appearance?.lightIntensity!==undefined&&frame.appearance.lightIntensity!==1) unsupported.push(`lighting ${frame.appearance.lightIntensity}`)
+     if(frame.appearance?.modelOpacity!==undefined&&frame.appearance.modelOpacity!==1) unsupported.push(`model opacity ${frame.appearance.modelOpacity}`)
+-    if (frame.layers.ring?.show) unsupported.push(`slice preview handle ${frame.handles.ringSetId}`)
+-    if (frame.layers.seed?.show) unsupported.push(`streamline seed handle ${frame.handles.seedSetId}`)
+-    return unsupported.length ? {status:'unsupported',message:`OV adapter conversion is pending for: ${unsupported.join('; ')}`} : {status:'displayed'}
+-  },async clear(context) {
++    if (!supportsPreviews&&frame.layers.ring?.show) unsupported.push(`slice preview handle ${frame.handles.ringSetId}`)
++    if (!supportsPreviews&&frame.layers.seed?.show) unsupported.push(`streamline seed handle ${frame.handles.seedSetId}`)
++    return unsupported.length ? {status:'unsupported',message:`OV adapter conversion is pending for: ${unsupported.join('; ')}`,interactionReady} : {status:'displayed',interactionReady}
++  },retireInteraction,async clear(context) {
++    retireInteraction();if(retirement)await retirement
+     await options.sceneIdle()
+     const scene=options.scene()
+     if(!scene||closed||!context.isCurrent())return
+@@ -66,5 +105,5 @@
+     await clearOwnedOvResultLayers(options.client,'air-postprocess',()=>!closed&&context.isCurrent()&&
+       options.scene()?.sceneRevision===scene.sceneRevision&&currentResultLayerOwner()!=='mesh-preview',
+       ()=>options.client.clearResultLayers(context.generation))
+-  },dispose() {closed = true;controller.abort()}}
++  },dispose() {retireInteraction();closed = true;controller.abort();unsubscribe?.()}}
+ }
+--- a/src/frontend/react/src/renderer/useSharedPostprocessRenderer.ts
++++ b/src/frontend/react/src/renderer/useSharedPostprocessRenderer.ts
+@@ -13,7 +13,7 @@
+       return
+     }
+     const client=session.client
+-    const adapter=createOvPostprocessAdapter({client,
++    const adapter=createOvPostprocessAdapter({client,onInteraction:event=>sharedPostprocessDisplay.interact(event),
+       sceneIdle:()=>ovSession().sceneIdle?.()??Promise.resolve(),
+       scene:()=>{
+         const current=ovSession()
+--- a/src/frontend/react/src/postprocess/displaySession.ts
++++ b/src/frontend/react/src/postprocess/displaySession.ts
+@@ -46,7 +46,7 @@
+   timeSeconds: number | null
+   message: string
+ }
+-export type DisplayOutcome = Pick<DisplayStatus, 'status'> & { message?: string }
++export type DisplayOutcome = Pick<DisplayStatus, 'status'> & { message?: string; interactionReady?:boolean }
+ export interface DisplayApplyContext { isCurrent(): boolean; generation?:number }
+ export interface PostprocessRendererAdapter {
+   kind: 'three' | 'ov'
+@@ -54,6 +54,7 @@
+   clear(context: DisplayApplyContext): Promise<void> | void
+   /** Release adapter-owned tasks, never the shared transport or solver data. */
+   dispose(): void
++  retireInteraction?():void
+   configureAppearance?(appearance: DisplayAppearance, context: DisplayApplyContext): void
+ }
+ export type DisplayInteraction = {kind: 'ring' | 'seed'; setId: DisplaySetId; position: [number, number, number]}
+@@ -76,6 +77,7 @@
+   private appearance: DisplayAppearance = defaultAppearance()
+   private fieldOpacityOverride: number | null = null
+   private generation = 0
++  private interactionGeneration = -1
+   private adapter: PostprocessRendererAdapter
+   private pending = false
+   private busy = false
+@@ -97,12 +99,18 @@
+     this.interactionListeners.add(listener);return () => {this.interactionListeners.delete(listener)}
+   }
+   private statusChanged(status: DisplayStatus['status'], message = '') {
++    if(status==='idle'||status==='pending'||status==='rejected')this.interactionGeneration=-1
+     this.state = {status,message,renderer:this.adapter.kind,generation:this.generation,timeSeconds:this.frame?.packet?.timeSeconds ?? null}
+     for (const listener of [...this.listeners]) listener()
++  }
++  private applied(outcome:DisplayOutcome) {
++    this.interactionGeneration=outcome.interactionReady&&(outcome.status==='displayed'||outcome.status==='unsupported')?this.generation:-1
++    this.statusChanged(outcome.status,outcome.message)
+   }
+   present(input: DisplayInput) {
+     validateVolume(input.volume)
+     if (!input.isCurrent()) throw new Error('Shared display input is no longer the current accepted frame')
++    this.adapter.retireInteraction?.()
+     // All receipt, session, raw-unit, physical-time and live-field checks stay
+     // in the existing producer. A diagnostic frame cannot forge a packet.
+     const opacity=this.fieldOpacityOverride??input.windFrame?.surface.opacity??input.layers.surface.opacity??this.appearance.fieldOpacity
+@@ -124,11 +132,13 @@
+   /** Mesh preview shares this presentation counter while retaining its public
+    * MeshPanel session. Retire an older air input before its mesh carrier loads. */
+   takeMeshDisplayOwnership():number {
++    this.adapter.retireInteraction?.()
+     this.generation++;this.frame=null;this.input=null;this.pending=false
+     clearResultLayerSet('air-postprocess');this.statusChanged('idle')
+     return this.generation
+   }
+   clear() {
++    this.adapter.retireInteraction?.()
+     this.generation++;this.frame = null;this.input = null
+     clearResultLayerSet('air-postprocess')
+     this.statusChanged('idle')
+@@ -169,7 +179,7 @@
+   interact(event: DisplayInteractionReadback): boolean {
+     const frame = this.frame
+     const id = event.kind === 'ring' ? frame?.handles.ringSetId : frame?.handles.seedSetId
+-    if (!frame || this.state.status !== 'displayed' || event.generation !== frame.generation ||
++    if (!frame || (this.state.status !== 'displayed' && !(this.state.status==='unsupported'&&this.interactionGeneration===frame.generation)) || event.generation !== frame.generation ||
+         event.scopeKey !== frame.scopeKey || event.setId !== id || !frame.isCurrent() ||
+         !event.position.every(Number.isFinite)) return false
+     for (const listener of [...this.interactionListeners]) listener({kind:event.kind,setId:event.setId,position:[...event.position]})
+@@ -187,7 +197,7 @@
+     const frame=this.frame,adapter=this.adapter,generation=this.generation,lane=this.lane
+     const isCurrent=()=>lane===this.lane&&adapter===this.adapter&&generation===this.generation&&frame===this.frame&&(!frame||frame.isCurrent())
+     if(!isCurrent()){this.statusChanged('rejected','The accepted display source changed');return}
+-    const finished=(outcome:DisplayOutcome|void)=>{if(isCurrent()&&outcome)this.statusChanged(outcome.status,outcome.message)}
++    const finished=(outcome:DisplayOutcome|void)=>{if(isCurrent()&&outcome)this.applied(outcome)}
+     const failed=(error:unknown)=>{if(isCurrent())this.statusChanged('rejected',error instanceof Error?error.message:String(error))}
+     try {
+       const result=frame?adapter.render(frame,{isCurrent,generation}):adapter.clear({isCurrent,generation})
+@@ -220,7 +230,7 @@
+         try {
+           if (!frame) {await adapter.clear({isCurrent,generation});continue}
+           const outcome = await adapter.render(frame,{isCurrent,generation})
+-          if (isCurrent()) this.statusChanged(outcome.status,outcome.message)
++          if (isCurrent()) this.applied(outcome)
+         } catch (error) {
+           if (isCurrent()) this.statusChanged('rejected',error instanceof Error ? error.message : String(error))
+         }
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/common_postprocess_previews.py
+@@ -0,0 +1,270 @@
++"""Display-only shared form handles, authorized by the last signed numeric commit.
++
++No USD/data imports and no numerical slice/trace entry points belong here.
++"""
++import copy
++import json
++import math
++import re
++import secrets
++
++SCHEMA = 'dcdtuni.ov-postprocess-previews/v1'
++ACK_SCHEMA = 'dcdtuni.ov-postprocess-previews-ack/v1'
++EVENT_SCHEMA = 'dcdtuni.ov-postprocess-preview-event/v1'
++BASE_KEYS = ('source', 'packetSha256', 'timeSeconds', 'sceneRevision', 'displayGeneration')
++MAX_INTEGER = 9007199254740991
++
++
++def _keys(value, keys):
++    if type(value) is not dict or set(value) != set(keys):
++        raise ValueError('Unexpected shared preview fields')
++
++
++def _text(value, maximum):
++    if type(value) is not str or not 1 <= len(value) <= maximum:
++        raise ValueError('Invalid shared preview text')
++
++
++def _hex(value, count):
++    if type(value) is not str or re.fullmatch('[0-9a-f]{%d}' % count, value) is None:
++        raise ValueError('Invalid shared preview identity')
++
++
++def _number(value, lower=-1e18, upper=1e18):
++    if type(value) not in (int, float) or not math.isfinite(value) or not lower <= value <= upper:
++        raise ValueError('Invalid shared preview coordinate')
++
++
++def _integer(value, lower=0):
++    if type(value) is not int or not lower <= value <= MAX_INTEGER:
++        raise ValueError('Invalid shared preview generation')
++
++
++def vector(value):
++    if type(value) not in (list, tuple) or len(value) != 3:
++        raise ValueError('Invalid shared preview vector')
++    for component in value:
++        _number(component)
++    return tuple(value)
++
++
++def unit(value):
++    value = vector(value)
++    length = math.hypot(*value)
++    if not length > 1e-12:
++        raise ValueError('Degenerate shared preview normal')
++    return tuple(v / length for v in value)
++
++
++def _set_id(value):
++    if value != 'draft' or type(value) is not str:
++        _integer(value)
++
++
++def validate_binding(binding):
++    _keys(binding, (*BASE_KEYS, 'scopeKey', 'ownerKey'))
++    source = binding['source']
++    _keys(source, ('projectUid', 'projectContentSha256', 'cfdrunSha256',
++                   'meshReceiptSha256', 'meshQuality', 'run'))
++    _text(source['projectUid'], 1024)
++    for name in ('projectContentSha256', 'cfdrunSha256', 'meshReceiptSha256'):
++        _hex(source[name], 64)
++    if source['meshQuality'] not in ('accepted', 'diagnostic'):
++        raise ValueError('Invalid shared preview mesh quality')
++    _keys(source['run'], ('uid', 'receiptSha256'))
++    _text(source['run']['uid'], 1024)
++    _hex(source['run']['receiptSha256'], 64)
++    _hex(binding['packetSha256'], 64)
++    _number(binding['timeSeconds'], 0)
++    _integer(binding['sceneRevision'])
++    _integer(binding['displayGeneration'])
++    _text(binding['scopeKey'], 4096)
++    _hex(binding['ownerKey'], 32)
++    if len(json.dumps(binding, allow_nan=False, ensure_ascii=False).encode('utf-8')) > 16384:
++        raise ValueError('Shared preview payload too large')
++    return binding
++
++
++def validate_packet(packet):
++    _keys(packet, ('schema', 'binding', 'handles'))
++    if packet['schema'] != SCHEMA:
++        raise ValueError('Invalid shared preview schema')
++    validate_binding(packet['binding'])
++    handles = packet['handles']
++    if type(handles) is not list or len(handles) > 2:
++        raise ValueError('Invalid shared preview handles')
++    seen = set()
++    for handle in handles:
++        if type(handle) is not dict:
++            raise ValueError('Invalid shared preview handle')
++        kind = handle.get('kind')
++        if kind not in ('ring', 'seed') or kind in seen:
++            raise ValueError('Invalid shared preview kind')
++        seen.add(kind)
++        _keys(handle, ('kind', 'setId', 'origin', 'normal', 'radius') if kind == 'ring'
++              else ('kind', 'setId', 'centre', 'radius'))
++        _set_id(handle['setId'])
++        vector(handle['origin'] if kind == 'ring' else handle['centre'])
++        if kind == 'ring':
++            unit(handle['normal'])
++        _number(handle['radius'], 0)
++        if not handle['radius'] > 0:
++            raise ValueError('Degenerate shared preview radius')
++    if len(json.dumps(packet, allow_nan=False, ensure_ascii=False).encode('utf-8')) > 16384:
++        raise ValueError('Shared preview payload too large')
++    return packet
++
++
++def identity(value):
++    return json.dumps(value, allow_nan=False, sort_keys=True, separators=(',', ':'))
++
++
++def ray_plane(origin, direction, point, normal):
++    origin, direction, point, normal = vector(origin), vector(direction), vector(point), unit(normal)
++    denominator = sum(d * n for d, n in zip(direction, normal))
++    if abs(denominator) <= 1e-12:
++        raise ValueError('Shared preview ray parallel to drag plane')
++    distance = sum((p - o) * n for p, o, n in zip(point, origin, normal)) / denominator
++    if not math.isfinite(distance) or distance < 0:
++        raise ValueError('Shared preview drag plane behind pointer')
++    return vector(tuple(o + distance * d for o, d in zip(origin, direction)))
++
++
++def move_handle(handle, start_hit, hit):
++    start = vector(handle['origin'] if handle['kind'] == 'ring' else handle['centre'])
++    delta = tuple(b - a for a, b in zip(vector(start_hit), vector(hit)))
++    if handle['kind'] == 'ring':
++        normal = unit(handle['normal'])
++        distance = sum(d * n for d, n in zip(delta, normal))
++        delta = tuple(distance * n for n in normal)
++    return vector(tuple(s + d for s, d in zip(start, delta)))
++
++
++class PreviewController:
++    """Own a native lease only after the numerical carrier actually committed.
++
++    retire-before-set tombstones survive replays of the same numeric commit;
++    adapter owner keys stop an old renderer's retirement clearing its successor.
++    """
++    def __init__(self, read_context, publish):
++        self._read_context = read_context
++        self._publish_event = publish
++        self._committed = None
++        self._active = None
++        self._retired = {}
++        self._closed = False
++
++    def _drop(self):
++        active, self._active = self._active, None
++        if active and active['producer'] is not None:
++            active['producer'].close()
++
++    def invalidate(self):
++        try:
++            self._drop()
++        finally:
++            self._committed = None
++
++    def close(self):
++        try:
++            self.invalidate()
++        finally:
++            self._closed = True
++
++    def bind_committed(self, granted, stage_generation):
++        if self._closed:
++            raise ValueError('Shared preview controller closed')
++        self._drop()
++        if granted.get('kind') != 'rendererResult':
++            self._committed = None
++            return
++        base = copy.deepcopy({key: granted[key] for key in BASE_KEYS})
++        # Verify the complete base using a bounded temporary presentation owner.
++        validate_binding(dict(base, scopeKey='committed', ownerKey='0' * 32))
++        _integer(stage_generation)
++        base_token = identity(base)
++        self._retired = {token: value for token, value in self._retired.items() if value == base_token}
++        self._committed = dict(base=base, stage_generation=stage_generation)
++        self.require_current()
++
++    def require_current(self):
++        committed = self._committed
++        if self._closed or committed is None:
++            raise ValueError('No committed signed numeric result for shared previews')
++        try:
++            scene, epoch = self._read_context()
++        except (ValueError, AttributeError, ReferenceError, TypeError) as exc:
++            self.invalidate()
++            raise ValueError('Shared preview scene unavailable') from exc
++        base = committed['base']
++        if (epoch != committed['stage_generation'] or scene.get('projectUid') != base['source']['projectUid']
++                or scene.get('projectContentSha256') != base['source']['projectContentSha256']
++                or scene.get('revision') != base['sceneRevision']):
++            self.invalidate()
++            raise ValueError('Shared preview scene changed')
++        return copy.deepcopy(base)
++
++    def install(self, raw, factory):
++        packet = copy.deepcopy(validate_packet(raw))
++        base = self.require_current()
++        binding = packet['binding']
++        if identity({k: binding[k] for k in BASE_KEYS}) != identity(base):
++            raise ValueError('Shared preview differs from committed source/time/generation')
++        token = identity(binding)
++        if token in self._retired:
++            raise ValueError('Shared preview owner retired')
++        if len(self._retired) >= 256:
++            raise ValueError('Shared preview owner retirement capacity reached')
++        self._drop()
++        active = dict(packet=packet, lease=secrets.token_hex(16), sequence=0, producer=None)
++        self._active = active
++        try:
++            if packet['handles']:
++                active['producer'] = factory(packet['handles'],
++                    lambda kind, set_id, position: self._emit(active, kind, set_id, position), self.require_current)
++                if not active['producer'].ready():
++                    raise ValueError('Native shared preview ownership not ready')
++            self.require_current()
++            if self._active is not active or token in self._retired:
++                raise ValueError('Shared preview retired during installation')
++            return dict(schema=ACK_SCHEMA, packet=copy.deepcopy(packet), leaseKey=active['lease'], ready=True)
++        except Exception:
++            if self._active is active:
++                self._drop()
++            raise
++
++    def retire(self, raw):
++        binding = copy.deepcopy(validate_binding(raw))
++        token = identity(binding)
++        # A retirement may arrive before installation. Keep exact same-source
++        # tombstones even before a numeric ACK, without closing unrelated owners.
++        base_token = identity({k: binding[k] for k in BASE_KEYS})
++        if self._committed is not None and base_token != identity(self._committed['base']):
++            return True
++        if token not in self._retired and len(self._retired) >= 256:
++            raise ValueError('Shared preview owner retirement capacity reached')
++        self._retired[token] = base_token
++        if self._active and identity(self._active['packet']['binding']) == token:
++            self._drop()
++        return True
++
++    def _emit(self, active, kind, set_id, position):
++        if self._active is not active or active['producer'] is None:
++            return False
++        try:
++            self.require_current()
++            if not active['producer'].ready():
++                self._drop()
++                return False
++            if not any(h['kind'] == kind and h['setId'] == set_id for h in active['packet']['handles']):
++                return False
++            position = vector(position)
++            sequence = active['sequence'] + 1
++            _integer(sequence, 1)
++            event = dict(schema=EVENT_SCHEMA, binding=copy.deepcopy(active['packet']['binding']),
++                leaseKey=active['lease'], sequence=sequence, kind=kind, setId=set_id, position=list(position))
++            self._publish_event(event)
++            active['sequence'] = sequence
++            return True
++        except (ValueError, TypeError, ReferenceError, RuntimeError):
++            return False
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/postprocess_preview_viewport.py
+@@ -0,0 +1,239 @@
++"""Owned public SceneView carrier for the common slice ring and seed sphere.
++
++SDK construction/callability is separate from encoded-video pixel verification.
++No encoder crop/scale transform is asserted here; output_layout stays fail closed.
++"""
++import copy
++import math
++from types import SimpleNamespace
++from .common_postprocess_previews import move_handle, ray_plane, unit, vector
++
++
++def _sdk():
++    import omni.ui as ui
++    from omni.ui import scene as sc
++    from omni import appwindow
++    from omni.kit.viewport.utility import get_active_viewport_and_window
++    from pxr import Gf
++    from .render_output_observations import _same_public_api, reviewed_runtime_getters
++    return SimpleNamespace(ui=ui, sc=sc, paired=get_active_viewport_and_window,
++        app=appwindow.get_default_app_window, same_api=_same_public_api,
++        getters=reviewed_runtime_getters(), Gf=Gf)
++
++
++def _matrix(value):
++    result = tuple(float(value[row][column]) for row in range(4) for column in range(4))
++    if not all(math.isfinite(v) for v in result):
++        raise ValueError('Invalid native preview camera matrix')
++    return result
++
++
++def _time(value):
++    if value.IsDefault():
++        return ('default',)
++    result = float(value.GetValue())
++    if not math.isfinite(result):
++        raise ValueError('Invalid native preview time')
++    return ('time', result)
++
++
++def ring_positions(handle):
++    n = unit(handle['normal'])
++    helper = (1, 0, 0) if abs(n[0]) < .8 else (0, 1, 0)
++    u = unit((n[1] * helper[2] - n[2] * helper[1],
++              n[2] * helper[0] - n[0] * helper[2], n[0] * helper[1] - n[1] * helper[0]))
++    v = (n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0])
++    origin, radius = handle['origin'], handle['radius']
++    return [list(vector(tuple(origin[j] + radius * (math.cos(i * math.tau / 64) * u[j]
++        + math.sin(i * math.tau / 64) * v[j]) for j in range(3)))) for i in range(65)]
++
++
++def sphere_geometry(handle):
++    # Public PolygonMesh, since this pinned SDK has no Sphere shape.
++    centre, radius = handle['centre'], handle['radius']
++    positions = [[centre[0], centre[1] + radius, centre[2]]]
++    for lat in range(1, 8):
++        theta = math.pi * lat / 8
++        for lon in range(16):
++            phi = math.tau * lon / 16
++            positions.append([centre[0] + radius * math.sin(theta) * math.cos(phi),
++                centre[1] + radius * math.cos(theta), centre[2] + radius * math.sin(theta) * math.sin(phi)])
++    south = len(positions)
++    positions.append([centre[0], centre[1] - radius, centre[2]])
++    indices = []
++    for lon in range(16):
++        following = (lon + 1) % 16
++        indices.extend((0, 1 + following, 1 + lon))
++        for lat in range(6):
++            a, b = 1 + lat * 16 + lon, 1 + lat * 16 + following
++            indices.extend((a, b, a + 16, b, b + 16, a + 16))
++        indices.extend((south, 1 + 6 * 16 + lon, 1 + 6 * 16 + following))
++    for position in positions:
++        vector(position)
++    return positions, [3] * (len(indices) // 3), indices
++
++
++class NativePreviewFactory:
++    """SDK injection is only for explicitly labelled CPU API-contract controls."""
++    def __init__(self, sdk=None):
++        self.sdk = sdk if sdk is not None else _sdk()
++
++    def __call__(self, handles, publish, require_current):
++        return NativePreviewProducer(self.sdk, handles, publish, require_current)
++
++
++class NativePreviewProducer:
++    def __init__(self, sdk, handles, publish, require_current):
++        self.sdk, self.publish, self.require_current = sdk, publish, require_current
++        self.closed, self.drag = False, None
++        self.scene_view = self.frame = None
++        self.handles = copy.deepcopy(handles)
++        self.shapes, self.gestures = {}, {}
++        self.api, self.window = sdk.paired()
++        self.app = sdk.app()
++        getters = sdk.getters
++        if (getters is None or not getters['supports_viewport'](self.api)
++                or not getters['supports_window'](self.window) or not getters['supports_appwindow'](self.app)
++                or not getters['is_app_window_attached'](self.app)):
++            raise ValueError('Native preview public runtime unsupported')
++        self.widget, self.window_frame = self.window.viewport_widget, self.window.frame
++        self.delegate = self.widget.display_delegate
++        self.stage = self.api.stage
++        self.native_identity = self._sample_native_identity()
++        if self.stage is None or str(self.api.camera_path) != '/World/RenderCamera':
++            raise ValueError('Native preview camera/stage unavailable')
++        self.require_current()
++        try:
++            self.frame = self.window.get_frame('dcdtuni.shared-postprocess-previews')
++            with self.frame:
++                with sdk.ui.ZStack():
++                    self.scene_view = sdk.sc.SceneView()
++                    with self.scene_view.scene:
++                        for handle in self.handles:
++                            gesture = self._make_gesture(handle)
++                            if handle['kind'] == 'ring':
++                                positions = ring_positions(handle)
++                                shape = sdk.sc.Curve(positions, colors=[(1, .65, .1, 1)] * len(positions),
++                                    curve_type=sdk.sc.Curve.CurveType.LINEAR, thickness=3,
++                                    intersection_thickness=10, gestures=[gesture])
++                            else:
++                                positions, counts, indices = sphere_geometry(handle)
++                                shape = sdk.sc.PolygonMesh(positions, [(0, .75, 1, .75)] * len(positions),
++                                    counts, indices, gestures=[gesture])
++                            self.shapes[handle['kind']] = shape
++                            self.gestures[handle['kind']] = gesture
++            self.api.add_scene_view(self.scene_view)
++            if not self.ready():
++                raise ValueError('Native preview viewport ownership changed during construction')
++        except Exception:
++            self.close()
++            raise
++
++    def _sample_native_identity(self):
++        api = self.api
++        return (str(api.id), str(api.usd_context_name), str(api.render_product_path),
++                str(api.camera_path), _time(api.time))
++
++    def ready(self):
++        if self.closed:
++            return False
++        try:
++            api, window = self.sdk.paired()
++            self.require_current()
++            return (window is self.window and self.sdk.same_api(api, self.api)
++                and self.sdk.same_api(self.widget.viewport_api, self.api)
++                and self.window.viewport_widget is self.widget and self.window.frame is self.window_frame
++                and self.widget.display_delegate is self.delegate and self.window.app_window is self.app
++                and self.sdk.app() is self.app and self.api.stage is self.stage
++                and self._sample_native_identity() == self.native_identity)
++        except (ValueError, AttributeError, ReferenceError, TypeError, RuntimeError):
++            return False
++
++    def _camera(self):
++        if not self.ready():
++            raise ValueError('Native preview owner retired')
++        transform = self.api.transform
++        direction = unit(tuple(transform.TransformDir(self.sdk.Gf.Vec3d(0, 0, -1))))
++        return (_matrix(self.api.view), _matrix(self.api.projection), _matrix(transform), direction)
++
++    def _make_gesture(self, handle):
++        producer = self
++        class PreviewDrag(self.sdk.sc.DragGesture):
++            def on_began(self):
++                producer._began(handle, self.raw_input)
++            def on_changed(self):
++                producer._changed(handle, self.raw_input, ended=False)
++            def on_ended(self):
++                producer._changed(handle, self.raw_input, ended=True)
++            def on_canceled(self):
++                producer._cancel_drag()
++        return PreviewDrag(mouse_button=0, check_mouse_moved=True)
++
++    def _began(self, handle, raw):
++        self._cancel_drag()
++        try:
++            camera = self._camera()
++            centre = handle['origin'] if handle['kind'] == 'ring' else handle['centre']
++            hit = ray_plane(tuple(raw.mouse_origin), tuple(raw.mouse_direction), centre, camera[3])
++            self.drag = dict(handle=handle, camera=camera, start_hit=hit, position=tuple(centre))
++        except (ValueError, AttributeError, ReferenceError, TypeError, RuntimeError):
++            self.drag = None
++
++    def _positions(self, handle, position):
++        value = dict(handle)
++        value['origin' if handle['kind'] == 'ring' else 'centre'] = list(position)
++        return ring_positions(value) if handle['kind'] == 'ring' else sphere_geometry(value)[0]
++
++    def _cancel_drag(self):
++        drag, self.drag = self.drag, None
++        if drag and not self.closed:
++            handle = drag['handle']
++            centre = handle['origin'] if handle['kind'] == 'ring' else handle['centre']
++            self.shapes[handle['kind']].positions = self._positions(handle, centre)
++
++    def _changed(self, handle, raw, ended):
++        drag = self.drag
++        if drag is None or drag['handle'] is not handle:
++            return
++        try:
++            if self._camera() != drag['camera']:
++                raise ValueError('Native preview camera changed during drag')
++            centre = handle['origin'] if handle['kind'] == 'ring' else handle['centre']
++            hit = ray_plane(tuple(raw.mouse_origin), tuple(raw.mouse_direction), centre, drag['camera'][3])
++            position = move_handle(handle, drag['start_hit'], hit)
++            # Re-check every final native getter after calculating the endpoint.
++            if self._camera() != drag['camera']:
++                raise ValueError('Native preview camera changed during readback')
++            self.shapes[handle['kind']].positions = self._positions(handle, position)
++            drag['position'] = position
++            if ended:
++                if not self.publish(handle['kind'], handle['setId'], position):
++                    self._cancel_drag()
++                    return
++                handle['origin' if handle['kind'] == 'ring' else 'centre'] = list(position)
++                self.drag = None
++        except (ValueError, AttributeError, ReferenceError, TypeError, RuntimeError):
++            self._cancel_drag()
++
++    def close(self):
++        if self.closed:
++            return
++        self.drag = None
++        self.closed = True
++        scene_view, self.scene_view = self.scene_view, None
++        frame, self.frame = self.frame, None
++        if scene_view is not None:
++            # Kit can destroy the viewport before extension shutdown; always
++            # release our remaining owned widgets even if its API is gone.
++            for cleanup in (lambda: self.api.remove_scene_view(scene_view), scene_view.scene.clear):
++                try:
++                    cleanup()
++                except (ReferenceError, AttributeError, RuntimeError):
++                    pass
++        if frame is not None:
++            try:
++                frame.clear()
++            except (ReferenceError, AttributeError, RuntimeError):
++                pass
++        self.shapes.clear()
++        self.gestures.clear()
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -25,7 +25,8 @@
+     _RECEIVE_EVENT = "omni.kit.livestream.receive_message"
+     # Acked OV-display commands; they ride the render path (requestId + ack).
+     OV_DISPLAY_COMMANDS = frozenset({'setSlice', 'getSliceState', 'loadResultDataset', 'setVolumeDisplay',
+-                                     'loadLiquidResult', 'setLiquidFrame', 'clearLiquidColours'})
++                                     'loadLiquidResult', 'setLiquidFrame', 'clearLiquidColours',
++                                     'setCommonPostprocessPreviews', 'retireCommonPostprocessPreviews'})
+     # The livestream WebRTC plugin (omni.kit.livestream.webrtc 9.0.2) silently
+     # drops an outbound custom message queued within about a frame of an
+     # inbound one. Measured on 40901 with a relay probe (2026-09-30): echoes
+@@ -62,6 +63,10 @@
+         self._trusted_result_context = None
+         from .verified_result_grant import VerifiedResultController
+         self._verified_result_controller = VerifiedResultController()
++        from .common_postprocess_previews import PreviewController
++        self._postprocess_preview_controller = PreviewController(
++            lambda: (self._result_scene_identity(omni.usd.get_context().get_stage()), self._display_generation),
++            self._emit_postprocess_preview)
+         self._render_uid_paths = {}
+         self._render_room_shell_paths = ()
+         self._render_primitive_ids = {}
+@@ -106,6 +111,7 @@
+         self._ack_flushing = False
+         messaging.register_event_type_to_send('dcdtuni:renderAck')
+         messaging.register_event_type_to_send('dcdtuni:ovEditEvent')
++        messaging.register_event_type_to_send('dcdtuni:postprocessPreviewEvent')
+         self._stage_event_sub = omni.usd.get_context().get_stage_event_stream().create_subscription_to_pop(
+             self._on_stage_event, name='dcdtuni OV source selection')
+ 
+@@ -255,6 +261,7 @@
+         print("[dc.cfd_bridge] native UI hidden (render-only viewport)")
+ 
+     def on_shutdown(self):
++        self._postprocess_preview_controller.close()
+         self._source_pick_controller.close()
+         layout = getattr(self, '_owned_output_layout', None)
+         if layout is not None:
+@@ -269,6 +276,7 @@
+         import omni.kit.livestream.messaging as messaging
+         messaging.unregister_event_type_to_send('dcdtuni:renderAck')
+         messaging.unregister_event_type_to_send('dcdtuni:ovEditEvent')
++        messaging.unregister_event_type_to_send('dcdtuni:postprocessPreviewEvent')
+         self._stage_event_sub = None
+         if getattr(self, "_webrtc_sub", None):
+             self._webrtc_sub.reset()
+@@ -406,6 +414,7 @@
+             result = author_result_layers(stage, packet, expected_source=granted['source'],
+                 expected_time_seconds=granted['timeSeconds'], volume_carrier=volume_carrier, commit_guard=lambda: controller.commit(
+                     ticket, packet, lambda: self._result_scene_identity(stage), lambda: self._display_generation))
++            self._postprocess_preview_controller.bind_committed(granted, self._display_generation)
+             return {'resultLayers': result, 'revision': result['revision'], 'packetSha256': granted['packetSha256'],
+                     'source': granted['source'], 'timeSeconds': granted['timeSeconds'],
+                     'sceneRevision': granted['sceneRevision'], 'displayGeneration': granted['displayGeneration']}
+@@ -490,6 +499,9 @@
+             return await operation()
+ 
+     async def _legacy_display(self, stage, handler, args, generation):
++        preview_controller = getattr(self, '_postprocess_preview_controller', None)
++        if preview_controller is not None:
++            preview_controller.invalidate()
+         async def operation():
+             pending = []
+             try:
+@@ -526,6 +538,9 @@
+     async def _clear_display(self, stage):
+         """Drop the previous project's result display: streamlines, slice,
+         volume and the dataset references later commands would act on."""
++        preview_controller = getattr(self, '_postprocess_preview_controller', None)
++        if preview_controller is not None:
++            preview_controller.invalidate()
+         s = self._scene
+         try:
+             await s.remove_streamlines(stage)
+@@ -845,11 +860,18 @@
+         omni.kit.app.get_app().get_message_bus_event_stream().push(signal, payload=payload)
+         self._trace_source_selection('bus-push-returned', paths, selected)
+ 
++    def _emit_postprocess_preview(self, payload):
++        # Separate display readback: never a source-object editable selection.
++        signal = carb.events.type_from_string('dcdtuni:postprocessPreviewEvent')
++        omni.kit.app.get_app().get_message_bus_event_stream().push(signal, payload=payload)
++
+     def _route_render_command(self, command, message):
+         from . import render_scene
+         request_id = ''
+         try:
+             # Bound every getViewState before JSON parsing; other commands unchanged.
++            if command in ('setCommonPostprocessPreviews','retireCommonPostprocessPreviews') and (not isinstance(message,str) or len(message)>32768 or len(message.encode('utf-8'))>32768):
++                raise ValueError('Shared preview command too large')
+             if command in ('getViewState','querySourcePick') and (not isinstance(message,str) or len(message)>1024 or len(message.encode('utf-8'))>1024):
+                 return
+             args = json.loads(message)
+@@ -871,6 +893,8 @@
+                 'loadRenderResultLayers': {'requestId'},
+                 'loadVerifiedRenderResultLayers': {'requestId', 'grant'},
+                 'clearRenderResultLayers': {'requestId'},
++                'setCommonPostprocessPreviews': {'requestId', 'packet'},
++                'retireCommonPostprocessPreviews': {'requestId', 'binding'},
+                 'updateViewState': {'requestId', 'view'},
+                 'getViewState': {'requestId'},
+                 'querySourcePick': {'requestId','pick'},
+@@ -966,6 +990,15 @@
+                     return dict(sourcePickJSON=json.dumps(result,allow_nan=False,separators=(',',':')))
+                 self._ack_after(request_id,command,query())
+                 return
++            if command == 'setCommonPostprocessPreviews':
++                from .postprocess_preview_viewport import NativePreviewFactory
++                ack = self._postprocess_preview_controller.install(args['packet'], NativePreviewFactory())
++                self._render_ack(request_id, ok=True, postprocessPreviews=ack)
++                return
++            if command == 'retireCommonPostprocessPreviews':
++                retired = self._postprocess_preview_controller.retire(args['binding'])
++                self._render_ack(request_id, ok=True, retiredPostprocessPreviews=retired)
++                return
+             if command == 'loadVerifiedRenderResultLayers':
+                 from . import display_grant
+                 import time as _time
+@@ -976,11 +1009,17 @@
+                 generation = self._display_generation
+                 ticket = self._verified_result_controller.accept(
+                     granted, self._result_scene_identity(stage), generation)
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 self._trusted_result_context = {'source': granted['source'], 'timeSeconds': granted['timeSeconds']}
+                 self._ack_after(request_id, command, self._load_verified_result(stage, ticket))
+                 return
+             if command == 'clearRenderResultLayers':
+                 serial = self._verified_result_controller.invalidate(display_generation=args.get('displayGeneration'))
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 self._trusted_result_context = None
+                 self._ack_after(request_id, command,
+                     self._clear_verified_result(stage, serial, self._display_generation))
+@@ -1016,6 +1055,9 @@
+                         not re.fullmatch(r'[0-9a-f]{64}', project_hash)):
+                     raise ValueError('Invalid project content hash')
+                 self._display_generation += 1
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 layout = getattr(self, '_owned_output_layout', None)
+                 if layout is not None:
+                     layout.invalidate()
+@@ -1025,6 +1067,9 @@
+                     stage, packet, project_hash, request_id, self._display_generation))
+                 return
+             elif command == 'setSlice':
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 from . import handlers, parsers
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+@@ -1034,6 +1079,9 @@
+                     self._display_generation, lambda: self._set_slice(stage, parsed)))
+                 return
+             elif command == 'getSliceState':
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 # "Read back the viewport drag": adopt a dragged preview disc,
+@@ -1042,6 +1090,9 @@
+                     self._display_generation, lambda: self._slice_readback(stage)))
+                 return
+             elif command == 'loadLiquidResult':
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 from . import display_grant
+                 import time as _time
+                 granted = display_grant.verify(
+@@ -1069,6 +1120,9 @@
+                 self._render_ack(request_id, ok=True, cleared=cleared)
+                 return
+             elif command == 'setVolumeDisplay':
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 from . import parsers
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+@@ -1077,6 +1131,9 @@
+                     self._display_generation, lambda: self._volume_display(stage, **parsed)))
+                 return
+             elif command == 'loadResultDataset':
++                preview_controller = getattr(self, '_postprocess_preview_controller', None)
++                if preview_controller is not None:
++                    preview_controller.invalidate()
+                 from . import display_grant
+                 import time as _time
+                 if self._scene is None:
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/config/extension.toml
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/config/extension.toml
+@@ -7,6 +7,7 @@
+ 
+ [dependencies]
+ "omni.usd" = {}
++"omni.ui.scene" = {}
+ "omni.kit.viewport.utility" = {}
+ "omni.kit.livestream.messaging" = {}
+ "omni.cae.data" = {}
+--- /dev/null
++++ b/src/frontend/react/test/sharedOvPreviewInteraction.test.ts
+@@ -0,0 +1,189 @@
++/** Actual shared driver + actual OV client/channel; controlled numeric replies,
++ * not CFD/Kit/video evidence. Native API-contract controls live beside bridge. */
++import {act,createElement} from 'react'
++import {readFileSync} from 'node:fs'
++import {resolve} from 'node:path'
++import {decodeSlice,decodeStreamlines} from '../src/postprocess'
++import {createRoot} from 'react-dom/client'
++import {afterEach,expect,it,vi} from 'vitest'
++import {PostprocessDisplayDriver,type DisplayInput} from '../src/postprocess/displaySession'
++import {sharedPostprocessDisplay} from '../src/postprocess/sharedDisplay'
++import {createOvPostprocessAdapter} from '../src/renderer/ovPostprocessAdapter'
++import {createThreePostprocessAdapter} from '../src/renderer/threePostprocessAdapter'
++import {OvCommandClient,type RenderAck,type OvDisplayGrant} from '../src/renderer/ovProtocol'
++import {setOvSession} from '../src/renderer/ovSession'
++import {useSharedPostprocessRenderer} from '../src/renderer/useSharedPostprocessRenderer'
++import {assertPreviewPacket,parsePreviewEvent,type PreviewPacket,type PreviewEvent,type PreviewAck} from '../src/renderer/ovPostprocessPreviews'
++import {clearResultLayerSet,setLiveAirResultSelection} from '../src/renderer/resultLayerRevision'
++import {bindNumericProduct} from '../src/postprocess/numericProducts'
++import type {CommonRenderIntent,CanonicalRenderReply} from '../src/postprocess/commonRenderIntent'
++const sha=(v:string)=>v.repeat(64)
++const clients:OvCommandClient[]=[]
++function input(): DisplayInput {
++ const session={runId:sha('9'),timeValue:0.015,revision:'pp-current'}
++ const source={projectUid:'p',projectContentSha256:sha('a'),cfdrunSha256:sha('b'),meshReceiptSha256:sha('c'),meshQuality:'accepted' as const,run:{uid:'run-execution',receiptSha256:sha('d')}}
++ const owned=<T extends object>(value:T,kind:'mesh'|'field')=>bindNumericProduct(value,new Response(null,{headers:{'X-PP-Product':JSON.stringify({schema:'dcdtuni.numeric-product-receipt/v1',token:sha(kind==='mesh'?'e':'f'),kind,postprocess:session,payloadSha256:sha('6'),nativeInputSha256:sha('5')})}}),kind,session)
++ const mesh=owned({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),indices:new Uint32Array([0,1,2]),edges:new Uint32Array([0,1,1,2,2,0]),patches:[{name:'wall',nPoints:3,nTriangles:1,nEdges:3,defaultVisible:true}],totals:{points:3,triangles:1,edges:3}},'mesh')
++ setLiveAirResultSelection({owner:'air-postprocess',session,surfaceField:'T',meshReceiptSha256:sha('c')})
++ return {layers:{surface:{visible:true,colorMap:'viridis',climMin:299,climMax:303,autoScale:false}},
++  windFrame:{session,descriptor:{schema:'dcdtuni.verified-air-result-source/v2',postprocess:session,source,fieldUnits:{T:'K'},nativeInputSha256:sha('5'),runConvergence:{verdict:'NOT_CONVERGED',receiptSha256:sha('4')},boundaryProvenanceByPatch:{wall:{schema:'dcdtuni.native-boundary-provenance/v1',patchRanges:[{bindingKind:'meshBoundaryOnly',rank:0,patchIndex:0,nativePatchName:'wall',startFace:2,nFaces:1,boundarySha256:sha('3'),sourceRegions:[]}]}}},
++    currentProject:{uid:'p',contentSha256:sha('a')},mesh,activeSurfaceField:'T',surface:{field:'T',values:owned(new Float32Array([300,301,302]),'field'),colorMap:'viridis',range:[299,303],opacity:0.23,visible:true,hidden:new Set()},slices:[],streamlines:[]},
++  volume:{field:'T',unit:'K',visible:false,payload:null,range:[299,303],palette:'viridis',opacity:0.23,resolution:256},internalVisible:true,handles:{ringSetId:42,seedSetId:9},isCurrent:()=>true}
++}
++
++function reply(intent:CommonRenderIntent,sceneRevision:number,generation:number):CanonicalRenderReply {
++ return {grant:{payload:{intent,sceneRevision,generation},signature:sha('2')},packetReceipt:{sha256:sha('1'),revision:intent.revision,source:intent.source,timeSeconds:intent.postprocess.timeValue!,postprocess:intent.postprocess,sceneRevision,displayGeneration:generation,runConvergence:{verdict:'NOT_CONVERGED',receiptSha256:sha('4')}}}
++}
++function numericAck(grant:OvDisplayGrant):Partial<RenderAck> {
++ const intent=grant.payload.intent as CommonRenderIntent
++ return {revision:intent.revision,source:intent.source,timeSeconds:intent.postprocess.timeValue!,sceneRevision:grant.payload.sceneRevision as number,displayGeneration:grant.payload.generation as number,packetSha256:sha('1')}
++}
++function transport() {
++ const sent:{command_name:string;message:string}[]=[]
++ let hold=false,alter:((ack:PreviewAck)=>PreviewAck)|null=null,retireFail=false
++ let client!:OvCommandClient
++ client=new OvCommandClient(async payload=>{
++  sent.push(payload);const args=JSON.parse(payload.message)
++  if(payload.command_name==='setCommonPostprocessPreviews'&&hold)return
++  queueMicrotask(()=>{
++   let ack:RenderAck={requestId:args.requestId,ok:true}
++   if(payload.command_name==='loadVerifiedRenderResultLayers')ack={...ack,...numericAck(args.grant)}
++   if(payload.command_name==='setCommonPostprocessPreviews') {
++    const preview:PreviewAck={schema:'dcdtuni.ov-postprocess-previews-ack/v1',packet:structuredClone(args.packet),leaseKey:'3'.repeat(32),ready:true}
++    ack.postprocessPreviews=alter?alter(preview):preview
++   }
++   if(payload.command_name==='retireCommonPostprocessPreviews') {ack.retiredPostprocessPreviews=true;if(retireFail)ack={requestId:args.requestId,ok:false,error:'controlled retirement failure'}}
++   client.receive({event_type:'dcdtuni:renderAck',payload:ack})
++  })
++ });clients.push(client)
++ return {client,sent,hold:(value:boolean)=>hold=value,alter:(fn:typeof alter)=>alter=fn,retireFail:()=>retireFail=true,
++  packet:()=>JSON.parse([...sent].reverse().find(v=>v.command_name==='setCommonPostprocessPreviews')!.message).packet as PreviewPacket}
++}
++function setup() {
++ const t=transport();let scene={projectUid:'p',projectHash:sha('a'),sceneRevision:7}
++ let driver!:PostprocessDisplayDriver
++ const requestGrant=vi.fn(async(intent:CommonRenderIntent,s:{sceneRevision:number},generation:number)=>reply(intent,s.sceneRevision,generation))
++ const adapter=createOvPostprocessAdapter({client:t.client,sceneIdle:async()=>{},scene:()=>scene,requestGrant,onInteraction:event=>driver.interact(event)})
++ driver=new PostprocessDisplayDriver(adapter)
++ const value=input();value.layers.ring={show:true,origin:[0,1,0],normal:[0,3,0],radius:2};value.layers.seed={show:true,centre:[0,1,0],radius:1}
++ const events=vi.fn();driver.onInteraction(events)
++ return {...t,driver,value,events,requestGrant,scene,adapter}
++}
++function event(packet:PreviewPacket,kind:'ring'|'seed'='ring',sequence=1):PreviewEvent {
++ return {schema:'dcdtuni.ov-postprocess-preview-event/v1',binding:structuredClone(packet.binding),leaseKey:'3'.repeat(32),sequence,kind,setId:packet.handles.find(v=>v.kind===kind)!.setId,position:[1,2,3]}
++}
++function receive(client:OvCommandClient,value:unknown) {client.receive({event_type:'dcdtuni:postprocessPreviewEvent',payload:value})}
++async function tick(){for(let i=0;i<12;i++)await Promise.resolve()}
++afterEach(()=>{setOvSession({mode:'three',ready:false,client:null,projectUid:null,projectContentSha256:null,sceneRevision:null});sharedPostprocessDisplay.activate(createThreePostprocessAdapter());sharedPostprocessDisplay.clear();clients.splice(0).forEach(c=>c.dispose());clearResultLayerSet();setLiveAirResultSelection(null);vi.unstubAllGlobals()})
++
++it('lowers both exact shared forms after numeric ACK and END events reach the same driver without recomputing',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const packet=s.packet(),intent=structuredClone(s.requestGrant.mock.calls[0]![0])
++ expect(packet.handles).toEqual([{kind:'ring',setId:42,origin:[0,1,0],normal:[0,3,0],radius:2},{kind:'seed',setId:9,centre:[0,1,0],radius:1}])
++ expect(packet.binding).toMatchObject({source:s.driver.current()!.packet!.source,packetSha256:sha('1'),timeSeconds:.015,sceneRevision:7,displayGeneration:s.driver.current()!.generation,scopeKey:s.driver.current()!.scopeKey})
++ receive(s.client,event(packet));receive(s.client,event(packet,'seed',2))
++ expect(s.events.mock.calls.map(c=>c[0])).toEqual([{kind:'ring',setId:42,position:[1,2,3]},{kind:'seed',setId:9,position:[1,2,3]}])
++ expect(s.requestGrant).toHaveBeenCalledOnce();expect(s.requestGrant.mock.calls[0]![0]).toEqual(intent)
++ expect(s.sent.map(v=>v.command_name)).toEqual(['loadVerifiedRenderResultLayers','setCommonPostprocessPreviews'])
++})
++it('keeps all numerical slice/trace list entries and exact IDs while dragging just one preview',async()=>{
++ const s=setup(),fixture=JSON.parse(readFileSync(resolve(__dirname,'fixtures/constant_common_lut/input.json'),'utf8'))
++ const buffer=(value:string)=>Uint8Array.from(Buffer.from(value,'base64')).buffer
++ const slice=decodeSlice(buffer(fixture.slice.base64)),stream=decodeStreamlines(buffer(fixture.streamline.base64)),session=s.value.windFrame!.session
++ for(const [value,kind,token]of [[slice,'slice','7'],[stream,'streamline','8']]as const)bindNumericProduct(value,new Response(null,{headers:{'X-PP-Product':JSON.stringify({schema:'dcdtuni.numeric-product-receipt/v1',token:sha(token),kind,postprocess:session,payloadSha256:sha('6'),nativeInputSha256:sha('5')})}}),kind,session)
++ s.value.windFrame!.slices=[42,43].map(id=>({id,payload:slice,origin:[0,1,0],normal:[0,1,0],visible:true,colorMap:'viridis',range:[299,303],opacity:.4}))
++ s.value.windFrame!.streamlines=[9,10].map(id=>({id,set:stream,tubeRadius:.01,visible:true,colorMap:'viridis',range:[299,303],opacity:.4}))
++ s.driver.present(s.value);await s.driver.whenIdle()
++ const intent=structuredClone(s.requestGrant.mock.calls[0]![0]),numeric=structuredClone(s.driver.current()!.packet)
++ expect(intent.slices.map(x=>x.setId)).toEqual([42,43]);expect(intent.streamlines.map(x=>x.setId)).toEqual([9,10])
++ receive(s.client,event(s.packet()));expect(s.events).toHaveBeenCalledWith({kind:'ring',setId:42,position:[1,2,3]})
++ expect(s.driver.current()!.numericIntent).toEqual(intent);expect(s.driver.current()!.packet).toEqual(numeric);expect(s.requestGrant).toHaveBeenCalledOnce()
++})
++it('uses draft identities and keeps numerical set lists independent from preview positions',async()=>{
++ const s=setup();s.value.handles={ringSetId:'draft',seedSetId:'draft'};s.driver.present(s.value);await s.driver.whenIdle()
++ const before=structuredClone(s.driver.current()!.numericIntent);receive(s.client,event(s.packet(),'seed'))
++ expect(s.events).toHaveBeenCalledWith({kind:'seed',setId:'draft',position:[1,2,3]});expect(s.driver.current()!.numericIntent).toEqual(before)
++})
++it('keeps unsupported geometry appearance honest while exact ACK enables only this preview interaction',async()=>{
++ const s=setup();s.value.appearance={ao:true,aoStrength:1,lightIntensity:1,modelOpacity:1,fieldOpacity:1,renderOrder:['volume','surface','slice','streamline']}
++ s.driver.present(s.value);await s.driver.whenIdle();expect(s.driver.status().status).toBe('unsupported');expect(s.driver.status().message).toContain('depth enhancement')
++ receive(s.client,event(s.packet()));expect(s.events).toHaveBeenCalledOnce()
++})
++it.each(['source','packetSha256','timeSeconds','sceneRevision','displayGeneration','scopeKey','ownerKey','leaseKey','setId','kind'] as const)('rejects readback with a different %s',async key=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const e=event(s.packet())
++ if(key==='source')e.binding.source.run!.receiptSha256=sha('8')
++ else if(key==='leaseKey')e.leaseKey='8'.repeat(32)
++ else if(key==='setId')e.setId=43
++ else if(key==='kind')e.kind='seed'
++ else if(key==='packetSha256')e.binding[key]=sha('8')
++ else if(key==='scopeKey')e.binding[key]='other-scope'
++ else if(key==='ownerKey')e.binding[key]='8'.repeat(32)
++ else e.binding[key]+=1
++ receive(s.client,e);expect(s.events).not.toHaveBeenCalled()
++})
++it('ignores replayed/out-of-order events, malformed extra fields and source-edit channel payloads',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const e=event(s.packet(),'ring',2)
++ receive(s.client,{...e,extra:true});receive(s.client,{...e,position:[Infinity,1,2]});s.client.receive({event_type:'dcdtuni:ovEditEvent',payload:e});expect(s.events).not.toHaveBeenCalled()
++ receive(s.client,e);receive(s.client,e);receive(s.client,{...e,sequence:1});expect(s.events).toHaveBeenCalledOnce()
++})
++it('refuses current readback if accepted source or acknowledged scene changes outside the packet',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const e=event(s.packet());s.scene.sceneRevision++
++ receive(s.client,e);expect(s.events).not.toHaveBeenCalled()
++ s.scene.sceneRevision--;setLiveAirResultSelection(null);receive(s.client,e);expect(s.events).not.toHaveBeenCalled()
++})
++it.each(['packet','lease','ready'])('rejects a preview ACK with invalid %s and never enables interaction',async key=>{
++ const s=setup();s.alter(ack=>{if(key==='packet')ack.packet.handles[0]!.setId=43;else if(key==='lease')ack.leaseKey='invalid';else (ack as unknown as {ready:boolean}).ready=false;return ack})
++ s.driver.present(s.value);await s.driver.whenIdle();expect(s.driver.status().status).toBe('rejected');receive(s.client,event(s.packet()));expect(s.events).not.toHaveBeenCalled()
++})
++it('clear aborts owned pending ACK immediately, sends retirement, and late ACK/event cannot unlock it',async()=>{
++ const s=setup();s.hold(true);s.driver.present(s.value);await tick();const packet=s.packet(),sent=JSON.parse(s.sent.at(-1)!.message)
++ receive(s.client,event(packet));expect(s.events).not.toHaveBeenCalled()
++ s.driver.clear();await s.driver.whenIdle();expect(s.sent.some(v=>v.command_name==='retireCommonPostprocessPreviews')).toBe(true)
++ s.client.receive({event_type:'dcdtuni:renderAck',payload:{requestId:sent.requestId,ok:true,postprocessPreviews:{schema:'dcdtuni.ov-postprocess-previews-ack/v1',packet,leaseKey:'3'.repeat(32),ready:true}}})
++ receive(s.client,event(packet));expect(s.events).not.toHaveBeenCalled();expect(s.driver.status().status).toBe('idle')
++})
++it('new frame immediately rejects the old lease and renderer replacement uses a new owner on the same frame',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const old=s.packet();s.driver.present(s.value)
++ receive(s.client,event(old));expect(s.events).not.toHaveBeenCalled();await s.driver.whenIdle();expect(s.packet().binding.displayGeneration).toBeGreaterThan(old.binding.displayGeneration)
++ const old2=s.packet();const t=transport();const adapter=createOvPostprocessAdapter({client:t.client,sceneIdle:async()=>{},scene:()=>s.scene,requestGrant:s.requestGrant,onInteraction:e=>s.driver.interact(e)})
++ s.driver.activate(adapter);await s.driver.whenIdle();expect(t.packet().binding.ownerKey).not.toBe(old2.binding.ownerKey);expect(t.packet().binding.displayGeneration).toBe(old2.binding.displayGeneration)
++ receive(s.client,event(old2));expect(s.events).not.toHaveBeenCalled();receive(t.client,event(t.packet()));expect(s.events).toHaveBeenCalledOnce();adapter.dispose()
++})
++it('retirement transport rejection is surfaced for the next frame without an unhandled promise',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle();s.retireFail();s.driver.present(s.value);await s.driver.whenIdle()
++ expect(s.driver.status()).toMatchObject({status:'rejected',message:'OV preview retirement failed: controlled retirement failure'});expect(s.requestGrant).toHaveBeenCalledOnce()
++})
++it('requires a concrete native retirement acknowledgement before allowing another frame',async()=>{
++ const s=setup();s.driver.present(s.value);await s.driver.whenIdle()
++ vi.spyOn(s.client,'retireCommonPostprocessPreviews').mockResolvedValueOnce({requestId:'controlled',ok:true})
++ s.driver.present(s.value);await s.driver.whenIdle()
++ expect(s.driver.status()).toMatchObject({status:'rejected',message:'OV preview retirement failed: OV preview retirement was not acknowledged'})
++ expect(s.requestGrant).toHaveBeenCalledOnce()
++})
++it('protocol cancellation retires its pending request, rejects late ACK and disposal removes event listeners',async()=>{
++ const t=transport();t.hold(true);const s=setup();s.driver.present(s.value);await s.driver.whenIdle();const packet=s.packet(),controller=new AbortController()
++ const pending=t.client.setCommonPostprocessPreviews(packet,controller.signal),rejection=expect(pending).rejects.toThrow('owned request aborted');controller.abort();await rejection
++ const args=JSON.parse(t.sent[0]!.message);t.client.receive({event_type:'dcdtuni:renderAck',payload:{requestId:args.requestId,ok:true}})
++ const heard=vi.fn(),edit=vi.fn();t.client.onEditEvent(edit);t.client.subscribePostprocessPreviewEvents(heard);receive(t.client,event(packet));expect(heard).toHaveBeenCalledOnce();expect(edit).not.toHaveBeenCalled()
++ t.client.dispose();receive(t.client,event(packet));expect(heard).toHaveBeenCalledOnce()
++})
++it('validates strict bounded packets before sending any request',()=>{
++ const value={schema:'dcdtuni.ov-postprocess-previews/v1',binding:{source:{projectUid:'p',projectContentSha256:sha('a'),cfdrunSha256:sha('b'),meshReceiptSha256:sha('c'),meshQuality:'accepted',run:{uid:'r',receiptSha256:sha('d')}},packetSha256:sha('1'),timeSeconds:.015,sceneRevision:7,displayGeneration:1,scopeKey:'scope',ownerKey:'2'.repeat(32)},handles:[{kind:'ring',setId:42,origin:[0,0,0],normal:[0,0,0],radius:2}]}
++ expect(()=>assertPreviewPacket(value)).toThrow('Invalid');expect(parsePreviewEvent({...value,schema:'dcdtuni.ov-postprocess-preview-event/v1'})).toBeNull()
++})
++it('the mounted production hook forwards the dedicated client event to the existing common interaction listener',async()=>{
++ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true)
++ const t=transport();vi.stubGlobal('fetch',vi.fn(async(url:string,options:RequestInit)=>{
++  expect(url).toBe('/api/pp/render-grant');const request=JSON.parse(String(options.body)),r=reply(request.intent,request.scene.revision,request.displayGeneration)
++  return new Response(JSON.stringify(r),{headers:{'X-PP-Revision':request.intent.postprocess.revision}})
++ }))
++ const host=document.createElement('div'),root=createRoot(host),heard=vi.fn(),unsubscribe=sharedPostprocessDisplay.onInteraction(heard)
++ function Hook(){useSharedPostprocessRenderer();return null}
++ try {
++  await act(async()=>{setOvSession({mode:'ov',ready:true,degraded:false,client:t.client,sceneIdle:async()=>{},projectUid:'p',projectContentSha256:sha('a'),sceneRevision:7});root.render(createElement(Hook));await tick()})
++  const value=input();value.layers.seed={show:true,centre:[0,1,0],radius:1};value.handles.seedSetId=9
++  await act(async()=>{sharedPostprocessDisplay.present(value);await sharedPostprocessDisplay.whenIdle()})
++  expect(sharedPostprocessDisplay.status().status).toBe('displayed')
++  await act(async()=>{receive(t.client,event(t.packet(),'seed'));await tick()})
++  expect(heard).toHaveBeenCalledWith({kind:'seed',setId:9,position:[1,2,3]})
++ }finally{unsubscribe();await act(async()=>root.unmount());host.remove()}
++})
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/tests/test_common_postprocess_previews.py
+@@ -0,0 +1,327 @@
++"""CPU contract controls, with an explicit public-SDK shim (no Kit/GPU/video).
++
++Controller/geometry/ray arithmetic and bridge routing are real product code;
++SDK construction/gesture callbacks are controlled stand-ins, not raster proof.
++"""
++import ast
++import copy
++import math
++import sys
++from pathlib import Path
++from types import SimpleNamespace as NS
++import pytest
++EXT = Path(__file__).resolve().parents[1] / 'kit/extensions/dc.cfd_bridge'
++sys.path.insert(0, str(EXT))
++from dc.cfd_bridge import common_postprocess_previews as p
++from dc.cfd_bridge import postprocess_preview_viewport as v
++
++
++def binding():
++    return dict(source=dict(projectUid='project', projectContentSha256='a' * 64,
++        cfdrunSha256='b' * 64, meshReceiptSha256='c' * 64, meshQuality='accepted',
++        run=dict(uid='run-execution', receiptSha256='d' * 64)), packetSha256='e' * 64,
++        timeSeconds=.015, sceneRevision=7, displayGeneration=12, scopeKey='accepted-session', ownerKey='f' * 32)
++
++
++def packet():
++    return dict(schema=p.SCHEMA, binding=binding(), handles=[
++        dict(kind='ring', setId=42, origin=[0, 0, 0], normal=[3, 0, 0], radius=2),
++        dict(kind='seed', setId=9, centre=[0, 0, 0], radius=1)])
++
++
++class Frame:
++    def __init__(self):
++        self.clears = 0
++    def __enter__(self): return self
++    def __exit__(self, *args): return False
++    def clear(self): self.clears += 1
++
++
++class Shape:
++    def __init__(self, positions, *args, **kwargs):
++        self.positions, self.args, self.kwargs = copy.deepcopy(positions), args, kwargs
++
++
++class Curve(Shape):
++    CurveType = NS(LINEAR='controlled-public-linear')
++
++
++class Gesture:
++    def __init__(self, **kwargs): self.kwargs, self.raw_input = kwargs, None
++
++
++class SceneView:
++    def __init__(self): self.scene = Frame()
++
++
++class Matrix(list):
++    def __init__(self): super().__init__([[float(i == j) for j in range(4)] for i in range(4)])
++    def TransformDir(self, vec): return vec
++
++
++class Api:
++    def __init__(self):
++        self.id, self.usd_context_name, self.render_product_path = 'viewport', '', '/Render/Product'
++        self.camera_path, self.stage = '/World/RenderCamera', object()
++        self.time = NS(IsDefault=lambda: True, GetValue=lambda: 0)
++        self.transform, self.view, self.projection = Matrix(), Matrix(), Matrix()
++        self.attached, self.removed = [], []
++    def add_scene_view(self, value): self.attached.append(value)
++    def remove_scene_view(self, value): self.removed.append(value)
++
++
++class Window:
++    def __init__(self, api, app):
++        self.viewport_widget = NS(viewport_api=api, display_delegate=object())
++        self.frame, self.app_window, self.owned = Frame(), app, Frame()
++        self.names = []
++    def get_frame(self, name): self.names.append(name); return self.owned
++
++
++def rig():
++    api, app = Api(), object()
++    window = Window(api, app)
++    state = NS(api=api, window=window, app=app, scene=dict(projectUid='project',
++        projectContentSha256='a' * 64, revision=7), epoch=3)
++    sdk = NS(ui=NS(ZStack=Frame), sc=NS(SceneView=SceneView, DragGesture=Gesture,
++        Curve=Curve, PolygonMesh=Shape), paired=lambda: (state.api, state.window),
++        app=lambda: state.app, same_api=lambda a, b: a is b,
++        getters={k: (lambda value: value is not None) for k in ('supports_viewport', 'supports_window',
++            'supports_appwindow', 'is_app_window_attached')}, Gf=NS(Vec3d=lambda *x: x))
++    events = []
++    controller = p.PreviewController(lambda: (state.scene, state.epoch), events.append)
++    grant = dict({k: binding()[k] for k in p.BASE_KEYS}, kind='rendererResult')
++    controller.bind_committed(grant, state.epoch)
++    producers = []
++    factory = v.NativePreviewFactory(sdk)
++    def install(handles, publish, current):
++        producer = factory(handles, publish, current)
++        producers.append(producer)
++        return producer
++    return NS(state=state, sdk=sdk, controller=controller, grant=grant, events=events,
++        factory=install, producers=producers, api=api, window=window)
++
++
++def raw(x=0, y=0):
++    return NS(mouse_origin=(x, y, 10), mouse_direction=(0, 0, -1))
++
++
++def drag(producer, kind, start, end):
++    gesture = producer.gestures[kind]
++    gesture.raw_input = start; gesture.on_began()
++    gesture.raw_input = end; gesture.on_changed()
++    assert producer.drag is not None
++    gesture.on_ended()
++
++
++def test_actual_controller_installs_owned_public_scene_view_and_end_readbacks():
++    r = rig(); value = packet(); saved = copy.deepcopy(value)
++    ack = r.controller.install(value, r.factory)
++    assert ack['packet'] == saved and ack['ready'] is True and len(ack['leaseKey']) == 32
++    producer = r.producers[0]
++    assert r.api.attached == [producer.scene_view]
++    assert r.window.names == ['dcdtuni.shared-postprocess-previews']
++    assert len(producer.shapes['ring'].positions) == 65
++    assert len(producer.shapes['seed'].positions) == 114
++    assert len(producer.shapes['seed'].args[1]) == 224
++    drag(producer, 'ring', raw(), raw(2, 3))
++    assert r.events[0]['position'] == [2, 0, 0] and r.events[0]['setId'] == 42
++    drag(producer, 'seed', raw(), raw(2, 3))
++    assert r.events[1]['position'] == [2, 3, 0] and r.events[1]['setId'] == 9
++    assert [e['sequence'] for e in r.events] == [1, 2]
++    assert all(e['leaseKey'] == ack['leaseKey'] and e['binding'] == binding() for e in r.events)
++    assert value == saved and r.grant['packetSha256'] == 'e' * 64
++
++
++def test_changed_callback_does_not_publish_until_end():
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    gesture = producer.gestures['seed']; gesture.raw_input = raw(); gesture.on_began()
++    gesture.raw_input = raw(1, 2); gesture.on_changed()
++    assert not r.events and producer.shapes['seed'].positions != v.sphere_geometry(packet()['handles'][1])[0]
++    gesture.on_ended(); assert r.events[0]['position'] == [1, 2, 0]
++
++
++@pytest.mark.parametrize('kind', ['ring', 'seed'])
++def test_camera_change_mid_drag_cancels_and_restores_but_new_drag_can_begin(kind):
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    gesture = producer.gestures[kind]; original = copy.deepcopy(producer.shapes[kind].positions)
++    gesture.raw_input = raw(); gesture.on_began(); gesture.raw_input = raw(1, 2); gesture.on_changed()
++    r.api.view[0][3] = .25; gesture.on_ended()
++    assert not r.events and producer.drag is None and producer.shapes[kind].positions == original
++    drag(producer, kind, raw(), raw(1, 2)); assert len(r.events) == 1
++
++
++@pytest.mark.parametrize('change', ['api', 'window', 'app', 'stage', 'widget', 'delegate', 'camera', 'time', 'scene', 'epoch'])
++def test_final_owner_camera_time_scene_gates_refuse_end(change):
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    g = producer.gestures['seed']; g.raw_input = raw(); g.on_began()
++    if change == 'api': r.state.api = Api()
++    elif change == 'window': r.state.window = Window(r.api, r.state.app)
++    elif change == 'app': r.state.app = object()
++    elif change == 'stage': r.api.stage = object()
++    elif change == 'widget': r.window.viewport_widget = NS(viewport_api=r.api, display_delegate=object())
++    elif change == 'delegate': r.window.viewport_widget.display_delegate = object()
++    elif change == 'camera': r.api.camera_path = '/Other/Camera'
++    elif change == 'time': r.api.time = NS(IsDefault=lambda: False, GetValue=lambda: .015)
++    elif change == 'scene': r.state.scene['revision'] += 1
++    else: r.state.epoch += 1
++    g.raw_input = raw(1, 2); g.on_ended()
++    assert not r.events and producer.drag is None
++
++
++def test_parallel_and_backward_pointer_rays_do_not_emit():
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    g = producer.gestures['seed']
++    for direction in [(1, 0, 0), (0, 0, 1)]:
++        g.raw_input = NS(mouse_origin=(0, 0, 10), mouse_direction=direction)
++        g.on_began(); g.on_ended()
++        assert producer.drag is None and not r.events
++
++
++def test_clear_retires_drag_native_shapes_and_pending_callbacks():
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    g = producer.gestures['seed']; g.raw_input = raw(); g.on_began()
++    r.controller.invalidate(); g.raw_input = raw(1, 2); g.on_ended()
++    assert not r.events and producer.closed and producer.drag is None
++    assert len(r.api.removed) == 1 and r.window.owned.clears == 1
++    with pytest.raises(ValueError, match='No committed'): r.controller.install(packet(), r.factory)
++
++
++def test_retire_before_delayed_install_stays_rejected_after_same_numeric_replay():
++    r = rig(); r.controller.retire(binding()); r.controller.bind_committed(r.grant, r.state.epoch)
++    with pytest.raises(ValueError, match='owner retired'): r.controller.install(packet(), r.factory)
++    assert not r.producers
++
++
++def test_late_old_adapter_retirement_does_not_clear_new_owner():
++    r = rig(); r.controller.install(packet(), r.factory)
++    value = packet(); value['binding']['ownerKey'] = '1' * 32
++    ack = r.controller.install(value, r.factory)
++    assert r.producers[0].closed and not r.producers[1].closed
++    r.controller.retire(binding())
++    drag(r.producers[1], 'seed', raw(), raw(2, 1))
++    assert r.events[0]['leaseKey'] == ack['leaseKey'] and r.events[0]['binding']['ownerKey'] == '1' * 32
++
++
++@pytest.mark.parametrize('key', list(p.BASE_KEYS))
++def test_every_signed_numeric_commit_field_is_required_exact(key):
++    r = rig(); value = packet()
++    if key == 'source': value['binding']['source']['run']['receiptSha256'] = '1' * 64
++    elif key == 'packetSha256': value['binding'][key] = '1' * 64
++    else: value['binding'][key] += 1
++    with pytest.raises(ValueError, match='committed source'): r.controller.install(value, r.factory)
++    assert not r.producers
++
++
++def test_mesh_commit_cannot_authorize_postprocess_previews():
++    r = rig(); r.controller.bind_committed(dict(r.grant, kind='rendererMesh'), r.state.epoch)
++    with pytest.raises(ValueError, match='No committed'): r.controller.install(packet(), r.factory)
++
++
++@pytest.mark.parametrize('mutate', [lambda x: x.update(extra=True),
++    lambda x: x['binding'].update(extra=True), lambda x: x['handles'].append(x['handles'][0]),
++    lambda x: x['handles'][0].update(normal=[0, 0, 0]), lambda x: x['handles'][1].update(radius=0),
++    lambda x: x['handles'][0].update(setId=True), lambda x: x['handles'][1].update(centre=[float('nan'), 0, 0]),
++    lambda x: x['binding']['source'].update(run=None), lambda x: x['binding'].update(displayGeneration=1.5)])
++def test_strict_packet_rejection_precedes_sdk_calls(mutate):
++    r = rig(); value = packet(); mutate(value)
++    with pytest.raises((ValueError, TypeError)): r.controller.install(value, r.factory)
++    assert not r.producers
++
++
++def test_nonunit_oblique_ring_and_sphere_are_actual_world_geometry():
++    h = dict(kind='ring', origin=[1, 2, 3], normal=[3, 4, 5], radius=2)
++    points = v.ring_positions(h); n = p.unit(h['normal'])
++    for point in points:
++        delta = [a-b for a,b in zip(point, h['origin'])]
++        assert math.hypot(*delta) == pytest.approx(2)
++        assert sum(a*b for a,b in zip(delta,n)) == pytest.approx(0, abs=1e-14)
++    assert points[0] == pytest.approx(points[-1])
++    positions, counts, indices = v.sphere_geometry(dict(centre=[3,4,5], radius=2))
++    assert all(math.dist(point,[3,4,5]) == pytest.approx(2) for point in positions)
++    assert set(counts) == {3} and min(indices) == 0 and max(indices) == len(positions)-1
++
++
++def test_bridge_product_routes_and_committed_binding_are_not_test_only():
++    path = EXT/'dc/cfd_bridge/extension.py'; source = path.read_text(); tree = ast.parse(source)
++    assert 'setCommonPostprocessPreviews' in source and 'retireCommonPostprocessPreviews' in source
++    method = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == '_load_verified_result')
++    calls = [n.func.attr for n in ast.walk(method) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
++    assert 'bind_committed' in calls
++    route = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == '_route_render_command')
++    names = {n.func.attr for n in ast.walk(route) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
++    assert {'install', 'retire', 'invalidate'} <= names
++    assert 'NativePreviewFactory()' in ast.get_source_segment(source, route)
++    assert 'postprocessPreviewEvent' in source and '"omni.ui.scene" = {}' in (EXT/'config/extension.toml').read_text()
++    assert not any(n in (EXT/'dc/cfd_bridge/postprocess_preview_viewport.py').read_text()
++        for n in ('set_slice(', 'update_slice(', 'create_streamlines(', 'capture_current('))
++
++
++def test_real_bridge_router_installs_acks_retires_and_refuses_late_owner(monkeypatch, tmp_path):
++    # Actual extension routing under existing controlled Kit harness, plus the
++    # real preview controller and producer with the explicit public-SDK shim.
++    import asyncio
++    import importlib
++    import json
++    from test_dataset_scene_race import _harness
++    async def scenario():
++        ext, _, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
++        r = rig(); r.api.stage = stage
++        native = importlib.import_module('race_bridge.postprocess_preview_viewport')
++        monkeypatch.setattr(native, '_sdk', lambda: r.sdk)
++        value = packet(); value['binding']['source']['projectUid'] = 'old-project'
++        value['binding']['sceneRevision'] = 1
++        c = p.PreviewController(lambda: (ext._result_scene_identity(stage), ext._display_generation), r.events.append)
++        c.bind_committed(dict({k: value['binding'][k] for k in p.BASE_KEYS}, kind='rendererResult'), ext._display_generation)
++        ext._postprocess_preview_controller = c
++        ext._route_render_command('setCommonPostprocessPreviews', json.dumps(dict(requestId='preview', packet=value)))
++        first = ext.acks[-1]
++        assert first['ok'] is True and first['postprocessPreviews']['packet'] == value
++        owned = c._active['producer']
++        drag(owned, 'seed', raw(), raw(1, 2))
++        assert r.events[0]['binding'] == value['binding']
++        ext._route_render_command('retireCommonPostprocessPreviews', json.dumps(dict(requestId='retire', binding=value['binding'])))
++        assert ext.acks[-1]['ok'] is True and ext.acks[-1]['retiredPostprocessPreviews'] is True and owned.closed
++        ext._route_render_command('setCommonPostprocessPreviews', json.dumps(dict(requestId='late', packet=value)))
++        assert ext.acks[-1]['ok'] is False and 'owner retired' in ext.acks[-1]['error']
++        ext._route_render_command('setCommonPostprocessPreviews', json.dumps(dict(requestId='extra', packet=value, sourcePick=True)))
++        assert ext.acks[-1]['ok'] is False and 'Unexpected' in ext.acks[-1]['error']
++    asyncio.run(scenario())
++
++
++def test_destroyed_native_api_does_not_interrupt_owned_widget_and_controller_retirement():
++    r = rig(); r.controller.install(packet(), r.factory); producer = r.producers[0]
++    def destroyed(_): raise ReferenceError('controlled destroyed native API')
++    r.api.remove_scene_view = destroyed
++    r.controller.close()
++    assert producer.closed and producer.scene_view is None and producer.frame is None
++    assert r.window.owned.clears == 1 and r.controller._committed is None and r.controller._closed
++
++
++def test_empty_handles_ack_is_exact_but_cannot_emit_an_interaction():
++    r = rig(); value = packet(); value['handles'] = []
++    ack = r.controller.install(value, r.factory)
++    assert ack['packet'] == value and ack['ready'] is True and not r.producers
++    assert not r.controller._emit(r.controller._active, 'seed', 9, (1,2,3)) and not r.events
++
++
++@pytest.mark.parametrize('kind', ['ring', 'seed'])
++def test_public_cancel_callback_restores_retires_drag_and_late_end_then_reinstall(kind):
++    r = rig(); value = packet(); saved = copy.deepcopy(value); grant = copy.deepcopy(r.grant)
++    r.controller.install(value, r.factory); producer = r.producers[0]
++    gesture = producer.gestures[kind]; original = copy.deepcopy(producer.shapes[kind].positions)
++    gesture.raw_input = raw(); gesture.on_began()
++    gesture.raw_input = raw(1, 2); gesture.on_changed()
++    assert producer.drag is not None and producer.shapes[kind].positions != original
++    # Invoke the pinned SDK's public cancellation callback, not a private helper.
++    gesture.on_canceled()
++    assert producer.drag is None and producer.shapes[kind].positions == original and not r.events
++    gesture.on_canceled(); gesture.on_ended()
++    assert producer.drag is None and producer.shapes[kind].positions == original and not r.events
++    assert value == saved and r.grant == grant and producer.ready()
++    r.controller.install(value, r.factory)
++    assert producer.closed and len(r.producers) == 2
++    drag(r.producers[1], kind, raw(), raw(2, 3))
++    assert len(r.events) == 1 and r.events[0]['setId'] == (42 if kind == 'ring' else 9)
++    assert r.events[0]['position'] == ([2, 0, 0] if kind == 'ring' else [2, 3, 0])
++    assert value == saved and r.grant == grant

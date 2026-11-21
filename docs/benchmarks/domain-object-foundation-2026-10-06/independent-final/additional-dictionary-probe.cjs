@@ -1,0 +1,11 @@
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const B='/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration',O=path.join(B,'.codex-tmp/domain-object-independent-review-20261006');
+const rel='src/frontend/shared/js/cfdproj_migrate.js',M=require(path.join(B,rel));
+const base={schemaVersion:3,meta:{projectName:'dict preservation'},construction:[],simulation:{},liquidCooling:{specifications:{coldPlateSpec:[{name:'__proto__',R_th:.03}]},fluid:{type:'__proto__',rho:997,cp:4180}}};
+const out=M.migrateCfdprojToV4(base);
+function observe(dict){return {ownProto:Object.hasOwn(dict,'__proto__'),ownKeys:Object.keys(dict),plainPrototype:Object.getPrototypeOf(dict)===Object.prototype,serializedOwnProto:Object.hasOwn(JSON.parse(JSON.stringify(dict)),'__proto__')}}
+const equip=id=>({id,name:id,type:'fanServer',startUnit:1,spanUnits:1});
+const physicsInput={schemaVersion:3,meta:{projectName:'physics lookup'},construction:[{uid:'r',kind:'rack',rack:{equipments:[equip('__proto__'),equip('server_p')]},cfd:{servers:[{equipmentId:'__proto__',volumeFlowRate:.1,server_p:{volumeFlowRate:.42,fixedTemperature:48}}]}}],simulation:{}};
+const p=M.migrateCfdprojToV4(physicsInput);const servers=p.constructions.racks.r.constructions.servers;
+const result={schema:'domain-additional-existing-migration-dictionaries/v1',scope:'only three same-module sites named by ROOT; pure JSON/source observation',source:{path:rel,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(B,rel))).digest('hex')},definitionsInput:base,coldPlateDefinitions:observe(out.models.coolingModels.coldPlates),fluidDefinitions:observe(out.models.materialModels.fluids),physicsInput,physics:{matchingUIDCooling:servers.__proto__.cooling,unmappedUIDCooling:servers.server_p.cooling,unmappedUIDMustHaveNoAuthoredPhysics:true,phantomVolumeFlowRate:servers.server_p.cooling.volumeFlowRate??null}};
+fs.writeFileSync(path.join(O,'additional-dictionary-red-observation.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

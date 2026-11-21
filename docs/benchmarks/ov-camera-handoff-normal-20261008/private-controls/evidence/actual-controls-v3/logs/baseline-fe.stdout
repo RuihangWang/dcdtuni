@@ -1,0 +1,54 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-camera-handoff-reply-private-20261008-v1/reviewtree/src/frontend/react
+
+ ❯ test/cameraPurposeProtocol.test.ts (4 tests | 2 failed) 21ms
+   × requests a camera handoff explicitly and waits for its matching ACK 10ms
+     → expected [ 'requestId' ] to deeply equal [ 'purpose', 'requestId' ]
+   × rejects unknown purposes before any transport submission 8ms
+     → expected [Function] to throw error including 'Invalid Omniverse view purpose' but got 'Omniverse acknowledgement timed out'
+ ❯ test/cameraReadbackMounted.test.ts (13 tests | 6 failed) 1040ms
+   ✓ cannot author an edited scene after its camera readback was cancelled by return to Three 383ms
+   × uses the explicit camera handoff transaction when returning to Three 21ms
+     → expected "spy" to be called with arguments: [ 'camera-handoff' ]
+
+Received: 
+
+  1st spy call:
+
+- Array [
+-   "camera-handoff",
+- ]
++ Array []
+
+
+Number of calls: 1
+
+   × uses the explicit camera handoff before a same-project scene resync 412ms
+     → expected "spy" to be called with arguments: [ 'camera-handoff' ]
+
+Received: 
+
+  1st spy call:
+
+- Array [
+-   "camera-handoff",
+- ]
++ Array []
+
+
+Number of calls: 1
+
+   × keeps the local camera and selection when handoff primitive count is undefined 23ms
+     → expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+   × keeps the local camera and selection when handoff primitive count is -1 11ms
+     → expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+   × keeps the local camera and selection when handoff primitive count is 1 11ms
+     → expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+   × keeps the local camera and selection when handoff primitive count is 0.5 10ms
+     → expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+
+ Test Files  2 failed (2)
+      Tests  8 failed | 9 passed (17)
+   Start at  22:15:24
+   Duration  5.52s (transform 1.57s, setup 0ms, collect 4.23s, tests 1.06s, environment 1.84s, prepare 237ms)
+

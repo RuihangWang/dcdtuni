@@ -1,0 +1,198 @@
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_viewport.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_viewport.py
+@@ -369,6 +369,85 @@
+         pass
+ 
+ 
++# Separate bounded trace for post-camera pending returns and lowering receipts.
++# It observes only values already read by the original code; no new authority.
++_NATIVE_GRID_PENDING_DIAGNOSTICS = os.environ.get('DC_CFD_NATIVE_GRID_PENDING_DIAGNOSTICS') == 'grid-pending-v1'
++_NATIVE_GRID_PENDING_LIMIT = 8
++_NATIVE_GRID_PENDING_SEEN = set()
++
++
++def _native_grid_pending_values(sample):
++    # Exclude the native TimeCode object. Its already-read value is in owner.
++    return {k:sample[k] for k in ('owner','resolution','full','world','view',
++        'transform','projection','maps','frame','image')}
++
++
++def _native_grid_pending_diagnostic(domain, stage, phase, reason, frames=None,
++                                    samples=None, serial=None, categories=()):
++    """Default OFF, eight rows independent of cohort exhaustion; no getters."""
++    if (not _NATIVE_GRID_PENDING_DIAGNOSTICS
++            or len(_NATIVE_GRID_PENDING_SEEN) >= _NATIVE_GRID_PENDING_LIMIT):
++        return
++    try:
++        reasons = {'native-viewport-unavailable','native-viewport-owner-not-current',
++            'native-camera-frame-not-current','native-projection-frame-not-current',
++            'native-camera-changed-during-sample','native-observation-changed-during-sample',
++            'native-public-viewport-observation-unavailable','viewport-frame-not-current',
++            'native-grid-view-not-current','native-observation-changed-during-lowering',
++            'stream-layout-unresolved','stream-layout-degenerate'}
++        if (domain not in ('sampler','lowering') or phase not in ('pending','unsupported')
++                or type(stage) is not str or len(stage) > 80 or reason not in reasons):
++            return
++        changed = []
++        if type(samples) is dict and 'first' in samples and 'final' in samples:
++            first, final = samples['first'], samples['final']
++            for key in ('owner','resolution','full','world','view','transform','projection','maps','image'):
++                if first[key] != final[key]:
++                    changed.append(key)
++            for key in ('frameNumber','resolution','view','projection'):
++                if first['frame'][key] != final['frame'][key]:
++                    changed.append('frame.' + key)
++        # Static branch categories do not claim which short-circuit term ran.
++        branch = {'first-authored-camera':'first-authored-view-or-missing-camera',
++            'first-camera-projection':'first-authored-conformed-image-projection',
++            'final-authored-view':'final-authored-view-or-conformed-image-projection',
++            'final-source-owner-view-fences':'first-final-values-or-closing-owner-view-source'}
++        labels = list(categories)
++        if stage in branch:
++            labels.append(branch[stage])
++        if any(type(x) is not str or len(x) > 100 for x in labels):
++            return
++        request = _NATIVE_GRID_COHORT_REQUEST.get()
++        if serial is None and request:
++            serial = request['requestSerial']
++        if serial is not None and (type(serial) is not int or not 0 <= serial <= 9007199254740991):
++            return
++        digest = lambda value: hashlib.sha256(value.encode('utf-8')).hexdigest()
++        record = {'schema':'dcdtuni.native-grid-pending-diagnostic/v1',
++            'sequence':len(_NATIVE_GRID_PENDING_SEEN)+1,'domain':domain,'stage':stage,
++            'phase':phase,'reason':reason,'requestSerial':serial,
++            'requestViewTokenSHA256':digest(request['viewToken']) if request else None,
++            'requestContextTokenSHA256':digest(request['contextToken']) if request else None,
++            'frames':frames or {},'comparisonCategories':labels,'changedSampleFields':changed,
++            'additionalNativeReads':False,'gridPixelVerified':False,'diagnosticAuthority':False}
++        key = (domain,stage,phase,reason,tuple(labels),tuple(changed))
++        if key in _NATIVE_GRID_PENDING_SEEN:
++            return
++        encoded = json.dumps(record,sort_keys=True,separators=(',',':'),allow_nan=False)
++        if len(encoded.encode('utf-8')) > 4096:
++            return
++        # Reserve before sink: a failed sink cannot bypass the module cap.
++        _NATIVE_GRID_PENDING_SEEN.add(key)
++        print('[dc.cfd_bridge] native-grid-pending-diagnostic ' + encoded)
++    except Exception:
++        pass  # Diagnostics cannot alter the original return or exception path.
++
++
++def _native_grid_pending_frame(owner, resolution, full, frame):
++    return {'owner':list(owner),'resolution':list(resolution),'fullResolution':list(full),
++            'frameNumber':frame['frameNumber']}
++
++
+ def _native_frame_projection_matches(image_projection, delivered_projection,
+                                      image_world, delivered_world):
+     """Match all 16 finite entries in one common delivered depth convention.
+@@ -403,7 +482,14 @@
+     from pxr import Gf, UsdGeom, CameraUtil
+     from . import render_scene
+     from .render_output_observations import _frame, _same_public_api
++    diagnostic_frames, diagnostic_samples = {}, {}
+     def pending(reason):
++        if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++            try:
++                _native_grid_pending_diagnostic('sampler',diagnostic_stage,'pending',reason,
++                    diagnostic_frames,diagnostic_samples)
++            except Exception:
++                pass
+         return {'phase':'pending','reason':reason,'nativeObservation':None,
+                 'gridPixelVerified':False,'encodedFrameProof':'unresolved'}
+     def view_sample():
+@@ -468,6 +554,11 @@
+                               0,0,1,0,2*o[0]-1,2*o[1]-1,0,1)
+         diagnostic_stage = label + '-frame-info'
+         frame = _frame(api)  # last native frame getter; validate then close below
++        if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++            try:
++                diagnostic_frames[label] = _native_grid_pending_frame(owner,resolution,full,frame)
++            except Exception:
++                pass
+         # A delivered-frame getter can cross a texture/owner transition.
+         # Close every earlier native observation after that final frame read.
+         diagnostic_stage = label + '-closing-time'
+@@ -530,6 +621,11 @@
+                 or (diagnostic_camera_path := str(viewport_api.camera_path)) != expected_camera_path):
+             return pending('native-viewport-owner-not-current')
+         first = values('first')
++        if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++            try:
++                diagnostic_samples['first'] = _native_grid_pending_values(first)
++            except Exception:
++                pass
+         diagnostic_stage = 'first-authored-camera'
+         camera = UsdGeom.Camera(expected_stage.GetPrimAtPath(expected_camera_path))
+         if not camera or not _near(first['view'],_matrix(camera.ComputeLocalToWorldTransform(first['time']).GetInverse())):
+@@ -545,6 +641,11 @@
+         # Repeat all native values after the delivered-frame getter and camera
+         # getters. Close the accepted source/view and active public owner last.
+         final = values('final')
++        if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++            try:
++                diagnostic_samples['final'] = _native_grid_pending_values(final)
++            except Exception:
++                pass
+         diagnostic_stage = 'final-authored-camera'
+         latest_camera = camera.GetCamera(final['time'])
+         diagnostic_stage = 'final-camera-conform'
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
+@@ -574,9 +574,17 @@
+ 
+     async def _lower_native(self, request, encoded_reason):
+         from . import render_scene
+-        from .grid_viewport import same_native_grid_observation
++        from .grid_viewport import (same_native_grid_observation,
++            _NATIVE_GRID_PENDING_DIAGNOSTICS, _native_grid_pending_diagnostic,
++            _native_grid_pending_frame)
+         capture = self._capture_native(request)
+         if capture['phase'] != 'ready':
++            if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++                try:
++                    _native_grid_pending_diagnostic('lowering','lower-capture','pending',
++                        capture['reason'],serial=request['serial'],categories=('capture-not-ready',))
++                except Exception:
++                    pass
+             if self._current(request):
+                 self.receipt = {'phase':'pending','reason':capture['reason'],'viewRevision':self._last_view,
+                                 'gridPixelVerified':False}
+@@ -599,6 +607,21 @@
+                 return
+             final = self._capture_native(request)
+             if (final.get('phase') != 'ready' or not same_native_grid_observation(observation,final.get('nativeObservation'))):
++                if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++                    try:
++                        frames = {'first':_native_grid_pending_frame(observation.owner,
++                            observation.resolution,observation.full_resolution,
++                            {'frameNumber':observation.frame_number})}
++                        candidate = final.get('nativeObservation')
++                        if type(candidate) is type(observation):
++                            frames['final'] = _native_grid_pending_frame(candidate.owner,
++                                candidate.resolution,candidate.full_resolution,
++                                {'frameNumber':candidate.frame_number})
++                        _native_grid_pending_diagnostic('lowering','lower-final-capture','pending',
++                            'native-observation-changed-during-lowering',frames,serial=request['serial'],
++                            categories=('final-capture-not-ready-or-observation-mismatch',))
++                    except Exception:
++                        pass
+                 self.receipt = {'phase':'pending','reason':'native-observation-changed-during-lowering',
+                                 'viewRevision':self._last_view,'gridPixelVerified':False}
+                 return
+@@ -608,6 +631,15 @@
+             self._contract = replace(contract,context=tuple(sorted(request['context'].items())),intent=intent)
+             self._contract_layout_lease = None
+         # Authored native geometry supplies no decoded stream/Three pixel proof.
++        if _NATIVE_GRID_PENDING_DIAGNOSTICS:
++            try:
++                _native_grid_pending_diagnostic('lowering','lower-encoded-proof','unsupported',
++                    encoded_reason,{'first':_native_grid_pending_frame(observation.owner,
++                        observation.resolution,observation.full_resolution,
++                        {'frameNumber':observation.frame_number})},serial=request['serial'],
++                    categories=('native-carrier-available-encoded-proof-unresolved',))
++            except Exception:
++                pass
+         self.receipt = {'phase':'unsupported','reason':encoded_reason,
+                         'viewRevision':self._last_view,'gridPixelVerified':False}
+ 

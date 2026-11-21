@@ -1,0 +1,343 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class dictionary;
+    location system;
+    object snappyHexMeshDict;
+}
+
+castellatedMesh on;
+snap on;
+addLayers off;
+
+// snappyHexMesh DELETES zero-sized patches when both snap and addLayers are
+// off (snappyHexMesh.C:1833) — which is every Cartesian mode. A surface whose
+// region ends up with no exposed faces (an ACU bottom flush with the floor, a
+// pillar top against the ceiling, a rack face inside a containment) then
+// vanishes from polyMesh/boundary entirely, and the boundary condition bound
+// to it is silently lost. Keeping the empty patch costs nothing and keeps
+// every declared STL region addressable.
+keepPatches true;
+
+geometry
+{
+    merged_acu.stl
+    {
+        type triSurfaceMesh;
+        name merged_acu;
+        regions
+        {
+            Channel_supply_Front { name Channel_supply_Front; }
+            Channel_supply_Back_patch { name Channel_supply_Back_patch; }
+            Channel_supply_Left { name Channel_supply_Left; }
+            Channel_supply_Right { name Channel_supply_Right; }
+            Channel_supply_Top { name Channel_supply_Top; }
+            Channel_supply_Bottom { name Channel_supply_Bottom; }
+            Channel_return_Front_patch { name Channel_return_Front_patch; }
+            Channel_return_Back { name Channel_return_Back; }
+            Channel_return_Left { name Channel_return_Left; }
+            Channel_return_Right { name Channel_return_Right; }
+            Channel_return_Top { name Channel_return_Top; }
+            Channel_return_Bottom { name Channel_return_Bottom; }
+        }
+    }
+
+    merged_box.stl
+    {
+        type triSurfaceMesh;
+        name merged_box;
+        regions
+        {
+            Thermal_block_Front { name Thermal_block_Front; }
+            Thermal_block_Back { name Thermal_block_Back; }
+            Thermal_block_Left { name Thermal_block_Left; }
+            Thermal_block_Right { name Thermal_block_Right; }
+            Thermal_block_Top { name Thermal_block_Top; }
+            Thermal_block_Bottom { name Thermal_block_Bottom; }
+        }
+    }
+
+    merged_floor_ceiling.stl
+    {
+        type triSurfaceMesh;
+        name merged_floor_ceiling;
+        regions
+        {
+            Room_Floor { name Room_Floor; }
+            Room_Ceiling { name Room_Ceiling; }
+        }
+    }
+
+    room_wall.stl
+    {
+        type triSurfaceMesh;
+        name room_wall;
+        regions
+        {
+            Room_Wall_2 { name Room_Wall_2; }
+            Room_Wall_4 { name Room_Wall_4; }
+        }
+    }
+}
+
+
+
+castellatedMeshControls
+{
+    maxLocalCells   5000000;
+    maxGlobalCells  5000000;
+    minRefinementCells 5;
+    nCellsBetweenLevels 1;
+    maxLoadUnbalance 0.1;
+    handleSnapProblems true;
+    allowFreeStandingZoneFaces true;
+    resolveFeatureAngle 30;
+
+    features
+    (
+    {
+        file "merged_acu.eMesh";
+        level 2;
+    }
+    {
+        file "merged_box.eMesh";
+        level 2;
+    }
+    {
+        file "merged_floor_ceiling.eMesh";
+        level 2;
+    }
+    {
+        file "room_wall.eMesh";
+        level 2;
+    }
+    );
+
+    refinementSurfaces
+    {
+    merged_acu
+    {
+        level (1 1);
+        regions
+        {
+            Channel_supply_Front
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_supply_Back_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            Channel_supply_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_supply_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_supply_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_supply_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_return_Front_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            Channel_return_Back
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_return_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_return_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_return_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Channel_return_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_box
+    {
+        level (1 1);
+        regions
+        {
+            Thermal_block_Front
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Thermal_block_Back
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Thermal_block_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Thermal_block_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Thermal_block_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Thermal_block_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_floor_ceiling
+    {
+        level (1 1);
+        regions
+        {
+            Room_Floor
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Ceiling
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    room_wall
+    {
+        level (1 1);
+        regions
+        {
+            Room_Wall_2
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Wall_4
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+    }
+
+    refinementRegions
+    {
+
+    }
+
+    // Use locationsInMesh with explicit cell zone assignment
+    locationsInMesh
+    (
+        (( 0.173000 0.113000 0.173000 ) none)
+    );
+}
+
+snapControls
+{
+    nSmoothPatch 1;
+    tolerance 1.5;
+    nSolveIter 20;
+    nRelaxIter 5;
+    nFeatureSnapIter 10;
+    implicitFeatureSnap true;
+    explicitFeatureSnap true;
+    multiRegionFeatureSnap true;
+    nFaceSplitInterval 5;
+    releasePoints true;
+}
+
+addLayersControls
+{
+    relativeSizes true;
+    expansionRatio 1.0;
+    finalLayerThickness 0.3;
+    minThickness 0.1;
+    nGrow 0;
+    featureAngle 60;
+    nRelaxIter 3;
+    nSmoothSurfaceNormals 1;
+    nSmoothNormals 3;
+    nSmoothThickness 10;
+    maxFaceThicknessRatio 0.5;
+    maxThicknessToMedialRatio 0.3;
+    minMedianAxisAngle 90;
+    nBufferCellsNoExtrude 0;
+    nLayerIter 50;
+    layers
+    {
+    }
+}
+
+meshQualityControls
+{
+    maxNonOrtho 60;
+    maxBoundarySkewness 20;
+    maxInternalSkewness 4;
+    maxConcave 80;
+    minFlatness 0.5;
+    minVol 1e-13;
+    minTetQuality 1e-15;
+    minArea -1;
+    minTwist 0.02;
+    minDeterminant 0.001;
+    minFaceWeight 0.05;
+    minVolRatio 0.01;
+    minTriangleTwist -1;
+    nSmoothScale 4;
+    errorReduction 0.75;
+    relaxed
+    {
+        maxNonOrtho 70;
+    }
+}
+
+writeFlags
+(
+    scalarLevels
+);
+
+mergeTolerance 1e-6;

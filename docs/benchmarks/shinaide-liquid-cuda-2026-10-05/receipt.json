@@ -1,0 +1,964 @@
+{
+  "status": "gates_not_met",
+  "date": "2026-10-05",
+  "input": "docs/benchmarks/fixtures/shinaide-dae-v4-react-20261005.liquidrun",
+  "input_sha256": "79717967fa59d4c4ad4095b38a61ede037a5431a158e9dd6dc9c646d0271778e",
+  "git_head": "38404dce35aedb4699289bec06e2efcde5c179ec",
+  "source_sha256": {
+    "tools/shinaide_liquid_cuda_verification.py": "e75d5837ecc556a02b23244c6ec611aca955431b94128ffaf7122af491a3b8f4",
+    "src/backend/liquidcooling/dae_experiment.py": "7e390b6f2c94aa7ab33e4fc5dba9c909737703a4c40fe72f8d778fcb0af50d79",
+    "src/backend/liquidcooling/liquidrun_dae_schema.py": "0c06bf60b84cd553e9dcb3e5d1d806c9e1c1a719b52a3dc0ed450b5ca1c58fbb",
+    "src/backend/liquidcooling/solver/equation_graph.py": "a1cb2fcd92c414faffe4601d8ed344aa731084c377a4a1f01c7a8eaaae9040d2",
+    "src/backend/liquidcooling/solver/dae_newton.py": "9d32358a2f5daa89dab6917d442992e4c039f8de927166d8abe778b02246a70c",
+    "src/backend/liquidcooling/solver/compile_support.py": "377eb4f41522eb5c6b6b47a14c170e52cb2d71e2fa0ce4b5a65a1c497e5d04b5"
+  },
+  "torch_version": "2.5.1+cu121",
+  "cuda_runtime": "12.1",
+  "execution": {
+    "cpu_affinity": [
+      24,
+      25,
+      26,
+      27
+    ],
+    "cpu_threads": 2,
+    "cuda_visible_devices": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+    "torch_visible_card": "NVIDIA GeForce RTX 4090",
+    "torch_visible_count": 1,
+    "cache_paths": {
+      "TMPDIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/tmp",
+      "XDG_CACHE_HOME": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/xdg-cache",
+      "TORCHINDUCTOR_CACHE_DIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/inductor",
+      "TRITON_CACHE_DIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/triton"
+    },
+    "library_path": "/usr/local/cuda-12.8/lib64/stubs"
+  },
+  "gpu_preflight": {
+    "raw": "0, GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93, NVIDIA GeForce RTX 4090, 24564, 4549, 19533",
+    "index": 0,
+    "uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+    "name": "NVIDIA GeForce RTX 4090",
+    "memory_total_MiB": 24564,
+    "memory_used_MiB": 4549,
+    "memory_free_MiB": 19533
+  },
+  "scope": {
+    "original_duration_s": 600.0,
+    "tested_duration_s": 30.0,
+    "dt_s": 10.0,
+    "accepted_steps": 3,
+    "initial": "original steady initialization",
+    "original": "unmodified product schedule at samples 0..steps; execution device only",
+    "actuated": "heat 1.2 and all curve-pump RPM times 0.9 queued after original initialization",
+    "objective": "mean of all 56 cold-plate solid temperatures at final accepted short step",
+    "derivatives": "first-order heat and pump scalars; fixed topology/flow/valve regime",
+    "compiled": "opt-in routed residual wrapper; transforms and autograd intentionally eager",
+    "exclusions": "not complete 600 s GPU acceptance, higher derivatives, GPU speedup, or browser CUDA"
+  },
+  "cpu-eager": {
+    "original": {
+      "objective_K": 325.7796615881389,
+      "forward_seconds": 0.7777325571514666,
+      "residency": [
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 5.148467607796192e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.148467607796192e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.148467607796192e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.148467607796192e-11,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000044241,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.42409873357974e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 2.9103830456733704e-11,
+          "scaled_residual": 5.148467607796192e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000044241,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.42409873357974e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 2.9103830456733704e-11,
+          "scaled_residual": 5.148467607796192e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000044241,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.42409873357974e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 2.9103830456733704e-11,
+          "scaled_residual": 5.148467607796192e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000044241,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.42409873357974e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 2.9103830456733704e-11,
+          "scaled_residual": 5.148467607796192e-11
+        }
+      ],
+      "online_accepted": []
+    },
+    "actuated": {
+      "objective_K": 329.25551866988087,
+      "forward_seconds": 5.520907811820507,
+      "residency": [
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cpu",
+          "theta": "cpu",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 5.148467607796192e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 3,
+          "scaled_residual_inf": 2.8054891743067855e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 3.140314674965339e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 2.9796254352731924e-14,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000044241,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.42409873357974e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 2.9103830456733704e-11,
+          "scaled_residual": 5.148467607796192e-11
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20979.23518263559,
+          "storage_rate_W": 4220.764817364871,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -4.6202330850064754e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.8054891743067855e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20952.75109831845,
+          "storage_rate_W": 4247.248901679905,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": 1.6443664208054543e-09,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 3.140314674965339e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20927.17379611441,
+          "storage_rate_W": 4272.826203886794,
+          "boundary_exchange_W": 1.1641532182693481e-10,
+          "energy_balance_W": -1.0877556633204222e-09,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.9796254352731924e-14
+        }
+      ],
+      "online_accepted": [
+        {
+          "seq": 1,
+          "time_s": 10.0,
+          "heat_multiplier": 1.2,
+          "pump_rpm_ratios": {
+            "m_30_pump": 0.9
+          }
+        }
+      ],
+      "adjoint_seconds": 2.246851817937568,
+      "first_derivatives": {
+        "heat_multiplier": 16.705769242467465,
+        "pump_rpm_multiplier": -1.8587987666734287
+      },
+      "gradient_residency": [
+        "cpu",
+        "cpu"
+      ]
+    },
+    "device": "cpu",
+    "dtype": "float64",
+    "compile_requested": false,
+    "first_compile_seconds": null,
+    "elapsed_seconds": 8.914800970815122,
+    "routing": null,
+    "graph": {
+      "nodes": 187,
+      "edges": 242,
+      "water_cells": 455,
+      "cold_plates": 56,
+      "heat_exchangers": 1,
+      "dae_unknowns": 1128
+    },
+    "state_layout": {
+      "pressure_free": [
+        0,
+        186
+      ],
+      "flow": [
+        186,
+        428
+      ],
+      "node_temperature": [
+        428,
+        615
+      ],
+      "water_temperature": [
+        615,
+        1070
+      ],
+      "solid_temperature": [
+        1070,
+        1126
+      ],
+      "hx_secondary_temperature": [
+        1126,
+        1127
+      ],
+      "primary_return_temperature": [
+        1127,
+        1128
+      ]
+    },
+    "raw_states": {
+      "path": "docs/benchmarks/shinaide-liquid-cuda-2026-10-05/cpu-eager-states.npz",
+      "sha256": "e54ba198fb503362c0cde1452b2a1d268c8ad0eb9ba1eda639015d74efbe2890"
+    }
+  },
+  "gpu-eager": {
+    "original": {
+      "objective_K": 325.7796615875064,
+      "forward_seconds": 5.701346931047738,
+      "residency": [
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 5.417969077825546e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.417969077825546e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.417969077825546e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 5.417969077825546e-11,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000050806,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": -5.080717528471723e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.417969077825546e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000050806,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": -5.080717528471723e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.417969077825546e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000050806,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": -5.080717528471723e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.417969077825546e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.0000050806,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": -5.080717528471723e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.417969077825546e-11
+        }
+      ],
+      "online_accepted": []
+    },
+    "actuated": {
+      "objective_K": 329.25551866438803,
+      "forward_seconds": 23.76600476517342,
+      "residency": [
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 2.5273766368627547e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 3,
+          "scaled_residual_inf": 2.485180949918231e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 5.784386303275824e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 5.2386894822120665e-14,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 20999.999996948318,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": 3.0515657272189856e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.5273766368627547e-11
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20979.23517518476,
+          "storage_rate_W": 4220.764824814797,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": 3.2741809263825417e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.485180949918231e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20952.75109089946,
+          "storage_rate_W": 4247.248909100047,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": 3.7834979593753815e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.784386303275824e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20927.173788726308,
+          "storage_rate_W": 4272.826211274359,
+          "boundary_exchange_W": -2.3283064365386963e-10,
+          "energy_balance_W": -8.985807653516531e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 5.2386894822120665e-14
+        }
+      ],
+      "online_accepted": [
+        {
+          "seq": 1,
+          "time_s": 10.0,
+          "heat_multiplier": 1.2,
+          "pump_rpm_ratios": {
+            "m_30_pump": 0.9
+          }
+        }
+      ],
+      "adjoint_seconds": 11.563977729063481,
+      "first_derivatives": {
+        "heat_multiplier": 16.70576924246746,
+        "pump_rpm_multiplier": -1.8587987666798684
+      },
+      "gradient_residency": [
+        "cuda:0",
+        "cuda:0"
+      ]
+    },
+    "device": "cuda:0",
+    "dtype": "float64",
+    "compile_requested": false,
+    "first_compile_seconds": null,
+    "elapsed_seconds": 41.61162214213982,
+    "routing": null,
+    "graph": {
+      "nodes": 187,
+      "edges": 242,
+      "water_cells": 455,
+      "cold_plates": 56,
+      "heat_exchangers": 1,
+      "dae_unknowns": 1128
+    },
+    "state_layout": {
+      "pressure_free": [
+        0,
+        186
+      ],
+      "flow": [
+        186,
+        428
+      ],
+      "node_temperature": [
+        428,
+        615
+      ],
+      "water_temperature": [
+        615,
+        1070
+      ],
+      "solid_temperature": [
+        1070,
+        1126
+      ],
+      "hx_secondary_temperature": [
+        1126,
+        1127
+      ],
+      "primary_return_temperature": [
+        1127,
+        1128
+      ]
+    },
+    "raw_states": {
+      "path": "docs/benchmarks/shinaide-liquid-cuda-2026-10-05/gpu-eager-states.npz",
+      "sha256": "0adb2133c9fa6f40799587c6d3851aa7c0d7dce2a1b8eef5fcc46583874e94ed"
+    }
+  },
+  "gpu-compiled": {
+    "original": {
+      "objective_K": 325.7796615830477,
+      "forward_seconds": 4.919550718041137,
+      "residency": [
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 2.7342230168869718e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 2.7342230168869718e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 2.7342230168869718e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 0,
+          "scaled_residual_inf": 2.7342230168869718e-11,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 20999.99999505983,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -2.3283064365386963e-10,
+          "energy_balance_W": 4.939938662573695e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.7342321118339895e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 20999.99999505983,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -2.3283064365386963e-10,
+          "energy_balance_W": 4.939938662573695e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.7342321118339895e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 20999.99999505983,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -2.3283064365386963e-10,
+          "energy_balance_W": 4.939938662573695e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.7342321118339895e-11
+        },
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 20999.99999505983,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": -2.3283064365386963e-10,
+          "energy_balance_W": 4.939938662573695e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 2.7342321118339895e-11
+        }
+      ],
+      "online_accepted": []
+    },
+    "actuated": {
+      "objective_K": 329.2555186674309,
+      "forward_seconds": 22.09955328516662,
+      "residency": [
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        },
+        {
+          "state": "cuda:0",
+          "theta": "cuda:0",
+          "dtype": "torch.float64"
+        }
+      ],
+      "frames": 4,
+      "frame_times_s": [
+        0.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "newton": [
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 4.0350437271704425e-11,
+          "backtracks": 0
+        },
+        {
+          "iterations": 3,
+          "scaled_residual_inf": 4.5201886678114534e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 3.1785396890191154e-14,
+          "backtracks": 0
+        },
+        {
+          "iterations": 1,
+          "scaled_residual_inf": 3.3287506084889174e-14,
+          "backtracks": 0
+        }
+      ],
+      "diagnostics": [
+        {
+          "heat_input_W": 21000.0,
+          "primary_rejection_W": 21000.00000109002,
+          "storage_rate_W": 0.0,
+          "boundary_exchange_W": 1.1641532182693481e-10,
+          "energy_balance_W": -1.0899020708166063e-06,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 4.034955054521561e-11
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20979.235179318144,
+          "storage_rate_W": 4220.7648206838,
+          "boundary_exchange_W": -1.1641532182693481e-10,
+          "energy_balance_W": -2.0590960048139095e-09,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 4.511093720793724e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20952.75109502215,
+          "storage_rate_W": 4247.248904978811,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -9.64064383879304e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 3.1785396883976526e-14
+        },
+        {
+          "heat_input_W": 25200.0,
+          "primary_rejection_W": 20927.173792838308,
+          "storage_rate_W": 4272.8262071626,
+          "boundary_exchange_W": 0.0,
+          "energy_balance_W": -9.094947017729282e-10,
+          "mass_residual_kg_s": 5.551115123125783e-17,
+          "momentum_residual_Pa": 5.820766091346741e-11,
+          "scaled_residual": 3.310560714453459e-14
+        }
+      ],
+      "online_accepted": [
+        {
+          "seq": 1,
+          "time_s": 10.0,
+          "heat_multiplier": 1.2,
+          "pump_rpm_ratios": {
+            "m_30_pump": 0.9
+          }
+        }
+      ],
+      "adjoint_seconds": 10.978546401951462,
+      "first_derivatives": {
+        "heat_multiplier": 16.70576924246746,
+        "pump_rpm_multiplier": -1.858798766676242
+      },
+      "gradient_residency": [
+        "cuda:0",
+        "cuda:0"
+      ]
+    },
+    "device": "cuda:0",
+    "dtype": "float64",
+    "compile_requested": true,
+    "first_compile_seconds": 18.16636383999139,
+    "elapsed_seconds": 58.438176919007674,
+    "routing": {
+      "n_compiled": 25,
+      "n_eager_transform": 0,
+      "n_eager_grad": 13,
+      "n_eager_fallback": 0,
+      "broken_latch": false
+    },
+    "graph": {
+      "nodes": 187,
+      "edges": 242,
+      "water_cells": 455,
+      "cold_plates": 56,
+      "heat_exchangers": 1,
+      "dae_unknowns": 1128
+    },
+    "state_layout": {
+      "pressure_free": [
+        0,
+        186
+      ],
+      "flow": [
+        186,
+        428
+      ],
+      "node_temperature": [
+        428,
+        615
+      ],
+      "water_temperature": [
+        615,
+        1070
+      ],
+      "solid_temperature": [
+        1070,
+        1126
+      ],
+      "hx_secondary_temperature": [
+        1126,
+        1127
+      ],
+      "primary_return_temperature": [
+        1127,
+        1128
+      ]
+    },
+    "raw_states": {
+      "path": "docs/benchmarks/shinaide-liquid-cuda-2026-10-05/gpu-compiled-states.npz",
+      "sha256": "75da95e821b7c0d0abac7c4e9c8c137b1d0fff9f17a8da9a539ea57b6899d12d"
+    }
+  },
+  "comparisons": {
+    "gpu_eager_vs_cpu_eager": {
+      "original": {
+        "max_all_state_absolute_difference": 4.581977464113152e-09,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 2.9103830456733704e-11,
+          "flow": 1.6653345369377348e-16,
+          "node_temperature": 4.581977464113152e-09,
+          "water_temperature": 4.581977464113152e-09,
+          "solid_temperature": 2.9307329896255396e-09,
+          "hx_secondary_temperature": 4.853291102335788e-10,
+          "primary_return_temperature": 1.5705836631241255e-10
+        },
+        "objective_absolute_difference_K": 6.324967216642108e-10
+      },
+      "actuated": {
+        "max_all_state_absolute_difference": 1.1188092230440816e-08,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 5.820766091346741e-11,
+          "flow": 2.220446049250313e-16,
+          "node_temperature": 1.1188092230440816e-08,
+          "water_temperature": 1.1188092230440816e-08,
+          "solid_temperature": 5.734932528866921e-09,
+          "hx_secondary_temperature": 5.526260338228894e-09,
+          "primary_return_temperature": 1.7884644876176026e-09
+        },
+        "objective_absolute_difference_K": 5.492836407938739e-09,
+        "first_derivatives": {
+          "heat_multiplier": {
+            "reference": 16.705769242467465,
+            "observed": 16.70576924246746,
+            "absolute_difference": 3.552713678800501e-15,
+            "relative_difference": 2.126638784025105e-16
+          },
+          "pump_rpm_multiplier": {
+            "reference": -1.8587987666734287,
+            "observed": -1.8587987666798684,
+            "absolute_difference": 6.439737632035758e-12,
+            "relative_difference": 3.4644619673049535e-12
+          }
+        }
+      }
+    },
+    "gpu_compiled_vs_gpu_eager": {
+      "original": {
+        "max_all_state_absolute_difference": 1.5452144452865468e-08,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 2.9103830456733704e-11,
+          "flow": 5.551115123125783e-17,
+          "node_temperature": 1.5452144452865468e-08,
+          "water_temperature": 1.5452144452865468e-08,
+          "solid_temperature": 7.113783340173541e-09,
+          "hx_secondary_temperature": 7.407663815683918e-09,
+          "primary_return_temperature": 2.3973143470357172e-09
+        },
+        "objective_absolute_difference_K": 4.458684088604059e-09
+      },
+      "actuated": {
+        "max_all_state_absolute_difference": 6.5820700001495425e-09,
+        "max_absolute_difference_by_state": {
+          "pressure_free": 5.820766091346741e-11,
+          "flow": 2.220446049250313e-16,
+          "node_temperature": 6.5820700001495425e-09,
+          "water_temperature": 6.5820700001495425e-09,
+          "solid_temperature": 3.0592559596698266e-09,
+          "hx_secondary_temperature": 3.0616433832619805e-09,
+          "primary_return_temperature": 9.908376341627445e-10
+        },
+        "objective_absolute_difference_K": 3.042885055037914e-09,
+        "first_derivatives": {
+          "heat_multiplier": {
+            "reference": 16.70576924246746,
+            "observed": 16.70576924246746,
+            "absolute_difference": 0.0,
+            "relative_difference": 0.0
+          },
+          "pump_rpm_multiplier": {
+            "reference": -1.8587987666798684,
+            "observed": -1.858798766676242,
+            "absolute_difference": 3.6264324876356113e-12,
+            "relative_difference": 1.9509548600104992e-12
+          }
+        }
+      }
+    }
+  },
+  "gates": {
+    "gpu_eager_vs_cpu_eager_all_states": false,
+    "gpu_eager_vs_cpu_eager_gradients": true,
+    "gpu_compiled_vs_gpu_eager_all_states": false,
+    "gpu_compiled_vs_gpu_eager_gradients": true,
+    "compiled_value_calls": true,
+    "no_unplanned_fallback": true,
+    "intentional_gradient_routing": true,
+    "finite_nonzero_gradients": true,
+    "accepted_residuals": true,
+    "state_and_theta_residency": true
+  },
+  "elapsed_seconds": 109.20482531399466,
+  "gpu_postflight": {
+    "raw": "0, GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93, NVIDIA GeForce RTX 4090, 24564, 5118, 18963",
+    "index": 0,
+    "uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+    "name": "NVIDIA GeForce RTX 4090",
+    "memory_total_MiB": 24564,
+    "memory_used_MiB": 5118,
+    "memory_free_MiB": 18963
+  }
+}

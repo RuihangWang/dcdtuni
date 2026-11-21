@@ -1,0 +1,111 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > draws an honest static service schematic on an unlit sRGB HMI
+TypeError: Cannot read properties of undefined (reading 'kind')
+ ❯ Module.buildLiquidEquipmentVisual src/geometry/liquidEquipmentVisuals.ts:381:13
+    379| 
+    380| export function buildLiquidEquipmentVisual(model: Construction): THREE…
+    381|   if (model.kind !== 'cdu' && model.kind !== 'rack') return null
+       |             ^
+    382|   const cooling = (model.cooling ?? {}) as { type?: string }
+    383|   if (model.kind === 'rack' && cooling.type !== 'liquid') return null
+ ❯ visual test/cduAppearanceDisplay.test.ts:63:17
+ ❯ test/cduAppearanceDisplay.test.ts:88:45
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > softens only CDU cabinet paint and keeps other shared PBR surfaces unchanged
+TypeError: Cannot read properties of undefined (reading 'kind')
+ ❯ Module.buildLiquidEquipmentVisual src/geometry/liquidEquipmentVisuals.ts:381:13
+    379| 
+    380| export function buildLiquidEquipmentVisual(model: Construction): THREE…
+    381|   if (model.kind !== 'cdu' && model.kind !== 'rack') return null
+       |             ^
+    382|   const cooling = (model.cooling ?? {}) as { type?: string }
+    383|   if (model.kind === 'rack' && cooling.type !== 'liquid') return null
+ ❯ visual test/cduAppearanceDisplay.test.ts:63:17
+ ❯ test/cduAppearanceDisplay.test.ts:100:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > retains the HMI map after whole-cabinet highlight and shares no owned display texture
+TypeError: Cannot read properties of undefined (reading 'kind')
+ ❯ Module.buildLiquidEquipmentVisual src/geometry/liquidEquipmentVisuals.ts:381:13
+    379| 
+    380| export function buildLiquidEquipmentVisual(model: Construction): THREE…
+    381|   if (model.kind !== 'cdu' && model.kind !== 'rack') return null
+       |             ^
+    382|   const cooling = (model.cooling ?? {}) as { type?: string }
+    383|   if (model.kind === 'rack' && cooling.type !== 'liquid') return null
+ ❯ visual test/cduAppearanceDisplay.test.ts:63:17
+ ❯ test/cduAppearanceDisplay.test.ts:115:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > clears owned HMI resources once with selected=false without disposing cached paint
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > clears owned HMI resources once with selected=true without disposing cached paint
+AssertionError: expected null to be truthy
+
+- Expected: 
+true
+
++ Received: 
+null
+
+ ❯ test/cduAppearanceDisplay.test.ts:133:26
+    131|     cached.forEach((texture, index) => texture.addEventListener('dispo…
+    132|     const { host, builder } = scene(project(), true), hmi = screen(hos…
+    133|     expect(original.map).toBeTruthy()
+       |                          ^
+    134|     const textureEvent = vi.fn(), materialEvent = vi.fn()
+    135|     original.map!.addEventListener('dispose', textureEvent)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > provides a dark nontextured HMI when a 2D canvas is unavailable
+TypeError: Cannot read properties of undefined (reading 'kind')
+ ❯ Module.buildLiquidEquipmentVisual src/geometry/liquidEquipmentVisuals.ts:381:13
+    379| 
+    380| export function buildLiquidEquipmentVisual(model: Construction): THREE…
+    381|   if (model.kind !== 'cdu' && model.kind !== 'rack') return null
+       |             ^
+    382|   const cooling = (model.cooling ?? {}) as { type?: string }
+    383|   if (model.kind === 'rack' && cooling.type !== 'liquid') return null
+ ❯ visual test/cduAppearanceDisplay.test.ts:63:17
+ ❯ test/cduAppearanceDisplay.test.ts:149:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > carries the static screen through the actual supported OV snapshot without shader-only maps
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/cduAppearanceDisplay.test.ts:164:40
+    162|     for (const primitive of screens) {
+    163|       expect(primitive.modelUid).toBe('m_30')
+    164|       expect(primitive.material.unlit).toBe(true)
+       |                                        ^
+    165|       expect(primitive.material.mapColorSpace).toBe('srgb')
+    166|       expect(packet.textures[primitive.material.map!]).toMatch(/^data:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > keeps the real SceneBuilder structural buffers, grouped STL, ports and source JSON exact
+TypeError: Cannot read properties of null (reading 'position')
+ ❯ test/cduAppearanceDisplay.test.ts:175:21
+    173|     const ports = () => ['supply', 'return'].map(port => {
+    174|       const frame = geometryPure().liquidEquipmentPortFrame(model, por…
+    175|       return [frame.position.toArray(), frame.direction.toArray()]
+       |                     ^
+    176|     })
+    177|     const originalPorts = ports()
+ ❯ ports test/cduAppearanceDisplay.test.ts:173:46
+ ❯ test/cduAppearanceDisplay.test.ts:177:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+

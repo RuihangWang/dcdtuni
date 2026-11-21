@@ -1,0 +1,101 @@
+--- v1/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ v2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -800,11 +800,12 @@
+                         _native_grid_receipt_diagnostic('flush-send',payload.get('gridDisplay'))
+                     except Exception:
+                         pass  # Diagnostic import/sink failure cannot suppress ACK.
+-                    # Carb drops None dictionary entries. Keep a freshly
+-                    # revalidated native receipt as explicit JSON text; no
+-                    # nullable proof field is reconstructed by the receiver.
++                    # Carb drops None dictionary entries and turns empty arrays
++                    # into objects. Preserve real views and freshly revalidated
++                    # native receipts as JSON; the receiver reconstructs no fields.
+                     wire_grid = payload.get('gridDisplay')
+-                    if type(wire_grid) is dict and 'nativeGeometry' in wire_grid:
++                    if (type(wire_grid) is dict and 'nativeGeometry' in wire_grid
++                            or type(payload.get('view')) is dict):
+                         try:
+                             import json
+                             wire = {'renderAckJSON': json.dumps(
+@@ -812,7 +813,7 @@
+                                 separators=(',', ':'))}
+                             app.get_message_bus_event_stream().push(event, payload=wire)
+                         except Exception:
+-                            # No legacy fallback can carry a failed native proof.
++                            # No legacy fallback can carry a failed view/proof.
+                             # A failed encode/send must not discard later ACKs.
+                             continue
+                     else:
+--- v1/src/frontend/omniverse/cfd_demo/tests/test_camera_handoff_purpose.py
++++ v2/src/frontend/omniverse/cfd_demo/tests/test_camera_handoff_purpose.py
+@@ -61,3 +61,41 @@
+   ext._route_render_command('getViewState',json.dumps({'requestId':'wrong','purpose':'camera-handoff',**extra}))
+   assert calls==[];assert ext.acks[0]['ok'] is False
+  asyncio.run(scenario())
++
++
++def _flush_harness():
++ from test_dataset_scene_race import _class_methods
++ wires=[]
++ class App:
++  async def next_update_async(self):pass
++  def get_message_bus_event_stream(self):
++   return types.SimpleNamespace(push=lambda event,**kw:wires.append(kw['payload']))
++ app=App()
++ globals_={'asyncio':asyncio,'omni':types.SimpleNamespace(kit=types.SimpleNamespace(app=types.SimpleNamespace(get_app=lambda:app))),
++  'carb':types.SimpleNamespace(events=types.SimpleNamespace(type_from_string=lambda _:3))}
++ Ext=_class_methods('extension.py','CfdBridgeExtension',{'_flush_acks'},globals_)
++ ext=Ext();ext.ACK_QUIET_FRAMES=2;ext.ACK_MAX_WAIT_FRAMES=120;ext._inbound_seq=0;ext._ack_flushing=True
++ return ext,wires
++
++@pytest.mark.parametrize('time_seconds',[None,0,2.5])
++@pytest.mark.parametrize('selected',[[],['owned-rack']])
++def test_actual_flush_preserves_explicit_time_and_selection(time_seconds,selected):
++ ext,wires=_flush_harness()
++ payload={'requestId':'view-flush','ok':True,'view':{'timeSeconds':time_seconds,'selectedUids':selected,
++  'camera':{'position':[1,2,3],'target':[0,0,0],'up':[0,1,0]}}}
++ ext._ack_queue=[copy.deepcopy(payload)]
++ asyncio.run(ext._flush_acks())
++ assert len(wires)==1 and set(wires[0])=={'renderAckJSON'}
++ assert json.loads(wires[0]['renderAckJSON'])==payload
++ assert ext._ack_flushing is False
++
++def test_no_view_ack_keeps_ordinary_plain_wire():
++ ext,wires=_flush_harness();payload={'requestId':'plain','ok':True,'primitives':7}
++ ext._ack_queue=[copy.deepcopy(payload)];asyncio.run(ext._flush_acks())
++ assert wires==[payload] and ext._ack_flushing is False
++
++def test_failed_view_encoding_has_no_plain_fallback_and_keeps_later_ack():
++ ext,wires=_flush_harness();plain={'requestId':'later','ok':False,'error':'controlled-refusal'}
++ ext._ack_queue=[{'requestId':'invalid-view','ok':True,'view':{'timeSeconds':float('nan'),'selectedUids':[]}},plain]
++ asyncio.run(ext._flush_acks())
++ assert wires==[plain] and ext._ack_flushing is False
+--- v1/src/frontend/omniverse/cfd_demo/tests/test_native_grid_ack_json_transport.py
++++ v2/src/frontend/omniverse/cfd_demo/tests/test_native_grid_ack_json_transport.py
+@@ -50,12 +50,22 @@
+  assert decoded['gridDisplay']['gridPixelVerified'] is False
+  assert decoded['gridDisplay']['nativeGeometry']['encodedFrameProof']=='unresolved'
+ @pytest.mark.parametrize('kind',['ordinary','withdrawn'])
+-def test_old_ordinary_and_withdrawn_native_ack_remain_object_path(kind):
++def test_no_view_ordinary_and_withdrawn_native_ack_keep_plain_object_path(kind):
++ payload=ack(native() if kind=='withdrawn' else None);del payload['view']
++ raw,wire=flush([payload],fresh={})
++ assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
++ assert 'view' not in raw[0] and raw==wire
++ assert raw[0]['gridDisplay']['gridPixelVerified'] is False
++@pytest.mark.parametrize('kind',['ordinary','withdrawn'])
++def test_real_view_ordinary_and_withdrawn_native_ack_keep_lossless_view_without_proof_repair(kind):
+  payload=ack(native() if kind=='withdrawn' else None)
+  raw,wire=flush([payload],fresh={})
+- assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
+- assert raw[0]['view']['timeSeconds'] is None
+- assert 'timeSeconds' not in wire[0]['view']
++ assert set(raw[0])=={'renderAckJSON'} and raw==wire
++ decoded=json.loads(wire[0]['renderAckJSON'])
++ assert decoded['view']==payload['view']
++ assert decoded['view']['timeSeconds'] is None and decoded['view']['selectedUids']==[]
++ assert 'nativeGeometry' not in decoded['gridDisplay']
++ assert decoded['gridDisplay']=={'phase':'unsupported','reason':'stream-layout-unresolved','gridPixelVerified':False}
+ @pytest.mark.parametrize('kind',['nan','infinite','unsupported-value','sink'])
+ def test_failed_native_encoding_or_send_never_falls_back_and_does_not_drop_next_ack(kind):
+  n=native()

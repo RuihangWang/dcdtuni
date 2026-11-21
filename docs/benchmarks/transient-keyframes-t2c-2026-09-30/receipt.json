@@ -1,0 +1,34 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T2c (inspector time semantics + solve-tab trim)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t2c",
+  "code": "a03a8c33",
+  "machine": "40901, isolated worktree ~/scratch/wt-t2c on 8390 (8360 untouched)",
+  "tests": {"vitest": {"files": 311, "tests": 3131, "failed": 0}, "tsc_noEmit": "clean", "tsc_b": "clean"},
+  "browser_gate": {
+    "case": "Base_coldAisleIso (transient), Rack_1 / fan-server_1 e_3",
+    "t0": {"badge": "key", "banner": false},
+    "t120": {"badge": "hold", "banner": "t = 120 s：几何与静态参数只读；…", "eq_name": {"pointerEvents": "none", "opacity": 0.45}, "eq_power": {"pointerEvents": "auto", "opacity": 1}},
+    "inspector_edit_t120": {"typed": 400, "keyframes": [{"t": 0, "value": 150}, {"t": 120, "value": 400, "rampS": 0}], "badge": "key", "strip_diamond": "20%"},
+    "ramp_60_t90": {"badge": "ramp", "field_value": 275},
+    "static_edit_t90": {"refused": true, "model_unchanged": true, "notice": "未执行：播放头不在起点，几何与静态参数只读（回到 t = 0 再改）"},
+    "move_gizmo": {"t0": "visible", "t120": "hidden", "back_to_0": "visible"},
+    "frozen_inputs_after_fix": {"total": 28, "live": ["model-anchor-marker", "model-opacity-slider", "rack-server-opacity-slider"], "eq_inlet_offset_slider": {"pointerEvents": "none", "opacity": 0.45}},
+    "nv_pek02_cp_heat_badge": {"t0": ["10000", "key"], "t3": ["10000", "hold"], "t5": ["12000", "key"], "t8": ["12000", "hold"]},
+    "nv_pek02_liquid_panel": {"duration": "10 s（瞬态时由时间条决定）", "keyframe_hint": true, "load_step": false, "supply_plan": false},
+    "solve_tab": "locked behind validate+mesh in the browser (existing gate); covered by solverModeRow.test.tsx"
+  },
+  "defects_fixed": [
+    {"commit": "fad9dc08", "what": "hybrid projects: solver-type row now states the air solve stays steady instead of pointing at the top-bar switch (advisor review)"},
+    {"commit": "a03a8c33", "what": "frozen rule exempted every range input; a geometry slider stayed live — only opacity sliders exempt now"}
+  ],
+  "open": [
+    "face-drag / air-pipe handles may still render while frozen (drag is a no-op)",
+    "first edit off t = 0 on a never-edited object is a 'structure' refusal (correct, unintuitive)",
+    "CDU panel's fixed 101.325 kPa return pressure vs registry default 150 kPa — settle with T3's pressure boundary",
+    "air/liquid single-mode ruling (design §6)"
+  ],
+  "teardown": "8390 stopped and the worktree removed after the gate"
+}

@@ -1,0 +1,739 @@
+FFFFFFFFF                                                                [100%]
+=================================== FAILURES ===================================
+___ test_actual_old_writer_finishes_before_next_frame_import[setStreamlines] ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c42d3100>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe0')
+command = 'setStreamlines'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:71: in scenario
+    ext._route_command({"command_name": command, "message": json.dumps(args)})
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py:301: in _route_command
+    handlers.handle_set_streamlines(s, stage, **parsers.parse_set_streamlines(message))
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:600: in handle_set_streamlines
+    _resolve_seed_center(scene, stage, seed_center)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+scene = <race_bridge.test.CfdScene object at 0x7fc9c42d17b0>
+stage = <test_dataset_scene_race.Stage object at 0x7fc9c42d2d10>
+center = [0.0, 0.0, 0.0]
+
+    def _resolve_seed_center(scene, stage, center):
+        """Decide whose seed centre wins: the frontend's numbers or a viewport drag.
+    
+        The command channel is one-way, so the frontend never learns that the user dragged
+        the sphere — it keeps sending its own (now stale) centre, which used to overwrite the
+        drag and snap the ball back to its default. Arbitrate instead:
+    
+        * the UI value CHANGED since its last command -> the user typed new numbers, UI wins;
+        * otherwise, if the prim drifted from where we placed it -> the user dragged it, the
+          viewport wins.
+        """
+>       from . import geom
+E       ImportError: cannot import name 'geom' from 'race_bridge' (unknown location)
+
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:583: ImportError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=setStreamlines message={"enabled": true, "visible": true, "field": "T", "origin": [0, 0, 0], "normal": [0, 1, 0], "radius": 1, "domain": null, "requestId": "old"}
+___ test_actual_old_writer_finishes_before_next_frame_import[setSeedSphere] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c414dc00>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe1')
+command = 'setSeedSphere'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:71: in scenario
+    ext._route_command({"command_name": command, "message": json.dumps(args)})
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py:303: in _route_command
+    handlers.handle_set_seed_sphere(s, stage, **parsers.parse_set_seed_sphere(message))
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:617: in handle_set_seed_sphere
+    _resolve_seed_center(scene, stage, center)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+scene = <race_bridge.test.CfdScene object at 0x7fc9c40c3220>
+stage = <test_dataset_scene_race.Stage object at 0x7fc9c414dc60>
+center = [0.0, 0.0, 0.0]
+
+    def _resolve_seed_center(scene, stage, center):
+        """Decide whose seed centre wins: the frontend's numbers or a viewport drag.
+    
+        The command channel is one-way, so the frontend never learns that the user dragged
+        the sphere — it keeps sending its own (now stale) centre, which used to overwrite the
+        drag and snap the ball back to its default. Arbitrate instead:
+    
+        * the UI value CHANGED since its last command -> the user typed new numbers, UI wins;
+        * otherwise, if the prim drifted from where we placed it -> the user dragged it, the
+          viewport wins.
+        """
+>       from . import geom
+E       ImportError: cannot import name 'geom' from 'race_bridge' (unknown location)
+
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:583: ImportError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=setSeedSphere message={"enabled": true, "visible": true, "field": "T", "origin": [0, 0, 0], "normal": [0, 1, 0], "radius": 1, "domain": null, "requestId": "old"}
+__ test_actual_old_writer_finishes_before_next_frame_import[syncFromViewport] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c575ed10>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe2')
+command = 'syncFromViewport'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+        bind_display(monkeypatch, ext)
+        started, release = asyncio.Event(), asyncio.Event()
+        events = []
+        async def writer(*args, **kwargs):
+            started.set()
+            await release.wait()
+            events.append("old-write")
+            return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+        scene.generate_streamlines = writer
+        scene.update_seed_sphere = writer
+        scene.show_volume_display = writer
+        scene.update_slice = writer
+        scene.seed_center = [0, 0, 0]
+        scene.adopt_dragged_seed = lambda stage: None
+        scene.bake_roi_xform = lambda stage: None
+        scene.adopt_dragged_slice = lambda stage: object()
+        scene.clip_enabled = False
+        scene.streamlines_enabled = True
+        scene.slice_visible = command in {"setSlice", "getSliceState"}
+        scene.slice_origin = [0, 0, 0]
+        scene.slice_normal = [0, 1, 0]
+        scene.slice_radius = 1
+        scene.slice_field = "T"
+        scene.slice_domain = None
+        scene.resolve_slice_origin = lambda stage, origin: None
+        original = scene.load_dataset
+        async def load(stage, path):
+            events.append("new-import")
+            return await original(stage, path)
+        scene.load_dataset = load
+        args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+        ext._route_command({"command_name": command, "message": json.dumps(args)})
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+        for _ in range(10):
+            await asyncio.sleep(0)
+>       assert "new-import" not in events, (command, events)
+E       AssertionError: ('syncFromViewport', ['new-import'])
+E       assert 'new-import' not in ['new-import']
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:76: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=syncFromViewport message={"enabled": true, "visible": true, "field": "T", "origin": [0, 0, 0], "normal": [0, 1, 0], "radius": 1, "domain": null, "requestId": "old"}
+[dc.cfd_bridge] syncFromViewport clip=False volume=False streamlines=True roi=none
+__ test_actual_old_writer_finishes_before_next_frame_import[setVolumeDisplay] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c42c5a50>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe3')
+command = 'setVolumeDisplay'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:72: in scenario
+    await _drain_until(started.is_set)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+predicate = <bound method Event.is_set of <asyncio.locks.Event object at 0x7fc9c575fee0 [unset]>>
+
+    async def _drain_until(predicate):
+        for _ in range(100):
+            if predicate():
+                return
+            await asyncio.sleep(0)
+>       raise AssertionError("controlled command did not settle")
+E       AssertionError: controlled command did not settle
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:183: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command setVolumeDisplay rejected: Unexpected or missing render command fields
+______ test_actual_old_writer_finishes_before_next_frame_import[setSlice] ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c417bfd0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe4')
+command = 'setSlice'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:72: in scenario
+    await _drain_until(started.is_set)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+predicate = <bound method Event.is_set of <asyncio.locks.Event object at 0x7fc9c42bae60 [unset]>>
+
+    async def _drain_until(predicate):
+        for _ in range(100):
+            if predicate():
+                return
+            await asyncio.sleep(0)
+>       raise AssertionError("controlled command did not settle")
+E       AssertionError: controlled command did not settle
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:183: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command setSlice rejected: Unexpected or missing render command fields
+___ test_actual_old_writer_finishes_before_next_frame_import[getSliceState] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c417a7a0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_actual_old_writer_finishe5')
+command = 'getSliceState'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
+                                        "setVolumeDisplay", "setSlice", "getSliceState"])
+    def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            started, release = asyncio.Event(), asyncio.Event()
+            events = []
+            async def writer(*args, **kwargs):
+                started.set()
+                await release.wait()
+                events.append("old-write")
+                return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.show_volume_display = writer
+            scene.update_slice = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: None
+            scene.bake_roi_xform = lambda stage: None
+            scene.adopt_dragged_slice = lambda stage: object()
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            scene.slice_visible = command in {"setSlice", "getSliceState"}
+            scene.slice_origin = [0, 0, 0]
+            scene.slice_normal = [0, 1, 0]
+            scene.slice_radius = 1
+            scene.slice_field = "T"
+            scene.slice_domain = None
+            scene.resolve_slice_origin = lambda stage, origin: None
+            original = scene.load_dataset
+            async def load(stage, path):
+                events.append("new-import")
+                return await original(stage, path)
+            scene.load_dataset = load
+            args = {"enabled": True, "visible": True, "field": "T", "origin": [0, 0, 0],
+                    "normal": [0, 1, 0], "radius": 1, "domain": None, "requestId": "old"}
+            ext._route_command({"command_name": command, "message": json.dumps(args)})
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert "new-import" not in events, (command, events)
+            release.set()
+            await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
+            assert events.index("old-write") < events.index("new-import")
+            assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:72: in scenario
+    await _drain_until(started.is_set)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+predicate = <bound method Event.is_set of <asyncio.locks.Event object at 0x7fc9c41e8d30 [unset]>>
+
+    async def _drain_until(predicate):
+        for _ in range(100):
+            if predicate():
+                return
+            await asyncio.sleep(0)
+>       raise AssertionError("controlled command did not settle")
+E       AssertionError: controlled command did not settle
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:183: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command getSliceState rejected: Unexpected or missing render command fields
+________ test_queued_old_fire_cannot_touch_a_new_scene[setStreamlines] _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c417bc10>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_queued_old_fire_cannot_to0')
+command = 'setStreamlines'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport"])
+    def test_queued_old_fire_cannot_touch_a_new_scene(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            events = []
+            async def writer(*args, **kwargs):
+                events.append(stage.project)
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: events.append("adopt")
+            scene.bake_roi_xform = lambda stage: events.append("bake")
+            scene.adopt_dragged_slice = lambda stage: None
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+            await _drain_until(lambda: len(ext.acks) == 1)
+            for _ in range(8):
+                await asyncio.sleep(0)
+            assert events == []
+            assert stage.project == "new-project"
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:100: in scenario
+    ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py:301: in _route_command
+    handlers.handle_set_streamlines(s, stage, **parsers.parse_set_streamlines(message))
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:600: in handle_set_streamlines
+    _resolve_seed_center(scene, stage, seed_center)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+scene = <race_bridge.test.CfdScene object at 0x7fc9c44eea10>
+stage = <test_dataset_scene_race.Stage object at 0x7fc9c417a0e0>
+center = [0.0, 0.0, 0.0]
+
+    def _resolve_seed_center(scene, stage, center):
+        """Decide whose seed centre wins: the frontend's numbers or a viewport drag.
+    
+        The command channel is one-way, so the frontend never learns that the user dragged
+        the sphere — it keeps sending its own (now stale) centre, which used to overwrite the
+        drag and snap the ball back to its default. Arbitrate instead:
+    
+        * the UI value CHANGED since its last command -> the user typed new numbers, UI wins;
+        * otherwise, if the prim drifted from where we placed it -> the user dragged it, the
+          viewport wins.
+        """
+>       from . import geom
+E       ImportError: cannot import name 'geom' from 'race_bridge' (unknown location)
+
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:583: ImportError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=setStreamlines message={"enabled": true, "visible": true}
+_________ test_queued_old_fire_cannot_touch_a_new_scene[setSeedSphere] _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c5cf4880>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_queued_old_fire_cannot_to1')
+command = 'setSeedSphere'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport"])
+    def test_queued_old_fire_cannot_touch_a_new_scene(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            events = []
+            async def writer(*args, **kwargs):
+                events.append(stage.project)
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: events.append("adopt")
+            scene.bake_roi_xform = lambda stage: events.append("bake")
+            scene.adopt_dragged_slice = lambda stage: None
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+            await _drain_until(lambda: len(ext.acks) == 1)
+            for _ in range(8):
+                await asyncio.sleep(0)
+            assert events == []
+            assert stage.project == "new-project"
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:100: in scenario
+    ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py:303: in _route_command
+    handlers.handle_set_seed_sphere(s, stage, **parsers.parse_set_seed_sphere(message))
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:617: in handle_set_seed_sphere
+    _resolve_seed_center(scene, stage, center)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+scene = <race_bridge.test.CfdScene object at 0x7fc9c598fca0>
+stage = <test_dataset_scene_race.Stage object at 0x7fc9c4179810>
+center = [0.0, 0.0, 0.0]
+
+    def _resolve_seed_center(scene, stage, center):
+        """Decide whose seed centre wins: the frontend's numbers or a viewport drag.
+    
+        The command channel is one-way, so the frontend never learns that the user dragged
+        the sphere — it keeps sending its own (now stale) centre, which used to overwrite the
+        drag and snap the ball back to its default. Arbitrate instead:
+    
+        * the UI value CHANGED since its last command -> the user typed new numbers, UI wins;
+        * otherwise, if the prim drifted from where we placed it -> the user dragged it, the
+          viewport wins.
+        """
+>       from . import geom
+E       ImportError: cannot import name 'geom' from 'race_bridge' (unknown location)
+
+src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py:583: ImportError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=setSeedSphere message={"enabled": true, "visible": true}
+_______ test_queued_old_fire_cannot_touch_a_new_scene[syncFromViewport] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc9c4201c90>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-display-order-red/test_queued_old_fire_cannot_to2')
+command = 'syncFromViewport'
+
+    @pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport"])
+    def test_queued_old_fire_cannot_touch_a_new_scene(monkeypatch, tmp_path, command):
+        async def scenario():
+            ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
+            bind_display(monkeypatch, ext)
+            events = []
+            async def writer(*args, **kwargs):
+                events.append(stage.project)
+            scene.generate_streamlines = writer
+            scene.update_seed_sphere = writer
+            scene.seed_center = [0, 0, 0]
+            scene.adopt_dragged_seed = lambda stage: events.append("adopt")
+            scene.bake_roi_xform = lambda stage: events.append("bake")
+            scene.adopt_dragged_slice = lambda stage: None
+            scene.clip_enabled = False
+            scene.streamlines_enabled = True
+            ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+            await _drain_until(lambda: len(ext.acks) == 1)
+            for _ in range(8):
+                await asyncio.sleep(0)
+            assert events == []
+            assert stage.project == "new-project"
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
+        bind_display(monkeypatch, ext)
+        events = []
+        async def writer(*args, **kwargs):
+            events.append(stage.project)
+        scene.generate_streamlines = writer
+        scene.update_seed_sphere = writer
+        scene.seed_center = [0, 0, 0]
+        scene.adopt_dragged_seed = lambda stage: events.append("adopt")
+        scene.bake_roi_xform = lambda stage: events.append("bake")
+        scene.adopt_dragged_slice = lambda stage: None
+        scene.clip_enabled = False
+        scene.streamlines_enabled = True
+        ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+        await _drain_until(lambda: len(ext.acks) == 1)
+        for _ in range(8):
+            await asyncio.sleep(0)
+>       assert events == []
+E       AssertionError: assert ['bake', 'ado...'new-project'] == []
+E         
+E         Left contains 3 more items, first extra item: 'bake'
+E         Use -v to get more diff
+
+src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py:105: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] command=syncFromViewport message={"enabled": true, "visible": true}
+[dc.cfd_bridge] syncFromViewport clip=False volume=False streamlines=True roi=none
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[setStreamlines]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[setSeedSphere]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[syncFromViewport]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[setVolumeDisplay]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[setSlice]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_actual_old_writer_finishes_before_next_frame_import[getSliceState]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_queued_old_fire_cannot_touch_a_new_scene[setStreamlines]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_queued_old_fire_cannot_touch_a_new_scene[setSeedSphere]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py::test_queued_old_fire_cannot_touch_a_new_scene[syncFromViewport]
+9 failed in 1.31s

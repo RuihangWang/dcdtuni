@@ -1,0 +1,173 @@
+--- original/generate_fine.py
++++ prepared/generate_asymptotic.py
+@@ -9,6 +9,17 @@
+ eq=d.equation_graph;ref=IndependentTrajectory(eq,d.parameters(0));ids=compiled_ids(eq)
+ imap={'node_pressure_Pa':'nodes','flow_kg_s':'edges','node_temperature_K':'nodes','water_temperature_K':'water','solid_temperature_K':'solid','hx_secondary_K':'hx','hx_primary_K':'hx'}
+ smap={'momentum_Pa':'edges','water_W':'water','solid_W':'solid','hx_secondary_W':'hx','hx_primary_W':'hx'}
++# No coefficient reseeding/substitution: every frozen cycle/storage coefficient must bit-match.
++frozen=np.load(T/'results/frozen-original-cycle.npz')
++for key in ('B','C','a0','amplitude','phase','xbase','xamplitude','xphase'):
++ actual=getattr(ref,key);expected=frozen[key]
++ assert actual.dtype==expected.dtype and actual.shape==expected.shape
++ assert actual.tobytes()==expected.tobytes(), 'original coefficient identity: '+key
++assert (eq.size,ref.g.N_nodes,ref.g.N_edges,ref.g.N_cells,ref.g.N_cp,ref.g.N_hx)==(1693,229,286,892,56,1)
++assert float(ref.p['heat_W'].sum()+ref.p['cell_heat_W'].sum())==21000.
++from backend.liquidcooling.runtime import MAX_SAMPLES
++from backend.liquidcooling.manufactured_benchmark import MAX_BENCHMARK_BYTES,MAX_BENCHMARK_SCALARS
++assert MAX_BENCHMARK_BYTES==33554432 and MAX_BENCHMARK_SCALARS==4000000
+ state,rate,source,audit=ref.evaluate(0.)
+ vector=lambda name,value:{'ids':ids[imap[name]],'values':value.tolist()}
+ probe=[];np.savez(T/'results/fine-independent-cycle-construction.npz',B=ref.B,C=ref.C,a0=ref.a0,amplitude=ref.amplitude,phase=ref.phase,xbase=ref.xbase,xamplitude=ref.xamplitude,xphase=ref.xphase)
+@@ -16,10 +27,19 @@
+  st,rt,so,au=ref.evaluate(t);assert au['all_node_mass_inf']<1e-12;assert au['node_mixing_inf_W']<1e-8
+  probe.append({'t':t,'audit':au,'state':{k:v.tolist() for k,v in st.items()},'temperature_rate':{k:v.tolist() for k,v in rt.items()},'sources':{k:v.tolist() for k,v in so.items()}})
+ (T/'results/fine-independent-probe-trajectories.json').write_text(json.dumps(probe,indent=2))
+-for dt in (.125,.0625):
++assert sys.argv[1] in ('0p03125','0p015625')
++for dt in ({'0p03125':.03125,'0p015625':.015625}[sys.argv[1]],):
+  times=[i*dt for i in range(round(8/dt)+1)];targets=[ref.evaluate(t) for t in times]
+  benchmark={'format':'dcdtuni-manufactured-benchmark','version':1,'provenance':'synthetic-research','formula_id':'cycle-storage-sinusoidal-20261006-v1','source_reference':'Independent NumPy constructive cycle basis, component laws, storage trajectories and node mixing; no product residual or normal DAE output used to manufacture forcing.','graph_layout_sha256':canonical_digest(graph_layout(raw)),'units':{'pressure':'Pa','temperature':'K','mass_flow':'kg/s','power':'W','time':'s','temperature_rate':'K/s'},'sampling':'endpoint_hold','times_s':times,'sources':{name:{'ids':ids[key],'values':np.stack([v[2][name] for v in targets],axis=1).tolist()} for name,key in smap.items()},'initial_state':{name:vector(name,value) for name,value in state.items()},'initial_temperature_rate':{name:vector(name,value) for name,value in rate.items()},'flow_signs':{'ids':ids['edges'],'values':np.sign(state['flow_kg_s']).tolist()}}
++ assert len(times)<=MAX_SAMPLES,'effective unchanged runtime sample cap'
++ assert benchmark['graph_layout_sha256']=='dde3685500f48cafa5fe0eccce7f2ce077217cc755b1fb4b676bdd5e31b40831'
++ assert canonical_digest(benchmark['initial_state'])=='15fda3dda0e32a5d3e4ac1d02e3e50d2b704bba530f6ff4920211fbbfffffab4'
++ assert sum(len(v['ids'])*len(times) for v in benchmark['sources'].values())<=MAX_BENCHMARK_SCALARS
++ assert len(json.dumps(benchmark,separators=(',',':'),allow_nan=False).encode())<=MAX_BENCHMARK_BYTES
+  benchmark['source_sha256']=canonical_digest(benchmark)
++ assert len(json.dumps(benchmark,separators=(',',':'),allow_nan=False).encode())<=MAX_BENCHMARK_BYTES
++ (T/'results/generated-source-gates.json').write_text(json.dumps({'source_scalars':sum(len(v['ids'])*len(times) for v in benchmark['sources'].values()),'compact_bytes':len(json.dumps(benchmark,separators=(',',':'),allow_nan=False).encode()),'samples':len(times),'effective_MAX_SAMPLES':MAX_SAMPLES,'original_coefficient_bits_exact':True,'source_caps_unchanged':True},indent=2))
++
+  p=json.loads((T/'inputs/transient-base.cfdproj').read_text());ex=p['runDefaults']['liquid']['experiment']
+  ex['dt_s']=dt;ex['duration_s']=8;ex['dae']['analysis']={'mode':'transient','initialization':'consistent'};ex['dae']['manufactured_benchmark']=benchmark
+  p['transient']['gridS']=dt;p['transient']['durationS']=8
+--- original/fine_newton.py
++++ prepared/newton_asymptotic.py
+@@ -8,46 +8,43 @@
+ from backend.liquidcooling.dae_runtime import DAESimulation,admit_dae_runtime_input
+ start=time.monotonic()
+ def digest_tensor(v):return hashlib.sha256(v.detach().cpu().numpy().tobytes()).hexdigest()
+-if variant in ('before','after-default'):
+- if variant=='after-default':raise ValueError('use after default mode argument')
+-if len(sys.argv)>2 and sys.argv[2]=='default':
+- rows=[]
+- for name,p in [('ring-steady',T/'results/after-baseline.liquidrun'),('ring-transient',T/'results/after-transient-base.liquidrun'),('old-MMS',T.parents[1]/'docs/benchmarks/fixtures/mms-product-v3.liquidrun')]:
+-  raw=json.loads(p.read_text());sim=DAESimulation(raw,run_id='private-default-parity')
+-  if not sim.done:sim.step()
+-  checkpoint=sim.checkpoint();restored=DAESimulation.from_checkpoint(raw,checkpoint)
+-  if not sim.done:
+-   sim.step();restored.step()
+-  assert restored.frames==sim.frames
+-  eq=sim.definition.equation_graph;theta=sim.definition.parameters(0)
+-  rows.append(dict(name=name,parameter_count=eq.parameter_count,parameter_layout={k:[v.start,v.stop] for k,v in eq.parameter_layout.items()},state_layout={k:[v.start,v.stop] for k,v in eq.state_layout.items()},theta_sha=digest_tensor(theta),state_sha=digest_tensor(sim.experiment.tensor_state),frames=sim.frames,checkpoint=checkpoint,replay_exact=True,config_hash=sim.config_hash))
+-  print('DEFAULT',variant,name,flush=True)
+- (T/f'results/default-{variant}.json').write_text(json.dumps(rows,indent=2));sys.exit(0)
+-
++assert variant=='after'
++assert len(sys.argv)==3 and sys.argv[2] in ('0p03125','0p015625')
+ runs=[]
+-for tag in ('0p125','0p0625'):
++for tag in (sys.argv[2],):
+  raw=json.loads((T/f'results/manufactured-dt-{tag}.liquidrun').read_text());sim=DAESimulation(raw,run_id='private-full-MMS-'+tag)
+  runstart=time.monotonic();checkpoint=None
+  while not sim.done:
+   f=sim.step();print('MMS',tag,f['seq'],f['diagnostics']['scaled_residual'],flush=True)
+   if f['seq']==2:checkpoint=sim.checkpoint()
+  frames=sim.frames
++ eq=sim.definition.equation_graph
++ assert eq.size==1693
++ (T/'results/actual-source-options-and-layout.json').write_text(json.dumps({'backendModule':__import__('backend.liquidcooling.dae_runtime',fromlist=['x']).__file__,'newton':sim.definition.manifest.newton.model_dump(),'freePressureNativeOrder':eq._free.cpu().numpy().tolist(),'state_layout':{k:[v.start,v.stop] for k,v in eq.state_layout.items()},'effective_cpu':sorted(os.sched_getaffinity(0)),'cuda':os.environ.get('CUDA_VISIBLE_DEVICES')},indent=2))
+  if tag=='1p0':
+   restored=DAESimulation.from_checkpoint(raw,checkpoint)
+   while not restored.done:restored.step()
+   assert restored.frames==frames,'manufactured checkpoint replay mismatch'
+   (T/'results/manufactured-checkpoint.json').write_text(json.dumps(checkpoint,indent=2))
++ assert sim.definition.equation_graph.size==1693
+  target=np.load(T/f'results/target-dt-{tag}.npz');mapping={'node_pressure_Pa':'node_pressure_Pa','flow_kg_s':'edge_flow_kg_s','node_temperature_K':'node_temperature_K','water_temperature_K':'cell_temperature_K','solid_temperature_K':'chip_temp_K','hx_secondary_K':'secondary_supply_K','hx_primary_K':'primary_return_K'}
+  errors={};arrays={}
+  for name,key in mapping.items():
+   actual=np.array([f[key] for f in frames]);desired=target[name];diff=actual-desired
+   errors[name]=dict(final_inf=float(np.abs(diff[-1]).max()),whole_trajectory_inf=float(np.abs(diff).max()),all_entries=diff.size)
+   arrays[name+'_actual']=actual;arrays[name+'_reference']=desired;arrays[name+'_error']=diff
++ free=eq._free.cpu().numpy()
++ family_order=list(mapping)
++ flat_actual=np.concatenate([arrays[k+'_actual'][:,free] if k=='node_pressure_Pa' else arrays[k+'_actual'] for k in family_order],axis=1)
++ flat_reference=np.concatenate([arrays[k+'_reference'][:,free] if k=='node_pressure_Pa' else arrays[k+'_reference'] for k in family_order],axis=1)
++ assert flat_actual.shape==(len(frames),1693) and flat_reference.shape==flat_actual.shape
++ assert np.isfinite(flat_actual).all() and np.isfinite(flat_reference).all()
++ assert np.array_equal(flat_actual[0].view(np.uint64),flat_reference[0].view(np.uint64)),'all1693 initial-state bits'
++ arrays.update(flat1693_actual=flat_actual,flat1693_reference=flat_reference,flat1693_error=flat_actual-flat_reference)
+  np.savez(T/f'results/newton-vs-manufactured-{tag}.npz',times=target['times'],**arrays)
+  (T/f'results/mms-frames-{tag}.json').write_text(json.dumps(frames,indent=2))
+  runs.append(dict(tag=tag,dt=sim.definition.dt,frames=len(frames),errors=errors,max_scaled_residual=max(f['diagnostics']['scaled_residual'] for f in frames),max_energy_balance_W=max(abs(f['diagnostics']['energy_balance_W']) for f in frames),max_mass_kg_s=max(f['diagnostics']['mass_residual_kg_s'] for f in frames),max_momentum_Pa=max(f['diagnostics']['momentum_residual_Pa'] for f in frames),checkpoint_replay=(tag=='1p0'),elapsed_s=time.monotonic()-runstart))
+  (T/'results/mms-fine-progress.json').write_text(json.dumps(runs,indent=2))
+-runs=json.loads((T/'results/mms-acceptance.json').read_text())['runs']+runs
+ orders={name:[float(np.log(runs[i]['errors'][name]['final_inf']/runs[i+1]['errors'][name]['final_inf'])/np.log(2)) for i in range(len(runs)-1)] for name in ('node_temperature_K','water_temperature_K','solid_temperature_K','hx_secondary_K','hx_primary_K')}
+-(T/'results/mms-refinement.json').write_text(json.dumps(dict(scope='PRIVATE full hydraulic/thermal manufactured product-chain numerical evidence; independent review/normal UI acceptance pending',runs=runs,orders=orders,status='completed_original_Newton_and_energy_gates',elapsed_s=time.monotonic()-start),indent=2))
++(T/'results/mms-asymptotic-single.json').write_text(json.dumps(dict(scope='PRIVATE full hydraulic/thermal manufactured product-chain numerical evidence; independent review/normal UI acceptance pending',runs=runs,orders=orders,status='completed_original_Newton_and_energy_gates',elapsed_s=time.monotonic()-start),indent=2))
+ print('MMS COMPLETE',orders,flush=True)
+--- original/fine.test.ts
++++ prepared/fine.test.ts
+@@ -5,14 +5,20 @@
+ import {serializeProjectState} from './VARIANT/src/frontend/react/src/io/projectFiles'
+ const T=process.cwd(),after=process.env.MMS_VARIANT==='after'
+ const candidate=(tag:string)=>reviveKinds(JSON.parse(readFileSync(T+'/inputs/manufactured-dt-'+tag+'.cfdproj','utf8')))
+-it('original source rejects explicit benchmark; private source compiles all real saved v4 grids',()=>{
+- for(const tag of ['0p125','0p0625']) {
++it('compile only the requested new grid through original saved-experiment producer',()=>{
++ const tag=process.env.MMS_ASYMPTOTIC_TAG
++ expect(['0p03125','0p015625']).toContain(tag)
++ for(const tag of [process.env.MMS_ASYMPTOTIC_TAG!]) {
+   const p=candidate(tag)
+   if(!after){expect(()=>compileSavedExperiment(p)).toThrow();continue}
+   const before=serializeProjectState(p)
+   expect(schema().validateDocument(p)).toEqual([])
+   const built=compileSavedExperiment(p).liquidrun
+   expect(built.schemaVersion).toBe(4)
++  const old=JSON.parse(readFileSync(T+'/results/original-anchor-0p0625.liquidrun','utf8'))
++  const restored=JSON.parse(JSON.stringify(built));delete restored.manufactured_benchmark;delete old.manufactured_benchmark
++  restored.dt=old.dt;restored.N_t=old.N_t
++  expect(restored).toEqual(old)
+   expect(built.analysis).toEqual({mode:'transient',initialization:'consistent'})
+   expect(serializeProjectState(p)).toBe(before)
+   expect(compileSavedExperiment(reviveKinds(JSON.parse(before))).liquidrun).toEqual(built)
+--- original/independent_error_recurrence.py
++++ prepared/independent_asymptotic_recurrence.py
+@@ -1,17 +1,17 @@
+ from pathlib import Path
+ import os,sys,json,time,hashlib,traceback
+-R=Path(__file__).resolve().parent;sys.path.insert(0,str(R/'source-frozen/src'))
++R=Path(__file__).resolve().parent;sys.path.insert(0,str(R/'after/src'))
+ import torch,numpy as np
+ from scipy.sparse import coo_matrix,diags
+ from scipy.sparse.linalg import splu
+ from backend.liquidcooling.dae_runtime import admit_dae_runtime_input
+ torch.set_num_threads(2);torch.set_num_interop_threads(1)
+-raw=json.loads((R/'evidence/results/manufactured-dt-1p0.liquidrun').read_text());d=admit_dae_runtime_input(raw);eq=d.equation_graph;g=eq.graph
++raw=json.loads((R/('results/manufactured-dt-'+sys.argv[1]+'.liquidrun')).read_text());d=admit_dae_runtime_input(raw);eq=d.equation_graph;g=eq.graph
+ assert g.N_nodes==229 and g.N_edges==286 and eq.size==1693
+ N=g.N_nodes;NW=g.N_cells;NC=g.N_cp;NH=g.N_hx;assert (NW,NC,NH)==(892,56,1)
+ ids={k:v.detach().numpy() for k,v in eq._ids.items()};fr=eq._from.numpy();to=eq._to.numpy();bcT=eq._bc_T_mask.numpy();cell_edges=eq._cells.numpy();first=eq._first.numpy();last=eq._last.numpy();previous=eq._previous.numpy();following=eq._next.numpy();pipefirst=eq._pipe_first.numpy();pipelast=eq._pipe_last.numpy()
+ layout={'node_temperature_K':slice(0,N),'water_temperature_K':slice(N,N+NW),'solid_temperature_K':slice(N+NW,N+NW+NC),'hx_secondary_K':slice(N+NW+NC,N+NW+NC+NH),'hx_primary_K':slice(N+NW+NC+NH,N+NW+NC+2*NH)}
+-size=N+NW+NC+2*NH;cycle=np.load(R/'evidence/results/independent-cycle-construction.npz');phase=cycle['xphase'];amplitude=cycle['xamplitude'];xbase=cycle['xbase'];omega=2*np.pi/32
++size=N+NW+NC+2*NH;cycle=np.load(R/'results/frozen-original-cycle.npz');phase=cycle['xphase'];amplitude=cycle['xamplitude'];xbase=cycle['xbase'];omega=2*np.pi/32
+ forcing_slices=[layout['water_temperature_K'],layout['solid_temperature_K'],layout['hx_secondary_K'],layout['hx_primary_K']];columns=['water','solids56','HXsecondary','HXprimary']
+ 
+ def matrix(p,m):
+@@ -45,8 +45,9 @@
+  return coo_matrix((val,(row,col)),shape=(size,size)).tocsc(),capacity,physical
+ 
+ runs=[];saved={};start=time.perf_counter()
+-for tag in ['2p0','1p0','0p5','0p25','0p125','0p0625']:
+- a=np.load(R/f'evidence/results/newton-vs-manufactured-{tag}.npz');times=a['times'];dt=float(times[1]);rraw=json.loads((R/f'evidence/results/manufactured-dt-{tag}.liquidrun').read_text());rd=admit_dae_runtime_input(rraw);benchmark=rraw['manufactured_benchmark']
++assert len(sys.argv)==2 and sys.argv[1] in ('0p03125','0p015625')
++for tag in [sys.argv[1]]:
++ a=np.load(R/f'results/newton-vs-manufactured-{tag}.npz');times=a['times'];dt=float(times[1]);rraw=json.loads((R/f'results/manufactured-dt-{tag}.liquidrun').read_text());rd=admit_dae_runtime_input(rraw);benchmark=rraw['manufactured_benchmark']
+  actual=np.concatenate([a[k+'_error'] for k in layout],axis=1);references=np.concatenate([a[k+'_reference'] for k in layout],axis=1)
+  assert np.max(np.abs(actual[0]))==0.,'original nonsteady initial mismatch'
+  errs=np.zeros((len(times),size,4));source_defects=[];continuous=[];late_sources=[];linear_res=[];temp_formula_exact=[]
+@@ -69,5 +70,5 @@
+  runs.append(item);saved[tag+'_times']=times;saved[tag+'_independent_error_contributions']=errs;saved[tag+'_product_error']=actual;saved[tag+'_independent_total_error']=prediction
+  (R/'recurrence-progress.json').write_text(json.dumps(runs,indent=2));print('INDEPENDENT',tag,'HXsec final',item['final_HXsecondary_signed_error_K'],'contributions',item['HXsecondary_final_contributions_K'],'maxProductDiff',max(x['product_prediction_diff_inf_K'] for x in errors.values()),flush=True)
+ np.savez_compressed(R/'independent-error-recurrence.npz',**saved)
+-orders={k:[float(np.log(runs[i]['errors'][k]['independent_final_inf_K']/runs[i+1]['errors'][k]['independent_final_inf_K'])/np.log(2)) for i in range(5)] for k in layout};contriborders={col:[float(np.log(abs(runs[i]['HXsecondary_final_contributions_K'][col])/abs(runs[i+1]['HXsecondary_final_contributions_K'][col]))/np.log(2)) for i in range(5)] for col in columns}
++orders={k:[float(np.log(runs[i]['errors'][k]['independent_final_inf_K']/runs[i+1]['errors'][k]['independent_final_inf_K'])/np.log(2)) for i in range(len(runs)-1)] for k in layout};contriborders={col:[float(np.log(abs(runs[i]['HXsecondary_final_contributions_K'][col])/abs(runs[i+1]['HXsecondary_final_contributions_K'][col]))/np.log(2)) for i in range(len(runs)-1)] for col in columns}
+ result={'scope':'unchanged original full229/286/1693-state manufactured graph, fixed actual pointwise hydraulic reference; independent linear thermal BE truncation-error recurrence, no new manufacturing/no Newton/no source/benchmark/gate change','formula':'(D_i+C/dt)e_i=(C/dt)e_prev-C((x*_i-x*prev)/dt-xdot*_i);four additive columns local storage families','unknowns':size,'nodes':N,'storages':NW+NC+2*NH,'elapsed_seconds':time.perf_counter()-start,'affinity':sorted(os.sched_getaffinity(0)),'threads':2,'CUDA_VISIBLE_DEVICES':os.environ.get('CUDA_VISIBLE_DEVICES'),'runs':runs,'independent_final_orders':orders,'HXsec_contribution_final_orders':contriborders,'normal_changes':0};(R/'recurrence-result.json').write_text(json.dumps(result,indent=2));print('COMPLETE',orders['hx_secondary_K'],contriborders,flush=True)

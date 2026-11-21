@@ -1,0 +1,42 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/ov-shared-previews-private/reviewtree/src/frontend/react
+
+ ❯ test/sharedOvPreviewInteraction.test.ts (25 tests | 1 failed) 183ms
+   × keeps all numerical slice/trace list entries and exact IDs while dragging just one preview 44ms
+     → expected [ undefined, undefined ] to deeply equal [ 42, 43 ]
+ ✓ test/ovProtocol.test.ts (60 tests) 705ms
+ ✓ test/sharedOvPostprocessAdapter.test.ts (21 tests) 145ms
+ ✓ test/sharedDisplayUiOwnership.test.tsx (9 tests) 885ms
+ ✓ test/sharedPostprocessDriver.test.ts (12 tests) 86ms
+ ✓ test/commonRenderIntent.test.ts (11 tests) 24ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/sharedOvPreviewInteraction.test.ts > keeps all numerical slice/trace list entries and exact IDs while dragging just one preview
+AssertionError: expected [ undefined, undefined ] to deeply equal [ 42, 43 ]
+
+- Expected
++ Received
+
+  Array [
+-   42,
+-   43,
++   undefined,
++   undefined,
+  ]
+
+ ❯ test/sharedOvPreviewInteraction.test.ts:97:37
+     95|  s.driver.present(s.value);await s.driver.whenIdle()
+     96|  const intent=structuredClone(s.requestGrant.mock.calls[0]![0]),numeri…
+     97|  expect(intent.slices.map(x=>x.id)).toEqual([42,43]);expect(intent.str…
+       |                                     ^
+     98|  receive(s.client,event(s.packet()));expect(s.events).toHaveBeenCalled…
+     99|  expect(s.driver.current()!.numericIntent).toEqual(intent);expect(s.dr…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 5 passed (6)
+      Tests  1 failed | 137 passed (138)
+   Start at  11:23:41
+   Duration  20.77s (transform 2.94s, setup 0ms, collect 11.64s, tests 2.03s, environment 21.15s, prepare 1.57s)
+

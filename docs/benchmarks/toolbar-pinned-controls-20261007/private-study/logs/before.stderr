@@ -1,0 +1,94 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > scrolls only expanded tools while preserving both primary and section controls
+AssertionError: primary controls must not belong to tools scroll region: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:58:91
+     56|  const body=document.getElementById('toolbar-body')!
+     57|  const primary=document.querySelector('.toolbar-primary')!,tabs=docume…
+     58|  expect(body.contains(primary),'primary controls must not belong to to…
+       |                                                                                           ^
+     59|  expect(body.contains(tabs),'section navigation must not belong to too…
+     60|  const nodes=Array.from(tabs.children)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > reserves the measured header AND timeline on deliberate keyboard shrinking
+AssertionError: expected 152 to be 232 // Object.is equality
+
+- Expected
++ Received
+
+- 232
++ 152
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:74:46
+     72|   const handle=document.getElementById('toolbar-resizer')!
+     73|   act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent(…
+     74|   expect(parseFloat(f.toolbar.style.height)).toBe(232)
+       |                                              ^
+     75|   expect(handle.getAttribute('aria-valuemin')).toBe('232')
+     76|   expect(parseFloat(f.toolbar.style.getPropertyValue('--toolbar-header…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > remeasures a same-width header rewrap through its actual ResizeObserver
+AssertionError: expected undefined to be defined
+ ❯ test/toolbarPinnedControls.private.test.tsx:84:19
+     82|  try{
+     83|   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))
+     84|   expect(observe).toBeDefined()
+       |                   ^
+     85|   headerHeight=140;act(()=>observe!.emit())
+     86|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > keeps manual preference across header expansion and narrower/wider layouts
+TypeError: Cannot read properties of undefined (reading 'emit')
+ ❯ test/toolbarPinnedControls.private.test.tsx:96:36
+     94|   act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent(…
+     95|   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))!
+     96|   headerHeight=120;act(()=>observe.emit())
+       |                                    ^
+     97|   expect(parseFloat(f.toolbar.style.height)).toBe(272)
+     98|   width=800;headerHeight=80;act(()=>observe.emit())
+ ❯ Proxy.act ../../../../../goal-20261005/integration/src/frontend/react/node_modules/react/cjs/react.development.js:2512:16
+ ❯ test/toolbarPinnedControls.private.test.tsx:96:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > remeasures timeline visibility without moving the fixed controls into scrolling tools
+AssertionError: expected '32' to be '112' // Object.is equality
+
+Expected: "112"
+Received: "32"
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:110:85
+    108|  try{
+    109|   await act(async()=>{f.footer.hidden=true;await Promise.resolve()})
+    110|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+       |                                                                                     ^
+    111|   await act(async()=>{f.footer.hidden=false;footerHeight=160;await Pro…
+    112|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > keeps positive bounded keyboard regions at an extremely short viewport height
+AssertionError: expected NaN to be greater than 0
+ ❯ test/toolbarPinnedControls.private.test.tsx:126:18
+    124|   const body=parseFloat(f.toolbar.style.getPropertyValue('--toolbar-bo…
+    125|   const footer=parseFloat(f.toolbar.style.getPropertyValue('--timeline…
+    126|   expect(header).toBeGreaterThan(0);expect(body).toBeGreaterThan(0);ex…
+       |                  ^
+    127|   expect(header+body+footer).toBeCloseTo(parseFloat(f.toolbar.style.he…
+    128|   expect(f.toolbar.dataset.headerScrollable).toBe('true');expect(f.too…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+

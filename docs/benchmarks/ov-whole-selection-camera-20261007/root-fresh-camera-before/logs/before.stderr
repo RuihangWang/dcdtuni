@@ -1,0 +1,196 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection on delayed foreign same-UID hash
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection on delayed foreign scene revision
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection on delayed missing identity
+AssertionError: expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+
+- Expected
++ Received
+
+  Array [
+-   12.5514,
+-   7.2,
+-   13.2277,
++   4.8534,
++   1.1215,
++   17.1898,
+  ]
+
+ ❯ test/cameraReadbackMounted.test.ts:69:76
+     67|   const f=await mounted()
+     68|   await act(async()=>{f.finish(f.ack(overrides));await ticks()})
+     69|   expect(f.select.value).toBe('three');expect(f.camera.position.toArra…
+       |                                                                            ^
+     70|  })
+     71| }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > cannot restore a reply after a project change while return is pending
+AssertionError: expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+
+- Expected
++ Received
+
+  Array [
+-   12.5514,
+-   7.2,
+-   13.2277,
++   4.8534,
++   1.1215,
++   17.1898,
+  ]
+
+ ❯ test/cameraReadbackMounted.test.ts:75:75
+     73|  const f=await mounted()
+     74|  await act(async()=>{store.loadProject({...f.project,name:'New local s…
+     75|  expect(f.select.value).toBe('three');expect(f.camera.position.toArray…
+       |                                                                           ^
+     76| })
+     77| it('cannot restore a reply after the actual component session is dispo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > cannot author an edited scene after its camera readback was cancelled by return to Three
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      Object {
+        "coordinateSystem": Object {
+          "handedness": "right",
+          "metersPerUnit": 1,
+          "upAxis": "Y",
+        },
+        "primitives": Array [],
+        "project": Object {
+          "name": "",
+          "uid": "owned-camera-project",
+        },
+        "schema": "dcdtuni.render-scene/v1",
+        "textures": Object {},
+        "view": Object {
+          "backgroundGrid": Object {
+            "centerColor": Array [
+              0.25818285291079235,
+              0.36625259558833256,
+              0.4793201830913402,
+            ],
+            "divisions": 3334,
+            "extentM": 2000.3999999999999,
+            "lineColor": Array [
+              0.10224173307914941,
+              0.14702726648767014,
+              0.20507873637973145,
+            ],
+            "matrix": Array [
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              -0.005,
+              0,
+              1,
+            ],
+            "opacity": 0.6,
+            "spacingM": 0.6,
+            "visible": true,
+          },
+          "camera": Object {
+            "aspect": 1.5,
+            "far": 400,
+            "fov": 45,
+            "near": 0.1,
+            "position": Array [
+              4.8534,
+              1.1215,
+              17.1898,
+            ],
+            "target": Array [
+              4.4514,
+              1.8,
+              3.3277,
+            ],
+            "up": Array [
+              0,
+              1,
+              0,
+            ],
+          },
+          "selectedUids": Array [],
+          "timeSeconds": null,
+        },
+        "warnings": Array [],
+      },
+      "dd996b30dd0fc5c47f551ffa0404e31a52248f15b675ea21cbcac70701971eaa",
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/cameraReadbackMounted.test.ts:96:33
+     94|  expect(f.select.value).toBe('three')
+     95|  await act(async()=>{f.finish(f.ack());await ticks()})
+     96|  expect(f.client.loadScene).not.toHaveBeenCalled()
+       |                                 ^
+     97|  expect(f.camera.position.toArray()).toEqual([...iso])
+     98| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/cameraReadbackScope.test.ts > does not import other accepted revision camera into a locally captured scene
+ FAIL  test/cameraReadbackScope.test.ts > does not import other same-UID content camera into a locally captured scene
+ FAIL  test/cameraReadbackScope.test.ts > does not import missing scene identity camera into a locally captured scene
+AssertionError: expected { …(7) } to deeply equal { …(7) }
+
+- Expected
++ Received
+
+  Object {
+    "aspect": 1.5,
+    "far": 400,
+    "fov": 45,
+    "near": 0.1,
+    "position": Array [
+-     12.5514,
+-     7.2,
+-     13.2277,
++     4.8534,
++     1.1215,
++     17.1898,
+    ],
+    "target": Array [
+      4.4514,
+      1.8,
+      3.3277,
+    ],
+    "up": Array [
+      0,
+      1,
+      0,
+    ],
+  }
+
+ ❯ test/cameraReadbackScope.test.ts:17:134
+     15|  it('does not import '+row.label+' camera into a locally captured scen…
+     16|   const p=packet();const ack={requestId:'read-foreign',ok:true,...row,…
+     17|   expect(keepActiveOvCamera(p,ack,'proj_Shinaide',{projectUid:'proj_Sh…
+       |                                                                                                                                      ^
+     18|  })
+     19| }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+

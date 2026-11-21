@@ -1,0 +1,68 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/cduWholeModelHighlight.baseline.test.ts (7 tests | 3 failed) 160ms
+   × whole CDU readable material highlight > paints actual saved m30 structural and detail surfaces and restores every original material 65ms
+     → expected MeshBasicMaterial{ …(73) } not to be MeshBasicMaterial{ …(73) } // Object.is equality
+   × whole CDU readable material highlight > isolates shared original materials from unselected equipment and supports whole-model multiselect 15ms
+     → expected 31385 to be 6744784 // Object.is equality
+   × whole CDU readable material highlight > restores grouped material arrays and disposes only temporary highlight clones 18ms
+     → expected [ MeshStandardMaterial{ …(83) }, …(1) ] not to be [ MeshStandardMaterial{ …(83) }, …(1) ] // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cduWholeModelHighlight.baseline.test.ts > whole CDU readable material highlight > paints actual saved m30 structural and detail surfaces and restores every original material
+AssertionError: expected MeshBasicMaterial{ …(73) } not to be MeshBasicMaterial{ …(73) } // Object.is equality
+
+Compared values have no visual difference.
+
+ ❯ test/cduWholeModelHighlight.baseline.test.ts:43:46
+     41|   for(const m of all)for(const mat of materials(m)){mat.map=maps;mat.n…
+     42|   select(h)
+     43|   all.forEach((m,i)=>{expect(m.material).not.toBe(originals[i]);for(co…
+       |                                              ^
+     44|    expect(mat.color.getHex(),m.name).toBe(COLOR);expect(mat.metalness)…
+     45|    for(const key of ['map','normalMap','roughnessMap','metalnessMap','…
+ ❯ test/cduWholeModelHighlight.baseline.test.ts:43:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/cduWholeModelHighlight.baseline.test.ts > whole CDU readable material highlight > isolates shared original materials from unselected equipment and supports whole-model multiselect
+AssertionError: expected 31385 to be 6744784 // Object.is equality
+
+- Expected
++ Received
+
+- 6744784
++ 31385
+
+ ❯ test/cduWholeModelHighlight.baseline.test.ts:63:113
+     61|   select(h);expect(b.material).toBe(shared);expect(shared.color.getHex…
+     62|   select(h,{type:'model',uid:'m_30'},['m_30','other-cdu'])
+     63|   for(const r of [root,other])for(const m of meshes(r))for(const mat o…
+       |                                                                                                                 ^
+     64|   expect(shared.color.getHex()).toBe(originalColor)
+     65|  })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/cduWholeModelHighlight.baseline.test.ts > whole CDU readable material highlight > restores grouped material arrays and disposes only temporary highlight clones
+AssertionError: expected [ MeshStandardMaterial{ …(83) }, …(1) ] not to be [ MeshStandardMaterial{ …(83) }, …(1) ] // Object.is equality
+
+Compared values have no visual difference.
+
+ ❯ test/cduWholeModelHighlight.baseline.test.ts:84:64
+     82|   const {h,root}=scene(),m=meshes(root)[0]!,original=[new THREE.MeshSt…
+     83|   const originalDispose=original.map(mat=>vi.spyOn(mat,'dispose'))
+     84|   select(h);const selected=materials(m);expect(m.material).not.toBe(or…
+       |                                                                ^
+     85|   for(const mat of selected)expect(mat.color.getHex()).toBe(COLOR)
+     86|   const cloneDispose=selected.map(mat=>vi.spyOn(mat,'dispose'))
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 4 passed (7)
+   Start at  05:49:16
+   Duration  13.19s (transform 1.42s, setup 0ms, collect 2.57s, tests 160ms, environment 9.56s, prepare 389ms)
+

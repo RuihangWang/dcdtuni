@@ -1,0 +1,88 @@
+{
+ "format": "shinaide-demo-provenance/v1",
+ "date": "2026-09-28",
+ "stage": "4 (Shinaide demo polish, liquid-supply-temp-mms-demo campaign)",
+ "user_decision": {
+  "load": "授权实施者代调负载参数,使回水温升可见(0.1-1 °C 量级);不采用分轴放大+图面 mock 标注方案",
+  "supply_temperature": "293.15 K (20 °C) 保持为可设置项的默认值,不定死;前端应支持任意设置",
+  "provenance": "数据层 source/mock 标注按仓库纪律保留(与图面展示无关)"
+ },
+ "fixture": {
+  "case": "case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj",
+  "fixture_revision": "shinaide-demo-2",
+  "case_source_file_sha256": "6501c68c0774cd86d99f01c0677a95ce3d099b17ed040f3b596dfc263601686c",
+  "project_content_sha256": "87114bef05225e05c6971f8a435fd361ff7377182a45110060582bf887409873",
+  "compiled_manifest_sha256": "80b3d39c289ff8f2093721f69c631c7af1863f2073c5aea38c2113ec69acf5aa",
+  "compiler": "tools/compile_cfdproj_liquidrun_v3.mjs (shares compileSavedExperiment with the React UI)",
+  "time": {
+   "dt_s": 10,
+   "N_t": 61
+  },
+  "events": 56
+ },
+ "demo_scenario": {
+  "duration_s": 600,
+  "dt_s": 10,
+  "load_step": {
+   "factor": 1.5,
+   "time_s": 60
+  },
+  "online_supply_step_K": 2.0,
+  "online_supply_step_at_s": 300,
+  "selection_rationale": "×1.5@60s 实测 ΔT_pr≈0.23 K,单轴可读且落在用户裁决的 0.1-1 °C 带内;芯片温升 ~14.8 K 提供强视觉响应;供水 +2 K 在线阶跃 20 s 内 +0.95 K,展示 Stage 1 在线通道"
+ },
+ "measurements": {
+  "load_step_run": {
+   "n_frames": 61,
+   "T_pr_initial_K": 298.17392344579787,
+   "T_pr_final_K": 298.40055238824283,
+   "dT_primary_return_K": 0.226628942444961,
+   "dT_chip_max_K": 14.84719268276632,
+   "energy_balance_max_abs_W": 3.4351833164691925e-06
+  },
+  "supply_step_run": {
+   "n_frames": 61,
+   "T_pr_initial_K": 298.17392344579787,
+   "T_pr_final_K": 300.0098309606174,
+   "dT_primary_return_K": 1.835907514819553,
+   "dT_chip_max_K": 14.955669531203625,
+   "energy_balance_max_abs_W": 3.4351833164691925e-06
+  },
+  "supply_step_detail": {
+   "T_pr_at_300_320_400_600": [
+    298.1881,
+    299.1403,
+    299.7997,
+    300.0098
+   ],
+   "T_sec_at_300_320_400_600": [
+    308.7281,
+    308.9669,
+    309.6051,
+    310.2079
+   ]
+  },
+  "prior_probe_dt20": {
+   "dT_primary_return_K_load_1p5": 0.23810846571939237,
+   "note": "dt=20 s 预探测,用于参数选择;最终门以 dt=10 s 复测为准"
+  }
+ },
+ "gates": {
+  "compile_load_dae_input": "passed (probe calls load_dae_input before DAESimulation)",
+  "grep_vertiv_cdu70": "case/Shinaide_Liquid 内仅命中 parameterPack 免责声明 'These are not NVIDIA or Vertiv specifications'(否定性提及,非曲线/寄存器数据引用);判定通过",
+  "provenance_annotations": "meta.provenance 全块(topology/geometry/thermal/display_only/missing,source=mock);primary_circuits 带 source+source_reference;parameterPack source=mock"
+ },
+ "execution": {
+  "machine": "NTU-Litianyu-40901",
+  "env": "~/miniconda3/envs/dcdtuni (torch 2.5.1+cu121, CPU)",
+  "threads": "OMP_NUM_THREADS=2",
+  "dtype": "float64",
+  "command": "PYTHONPATH=src python probe_dae.py shinaide_demo2.liquidrun 1.5 60 [2.0 300]"
+ },
+ "boundaries": [
+  "合成 mock 夹具验证,非现场校准;不代表 NV 设备或真实机房行为",
+  "T_solid=340 K / P=175 kPa 初值来自图生成器硬编码(liquid_graphgen.js),已在 case provenance 标注",
+  "CDU totalFlowRate=60 为零消费点 display-only 字段,未接线;一次侧流量由 primary_circuits.flow_kg_s 决定",
+  "解析 overlay(MMS 夹具)与本 case 不可比,Monitor 诚实门会自动拒绝(时间轴/夹具不同)"
+ ]
+}

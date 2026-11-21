@@ -1,0 +1,154 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.widget.viewport-e33603573147cc56/omni/kit/widget/viewport/api.py
+FULL_SHA256 0f2ed3f0b60162aca96ab7d0bac983f4735a88e786acfd6c77ce0c348d01a22c
+LINES 306–326
+306:     def render_product_path(self) -> str:
+307:         """Return a string to the UsdRender.Product used by the Viewport"""
+308:         return self.__hydra_texture.get_render_product_path() if self.__hydra_texture else None
+309: 
+310:     @render_product_path.setter
+311:     def render_product_path(self, prim_path: str):
+312:         """Set the UsdRender.Product used by the Viewport with a string"""
+313:         return self.__hydra_texture.set_render_product_path(prim_path) if self.__hydra_texture else None
+314: 
+315:     def set_render_product_path(self, *args, **kwargs):
+316:         """Set the UsdRender.Product used by the Viewport with a string and optional arguments"""
+317:         return self.__hydra_texture.set_render_product_path(*args, **kwargs) if self.__hydra_texture else None
+318: 
+319:     @property
+320:     def fps(self) -> float:
+321:         """Return the frames-per-second this Viewport is running at"""
+322:         return self.frame_info.get("fps", 0)
+323: 
+324:     @property
+325:     def frame_info(self) -> dict:
+326:         return self.__viewport_texture.frame_info if self.__viewport_texture else {}
+LINES 377–414
+377:     @property
+378:     def id(self) -> str: # noqa A003
+379:         return self.__viewport_id
+380: 
+381:     @property
+382:     def usd_context_name(self) -> str:
+383:         """Return the name of the omni.usd.UsdContext this Viewport is attached to"""
+384:         return self.__usd_context_name
+385: 
+386:     @property
+387:     def usd_context(self):
+388:         """Return the omni.usd.UsdContext this Viewport is attached to"""
+389:         return omni.usd.get_context(self.__usd_context_name)
+390: 
+391:     @property
+392:     def stage(self) -> Usd.Stage:
+393:         """Return the Usd.Stage of the omni.usd.UsdContext this Viewport is attached to"""
+394:         return self.usd_context.get_stage()
+395: 
+396:     @property
+397:     def projection(self) -> Gf.Matrix4d:
+398:         """Return the projection of the UsdCamera in terms of the ui element it sits in."""
+399:         return Gf.Matrix4d(self.__projection)
+400: 
+401:     @property
+402:     def transform(self) -> Gf.Matrix4d:
+403:         """Return the world-space transform of the UsdGeom.Camera being used to render"""
+404:         return Gf.Matrix4d(self.__transform)
+405: 
+406:     @property
+407:     def view(self) -> Gf.Matrix4d:
+408:         """Return the inverse of the world-space transform of the UsdGeom.Camera being used to render"""
+409:         return Gf.Matrix4d(self.__view)
+410: 
+411:     @property
+412:     def time(self) -> Usd.TimeCode:
+413:         """Return the Usd.TimeCode this Viewport is using"""
+414:         return self.__time
+LINES 428–445
+428:     def map_ndc_to_texture(self, mouse: Sequence[float]) -> Tuple[Tuple[float, float], "ViewportAPI"]:
+429:         ratios = self.__aspect_ratios
+430:         # Move into viewport's NDC-space: [-1, 1] bound by viewport
+431:         mouse = (mouse[0] / ratios[0], mouse[1] / ratios[1])
+432:         # Move from NDC space to texture-space [-1, 1] to [0, 1]
+433: 
+434:         def check_bounds(idx):
+435:             coord = mouse[idx]
+436:             return coord >= -1 and coord <= 1
+437: 
+438:         return tuple((x + 1.0) * 0.5 for x in mouse), self if (check_bounds(0) and check_bounds(1)) else None
+439: 
+440:     def map_ndc_to_texture_pixel(self, mouse: Sequence[float]) -> Tuple[Tuple[float, float], "ViewportAPI"]:
+441:         # Move into viewport's uv-space: [0, 1]
+442:         mouse, viewport = self.map_ndc_to_texture(mouse)
+443:         # Then scale by resolution flipping-y
+444:         resolution = self.resolution
+445:         return (int(mouse[0] * resolution[0]), int((1.0 - mouse[1]) * resolution[1])), viewport
+LINES 465–501
+465:     def _conform_projection(self, policy, camera: UsdGeom.Camera, image_aspect: float, canvas_aspect: float, projection: Sequence[float] = None):
+466:         """
+467:         For the given camera (or possible incoming projection) return a projection matrix that matches the rendered image
+468:         but keeps NDC co-ordinates for the texture bound to [-1, 1]
+469:         """
+470:         if projection is None:
+471:             # If no projection is provided, conform the camera based on settings
+472:             # This wil adjust apertures on the gf_camera
+473:             gf_camera = camera.GetCamera(self.__time)
+474:             if policy == CameraUtil.DontConform:
+475:                 # For DontConform, still have to conform for the final canvas
+476:                 if image_aspect < canvas_aspect:
+477:                     gf_camera.horizontalAperture = gf_camera.horizontalAperture * (canvas_aspect / image_aspect)
+478:                 else:
+479:                     gf_camera.verticalAperture = gf_camera.verticalAperture * (image_aspect / canvas_aspect)
+480:             else:
+481:                 CameraUtil.ConformWindow(gf_camera, policy, image_aspect)
+482: 
+483:             projection = gf_camera.frustum.ComputeProjectionMatrix()
+484:             self.__flat_rendered_projection = self.__flatten_matrix(projection)
+485:         else:
+486:             self.__flat_rendered_projection = projection
+487:             projection = Gf.Matrix4d(*projection)
+488: 
+489:         # projection now has the rendered image projection
+490:         # Conform again based on canvas size so projection extends with the Viewport sits in the UI
+491:         if image_aspect < canvas_aspect:
+492:             self.__aspect_ratios = (image_aspect / canvas_aspect, 1)
+493:             policy2 = CameraUtil.MatchVertically
+494:         else:
+495:             self.__aspect_ratios = (1, canvas_aspect / image_aspect)
+496:             policy2 = CameraUtil.MatchHorizontally
+497: 
+498:         if policy != CameraUtil.DontConform:
+499:             projection = CameraUtil.ConformedWindow(projection, policy2, canvas_aspect)
+500: 
+501:         return projection
+LINES 521–553
+521:         # If forcing UI resolution to match Viewport, set the resolution now if it needs to be updated.
+522:         # Early exit in this case as it will trigger a subsequent UI -> Viewport sync.
+523:         resolution = self.full_resolution or (0, 0)
+524:         canvas_size = (int(canvas_size[0]), int(canvas_size[1]))
+525:         # We want to be careful not to resize to 0, 0 in the case the canvas is 0, 0
+526:         if self.__fill_frame and (canvas_size[0] and canvas_size[1]): # noqa SIM102
+527:             if (resolution[0] != canvas_size[0]) or (resolution[1] != canvas_size[1]):
+528:                 self.resolution = canvas_size
+529:                 return False
+530: 
+531:         prev_xform, prev_proj = self.__transform, self.__projection
+532:         if view:
+533:             self.__view = Gf.Matrix4d(*view)
+534:             self.__transform = self.__view.GetInverse()
+535:         else:
+536:             self.__transform = camera.ComputeLocalToWorldTransform(self.__time)
+537:             self.__view = self.__transform.GetInverse()
+538: 
+539:         image_aspect = resolution[0] / resolution[1] if resolution[1] else 1
+540:         canvas_aspect = canvas_size[0] / canvas_size[1] if canvas_size[1] else 1
+541:         policy = self.__get_conform_policy()
+542: 
+543:         self.__projection = self._conform_projection(policy, camera, image_aspect, canvas_aspect, projection)
+544: 
+545:         view_changed = self.__transform != prev_xform
+546:         proj_changed = self.__projection != prev_proj
+547:         if view_changed or proj_changed:
+548:             self.__ndc_to_world = None
+549:             self.__world_to_ndc = None
+550:             self.__notify_scene_views(view_changed, proj_changed)
+551:             self.__notify_objects(self.__view_changed)
+552:             return True
+553:         return False

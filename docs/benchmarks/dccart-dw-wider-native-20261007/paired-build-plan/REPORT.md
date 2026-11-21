@@ -1,0 +1,15 @@
+# Prepared-only paired build plan
+
+The private executable plan is ready for ROOT review. Pure Python preparation validation passed with all child-process calls forbidden: 39 copied-by-value source files, exactly one candidate-header delta, the original immutable 84-payload actual F3 build, focused normal AIR39/Main29/two ELF guards, four explicitly authorized IT UI source afterbytes and eight actual process role identities all matched before and after. No child, compiler, APP, checker, native case, service, Git or GPU operation occurred. The future build directory remains absent.
+
+The actual source baseline is the built F3 source cohort and its APP46a3ca…/LIBa68b8c… pair, not a reconstruction from current normal C. The F3 C observation source stays literal. The only new source is reviewed dcCartFinitePointRepair.H SHA0d96f401…, whose default and Ratio paths are covered by the separate frozen kernel-only packet. That packet does not establish native feasibility or mesh quality.
+
+BUILD.py requires ROOT exact manifest authorization. Its single fresh execution uses CPU32–35, two workers, Allwmake --cart-only -j2, six expected compilation units and a 180-second owned-group compile watchdog. It seeds no object or binary. All source cloning/output/tmp/cache paths stay under the new private owner. The existing OF header bridge and gcc11 binary are read guards. DCCART_/CART_ inherited variables are removed; the build sets no experimental runtime flag.
+
+Successful execution must record the six actual command lines and fresh object identities, final source39, actual library candidate include dependency/alias, fresh APP/LIB hashes, ELF metadata and loader resolution to the new private library. No old pair identity is substituted. Raw stdout/stderr/warnings/status persist on failure, no automatic retry occurs, and normal/native source and ELF files are never written. The generated wmake dependency inventories are not claimed as a complete compiler-preprocessed closure.
+
+The explicit four-file IT transition is recorded in guards/authorized-I4-transition.json. Current HEAD301abe66… and index-Ccph_7vb are ROOT-reported context; actual four-file afterbyte guards are independently verified. This plan intentionally avoids a whole-I scan or restoring obsolete source fingerprints.
+
+The later genuine runtime experiment is still unauthorized here. Once ROOT reviews an actual successful new pair, a separate execution plan should compare two newly named fresh cases, default OFF and wider exact1 ON, with original twelve inputs and AXIS+shared-point flags held. Both retain original quality standards,110-second native budget/120-second owned watchdog, source/role/fixed-boundary gates. Existing AXIS_SHARED remains strict Failed1 with one determinant failure; preparation/build success cannot be called accepted mesh or five-minute large-case performance.
+
+Exact map: source-cohort-bindings.json, 39 entries. Executable: BUILD.py. Contract and runbook: plan.json plus README.md. Controlled preparation evidence: validation/result.json and original stdout/stderr. No normal apply map is provided because this plan is solely a fresh private build.

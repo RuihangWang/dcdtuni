@@ -1,0 +1,336 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T4 (air: cfdrun v3, OpenFOAM tables, steady-converged start chain)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t4",
+  "code": "330c315d",
+  "machine": "40901, isolated worktree ~/scratch/wt-t4 on 8390 (8360 untouched); ~/scratch/wt-base for the main baseline and the final full suite",
+  "format_v3": "cfdrun v2 + transient {durationS, start {kind uniform|steadyConverged, uniform {airT_C, waterT_C, solidT_C}}} + boundaryBindings.*.parameters.schedules {param: [[t, v], ...]}",
+  "schedulable": [
+    "temperatureC",
+    "flowRateM3s",
+    "directionWorld",
+    "supplyAngleDeg",
+    "powerW",
+    "heatFluxWm2"
+  ],
+  "openfoam": {
+    "version": "v2412",
+    "step_form": "(t - eps, old)(t, new), eps = max(1e-6 s, |t| * 1e-8); two rows at one time is FOAM FATAL 'out-of-order value'",
+    "table_defaults": "linear interpolation, clamp outside",
+    "write_precision_with_tables": "double (written as 10)",
+    "wall_mounted_supply": "uniformFixedValue vector table Q(t)/A * dir(t)",
+    "fan_outlet": "damped time() expression carrying the piecewise-linear dT(t)"
+  },
+  "tests": {
+    "pytest_t4": {
+      "test_cfdrun_v3_schedules": 15,
+      "test_transient_start": 3,
+      "test_mpi_log_rotation": 2,
+      "failed": 0
+    },
+    "pytest_full_backend_final": {
+      "commit": "330c315d",
+      "passed": 1844,
+      "skipped": 67,
+      "failed": 4,
+      "failed_same_on_main": [
+        "test_mesh_engine::test_meshgen_pipeline_command_shape_and_skips (dcCart)",
+        "test_room_enclosure_guard::test_dcCart_pipeline_checks_the_enclosure_after_createBaffles (dcCart)",
+        "test_mms_product_case x2 (fixture not in git)"
+      ],
+      "skip_delta_vs_wt_t4": "the one extra skip is test_floor_room_boundary.py:92, which needs case/Slab/model/Slab.cfdrun (present in wt-t4, where the gate copied it, and passing there); environment, not code"
+    },
+    "pytest_full_backend_be9c949f": {
+      "passed": 1843,
+      "skipped": 66,
+      "failed": 4
+    },
+    "vitest": {
+      "files": 314,
+      "files_skipped": 1,
+      "tests": 3153,
+      "tests_skipped": 1,
+      "failed": 0,
+      "skipped_is": "coldPlateManifestDump (runs only with its output env var)"
+    },
+    "tsc": "clean"
+  },
+  "backend_runs": {
+    "case": "Slab, 8 processes, 4 s, maxCo 5, maxDeltaT 0.05, write every 0.5 s",
+    "uniform_start": {
+      "supply_flow_m3s": "4.0 -> 3.5 at 2.5 s -> 3.0 from 3 s",
+      "supply_T_K": "288.15 -> 285.15 at 1 s (right-continuous)",
+      "initial_air_K": 297.15,
+      "fan_dT_K": "6.71 -> 13.43 with one written frame of damping lag"
+    },
+    "steady_start": {
+      "simple_stopped_at": 245,
+      "seeded_fields": [
+        "T",
+        "U",
+        "alphat",
+        "epsilon",
+        "k",
+        "nut",
+        "p",
+        "p_rgh"
+      ],
+      "processors": 8,
+      "r2_inlet_K_before_first_effect": [
+        294.479,
+        294.48
+      ],
+      "fan_dT_K": "6.71 at 0.5 s, 13.43 from 2 s"
+    }
+  },
+  "browser_gate": {
+    "case": "case/Slab (copied into the worktree)",
+    "ui_steps": [
+      "top bar mode = transient",
+      "timeline duration 4 s, start uniform air 24 C",
+      "PCU_1: t=1 s supply temperature keyframe edited to 12 (track panel + keyframe editor)",
+      "PCU_1: t=3 s airflow keyframe = 3, ramp 1 s",
+      "R2: t=2 s server power keyframe = 7200 W",
+      "save project -> reload page -> load (v5 round trip)",
+      "check mesh -> run solve",
+      "then start = steady converged field (timeline select) -> run solve"
+    ],
+    "manifest": {
+      "schemaVersion": 3,
+      "transient": {
+        "durationS": 4,
+        "start": "uniform, airT_C 24"
+      },
+      "scheduled_bindings": 3,
+      "PCU_1_supply": {
+        "temperatureC": [
+          [
+            0,
+            15
+          ],
+          [
+            1,
+            15
+          ],
+          [
+            1,
+            12
+          ],
+          [
+            2,
+            12
+          ],
+          [
+            2,
+            12
+          ],
+          [
+            3,
+            12
+          ],
+          [
+            4,
+            12
+          ]
+        ],
+        "flowRateM3s": [
+          [
+            0,
+            4
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            3
+          ],
+          [
+            4,
+            3
+          ]
+        ]
+      },
+      "R2_fan_inlet_and_outlet": {
+        "powerW": [
+          [
+            0,
+            3600
+          ],
+          [
+            1,
+            3600
+          ],
+          [
+            1,
+            3600
+          ],
+          [
+            2,
+            3600
+          ],
+          [
+            2,
+            7200
+          ],
+          [
+            3,
+            7200
+          ],
+          [
+            4,
+            7200
+          ]
+        ]
+      }
+    },
+    "uniform_run": {
+      "dir": "log/2026-09-30-11-52-03_Slab",
+      "solver": "buoyantBoussinesqPimpleFoam, Euler",
+      "initial_T_K": 297.15,
+      "wall_min": 12,
+      "t_s": [
+        0,
+        0.5,
+        1,
+        1.5,
+        2,
+        2.5,
+        3,
+        3.5,
+        4
+      ],
+      "supply_flow_m3s": [
+        null,
+        4.0,
+        4.0,
+        4.0,
+        4.0,
+        3.5,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "supply_T_K": [
+        288.15,
+        288.15,
+        285.15,
+        285.15,
+        285.15,
+        285.15,
+        285.15,
+        285.15,
+        285.15
+      ],
+      "r2_fan_dT_K": [
+        null,
+        6.712,
+        6.715,
+        6.723,
+        11.754,
+        13.431,
+        13.428,
+        13.427,
+        13.429
+      ],
+      "r2_inlet_T_K": [
+        297.15,
+        297.15,
+        297.054,
+        296.133,
+        295.09,
+        294.255,
+        293.647,
+        293.299,
+        292.833
+      ],
+      "pcu1_return_flow_m3s": [
+        null,
+        3.999,
+        3.997,
+        3.997,
+        3.998,
+        3.748,
+        3.504,
+        3.51,
+        3.506
+      ],
+      "dT_targets_K": {
+        "3600W": 6.712,
+        "7200W": 13.423
+      },
+      "convergence_json_verdict": "NOT_CONVERGED (steady rule; not applicable to a transient run, T5)"
+    },
+    "steady_start_run": {
+      "dir": "log/2026-09-30-12-06-18_Slab",
+      "simple_stopped_at": 245,
+      "simple_limit": 300,
+      "seeded_processors": 8,
+      "seeded_fields": [
+        "T",
+        "U",
+        "alphat",
+        "epsilon",
+        "k",
+        "nut",
+        "p",
+        "p_rgh"
+      ],
+      "archive": "steadyStart/",
+      "wall_min": 13,
+      "supply_flow_and_T": "identical to the uniform run at every written time",
+      "r2_fan_dT_K": [
+        null,
+        6.712,
+        6.712,
+        6.712,
+        11.748,
+        13.427,
+        13.428,
+        13.428,
+        13.428
+      ],
+      "r2_inlet_T_K": [
+        null,
+        294.479,
+        294.48,
+        294.456,
+        294.3,
+        293.972,
+        293.548,
+        293.071,
+        292.564
+      ]
+    },
+    "backend_version": "8390 was started at 6ef00266 and never restarted (only the React bundle was rebuilt); the intervening commits are frontend or test-only, so both gate solves exercised T4's runtime code, but they predate 330c315d (the gate dirs still hold log.mpi_solver.01_buoyantBoussinesqPimpleF); the log naming fix is proven by unit tests and the final full suite"
+  },
+  "fixed": {
+    "c07512b6": "pre-step sample at t - 1e-9*max(1,t) fell inside the evaluator's t >= tk - 1e-9: steps at t <= 1 s lost their pre-step row; now t - 1 us, unit test added",
+    "be9c949f": "two old tests changed legitimately by T4: schemaVersion 3 no longer means re-export (test uses 4); explicit-BC order check reads only _run_solve_from_mesh",
+    "330c315d": "pre-existing: a rotated mpirun log was tagged with the next step's name; now its own Exec banner, else the previous command"
+  },
+  "notes": [
+    "ACU return is a pressure outlet in the runner: its flow follows mass conservation (both returns shared the total supply, PCU_1 return 4.0 -> 3.5); no return schedule is needed (design section 6, T4 item 6)",
+    "convergence.json applies the steady rule and reports NOT_CONVERGED on every transient run; a transient verdict is T5",
+    "simulationConfig single-copy question is open with the user; either answer is a later stage and does not block T4",
+    "SolverPanel 'running checkMesh' status reappears once a solve starts (pre-existing); spun off as a separate task",
+    "main 0edea95c (fan-outlet test fix, test file only) merged into the branch; those tests pass on T4 code",
+    "text-tested only, not run through OpenFOAM in this gate: wall-mounted supply vector table (directionWorld/supplyAngleDeg) and heatFluxWm2 -> heatOutput (Slab has floor CRAHs and fan servers)",
+    "observed, not investigated: steadyStart/processor*/ also holds a '1' time dir besides 245 (writeBCFields writes after iteration 1; 09-14 ordinary steady runs have none); seeding used 245, no effect"
+  ]
+}

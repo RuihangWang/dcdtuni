@@ -1,0 +1,40 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dcCartMeshDict;
+}
+
+// Written by STLGenRunner (meshEngine: dcCart). Geometry, refinementSurfaces,
+// refinementRegions and locationsInMesh come from snappyHexMeshDict.
+nCellsBetweenLevels 1;
+timeLimitSeconds    300;
+// Write every flow-through baffle's <zone>_master/_slave pair in the mesher
+// itself (and a processorCyclic patch for each pair a rank boundary
+// separates). That is all redistributePar and createBaffles existed to do, so
+// both passes are skipped below -- 29 s of the Base604 mesh pipeline.
+splitBaffles        true;
+// The same ceiling the snappy path writes into snappyHexMeshDict, and the same
+// fallback. dcCartMesh stops refining once its octree reaches it, exactly where
+// meshRefinement::refineCandidates stops in snappyHexMesh.
+maxGlobalCells      500000;
+// Near-coincidence weld of the surfaces before the cut (see the runner comment
+// above): 0 turns it off. DCCART_WELD_TOL / DCCART_WELD=0 in the environment win.
+weldTolerance       0.0012;
+// First-layer floor on top of the weld (dcCartSurfaces::weldNearCoincident):
+// per surface class the band widens to firstLayerMinFraction x that class's
+// refinement-level spacing, capped at firstLayerMax m, so no axis-aligned
+// surface carves a slab thinner than that. 0 = classic weld only. A gap
+// between two solids wider than firstLayerSealGap (< 0: weldTolerance) is
+// never sealed. DCCART_FIRSTLAYER_FRACTION / DCCART_FIRSTLAYER_MAX win.
+firstLayerMinFraction 0.3;
+firstLayerMax       0.005;
+firstLayerSealGap   -1;
+
+background
+{
+    x (0.583543022 0.836876356 1.090209689 1.343543022 1.596876356 1.850209689 2.103543022 2.356876356 2.610209689 2.863543022 3.116876356 3.370209689 3.623543022 3.876876356 4.130209689 4.383543022 4.636876356 4.890209689 5.143543022 5.396876356 5.650209689 5.903543022 6.156876356 6.410209689 6.663543022 6.916876356 7.170209689 7.423543022 7.676876356 7.930209689 8.183543022 8.436876356 8.690209689);
+    y (-0.25 0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0 2.25 2.5 2.75 3.0 3.25);
+    z (3.044989154 3.3 3.555010846 3.810021692 4.065032538 4.320043384 4.57505423 4.830065076 5.085075922 5.340086768 5.595097614 5.85010846 6.105119306 6.360130152 6.615140998 6.870151844 7.12516269 7.380173536);
+}

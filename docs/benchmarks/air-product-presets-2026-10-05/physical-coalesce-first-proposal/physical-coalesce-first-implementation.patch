@@ -1,0 +1,301 @@
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/physical-coalesce-source-before.C	2026-10-05 03:20:50.067231400 +0000
++++ /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C	2026-10-05 03:49:15.294378140 +0000
+@@ -12594,6 +12594,7 @@
+     };
+     const bool traceCones=getenv("DCCART_CONE_EVIDENCE")!=nullptr;
+     const bool literalUnions=getenv("DCCART_CONE_LITERAL_UNIONS")!=nullptr;
++    const bool samePhysicalRole=literalUnions && getenv("DCCART_CONE_SAME_PHYSICAL_ROLE")!=nullptr;
+     // Algorithm ancestry is local and independent of optional evidence output.
+     // No allocation or iteration is added when this experiment is off.
+     std::vector<label> unionParent;
+@@ -12602,6 +12603,12 @@
+         unionParent.resize(oldCells);
+         std::iota(unionParent.begin(),unionParent.end(),label(0));
+     }
++    // Source-facet lineage is algorithm state, never optional trace state.
++    std::vector<label> unionBase;
++    if (samePhysicalRole)
++    {
++        unionBase.resize(oldFaces);std::iota(unionBase.begin(),unionBase.end(),label(0));
++    }
+     if (traceCones)
+     {
+         m.coneEvidenceParent.resize(oldCells);m.coneEvidenceBase.resize(oldFaces);
+@@ -13204,6 +13211,7 @@
+                 id=m.faces.size();m.faces.push_back(pieces[j]);m.owner.push_back(o);m.neighbour.push_back(n);
+                 m.patch.push_back(m.patch[f]);m.zone.push_back(m.zone[f]);m.faceAlive.push_back(true);
+                 if (traceCones) { m.coneEvidenceBase.push_back(f); }
++                if (samePhysicalRole) { unionBase.push_back(f); }
+             }
+             else { m.faces[f]=pieces[j]; }
+             piecesOf[f].push_back(id);
+@@ -13825,6 +13833,7 @@
+             m.faces.push_back(side);m.owner.push_back(e[0].child);m.neighbour.push_back(e[1].child);
+             m.patch.push_back(-1);m.zone.push_back(-1);m.faceAlive.push_back(true);
+             if (traceCones) { m.coneEvidenceBase.push_back(-1); }
++            if (samePhysicalRole) { unionBase.push_back(-1); }
+         }
+         ++decomposed;
+     }
+@@ -13834,9 +13843,10 @@
+     { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
+     if (literalUnions)
+     {
+-        // This operator only deletes one unzoned internal face. It neither
+-        // inserts points nor joins exterior polygons. Coupled/zone cavities
+-        // and unknown remote quality are conservatively unsupported.
++        // Literal mode only deletes one unzoned internal face. A separate
++        // opt-in may synchronously join two physical triangles of the SAME
++        // source facet/patch/zone; all their outline nodes and inherited roles
++        // remain mandatory. Coupled/zone cavities are unsupported.
+         clockTime unionClock;
+         std::vector<std::vector<label>> unionCF;
+         buildCellFaces(m,unionCF);
+@@ -13989,6 +13999,7 @@
+         const scalar censusSeconds=unionClock.elapsedTime()-cacheSeconds;
+         std::set<std::pair<label,label>> tested;
+         label examined=0,accepted=0,protectedCavity=0,geometryRejected=0,qualityRejected=0,capReached=0,rounds=0;
++        label roleTried=0,roleAccepted=0;std::array<label,6> roleRefused{{0,0,0,0,0,0}};
+         std::ofstream unionEvidence;
+         if (traceCones) { unionEvidence.open("conforming-literal-unions-rank"+std::to_string(myRank)+".jsonl");unionEvidence<<std::setprecision(17); }
+         struct unionMetrics { std::array<scalar,5> v{{GREAT,GREAT,GREAT,0,0}};bool valid=false; };
+@@ -14038,6 +14049,88 @@
+         const std::array<scalar,5> unionThreshold{{.001,.05,.01,4-1e-8,70}};
+         auto passes=[&](scalar value,size_t metric)
+         { return metric<3 ? value>=unionThreshold[metric] : value<=unionThreshold[metric]; };
++        // Constant-size fallback: a true cone tetra has at most one physical
++        // source base, hence a pair supplies at most one possible triangle pair.
++        // Return codes: no pair, wrong role, outline/plane, area/moment.
++        auto physicalQuad=[&](label keep,std::vector<label>& outer,
++            std::map<label,unionFace>& changed,std::vector<label>& joined,
++            scalar& areaError,scalar& momentError)->label
++        {
++            std::vector<label> physical;
++            for (label f:outer) if (m.patch[f]>=0 && m.neighbour[f]<0 && !coupledType(f)) { physical.push_back(f); }
++            if (physical.size()!=2) { return 1; }
++            const label fa=physical[0],fb=physical[1];
++            if (m.patch[fa]!=m.patch[fb] || m.zone[fa]!=m.zone[fb]
++             || fa>=label(unionBase.size()) || fb>=label(unionBase.size())
++             || unionBase[fa]<0 || unionBase[fa]!=unionBase[fb]) { return 2; }
++            const auto& a=changed.at(fa);const auto& b=changed.at(fb);
++            if (a.owner!=keep || b.owner!=keep || a.neighbour>=0 || b.neighbour>=0
++             || a.polygon.size()!=3 || b.polygon.size()!=3) { return 2; }
++            std::set<label> originalPoints;
++            std::map<std::pair<label,label>,std::vector<std::pair<label,label>>> incidence;
++            for (const auto* face:{&a,&b}) for (size_t j=0;j<3;++j)
++            {
++                const label x=face->polygon[j],y=face->polygon[(j+1)%3];originalPoints.insert(x);
++                incidence[std::minmax(x,y)].emplace_back(x,y);
++            }
++            if (originalPoints.size()!=4) { return 3; }
++            // First physical extension is exactly axis-supported in binary
++            // coordinates. Warped/rotated outlines remain unsupported here;
++            // numerical area/moment tolerances never establish coplanarity.
++            bool exactAxisPlane=false;
++            for (label axis=0;axis<3;++axis)
++            {
++                const scalar plane=m.points[*originalPoints.begin()][axis];bool same=std::isfinite(plane);
++                for (label point:originalPoints) { same=same && m.points[point][axis]==plane; }
++                exactAxisPlane=exactAxisPlane || same;
++            }
++            if (!exactAxisPlane) { return 3; }
++            std::map<label,label> successor;std::map<label,label> incoming;label sharedEdges=0;
++            for (const auto& row:incidence)
++            {
++                const auto& uses=row.second;
++                if (uses.size()==2)
++                {
++                    if (uses[0].first!=uses[1].second || uses[0].second!=uses[1].first) { return 3; }
++                    ++sharedEdges;
++                }
++                else if (uses.size()==1)
++                {
++                    if (!successor.emplace(uses[0]).second || ++incoming[uses[0].second]!=1) { return 3; }
++                }
++                else { return 3; }
++            }
++            if (sharedEdges!=1 || successor.size()!=4) { return 3; }
++            std::vector<label> poly;label p=a.polygon[0];
++            for (label j=0;j<4;++j)
++            {
++                if (!successor.count(p) || std::find(poly.begin(),poly.end(),p)!=poly.end()) { return 3; }
++                poly.push_back(p);p=successor.at(p);
++            }
++            if (p!=poly[0] || std::set<label>(poly.begin(),poly.end())!=originalPoints) { return 3; }
++            unionFace quad=a;quad.polygon=poly;faceAreaCentreOF(m.points,poly,quad.area,quad.centre);
++            const scalar ar=mag(quad.area),oldA=mag(a.area)+mag(b.area);
++            if (!finiteUnionPoint(quad.area) || !finiteUnionPoint(quad.centre) || !std::isfinite(oldA)
++             || ar<=1e-12 || oldA<=1e-12 || (quad.area&a.area)<=0 || (quad.area&b.area)<=0) { return 3; }
++            scalar span=0;for (label x:poly) { span=max(span,mag(m.points[x]-quad.centre)); }
++            if (!std::isfinite(span) || span<=VSMALL) { return 3; }
++            const vector normal=quad.area/ar;
++            for (label x:poly) if (!finiteUnionPoint(m.points[x]) || mag((m.points[x]-quad.centre)&normal)>1e-10*span) { return 3; }
++            // Every nonincident vertex is strictly on the inward edge side:
++            // no concavity, crossing, touching or dropped collinear vertex.
++            for (size_t j=0;j<4;++j) for (size_t k=0;k<4;++k) if (k!=j && k!=(j+1)%4)
++            {
++                const vector edge=m.points[poly[(j+1)%4]]-m.points[poly[j]];
++                const scalar turn=(edge^(m.points[poly[k]]-m.points[poly[j]]))&normal;
++                if (!std::isfinite(turn) || turn<=1e-12*span*span) { return 3; }
++            }
++            areaError=max(mag(quad.area-a.area-b.area)/oldA,mag(ar-oldA)/oldA);
++            const vector delta=ar*(quad.centre-a.centre)-mag(b.area)*(b.centre-a.centre);
++            momentError=mag(delta)/(oldA*span);
++            if (!std::isfinite(areaError) || !std::isfinite(momentError) || areaError>1e-10 || momentError>1e-10) { return 4; }
++            changed[fa]=std::move(quad);changed.erase(fb);
++            outer.erase(std::find(outer.begin(),outer.end(),fb));joined={fa,fb};return 0;
++        };
+         for (label round=0;round<2;++round)
+         {
+             ++rounds;label acceptedRound=0;tested.clear();
+@@ -14090,6 +14183,23 @@
+                         if (c==drop) { continue; }
+                         const auto neo=evaluateUnionCell(c,c==keep ? outer : unionCF[c],changed,true);next.emplace(c,neo);valid=valid&&neo.finite;
+                     }
++                    std::vector<label> joinedPhysical;scalar facetAreaError=0,facetMomentError=0;
++                    if (!valid && samePhysicalRole)
++                    {
++                        ++roleTried;const label reason=physicalQuad(keep,outer,changed,joinedPhysical,facetAreaError,facetMomentError);
++                        if (reason) { ++roleRefused[reason-1]; }
++                        else
++                        {
++                            next.clear();valid=true;
++                            for (label c:affected)
++                            {
++                                valid=valid&&oldGeometry.at(c).finite;if (c==drop) { continue; }
++                                const auto neo=evaluateUnionCell(c,c==keep ? outer : unionCF[c],changed,true);
++                                next.emplace(c,neo);valid=valid&&neo.finite;
++                            }
++                            if (!valid) { ++roleRefused[4]; }
++                        }
++                    }
+                     if (!valid) { ++geometryRejected;continue; }
+                     const auto& ng=next.at(keep);const auto& ka=oldGeometry.at(keep);const auto& kb=oldGeometry.at(drop);
+                     const scalar oldV=ka.volume+kb.volume;
+@@ -14099,7 +14209,7 @@
+                     const vector momentDelta=ng.volume*(ng.centre-ka.centre)-kb.volume*(kb.centre-ka.centre);
+                     const scalar mr=mag(momentDelta)/max(oldV*unionSpan,VSMALL);
+                     if (!std::isfinite(vr) || !std::isfinite(mr) || vr>1e-10 || mr>1e-10)
+-                    { ++geometryRejected;continue; }
++                    { ++geometryRejected;if (!joinedPhysical.empty()) { ++roleRefused[4]; }continue; }
+                     // A repaired cell must pass D, inheriting BOTH old roles.
+                     bool quality=ng.determinant>=unionThreshold[0];label passingRoleRegressions=0;
+                     std::array<scalar,5> oldShell{{min(ka.determinant,kb.determinant),1,1,0,0}};
+@@ -14114,35 +14224,46 @@
+                         quality=quality && (!passes(oldD,0) || passes(newD,0))
+                             && (passes(oldD,0) || newD>=oldD*(1-1e-10));
+                     }
++                    struct inheritedFacetRole { label oldFace,newFace;std::array<scalar,5> before,after; };
++                    std::vector<inheritedFacetRole> inheritedFacetRoles;
+                     std::set<label> facesToCheck;
+                     for (label c:affected) for (label f:unionCF[c]) if (f!=shared[0]) { facesToCheck.insert(f); }
+                     for (label f:facesToCheck)
+                     {
+-                        const auto it=changed.find(f);const unionFace* row=it==changed.end() ? nullptr : &it->second;
+-                        const label owner=row ? row->owner : m.owner[f],neighbour=row ? row->neighbour : m.neighbour[f];
++                        // The removed physical facet retains its own BEFORE
++                        // role and maps to the joined facet's AFTER metric.
++                        const label destination=joinedPhysical.size()==2 && f==joinedPhysical[1] ? joinedPhysical[0] : f;
++                        const auto it=changed.find(destination);const unionFace* row=it==changed.end() ? nullptr : &it->second;
++                        const label owner=row ? row->owner : m.owner[destination],neighbour=row ? row->neighbour : m.neighbour[destination];
+                         const label oo=m.owner[f],on=m.neighbour[f];
+                         if (!currentUnionCell(oo) || (on>=0 && !currentUnionCell(on))) { quality=false;break; }
+                         auto cc=[&](label c) { const auto t=next.find(c);return t==next.end() ? unionCC[c] : t->second.centre; };
+                         auto volume=[&](label c) { const auto t=next.find(c);return t==next.end() ? unionVolume[c] : t->second.volume; };
+                         if (!currentUnionCell(owner) || (neighbour>=0 && !currentUnionCell(neighbour))) { quality=false;break; }
+                         const auto before=faceUnionMetrics(f,nullptr,unionCC[oo],unionVolume[oo],on>=0 ? unionCC[on] : unionCC[oo],on>=0 ? unionVolume[on] : unionVolume[oo],on>=0);
+-                        const auto after=faceUnionMetrics(f,row,cc(owner),volume(owner),neighbour>=0 ? cc(neighbour) : cc(owner),neighbour>=0 ? volume(neighbour) : volume(owner),neighbour>=0);
++                        const auto after=faceUnionMetrics(destination,row,cc(owner),volume(owner),neighbour>=0 ? cc(neighbour) : cc(owner),neighbour>=0 ? volume(neighbour) : volume(owner),neighbour>=0);
+                         if (!before.valid || !after.valid) { quality=false;break; }
++                        if (row) { inheritedFacetRoles.push_back({f,destination,before.v,after.v}); }
+                         for (size_t k=1;k<5;++k)
+                         {
+                             if (row)
+                             {
+                                 oldShell[k]=k<3 ? min(oldShell[k],before.v[k]) : max(oldShell[k],before.v[k]);
+-                                newShell[k]=k<3 ? min(newShell[k],after.v[k]) : max(newShell[k],after.v[k]);
+-                                oldShellBad[k]+=!passes(before.v[k],k);newShellBad[k]+=!passes(after.v[k],k);
++                                oldShellBad[k]+=!passes(before.v[k],k);
++                                if (f==destination)
++                                {
++                                    newShell[k]=k<3 ? min(newShell[k],after.v[k]) : max(newShell[k],after.v[k]);
++                                    newShellBad[k]+=!passes(after.v[k],k);
++                                }
+                             }
+                             if (passes(before.v[k],k) && !passes(after.v[k],k)) { quality=false;++passingRoleRegressions; }
+                             if (!passes(before.v[k],k) && (k<3 ? after.v[k]<before.v[k]*(1-1e-10) : after.v[k]>before.v[k]*(1+1e-10))) { quality=false; }
+                         }
+                     }
+-                    if (!quality) { ++qualityRejected;continue; }
++                    if (!quality) { ++qualityRejected;if (!joinedPhysical.empty()) { ++roleRefused[5]; }continue; }
+                     // No mutation precedes complete geometry/role preflight.
+                     m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;
++                    if (!joinedPhysical.empty()) { m.faceAlive[joinedPhysical[1]]=false;++roleAccepted; }
+                     for (auto& row:changed)
+                     {
+                         const label f=row.first;auto& value=row.second;
+@@ -14168,6 +14289,27 @@
+                         { unionEvidence<<",\""<<name<<"\":[";for (size_t j=0;j<5;++j) { if (j) { unionEvidence<<','; }unionEvidence<<values[j]; }unionEvidence<<']'; };
+                         writeMetric("oldShellMinimumDWRMaximumSN",oldShell);writeMetric("newShellMinimumDWRMaximumSN",newShell);
+                         writeBad("oldShellBadCounts",oldShellBad);writeBad("newShellBadCounts",newShellBad);
++                        if (!joinedPhysical.empty())
++                        {
++                            unionEvidence<<",\"joinedPhysicalOriginalFaces\":["<<joinedPhysical[0]<<','<<joinedPhysical[1]
++                                <<"],\"joinedPhysicalSurvivor\":"<<joinedPhysical[0]
++                                <<",\"joinedPhysicalSourceBase\":"<<unionBase[joinedPhysical[0]]
++                                <<",\"facetRelativeAreaError\":"<<facetAreaError
++                                <<",\"facetRelativeFirstMomentError\":"<<facetMomentError
++                                <<",\"inheritedOriginalFacetRoles\":[";
++                            for (size_t j=0;j<inheritedFacetRoles.size();++j)
++                            {
++                                if (j) { unionEvidence<<','; }const auto& r=inheritedFacetRoles[j];
++                                unionEvidence<<"{\"oldFace\":"<<r.oldFace<<",\"newFace\":"<<r.newFace<<",\"beforeWRSN\":[";
++                                for (size_t k=1;k<5;++k) { if (k>1) { unionEvidence<<','; }unionEvidence<<r.before[k]; }
++                                unionEvidence<<"],\"afterWRSN\":[";
++                                for (size_t k=1;k<5;++k) { if (k>1) { unionEvidence<<','; }unionEvidence<<r.after[k]; }
++                                unionEvidence<<"],\"oldPassingWRSN\":[";
++                                for (size_t k=1;k<5;++k) { if (k>1) { unionEvidence<<','; }unionEvidence<<(passes(r.before[k],k) ? "true":"false"); }
++                                unionEvidence<<"]}";
++                            }
++                            unionEvidence<<']';
++                        }
+                         unionEvidence<<",\"absoluteFivePass\":"<<(std::all_of(newShellBad.begin(),newShellBad.end(),[](label n){return !n;}) ? "true" : "false")<<"}\n";
+                     }
+                     break;
+@@ -14178,24 +14320,33 @@
+         }
+         // One unconditional gather after all local work, including empty
+         // ranks. The statistics never affect the subsequent mesh algorithm.
+-        List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(11,0);
++        List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(19,0);
+         mine[0]=examined;mine[1]=accepted;mine[2]=protectedCavity;mine[3]=geometryRejected;
+         mine[4]=qualityRejected;mine[5]=capReached;mine[6]=rounds;mine[7]=unionClock.elapsedTime();
+         mine[8]=cacheSeconds;mine[9]=censusSeconds;mine[10]=mine[7]-cacheSeconds-censusSeconds;
++        mine[11]=roleTried;mine[12]=roleAccepted;for (label j=0;j<6;++j) { mine[13+j]=roleRefused[j]; }
+         summaries[Pstream::myProcNo()]=mine;Pstream::gatherList(summaries);
+         if (Pstream::master())
+         {
+-            List<scalar> total(11,0);
++            List<scalar> total(19,0);
+             for (const auto& row:summaries)
+             {
+                 for (label j=0;j<6;++j) { total[j]+=row[j]; }
+                 for (label j=6;j<11;++j) { total[j]=max(total[j],row[j]); }
++                for (label j=11;j<19;++j) { total[j]+=row[j]; }
+             }
+             Info<<"Conforming literal two-cell union experiment: examined "<<total[0]<<", accepted "<<total[1]
+                 <<", protected/geometry/quality refused "<<total[2]<<'/'<<total[3]<<'/'<<total[4]
+                 <<", capped ranks "<<total[5]<<", rounds "<<total[6]<<", max wall "<<total[7]
+                 <<" s [cache,census,local] "<<total[8]<<'/'<<total[9]<<'/'<<total[10]
+-                <<"; fixed original points and exterior polygons; full checkMesh required"<<endl;
++                <<"; fixed original points and literal or qualified same-role exterior outlines; full checkMesh required"<<endl;
++            if (samePhysicalRole)
++            {
++                Info<<"Conforming physical same-source-facet quad experiment: tried "<<total[11]<<", accepted "<<total[12]
++                    <<", refused [no-pair,role,outline,conservation,geometry,quality] ";
++                for (label j=13;j<19;++j) { if (j>13) { Info<<'/'; }Info<<total[j]; }
++                Info<<"; complete original facet passing-role lineage retained; full checkMesh required"<<endl;
++            }
+         }
+     }
+     rekeyPiecesByGeometry(m);

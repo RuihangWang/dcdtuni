@@ -1,0 +1,186 @@
+{
+  "recorded_utc": "2026-10-05T14:32:58.909577+00:00",
+  "review": "Final independent read-only closure of the two MeshPanel check-entry findings.",
+  "original_review_receipt": {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-independent-review-20261005/review-receipt.json",
+    "sha256": "67eb54bb1e3fd60574ec93c9dea3182cf704b4eca213145edd85dfa165b92c81",
+    "preserved": true
+  },
+  "source_sha256": {
+    "src/server/server.py": "9c9116d449d3a6714219b58ca0f02adfacbc53926c89f29c4405d48256edce22",
+    "src/frontend/react/src/run/session.ts": "e609d2e5e131f9d5489aea51be74cf263a1ebcc032cc802815de1eb11b82710a",
+    "src/frontend/react/src/components/MeshPanel.tsx": "f1d1655bc282adaedf23a0239b3b4c5c60f9ba467da089d12195d54910f58bb8",
+    "src/frontend/shared/i18n/zh-CN.json": "bb5cc0e1c39cca92adfc24edba45b682b25ec915166d11920d22ba198fa63639",
+    "src/frontend/shared/i18n/en-US.json": "42633d0d30431c5c31d34abac953d23d152c90f31324ccca6b53e93bd70b983b",
+    "src/frontend/react/test/MeshPanelStrictCheck.test.tsx": "e278f2c38a7e06876323a7d60de597e8511a3770236ba525f8bd5db9675b9fc8",
+    "src/frontend/react/test/caseDirSession.test.ts": "e0d35012b02f7b1423e91db10d295e35fc205296a8ad1fa9c67d54366c7e1b51",
+    "src/frontend/react/test/airCancellationLifecycle.test.tsx": "b5b13afdeeac66670e84733f726ed27a0170f776d036c32a529feebb2533f151",
+    "src/frontend/react/test/components/SolverPanelCheckStatus.test.tsx": "ed47a468abc68f6dd1dd82584e2d566a4efbc5e6e83ff2f9ffb94c52b25b25ac",
+    "src/frontend/react/test/solveLauncher.test.tsx": "63a2721abbcca8c0723ac02e137980dd7a437fc976c23f605847e4a3dc99eb19",
+    "src/frontend/react/test/i18n.test.ts": "73f0ad88163c21c4b58a2bbe30a10baae6fd72599f52e7ec32fca02bd9ab01fa",
+    "src/backend/tests/test_server_mesh_readiness.py": "622ae515b83c367c5c4c2ee61e386ec476333545acd032decf70f0eeb22a5993",
+    "src/backend/tests/test_air_mesh_quality_receipt.py": "87e21cd1fa464aa1c707cbb6d39ca331ff34cd62377afbfd05f38d8c0d8ba65c",
+    "src/backend/tests/test_run_cfd_case_lock.py": "8aab8797ee8b22d1cb83f880dcd92d7cac080a310c0226c4c6104b066c12e7b3"
+  },
+  "findings": [
+    {
+      "original": "accepted scan overrides later missing-physical-mesh evidence",
+      "status": "closed",
+      "source": "src/frontend/react/src/run/session.ts",
+      "sha256": "e609d2e5e131f9d5489aea51be74cf263a1ebcc032cc802815de1eb11b82710a",
+      "evidence": "Current-case guard precedes missing-mesh branch; branch invalidates meshReadinessGeneration and caseStatusSequence before memory false and emit.",
+      "regression": "MeshPanelStrictCheck six-test file includes accepted scan true -> physical false -> immediately false; late old accepted scan remains ignored."
+    },
+    {
+      "original": "check-only job.error omitted from MeshPanel",
+      "status": "closed",
+      "source": "src/frontend/react/src/components/MeshPanel.tsx",
+      "sha256": "f1d1655bc282adaedf23a0239b3b4c5c60f9ba467da089d12195d54910f58bb8",
+      "evidence": "Current qualityJob.error now rendered in LIVE_CLASS role alert for mesh and checkMesh; unrelated jobs do not leak into this slot."
+    }
+  ],
+  "results_read_not_rerun": {
+    "frontend": {
+      "files": 6,
+      "passed": 84,
+      "exitCode": 0,
+      "includes_new_meshpanel_component_tests": 6
+    },
+    "backend": {
+      "passed": 31,
+      "exitCode": 0,
+      "includes_actual_server_module_import_tests": 17
+    },
+    "typecheck": {
+      "exitCode": 0
+    },
+    "build": {
+      "exitCode": 0
+    },
+    "root_browser_record": {
+      "job": "7efdbb5f",
+      "returncode": 1,
+      "checkMeshOk": false,
+      "failedChecks": 2,
+      "checkEnabledAfter": true,
+      "meshGenerationEnabledAfter": true,
+      "solverTabEnabledAfter": false,
+      "caseMeshReadyAfter": false,
+      "receiptStatus": "rejected",
+      "rawSSEHashMatched": true
+    }
+  },
+  "result_artifacts": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-test-command.json",
+      "bytes": 474,
+      "sha256": "834a32ef271fdfcf7b548e7d1de790914c1c7184ff189398f2d813514ec09427"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-tests-result.json",
+      "bytes": 60,
+      "sha256": "c60e088aa8b82ce2445ed9649ecca4f454ca04562a27506c0ff96e51787487ca"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-tests.stdout",
+      "bytes": 1596,
+      "sha256": "dbdbaf982a6e7902e8d4bd75321a6709cdf55696887669908ab10882b9b37f5a"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-tests.stderr",
+      "bytes": 349,
+      "sha256": "d97ec6acb2bba33ac3b317768b861c077ed9769fb646c29834b7d89cbe437d04"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/backend-test-command.json",
+      "bytes": 663,
+      "sha256": "f567cc5addde9a3ff9be975f9fcd779334b4f5da5fb3b0474be86692f8d604d3"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/backend-tests-result.json",
+      "bytes": 59,
+      "sha256": "db1b7671326cc791daec7dff3e0d9b832916e751197ba58b9a7471132a562e34"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/backend-tests.stdout",
+      "bytes": 99,
+      "sha256": "7f6086f1328594b4f3cadf3ca2096e57eb6ca814c061cb683619cbdf88068f5e"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/backend-tests.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-build-results.json",
+      "bytes": 186,
+      "sha256": "47ea0b0613b3895a60c954359a9b2d65cb505a38269f76e991e3eff715dfa1b8"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-typecheck.stdout",
+      "bytes": 50,
+      "sha256": "3bf0a914eeceb062a839858b198aaee048b3e974426920eb7bb7a672abb26e4b"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-typecheck.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-build.stdout",
+      "bytes": 1194,
+      "sha256": "4ee0eebcb8dd8e5a1e3e92be55c82c42d33fa9184cd1bb35eea0049d3a40b9df"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/frontend-build.stderr",
+      "bytes": 14260,
+      "sha256": "7f66f55d86d95455ad4efc48c4355797d4366060101d6f819a9188bab98d3ba9"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/gate-v2-source-import.json",
+      "bytes": 470,
+      "sha256": "fe72b97c15c0793b1c31bf4195a18794a4f271033fa7c3149efb95fb2bd60800"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/actual-browser-negative-check-receipt.json",
+      "bytes": 739,
+      "sha256": "2020cfbcbe1533172f3bc22d052301a0f10f2e36c68273aa9401e9aca40a9f1f"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/rejected-check-job-log-stream.txt",
+      "bytes": 60006,
+      "sha256": "22ec0a4f2ffad06b36e366074fcb19a85413391b2b21b7a57ba558d7996c8b7d"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/rejected-check-job-status.json",
+      "bytes": 1476,
+      "sha256": "d405e740ad85647e9b34f5e510989ec76c2d5b6c9d8b5beb4d18ced377bf1800"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/real-rejected-quality-receipt.json",
+      "bytes": 482,
+      "sha256": "8d88b042a9c869074545a181e328b0a84d54db116c1d16efd9b6db403383ccdf"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/reload-check-entry-root-20261005/post-check-real-case-status.json",
+      "bytes": 160,
+      "sha256": "35c80d030d7abf90cbbef230f24d78b32c1c76e1d08272926739f3fe68475f23"
+    }
+  ],
+  "limits": [
+    "Reviewer read saved ROOT browser receipt and matching job/status/receipt/SSE artifacts; reviewer did not independently operate browser.",
+    "Negative native check proves rejection handling; this is not a strict accepted mesh or CFD solve quality claim.",
+    "Frontend test stderr contains jsdom canvas getContext warnings; build stderr contains bundling/chunk warnings; exit0 observed.",
+    "No subsequent reload receipt was bound because ROOT said it would be recorded later."
+  ],
+  "reviewer_actions": {
+    "cpu": "24-31",
+    "source_mutation": false,
+    "tests_run": false,
+    "native_check_run": false,
+    "service_started": false,
+    "browser_operated": false,
+    "writes": "This final isolated receipt and manifest only."
+  },
+  "conclusion": "Both original findings closed at the exact current source hashes. No remaining blocker found in the narrow MeshPanel check-entry/strict readiness review."
+}

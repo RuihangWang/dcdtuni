@@ -1,0 +1,54 @@
+--- src/frontend/react/src/components/OvPostProcessPanel.tsx
++++ src/frontend/react/src/components/OvPostProcessPanel.tsx
+@@ -29,6 +29,7 @@
+   client: OvCommandClient
+   degraded: boolean
+   projectUid?: string | null
++  maxHeight?: string
+ }
+ 
+ type Vec3 = [number, number, number]
+@@ -242,7 +243,7 @@
+   return JSON.stringify([info?.caseDir ?? null, (status?.logRuns ?? []).map(r => r.name)])
+ }
+ 
+-export function OvPostProcessPanel({ client, degraded, projectUid, initiallyOpen = true }: OvPostProcessPanelProps & {initiallyOpen?: boolean}) {
++export function OvPostProcessPanel({ client, degraded, projectUid, initiallyOpen = true, maxHeight = '70vh' }: OvPostProcessPanelProps & {initiallyOpen?: boolean}) {
+   const { t } = useTranslation()
+   const [runs, setRuns] = useState<OvRun[] | null>(null)
+   const [runId, setRunId] = useState('')
+@@ -575,18 +576,18 @@
+   const sliceLo = slice.domain?.[0] ?? sliceResult?.min
+   const sliceHi = slice.domain?.[1] ?? sliceResult?.max
+ 
+-  return <details open={initiallyOpen} style={{ background: '#20252d', padding: 8, marginTop: 6, pointerEvents: 'auto', fontSize: 12, maxHeight: '70vh', overflowY: 'auto' }}>
+-    <summary style={{ cursor: 'pointer' }}>{t('ovpp.title')}{degraded ? ` · ${t('ovpp.degraded_suffix')}` : ''}</summary>
++  return <details className="ov-postprocess-panel" open={initiallyOpen} style={{ maxHeight }}>
++    <summary>{t('ovpp.title')}{degraded ? ` · ${t('ovpp.degraded_suffix')}` : ''}</summary>
+     {degraded && <p role="note">{t('ovpp.degraded_note')}</p>}
+     <OvLiquidSection key={projectUid ?? 'anonymous'} client={client} degraded={degraded} projectUid={projectUid} />
+     <fieldset disabled={degraded}>
+       <legend>{t('ovpp.dataset')}</legend>
+       {runs && runs.length === 0 && <p>{t('ovpp.no_runs')}</p>}
+-      {runs && runs.length > 0 && <label>{t('ovpp.dataset_run')} <select aria-label={t('ovpp.dataset_run')} value={runId}
++      {runs && runs.length > 0 && <label className="ov-dataset-field">{t('ovpp.dataset_run')} <select aria-label={t('ovpp.dataset_run')} value={runId}
+         onChange={e => setRunId(e.target.value)}>
+         {runs.map(r => <option key={r.runId} value={r.runId}>{r.name}</option>)}
+       </select></label>}
+-      {runs?.find(r => r.runId === runId)?.timesteps?.length ? <label>{t('pp.time_label')} <select
++      {runs?.find(r => r.runId === runId)?.timesteps?.length ? <label className="ov-dataset-field">{t('pp.time_label')} <select
+         id="ov-air-time" aria-label={t('pp.time_label')} value={selectedTime ?? ''}
+         onChange={e => chooseFrame(e.target.value === '' ? null : Number(e.target.value))}>
+         <option value="">{t('pp.latest_complete_time')}</option>
+@@ -599,9 +600,9 @@
+     </fieldset>
+     <fieldset disabled={degraded || !dataset || volumeBusy || loadingData}>
+       <legend>{t('ovpp.volume')}</legend>
+-      {(['off', 'T', 'U'] as const).map(f =>
++      <div className="ov-volume-options">{(['off', 'T', 'U'] as const).map(f =>
+         <label key={f}><input type="radio" name="ov-volume" checked={volume.field === f}
+-          onChange={() => void showVolume(f, null)} />{f === 'off' ? t('ovpp.off') : f === 'T' ? t('ovpp.temp') : t('ovpp.velocity')}</label>)}
++          onChange={() => void showVolume(f, null)} />{f === 'off' ? t('ovpp.off') : f === 'T' ? t('ovpp.temp') : t('ovpp.velocity')}</label>)}</div>
+       {volumeBusy && <span> {t('ovpp.working')}</span>}
+       {volume.field !== 'off' && volume.domain && <>
+         <OvLegend ramp={OV_VOLUME_RAMP} lo={volume.domain[0]} hi={volume.domain[1]}

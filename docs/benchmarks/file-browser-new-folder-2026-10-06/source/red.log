@@ -1,0 +1,276 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ✓ test/FileBrowserInteractions.test.tsx > server directory and file selection > never offers a regular file as a case directory
+ ✓ test/FileBrowserInteractions.test.tsx > server directory and file selection > does not descend again when a new folder row catches click two
+ ✓ test/FileBrowserInteractions.test.tsx > server directory and file selection > rejects a stale double-click across listings but opens an intentionally clicked file
+ ✓ test/FileBrowserInteractions.test.tsx > keyboard selection while a directory is loading > blocks Enter just like the button (directory=true)
+ ✓ test/FileBrowserInteractions.test.tsx > keyboard selection while a directory is loading > blocks Enter just like the button (directory=false)
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > creates the typed name in the current directory without picking it (directory=true)
+   → expected "bound " to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st bound  call:
+
+    Array [
+      "请输入新文件夹名称：",
+    ]
+
+
+Number of calls: 1
+
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > creates the typed name in the current directory without picking it (directory=false)
+   → expected "bound " to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st bound  call:
+
+    Array [
+      "请输入新文件夹名称：",
+    ]
+
+
+Number of calls: 1
+
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > cancels a name with Escape without closing the parent or creating anything
+   → expected undefined to be defined
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > keeps a failed name and shows the server error so it can be corrected and retried
+   → expected undefined to be defined
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > does not POST an empty or whitespace-only name, and the Cancel button abandons it
+   → expected undefined to be defined
+ × test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > prevents repeated Enter and case selection while the creation request is pending
+   → expected undefined to be defined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > creates the typed name in the current directory without picking it (directory=true)
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > creates the typed name in the current directory without picking it (directory=false)
+AssertionError: expected "bound " to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st bound  call:
+
+    Array [
+      "请输入新文件夹名称：",
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/FileBrowserInteractions.test.tsx:120:31
+    118|     await act(async () => click(document.querySelector('.fb-dir')!, 1))
+    119|     await openFolder()
+    120|     expect(window.prompt).not.toHaveBeenCalled()
+       |                               ^
+    121|     expect(nameField()).toBeDefined()
+    122|     expect(document.activeElement).toBe(nameField())
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > cancels a name with Escape without closing the parent or creating anything
+AssertionError: expected undefined to be defined
+ ❯ test/FileBrowserInteractions.test.tsx:136:25
+    134|     await act(async () => root.render(<FileBrowser startPath="/cases" …
+    135|     await openFolder()
+    136|     expect(nameField()).toBeDefined()
+       |                         ^
+    137|     act(() => {
+    138|       typeName('not-created')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > keeps a failed name and shows the server error so it can be corrected and retried
+AssertionError: expected undefined to be defined
+ ❯ test/FileBrowserInteractions.test.tsx:156:25
+    154|       : listing('/cases') })))
+    155|     await openFolder()
+    156|     expect(nameField()).toBeDefined()
+       |                         ^
+    157|     act(() => typeName('existing'))
+    158|     await act(async () => submitName())
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > does not POST an empty or whitespace-only name, and the Cancel button abandons it
+AssertionError: expected undefined to be defined
+ ❯ test/FileBrowserInteractions.test.tsx:171:25
+    169|     await render(true, vi.fn())
+    170|     await openFolder()
+    171|     expect(nameField()).toBeDefined()
+       |                         ^
+    172|     await act(async () => submitName())
+    173|     act(() => typeName('  '))
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/FileBrowserInteractions.test.tsx > new folder without native browser dialogs > prevents repeated Enter and case selection while the creation request is pending
+AssertionError: expected undefined to be defined
+ ❯ test/FileBrowserInteractions.test.tsx:190:25
+    188|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ json: async…
+    189|     await openFolder()
+    190|     expect(nameField()).toBeDefined()
+       |                         ^
+    191|     act(() => { typeName('pending'); submitName(); submitName() })
+    192|     expect(posts()).toHaveLength(1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 6 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "creates the typed name in the current directory without picking it (directory=true)". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "creates the typed name in the current directory without picking it (directory=false)". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "cancels a name with Escape without closing the parent or creating anything". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "keeps a failed name and shows the server error so it can be corrected and retried". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "does not POST an empty or whitespace-only name, and the Cancel button abandons it". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: prompt() is not supported
+ ❯ test/FileBrowserInteractions.test.tsx:108:65
+    106|   }
+    107|   beforeEach(() => {
+    108|     vi.spyOn(window, 'prompt').mockImplementation(() => { throw new Er…
+       |                                                                 ^
+    109|     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    110|       json: async () => url === '/api/create-dir' ? { ok: true }
+ ❯ mockCall node_modules/@vitest/spy/dist/index.js:61:17
+ ❯ bound  node_modules/tinyspy/dist/index.js:45:80
+ ❯ src/components/FileBrowser.tsx:153:25
+ ❯ onClick src/components/FileBrowser.tsx:327:33
+ ❯ HTMLUnknownElement.callCallback node_modules/react-dom/cjs/react-dom.development.js:4164:14
+ ❯ HTMLUnknownElement.callTheUserObjectsOperation node_modules/jsdom/lib/generated/idl/EventListener.js:26:30
+ ❯ innerInvokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16
+ ❯ invokeEventListeners node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3
+ ❯ HTMLUnknownElementImpl._dispatch node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9
+
+This error originated in "test/FileBrowserInteractions.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "prevents repeated Enter and case selection while the creation request is pending". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 5 passed (11)
+     Errors  6 errors
+   Start at  22:58:05
+   Duration  14.57s (transform 1.16s, setup 0ms, collect 2.14s, tests 383ms, environment 11.20s, prepare 481ms)
+

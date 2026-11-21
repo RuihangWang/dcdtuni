@@ -1,0 +1,108 @@
+diff --git a/case/LiquidSingle_Control/LiquidSingle_Control_dae_v5.cfdproj b/case/LiquidSingle_Control/LiquidSingle_Control_dae_v5.cfdproj
+index 492dfcde..39f4887a 100644
+--- a/case/LiquidSingle_Control/LiquidSingle_Control_dae_v5.cfdproj
++++ b/case/LiquidSingle_Control/LiquidSingle_Control_dae_v5.cfdproj
+@@ -1484,7 +1484,13 @@
+               "source": "mock",
+               "source_reference": "Synthetic one-rack test fixture, not site measurements"
+             }
+-          ]
++          ],
++          "execution": {
++            "backend": "pytorch",
++            "device": "cpu",
++            "dtype": "float64",
++            "max_threads": 2
++          }
+         },
+         "parameterPack": {
+           "schema_version": "1.0",
+diff --git a/src/frontend/react/test/ovDecodedRaster.test.tsx b/src/frontend/react/test/ovDecodedRaster.test.tsx
+index 8989d7a7..b2d8959f 100644
+--- a/src/frontend/react/test/ovDecodedRaster.test.tsx
++++ b/src/frontend/react/test/ovDecodedRaster.test.tsx
+@@ -10,7 +10,7 @@ it('real View observes decoded video events even when connect caps are1600x900;
+  const host=document.createElement('div'),root=createRoot(host),events:any[]=[];document.body.append(host);const old=(globalThis as any).IS_REACT_ACT_ENVIRONMENT;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true
+  let unmounted=false,resizeNotice:ResizeObserverCallback=()=>{},cssHeight=796;const disconnected=vi.fn();vi.stubGlobal('ResizeObserver',class{constructor(cb:ResizeObserverCallback){resizeNotice=cb}observe(){}disconnect=disconnected})
+  try{await act(async()=>root.render(<OvViewport server="not-contacted.invalid" snapshot={()=>{throw Error('not accepted media')}} projectHash={()=>'controlled'}onDecodedRaster={e=>events.push(e)}/>));const video=host.querySelector('video')!;video.style.padding='0px';video.style.border='0px solid';Object.defineProperties(video,{clientWidth:{get:()=>1992},clientHeight:{get:()=>cssHeight}});video.getBoundingClientRect=()=>({width:1992,height:cssHeight}as DOMRect);let w=1600,h=638;Object.defineProperties(video,{videoWidth:{get:()=>w},videoHeight:{get:()=>h}})
+- expect(sdk.options.streamConfig).toMatchObject({width:1600,height:900,fitStreamResolution:true});expect(events).toHaveLength(1);expect(events[0].type).toBe('owner');video.dispatchEvent(new Event('loadedmetadata'));w=960;h=382;video.dispatchEvent(new Event('resize'));expect(events.filter(e=>e.type==='raster').map(e=>e.raster.decoded)).toEqual([[1600,638],[960,382]]);cssHeight=736;resizeNotice([],{}as ResizeObserver);expect(events.at(-1).raster).toMatchObject({revision:3,decoded:[960,382],css:[1992,736],layoutCss:[1992,736]})
++ expect(sdk.options.streamConfig).toMatchObject({width:1600,height:900,fitStreamResolution:false});expect(events).toHaveLength(1);expect(events[0].type).toBe('owner');video.dispatchEvent(new Event('loadedmetadata'));w=960;h=382;video.dispatchEvent(new Event('resize'));expect(events.filter(e=>e.type==='raster').map(e=>e.raster.decoded)).toEqual([[1600,638],[960,382]]);cssHeight=736;resizeNotice([],{}as ResizeObserver);expect(events.at(-1).raster).toMatchObject({revision:3,decoded:[960,382],css:[1992,736],layoutCss:[1992,736]})
+  await act(async()=>root.unmount());unmounted=true;sdk.options.streamConfig.onStart({status:'canceled'});await Promise.resolve();const count=events.length;w=1600;h=590;video.dispatchEvent(new Event('resize'));resizeNotice([],{}as ResizeObserver);expect(disconnected).toHaveBeenCalledTimes(1);expect(events).toHaveLength(count);expect(events.at(-1).type).toBe('retired')
+  }finally{if(!unmounted)await act(async()=>root.unmount());sdk.options?.streamConfig.onStart({status:'canceled'});await Promise.resolve();await Promise.resolve();host.remove();vi.unstubAllGlobals();(globalThis as any).IS_REACT_ACT_ENVIRONMENT=old}
+ })
+diff --git a/src/frontend/react/test/ovFitRaster.test.tsx b/src/frontend/react/test/ovFitRaster.test.tsx
+index 7de9c030..152573b3 100644
+--- a/src/frontend/react/test/ovFitRaster.test.tsx
++++ b/src/frontend/react/test/ovFitRaster.test.tsx
+@@ -22,9 +22,9 @@ vi.mock('@nvidia/omniverse-webrtc-streaming-library',()=>({StreamStatus:{none:0}
+ vi.mock('../src/useTranslation',()=>({useTranslation:()=>({t:(key:string)=>key})}))
+ vi.mock('../src/renderer/ovProtocol',()=>({OvCommandClient:class{dispose(){}},ovAckTimeoutDegraded:()=>false}))
+ import{OvViewport}from'../src/renderer/OvViewport'
+-it('real View opts into installed SDK fitting without changing initial media caps or native wait policy',async()=>{
++it('real View uses explicit aligned resizing while retaining initial media caps and native wait policy',async()=>{
+  const host=document.createElement('div'),root=createRoot(host);document.body.append(host);const old=(globalThis as any).IS_REACT_ACT_ENVIRONMENT;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true
+- try{await act(async()=>root.render(<OvViewport server="not-contacted.invalid" snapshot={()=>{throw Error('no media')}} projectHash={()=>'controlled'}/>));expect(sdk.options.streamConfig).toMatchObject({fitStreamResolution:true,width:1600,height:900,maxReconnects:0})}finally{await act(async()=>root.unmount());sdk.options?.streamConfig.onStart({status:'canceled'});await Promise.resolve();await Promise.resolve();host.remove();(globalThis as any).IS_REACT_ACT_ENVIRONMENT=old}
++ try{await act(async()=>root.render(<OvViewport server="not-contacted.invalid" snapshot={()=>{throw Error('no media')}} projectHash={()=>'controlled'}/>));expect(sdk.options.streamConfig).toMatchObject({fitStreamResolution:false,width:1600,height:900,maxReconnects:0})}finally{await act(async()=>root.unmount());sdk.options?.streamConfig.onStart({status:'canceled'});await Promise.resolve();await Promise.resolve();host.remove();(globalThis as any).IS_REACT_ACT_ENVIRONMENT=old}
+ })
+ it('actual SDK onStart(success) fits the DOM raster before forwarding public start, retaining caps at initial connect',async()=>{
+  const f=controller();await f.base.connect({width:1600,height:900,fitStreamResolution:true,videoElementId:'CONTROLLED',onStart:()=>f.effects.push(['start'])})
+diff --git a/src/frontend/react/test/ovVideoStatsLifecycle.test.tsx b/src/frontend/react/test/ovVideoStatsLifecycle.test.tsx
+index 7e560784..f92f811b 100644
+--- a/src/frontend/react/test/ovVideoStatsLifecycle.test.tsx
++++ b/src/frontend/react/test/ovVideoStatsLifecycle.test.tsx
+@@ -24,19 +24,21 @@ it('the actual OvViewport binds each mounted video and retires it on failure and
+   const cancel=vi.spyOn(HTMLVideoElement.prototype,'cancelVideoFrameCallback').mockImplementation(function(this:HTMLVideoElement,key){callbacks.get(this)?.delete(key)})
+   const paused=vi.spyOn(HTMLVideoElement.prototype,'paused','get').mockReturnValue(false)
+   const host=document.createElement('div');document.body.append(host);const root=createRoot(host)
+-  const frame=(video:HTMLVideoElement,time:number,count:number)=>{const queue=callbacks.get(video)!;const [key,cb]=Array.from(queue)[0]!;queue.delete(key);cb(time,{presentedFrames:count} as VideoFrameCallbackMetadata)}
++  // A compositor presentation reaches every registered observer. The source-pick
++  // sampler and FPS sampler each reschedule for the next presentation.
++  const frame=(video:HTMLVideoElement,time:number,count:number)=>{const queue=callbacks.get(video)!;const pending=Array.from(queue);for(const [key] of pending)queue.delete(key);for(const [,cb] of pending)cb(time,{presentedFrames:count} as VideoFrameCallbackMetadata)}
+   try {
+     await act(async()=>root.render(<OvViewport server="not-contacted.invalid" snapshot={()=>({}) as never} projectHash={()=>'hash'}/>))
+-    const first=host.querySelector('video')!;expect(callbacks.has(first)).toBe(true)
++    const first=host.querySelector('video')!;expect(callbacks.get(first)!.size).toBe(2)
+     frame(first,0,0);frame(first,1000,30);expect(ovVideoFrameStats().fps).toBe(30)
+     act(()=>sdk.config!.onStop({status:'success'}));expect(ovVideoFrameStats().fps).toBeNull();expect(callbacks.get(first)!.size).toBe(0)
+     await act(async()=>root.unmount());expect(ovVideoFrameStats().fps).toBeNull()
+     const replacement=createRoot(host)
+     await act(async()=>replacement.render(<OvViewport server="not-contacted.invalid" snapshot={()=>({}) as never} projectHash={()=>'hash'}/>))
+-    const second=host.querySelector('video')!;expect(second).not.toBe(first)
++    const second=host.querySelector('video')!;expect(second).not.toBe(first);expect(callbacks.get(second)!.size).toBe(2)
+     frame(second,1100,0);frame(second,2100,60);expect(ovVideoFrameStats().fps).toBe(60)
+     await act(async()=>replacement.unmount());expect(ovVideoFrameStats().fps).toBeNull();expect(callbacks.get(second)!.size).toBe(0)
+-    expect(request).toHaveBeenCalled();expect(cancel).toHaveBeenCalledTimes(2)
++    expect(request).toHaveBeenCalled();expect(cancel).toHaveBeenCalledTimes(4)
+   }finally{paused.mockRestore();request.mockRestore();cancel.mockRestore();
+     if(originalRequest)Object.defineProperty(HTMLVideoElement.prototype,'requestVideoFrameCallback',originalRequest);else Reflect.deleteProperty(HTMLVideoElement.prototype,'requestVideoFrameCallback')
+     if(originalCancel)Object.defineProperty(HTMLVideoElement.prototype,'cancelVideoFrameCallback',originalCancel);else Reflect.deleteProperty(HTMLVideoElement.prototype,'cancelVideoFrameCallback')
+diff --git a/src/frontend/react/test/researchLiquidrunCompiler.test.ts b/src/frontend/react/test/researchLiquidrunCompiler.test.ts
+index 04c2b02f..bc70c924 100644
+--- a/src/frontend/react/test/researchLiquidrunCompiler.test.ts
++++ b/src/frontend/react/test/researchLiquidrunCompiler.test.ts
+@@ -34,7 +34,12 @@ function savedSmallProject(): CfdProject {
+ // The v4 fixture is frozen: benchD (ddl/case/benchD_v3) and its tracked run
+ // records pin it. What the editor saves today (cfdproj v5) is the v5 golden.
+ const fixtureV5Path = join(repo, 'case/LiquidSingle_Control/LiquidSingle_Control_dae_v5.cfdproj')
+-const withoutSourceIdentity = (m: any) => ({ ...m, source_project: { ...m.source_project, sha256: '', schema_version: 0 } })
++// Saving now records the bounded CPU execution preference explicitly.
++// Thread count changes scheduling; backend, device and dtype must still match.
++const withoutSourceIdentityAndCpuThreadCount = (m: any) => ({ ...m,
++  source_project: { ...m.source_project, sha256: '', schema_version: 0 },
++  execution: { ...m.execution, max_threads: 0 },
++})
+ 
+ it('compiles one saved small engineering project through the real React graph compiler', () => {
+   const saved = savedSmallProject()
+@@ -48,7 +53,10 @@ it('compiles one saved small engineering project through the real React graph co
+   expect(v5manifest.source_project.schema_version).toBe(5)
+   // The frozen v4 file and its v5 save compile to the same physics.
+   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as CfdProject
+-  expect(withoutSourceIdentity(compileProjectDocument(fixture))).toEqual(withoutSourceIdentity(v5manifest))
++  const frozenManifest = compileProjectDocument(fixture)
++  expect(frozenManifest.execution).toEqual({backend: 'pytorch', device: 'cpu', dtype: 'float64', max_threads: 1})
++  expect(v5manifest.execution).toEqual({backend: 'pytorch', device: 'cpu', dtype: 'float64', max_threads: 2})
++  expect(withoutSourceIdentityAndCpuThreadCount(frozenManifest)).toEqual(withoutSourceIdentityAndCpuThreadCount(v5manifest))
+   const before = JSON.stringify(fixture)
+   const manifest = compileProjectDocument(fixture)
+   expect(JSON.stringify(fixture)).toBe(before)

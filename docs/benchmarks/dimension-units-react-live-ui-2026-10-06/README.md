@@ -1,0 +1,11 @@
+# Dimension titles follow actual project input units
+
+Inspector and polygon floor dimension titles now interpolate the existing project input unit in Chinese and English. This corrects misleading fixed metre headings when fields already display centimetres or millimetres. Only four title/translation sources changed; canonical geometry, schema and physical inputs retain their previous values.
+
+ROOT tested the real React page through the Windows Codex in-app browser against 40901 isolated port 8396, using the normal load/select/unit/language controls. Thermal_block remained 0.125 canonical metres and displayed 125.0000 mm, 12.5000 cm and 0.1250 m in both languages. The actual polygon floor heading also displayed mm. Final language/unit were restored to Chinese/mm; browser warnings/errors were empty. The original 37,481-byte physical case retained SHA256 b616237a8786416b543158cbdd4885e16dbcd593ff24fcb12c1593babfe0a460.
+
+Controlled actual Inspector regression: corrected original source 4 failures/2 metre passes, final source 6 passes. Existing lengthUnits/InspectorDelete/i18n focused tests: 22 passes. First-draft wrapper fixture errors are preserved and excluded from product RED, as recorded in controlled/README.md. That immutable packet predates browser acceptance and its pending statements are historical.
+
+Normal npm production builds on IT and MAIN passed (44.120 and 42.790 seconds). Both generated index-P5nQAYF9.js, which ROOT loaded for the actual browser checks. Previously served hashed assets were restored for already-open pages; the sole index.html collision was the expected new entrypoint. Six then-recorded runtime identities and six recorded physical input bytes stayed unchanged during these builds. The isolated backend was subsequently restarted for separate native diagnostics; MAIN OV was not reloaded or restarted by this unit fix.
+
+The zero-model browser helper stores proof only and is not a physical input. A Shift range selection and a virtualized offscreen tree lookup were corrected using normal single selection/category controls; neither is classified as a product defect. This evidence establishes title/value consistency and local UI behavior, not native mesh, solver, physical calibration, full PBR or OV acceptance. Build caches, dist backups, native ELFs and full cases are excluded.

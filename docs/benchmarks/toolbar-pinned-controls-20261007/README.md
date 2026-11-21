@@ -1,0 +1,9 @@
+# Pinned toolbar controls — normal source and real browser
+
+The shared React toolbar now keeps its primary controls and equal-width group tabs above a separately scrollable group body. Natural header and transient timeline height contribute to the panel budget; collapsing the toolbar leaves the independent orientation cube present. Exactly three production files and one focused regression file are changed.
+
+Root real Windows IAB tab74 loaded `index-D5MUAVT4.js` on8396 with the saved36-model Shinaide ring/rear project. Actual compact tabs are193.35px each at one y; wide tabs104px each, obtained through normal sidebar collapse and restored. End scrolling changes the body while header remains fixed. Actual collapse retains the56x56 cube. `browser/ROOT-observations.json` records transcribed CUA dimensions and scope. `browser/three-viewport.png` is the unedited normal application screenshot capture, containing the Three viewport only. HTML toolbar screenshots were visually inspected through CUA but are not claimed stored in this packet.
+
+Normal40 tests, full TypeScript and production build pass; complete raw stderr and earlier private RED/compiler/tool mistakes remain. Publication writes assets first/index last and retains107 prior files. No Root backend/Kit restart or browser credential action was taken for the toolbar release. Separate OV Python file changes can trigger Kit's automatic watcher; stable PID is not a no-reload proof.
+
+`normal/` contains the original24-file validation packet by value; `publication/` is Root's actual release receipt; served-build has all11 products. The original1112-file private cohort is hash-bound, not nested here: these selected raw study records do not claim a standalone copy of that cohort or its original portable entry. Git parent and exact before/after source hashes are in ROOT-copy-map. OV camera/pick/grid/roof/output layout acceptance and the overall goal remain separate and unfinished.

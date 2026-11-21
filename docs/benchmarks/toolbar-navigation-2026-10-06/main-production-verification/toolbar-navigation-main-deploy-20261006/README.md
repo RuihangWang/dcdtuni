@@ -1,0 +1,1 @@
+Normal MAIN frontend npm run build only. CPU24-31 CUDAempty; original node and dependencies retained, no installs. Source9/packageFiles/protected3caseSHA/process identities/listeners stable. HTTP8390 index and entryJS/CSS match newdist. No restart or browser operation. Cacheexcluded from frozenmanifest; schema path->{sha256,bytes}.

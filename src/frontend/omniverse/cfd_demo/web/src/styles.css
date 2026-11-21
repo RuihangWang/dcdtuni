@@ -1,0 +1,482 @@
+:root {
+  /* Height reserved for the bottom log dock so the side panels stop underneath it
+     instead of running behind it. Collapsed dock is 30px + 4px breathing room. */
+  --logdock: 34px;
+  /* Palette borrowed from the STL editor frontend (VS Code dark theme). */
+  --bg: #1e1e1e;
+  --panel: rgba(37, 37, 38, 0.96);
+  --panel-2: #1e1e1e;
+  --border: #3c3c3c;
+  --accent: #4daafc;
+  --active: #094771;
+  --ok: #4ec9b0;
+  --text: #cccccc;
+  --muted: #888;
+  --input-bg: #3c3c3c;
+  --mono: ui-monospace, "Share Tech Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  /* Segoe UI only exists on Windows; on this Linux host the stack fell straight through
+     to whatever system-ui resolves to, which is why the panels looked unpolished. Name
+     the real families per platform and give digits a tabular companion so the metric
+     columns stop shifting as values change. */
+  font-family: "Inter", "Segoe UI", -apple-system, "Helvetica Neue",
+               "Noto Sans", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei",
+               system-ui, sans-serif;
+  font-feature-settings: "tnum" 1, "cv05" 1;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  overflow: hidden; }
+.app { position: relative; width: 100vw; height: 100vh; }
+.viewport { position: absolute; inset: 0; }
+.viewport video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.stream-status { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  padding: 6px 16px; border-radius: 6px; background: var(--panel);
+  border: 1px solid var(--border); font-family: var(--mono); color: var(--accent); }
+.stream-status.error { color: #f14c4c; border-color: rgba(241, 76, 76, 0.5); }
+
+/* overlays: panels stack in flow; the gaps keep pointer-events:none so drags
+   reach the video (ROI gizmo). */
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+/* Fixed 266px was too narrow for the AI tab: the bundle path wrapped to three lines and
+   the per-server help text was clipped at the right edge. Let it breathe on wide screens
+   and shrink on small ones. The log dock is 30px tall and fixed to the bottom, so reserve
+   it — panels used to run underneath it. */
+.overlay-left { position: absolute; left: 14px; right: auto; top: 14px; bottom: auto;
+  width: clamp(266px, 21vw, 340px);
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: calc(100vh - 28px - var(--logdock, 34px)); overflow-y: auto; }
+.overlay-right { position: absolute; right: 14px; left: auto; top: 14px; bottom: auto;
+  width: clamp(292px, 23vw, 380px);
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: calc(100vh - 28px - var(--logdock, 34px)); overflow-y: auto; }
+.panel { pointer-events: auto; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; backdrop-filter: blur(8px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  overflow: hidden; }
+.panel-header { background: #2d2d30; color: var(--text); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.03em; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+
+/* tabbed left panel */
+.tabs { display: flex; background: #2d2d30; border-bottom: 1px solid var(--border); }
+.tab { flex: 1; pointer-events: auto; background: transparent; color: var(--muted);
+  border: none; border-bottom: 2px solid transparent; padding: 9px 8px; cursor: pointer;
+  font-size: 12px; font-weight: 600; }
+.tab:hover { color: var(--text); }
+.tab.active { color: #fff; border-bottom-color: var(--accent); background: rgba(77, 170, 252, 0.08); }
+.tab-body { max-height: calc(100vh - 90px - var(--logdock, 34px)); overflow-y: auto;
+  overscroll-behavior: contain; }
+
+/* CFD controls (buttons / segmented / sliders) */
+.controls { padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.postproc { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+.panel-section { display: flex; flex-direction: column; gap: 8px; }
+.panel-section h3 { margin: 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; }
+.ds-select, .ds-path { width: 100%; background: var(--input-bg); border: 1px solid #555;
+  color: var(--text); border-radius: 5px; padding: 7px 8px; font-size: 12px; }
+.ds-path { font-family: var(--mono); font-size: 11px; }
+.ds-select:focus, .ds-path:focus { border-color: var(--accent); outline: none; }
+.ds-note { font-size: 10px; color: #6a6a6a; line-height: 1.45; }
+.ds-note b { color: var(--accent); font-weight: 600; font-family: var(--mono); }
+.ds-loaded { font-size: 11px; color: var(--ok); font-family: var(--mono); }
+.controls section { display: flex; flex-direction: column; gap: 8px; }
+.controls h3 { margin: 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; }
+.btn { pointer-events: auto; background: var(--input-bg); color: var(--text);
+  border: 1px solid #555; border-radius: 5px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+.btn:hover { background: #4a4a4d; }
+.btn.active { background: var(--active); border-color: var(--accent); color: #fff; }
+.btn.block { width: 100%; text-align: center; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Primary "Load CFD Geometry" action at the top of the Geometry tab. */
+.btn.load-geo { margin-bottom: 10px; font-weight: 700; letter-spacing: 0.2px;
+  color: #1e1e1e; background: #76b900; border-color: #76b900; }
+.btn.load-geo:hover { background: #8fd200; border-color: #8fd200; }
+.btn.load-geo:disabled { color: var(--text); background: var(--input-bg); border-color: #555; }
+.seg { display: flex; gap: 4px; }
+.seg-btn { flex: 1; pointer-events: auto; background: var(--input-bg); color: var(--text);
+  border: 1px solid #555; border-radius: 5px; padding: 7px 4px; cursor: pointer; font-size: 12px; }
+.seg-btn:hover { background: #4a4a4d; }
+.seg-btn.active { background: var(--active); border-color: var(--accent); color: #fff; }
+.seg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sliders { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
+.btn.autoscale { width: 100%; text-align: center; font-size: 11px; padding: 5px 8px;
+  letter-spacing: 0.02em; }
+.sliders label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+.sliders label b { color: var(--accent); font-family: var(--mono); font-weight: 400; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.rebuilding { margin-left: 8px; padding: 1px 7px; border-radius: 10px; font-size: 10px;
+  text-transform: none; color: #1e1e1e; background: var(--accent); font-weight: 700;
+  animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* model tree (left) */
+.tree-empty { margin: 8px; padding: 16px 12px; border: 1px dashed #4a4a4d; border-radius: 6px;
+  color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
+.tree-empty b { color: #76b900; }
+/* The whole tree scrolls: a 238-object project is ~1,400 rows once racks are
+   expanded, and without this the panel grows past the viewport and the Load button
+   scrolls off with it. */
+.tree { list-style: none; margin: 0; padding: 8px; font-size: 13px;
+  max-height: 48vh; overflow-y: auto; }
+.tree ul { list-style: none; padding-left: 14px; border-left: 1px dashed #555;
+  margin: 4px 0 4px 7px; }
+.tree-node { margin: 3px 0; }
+/* Row = [twisty | checkbox | icon | name ....... badge]. The badge is a SIBLING of
+   .node-main, so the row itself has to be the flex container or the badge wraps onto
+   its own line under the name. */
+.node-label { display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 4px; cursor: pointer;
+  border: 1px solid transparent; transition: background 0.1s; }
+.node-label:hover { background: #2a2d2e; }
+.node-label.selected { background: var(--active); border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent); }
+.node-root { color: var(--muted); font-weight: 600; }
+.node-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.node-vis { width: 14px; height: 14px; accent-color: var(--accent); flex: 0 0 auto; cursor: pointer; }
+/* Keeps a non-toggleable row (a rack face, a server) aligned with its toggleable
+   siblings instead of shifting its icon 14 px left. */
+.node-vis-spacer { width: 14px; flex: 0 0 auto; }
+.node-icon { color: var(--muted); font-size: 12px; flex: 0 0 auto; line-height: 1; }
+.node-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* expand/collapse twisty — present on every node that has children */
+.node-twisty { width: 12px; flex: 0 0 auto; color: var(--muted); font-size: 10px;
+  text-align: center; cursor: pointer; user-select: none; }
+.node-twisty:hover { color: var(--text); }
+.node-twisty-leaf { cursor: default; }
+.node-count { color: var(--muted); font-size: 10px; white-space: nowrap;
+  background: #2a2d2e; border-radius: 8px; padding: 1px 6px; flex: 0 0 auto; }
+.node-icon-rack { color: #c79a3a; }
+/* per-rack sublist: indented + scrollable so 50 racks don't blow out the panel */
+.rack-sublist { max-height: 280px; overflow-y: auto; font-size: 12px; }
+.rack-sublist .node-label { padding: 3px 6px; }
+
+/* inspector (right) */
+.inspector-panel { padding-bottom: 12px; }
+.inspector-hint { padding: 16px 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.prop-group { margin: 12px 12px 0; background: var(--panel-2); padding: 10px 12px;
+  border-radius: 5px; border: 1px solid var(--border); }
+.prop-title { font-size: 11px; color: var(--muted); margin-bottom: 10px; font-weight: 700;
+  border-bottom: 1px solid #333; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.prop-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  margin-bottom: 8px; font-size: 13px; }
+.prop-row label { flex: 1 1 auto; min-width: 0; color: var(--text); }
+.prop-row input[type=number] { width: 112px; background: var(--input-bg); border: 1px solid #555;
+  color: #fff; padding: 5px 7px; border-radius: 3px; text-align: right; font-family: var(--mono); font-size: 12px; }
+.prop-row input[type=number]:focus { border-color: var(--accent); background: #222; outline: none; }
+.prop-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); }
+.prop-mono { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.prop-mock { background: #5a4a16; color: #e2c08d; font-size: 9px; padding: 1px 5px;
+  border-radius: 8px; margin-left: 6px; letter-spacing: 0; text-transform: none; }
+.prop-note { font-size: 10px; color: #6a6a6a; margin-top: 6px; line-height: 1.4; }
+
+/* ROI box numeric inputs (CfdControls) */
+.roi-box { margin-top: 10px; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 5px; padding: 9px 10px; }
+.roi-head { display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-bottom: 8px; }
+.roi-reset { background: var(--input-bg); border: 1px solid #555; color: #ddd;
+  font-size: 10px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+  text-transform: none; letter-spacing: 0; }
+.roi-reset:hover { border-color: var(--accent); color: #fff; }
+.roi-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.roi-row:last-child { margin-bottom: 0; }
+.roi-axis { flex: 0 0 64px; font-size: 11px; color: var(--text); }
+.roi-row input[type=number] { flex: 1 1 0; min-width: 0; background: var(--input-bg);
+  border: 1px solid #555; color: #fff; padding: 4px 6px; border-radius: 3px;
+  text-align: right; font-family: var(--mono); font-size: 12px; }
+.roi-row input[type=number]:focus { border-color: var(--accent); background: #222; outline: none; }
+.roi-dash { color: var(--muted); flex: 0 0 auto; }
+
+/* CFD volume colour legend (CfdControls) — floating, draggable, double-click edits range */
+.colorbar-float { position: fixed; z-index: 90; width: 190px; cursor: move;
+  background: rgba(20,22,28,0.86); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px 7px; box-shadow: 0 4px 16px rgba(0,0,0,0.45); user-select: none;
+  backdrop-filter: blur(3px); }
+.colorbar-float:hover { border-color: var(--accent); }
+.colorbar-label { font-size: 11px; color: #cfd2d8; margin-bottom: 5px; font-weight: 600;
+  letter-spacing: 0.02em; }
+/* 6-stop ramp matches _apply_thermal_colormap (scene.py) exactly: deep blue ->
+   cyan -> green -> amber -> orange -> red at x = 0/0.20/0.45/0.65/0.82/1.0. */
+.colorbar-gradient { height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.18);
+  background: linear-gradient(to right,
+    rgb(26,56,255) 0%, rgb(0,204,255) 20%, rgb(51,230,77) 45%,
+    rgb(255,191,13) 65%, rgb(255,89,5) 82%, rgb(217,0,20) 100%); }
+.colorbar-ticks { display: flex; justify-content: space-between; margin-top: 3px;
+  font-size: 11px; color: #e6e8ec; font-family: var(--mono); }
+.cb-hint { font-size: 10px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+/* colorbar range-edit dialog */
+.cb-modal-backdrop { position: fixed; inset: 0; z-index: 110; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center; }
+.cb-modal { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 18px 20px; min-width: 240px; box-shadow: 0 8px 30px rgba(0,0,0,0.55); }
+.cb-modal h4 { margin: 0 0 14px; font-size: 13px; color: var(--text); }
+.cb-modal label { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--text); }
+.cb-modal label input { width: 110px; background: var(--input-bg); border: 1px solid #555;
+  color: #fff; padding: 5px 7px; border-radius: 3px; text-align: right; font-family: var(--mono); }
+.cb-modal label input:focus { border-color: var(--accent); outline: none; }
+.cb-modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.cb-modal-btns button { padding: 5px 14px; border-radius: 4px; border: 1px solid #555;
+  background: var(--input-bg); color: #ddd; cursor: pointer; font-size: 12px; }
+.cb-modal-btns button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cb-modal-btns button:hover { border-color: var(--accent); }
+
+/* ── Operational Log dock (LogPanel) ──────────────────────────────────────────
+   Full-width bottom strip mirroring every UI command + the live Kit/Omniverse
+   stdout/stderr. Resizable (drag top edge), collapsible, auto-scrolling. */
+.logpanel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+  display: flex; flex-direction: column; pointer-events: auto;
+  background: rgba(24, 24, 26, 0.97); border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.5); backdrop-filter: blur(6px); }
+.logpanel.collapsed { height: 30px !important; }
+.logpanel-resize { position: absolute; top: -3px; left: 0; right: 0; height: 7px;
+  cursor: ns-resize; z-index: 1; }
+.logpanel-resize:hover { background: rgba(77, 170, 252, 0.35); }
+.logpanel-bar { display: flex; align-items: center; gap: 8px; height: 30px;
+  flex: 0 0 30px; padding: 0 10px; background: #2d2d30;
+  border-bottom: 1px solid var(--border); font-size: 11px; user-select: none; }
+.logpanel-collapse { background: transparent; border: none; color: var(--muted);
+  cursor: pointer; font-size: 10px; padding: 2px 4px; }
+.logpanel-collapse:hover { color: var(--text); }
+.logpanel-title { font-weight: 700; letter-spacing: 0.04em; color: var(--text);
+  text-transform: uppercase; }
+.logpanel-stat { font-family: var(--mono); color: var(--muted); font-size: 10px; }
+.logpanel-badge { font-family: var(--mono); font-size: 10px; padding: 1px 6px;
+  border-radius: 8px; font-weight: 700; }
+.logpanel-badge.err { background: rgba(241, 76, 76, 0.22); color: #f78a8a; }
+.logpanel-badge.warn { background: rgba(229, 192, 123, 0.2); color: #e5c07b; }
+.logpanel-filters { display: flex; gap: 3px; margin-left: 6px; }
+.lf { background: transparent; border: 1px solid #4a4a4d; color: #777;
+  border-radius: 3px; padding: 1px 6px; cursor: pointer; font-size: 9px;
+  font-family: var(--mono); font-weight: 700; letter-spacing: 0.03em; }
+.lf:hover { border-color: var(--accent); }
+.lf.on { color: #fff; border-color: #5a5a5d; background: #3c3c3c; }
+.lf-cmd.on { color: #6fd0ff; border-color: rgba(111, 208, 255, 0.5); }
+.lf-info.on { color: #9cdcfe; border-color: rgba(156, 220, 254, 0.4); }
+.lf-warn.on { color: #e5c07b; border-color: rgba(229, 192, 123, 0.5); }
+.lf-error.on { color: #f78a8a; border-color: rgba(241, 76, 76, 0.5); }
+.lf-debug.on { color: #aaa; border-color: #5a5a5d; }
+.logpanel-spacer { flex: 1 1 auto; }
+.logpanel-btn { background: var(--input-bg); border: 1px solid #555; color: #ddd;
+  border-radius: 3px; padding: 2px 9px; cursor: pointer; font-size: 10px; }
+.logpanel-btn:hover { border-color: var(--accent); color: #fff; }
+.logpanel-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 0;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
+.logpanel-empty { padding: 14px; color: var(--muted); font-style: italic; }
+.logline { display: flex; gap: 8px; padding: 0 10px; white-space: pre-wrap;
+  word-break: break-word; }
+.logline:hover { background: rgba(255, 255, 255, 0.04); }
+.ll-time { color: #6a6a6a; flex: 0 0 auto; }
+.ll-src { flex: 0 0 30px; text-transform: uppercase; font-size: 9px; font-weight: 700;
+  align-self: center; text-align: center; border-radius: 3px; padding: 0 3px; }
+.src-ui { color: #6fd0ff; background: rgba(111, 208, 255, 0.12); }
+.src-kit { color: #b48ead; background: rgba(180, 142, 173, 0.14); }
+.ll-lvl { flex: 0 0 30px; color: var(--muted); font-size: 10px; align-self: center; }
+.ll-msg { flex: 1 1 auto; color: var(--text); }
+.lvl-cmd .ll-msg { color: #6fd0ff; }
+.lvl-warn .ll-msg, .lvl-warn .ll-lvl { color: #e5c07b; }
+.lvl-error .ll-msg, .lvl-error .ll-lvl { color: #f78a8a; }
+.lvl-debug .ll-msg { color: #9a9a9a; }
+
+/* ── Dataset load: gating + status (PostProcessing) ───────────────────────── */
+.controls.disabled { opacity: 0.5; filter: grayscale(0.5); pointer-events: none; }
+/* A single section greyed out because its gate (a loaded dataset) isn't met yet,
+   while the rest of the controls (e.g. the dataset-independent ROI) stay usable. */
+.controls section.sec-disabled { opacity: 0.5; filter: grayscale(0.5); pointer-events: none; }
+.ds-hint { font-size: 11px; color: var(--muted); line-height: 1.45; font-style: italic; }
+.ds-status { display: flex; align-items: center; gap: 7px; font-size: 11.5px;
+  font-family: var(--mono); padding: 6px 8px; border-radius: 5px; line-height: 1.4; }
+.ds-status b { font-weight: 600; }
+.ds-status.loading { color: var(--accent); background: rgba(77, 170, 252, 0.1); }
+.ds-status.ready { color: var(--ok); background: rgba(78, 201, 176, 0.1); }
+.ds-status.error { color: #f78a8a; background: rgba(241, 76, 76, 0.1); }
+.ds-spinner { width: 12px; height: 12px; flex: 0 0 auto; border-radius: 50%;
+  border: 2px solid rgba(77, 170, 252, 0.3); border-top-color: var(--accent);
+  animation: ds-spin 0.8s linear infinite; }
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+
+/* Blocking overlay shown while a (possibly multi-minute) dataset load + voxelise
+   runs. Covers the whole app and intercepts every click (z-index above dialogs). */
+.load-overlay { position: fixed; inset: 0; z-index: 200;
+  background: rgba(10, 12, 16, 0.72); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; }
+.load-card { width: 460px; max-width: 88vw; padding: 26px 28px 22px;
+  background: var(--panel, #1f2025); border: 1px solid var(--border, #3a3a3e);
+  border-radius: 10px; box-shadow: 0 12px 48px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  text-align: center; }
+.load-card h4 { margin: 2px 0 0; font-size: 15px; font-weight: 600; }
+.load-card h4 b { color: var(--accent); }
+.ds-spinner.big { width: 34px; height: 34px; border-width: 4px; }
+.load-sub { font-size: 12px; color: var(--text-dim, #aaa); line-height: 1.5; }
+.load-elapsed { font-size: 12px; color: var(--text, #ddd); }
+.load-elapsed b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.load-logline { width: 100%; box-sizing: border-box; font-family: var(--mono);
+  font-size: 10.5px; color: var(--ok, #4ec9b0); background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border, #3a3a3e); border-radius: 5px; padding: 7px 9px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.load-hint { font-size: 11px; color: var(--text-dim, #888); }
+
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #6cb6ff; }
+.btn.primary:disabled { background: var(--input-bg); border-color: #555; color: var(--text); }
+
+/* ── Dataset file-picker dialog (DatasetDialog) ───────────────────────────── */
+.ds-dlg-backdrop { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; }
+.ds-dlg { width: 680px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 16px 50px rgba(0,0,0,0.6); overflow: hidden; }
+.ds-dlg-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; background: #2d2d30; border-bottom: 1px solid var(--border); }
+.ds-dlg-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+.ds-dlg-x { background: transparent; border: none; color: var(--muted); font-size: 18px;
+  cursor: pointer; line-height: 1; padding: 0 4px; }
+.ds-dlg-x:hover { color: #fff; }
+.ds-dlg-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  border-bottom: 1px solid var(--border); }
+.ds-dlg-up { background: var(--input-bg); border: 1px solid #555; color: #ddd;
+  border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 11px; flex: 0 0 auto; }
+.ds-dlg-up:hover { border-color: var(--accent); color: #fff; }
+.ds-dlg-up:disabled { opacity: 0.4; cursor: not-allowed; }
+.ds-dlg-cwd { font-family: var(--mono); font-size: 11px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.ds-dlg-list { flex: 1 1 auto; overflow-y: auto; min-height: 220px; padding: 4px 0; }
+.ds-dlg-row { display: flex; align-items: center; gap: 9px; padding: 5px 14px;
+  cursor: pointer; font-size: 12.5px; color: var(--text); }
+.ds-dlg-row:hover { background: #2a2d2e; }
+.ds-dlg-file.sel { background: var(--active); box-shadow: inset 3px 0 0 var(--accent); }
+.ds-dlg-ic { flex: 0 0 auto; font-size: 13px; }
+.ds-dlg-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-dlg-dir .ds-dlg-name { color: #cdb583; }
+.ds-dlg-meta { flex: 0 0 auto; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.ds-dlg-meta:nth-of-type(3) { width: 64px; text-align: right; }
+.ds-dlg-meta:nth-of-type(4) { width: 116px; text-align: right; }
+.ds-dlg-empty { padding: 26px 14px; text-align: center; color: var(--muted); font-size: 12px; }
+.ds-dlg-err { padding: 16px 14px; color: #f78a8a; font-size: 12px; font-family: var(--mono); }
+.ds-dlg-sel { display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-top: 1px solid var(--border); font-size: 11.5px; }
+.ds-dlg-sel-label { color: var(--muted); flex: 0 0 auto; }
+.ds-dlg-sel-path { font-family: var(--mono); color: var(--accent); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.ds-dlg-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 11px 14px;
+  border-top: 1px solid var(--border); }
+.ds-dlg-foot .btn { padding: 6px 18px; }
+
+/* ── AI Prediction tab ─────────────────────────────────────────────────────── */
+.ai-status { font-size: 11px; padding: 5px 7px; border-radius: 4px; margin-bottom: 6px; }
+.ai-status.ok  { background: #14331f; color: #7ee2a8; border: 1px solid #245c38; }
+.ai-status.off { background: #33201f; color: #e9a3a3; border: 1px solid #5c2828; }
+.ai-path {
+  font-family: ui-monospace, monospace; font-size: 10px; color: #9aa4b2;
+  background: #11151c; border: 1px solid #232a35; border-radius: 4px;
+  padding: 5px 6px; margin-bottom: 6px; word-break: break-all; line-height: 1.35;
+}
+.ai-kv {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; padding: 3px 0; color: #9aa4b2;
+}
+.ai-kv b { color: #dfe6ef; font-weight: 600; }
+.ai-check {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: #dfe6ef; padding: 3px 0; cursor: pointer;
+}
+.ai-check input { cursor: pointer; }
+.ai-check input:disabled { cursor: not-allowed; }
+.ai-check input:disabled + span { color: #6b7482; }
+.ai-warn {
+  font-size: 11px; line-height: 1.45; margin-top: 6px; padding: 6px 7px;
+  background: #33290f; color: #f0cf87; border: 1px solid #5c4a1a; border-radius: 4px;
+}
+.ai-result {
+  margin-top: 8px; padding: 7px; background: #11151c;
+  border: 1px solid #232a35; border-radius: 4px;
+}
+
+/* Per-server slot rows in the Inspector. A rack owns 5-7 of these. */
+.slot {
+  border: 1px solid #232a35; border-radius: 4px; padding: 6px 7px;
+  margin-bottom: 6px; background: #11151c;
+}
+.slot-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; color: #9aa4b2; margin-bottom: 4px;
+}
+.slot-dt { font-family: ui-monospace, monospace; color: #7ee2a8; }
+/* Outside the trained delta-T band the model is extrapolating — say so in the row
+   itself, not only in a note the user has to go looking for. */
+.slot-dt.warn { color: #f0cf87; }
+.slot-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.slot-row label { width: 12px; font-size: 11px; color: #6f7b8a; }
+.slot-row input[type="range"] { flex: 1; min-width: 0; }
+.slot-row .prop-mono { width: 74px; text-align: right; font-size: 10px; }
+
+.scenario-sel {
+  width: 100%; padding: 6px 7px; margin-bottom: 8px;
+  background: #11151c; color: #dfe6ef;
+  border: 1px solid #2b3442; border-radius: 4px; font-size: 12px;
+}
+
+/* ── scrollbars ────────────────────────────────────────────────────────────
+   Every scrollable area (both overlay panels, the tab body, the rack sublist, the
+   log dock, the file dialog) was using the browser default. On these near-black
+   panels that renders as a wide light-grey bar with a raised thumb — the single
+   most out-of-place element in the UI, and the one that shows up in every
+   screenshot. Styled for both engines: WebKit gets the pseudo-elements, Firefox
+   the standard two properties.
+
+   Sizing is deliberate: 10px is thin enough to read as chrome rather than a
+   control, but still a comfortable drag target. A transparent border plus
+   background-clip keeps the thumb visually inset without shrinking the hit area,
+   which is what makes a thin scrollbar hard to grab. */
+* { scrollbar-width: thin; scrollbar-color: #39424f transparent; }
+
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: #39424f; border-radius: 8px;
+  border: 2px solid transparent; background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #4d5867; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:active { background: var(--accent); background-clip: content-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* The bundle row shows only the folder name now (the absolute path carries the host
+   user name and this panel is in every demo screenshot). This dims the hint that the
+   full path is still available on hover. */
+.ai-path-dim { color: #5d6673; font-size: 9.5px; }
+
+/* Typed-path box in the file dialog. Monospace + tnum so long absolute paths stay
+   readable, and flex:1 so it takes the row rather than the cwd label doing so. */
+.ds-dlg-path {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font: 11px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--fg, #dfe3ea);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+.ds-dlg-path:focus { outline: none; border-color: #4daafc; }
+.ds-dlg-cwd {
+  padding: 2px 2px 6px;
+  font: 10px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--fg-dim, #8b94a3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Patch / equipment swatch: the editor identifies these by COLOUR, not by a glyph —
+   two patches on the same face are otherwise indistinguishable in the tree. */
+.node-swatch { width: 11px; height: 11px; border-radius: 50%; border: 1px solid #555;
+  flex: 0 0 auto; }
+
+/* Which source the shown field came from (AI prediction vs a solver result file).
+   The panel used to imply AI was the only path; the badge makes the active source
+   readable at a glance once either can be loaded. */
+.ds-src { margin-left: 8px; padding: 1px 6px; border-radius: 8px; font-size: 9px;
+  font-weight: 700; letter-spacing: 0.04em; color: #1e1e1e; background: var(--accent); }

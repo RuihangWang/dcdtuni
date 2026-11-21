@@ -1,0 +1,5 @@
+from pathlib import Path
+import os,subprocess,time,json
+R=Path(__file__).resolve().parent;env=os.environ.copy();env.update(PYTHONDONTWRITEBYTECODE='1',CUDA_VISIBLE_DEVICES='',OMP_NUM_THREADS='2',OPENBLAS_NUM_THREADS='2',MKL_NUM_THREADS='2',TMPDIR=str(R/'tmp'),TMP=str(R/'tmp'),TEMP=str(R/'tmp'),XDG_CACHE_HOME=str(R/'cache'));cmd=[os.sys.executable,str(R/'control_and_identity.py')];t=time.perf_counter()
+with (R/'results/control-identity.stdout').open('w') as out,(R/'results/control-identity.stderr').open('w') as err:p=subprocess.run(cmd,cwd=R,env=env,stdout=out,stderr=err)
+receipt={'command':cmd,'cwd':str(R),'rc':p.returncode,'elapsed_s':time.perf_counter()-t,'affinity':sorted(os.sched_getaffinity(0)),'env':{k:env[k] for k in ('CUDA_VISIBLE_DEVICES','OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','TMPDIR','TMP','TEMP','XDG_CACHE_HOME')}};(R/'results/control-identity-command.json').write_text(json.dumps(receipt,indent=2));print(json.dumps(receipt));print((R/'results/control-identity.stdout').read_text()[-1500:]);print((R/'results/control-identity.stderr').read_text()[-2500:]);raise SystemExit(p.returncode)

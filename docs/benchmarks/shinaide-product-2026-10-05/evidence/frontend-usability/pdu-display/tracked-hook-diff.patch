@@ -1,0 +1,63 @@
+diff --git a/src/frontend/react/src/interaction/sceneBuilder.ts b/src/frontend/react/src/interaction/sceneBuilder.ts
+index c9191e8e..a6f1ed77 100644
+--- a/src/frontend/react/src/interaction/sceneBuilder.ts
++++ b/src/frontend/react/src/interaction/sceneBuilder.ts
+@@ -49,6 +49,7 @@ import {
+ import { anyRegionVisible, isPreviewRegionVisible } from '../io/stlPreviewState'
+ import { isLiquidModeActive, subscribeLiquidMode } from '../liquid/liquidModeState'
+ import { buildLiquidEquipmentVisual } from '../geometry/liquidEquipmentVisuals'
++import { buildPduEquipmentVisual } from '../geometry/pduEquipmentVisuals'
+ 
+ /** The mutable scene registries the shared modules read and write. */
+ export interface SceneRegistries {
+@@ -363,6 +364,15 @@ export function createSceneBuilder(host: SceneHost): SceneBuilder {
+         api.renderBoxModel(model, group, faceLayouts, islands)
+       }
+ 
++      // Explicit PDU names get display-only detail in either cooling mode.
++      // The physical kind remains BOX and the original export registry is
++      // untouched. The role only makes whole-cabinet selection readable.
++      const pduVisual = buildPduEquipmentVisual(model)
++      if (pduVisual) {
++        group.userData.equipmentVisualRole = 'pdu'
++        group.add(pduVisual)
++      }
++
+       // React liquid mode adds engineering detail as a non-exported child of
+       // the structural root. The root owns its GPU resources, while the shared
+       // renderMeshes registry continues to contain only CFD/STL geometry.
+diff --git a/src/frontend/react/src/interaction/selectionHighlight.ts b/src/frontend/react/src/interaction/selectionHighlight.ts
+index aca86c13..1598eaf5 100644
+--- a/src/frontend/react/src/interaction/selectionHighlight.ts
++++ b/src/frontend/react/src/interaction/selectionHighlight.ts
+@@ -217,7 +217,7 @@ export function paintMeshHighlight(
+     restore()
+     return
+   }
+-  // Only whole-CDU paint adds array support. Generic tint/solid retain their
++  // Only cabinet contrast adds array support. Generic tint/solid retain their
+   // previous policy, including when a cabinet array is demoted to a face.
+   if (Array.isArray(mat) && style !== 'cabinet') {
+     restore()
+@@ -317,7 +317,11 @@ export function paintSelectionHighlights(
+   const cap = viewFadeOpacity(fades)
+   for (const [uid, root] of roots) {
+     const wholeModel = !selection.node || selection.node.type === 'model'
+-    const style: HighlightStyle = wholeModel && modelKind(uid) === 'cdu'
++    const pduFace = root.userData.equipmentVisualRole === 'pdu' &&
++      selection.node?.type === 'face' && selection.node.uid === uid
++    const readableCabinet = wholeModel &&
++      (modelKind(uid) === 'cdu' || root.userData.equipmentVisualRole === 'pdu')
++    const style: HighlightStyle = readableCabinet || pduFace
+       ? 'cabinet' : highlightStyle(selection.node)
+     const active = uid === selection.uid
+     const span = equipmentSpan(uid)
+@@ -326,7 +330,7 @@ export function paintSelectionHighlights(
+       if (!mesh.isMesh) return
+       const on = isMeshHighlighted(mesh.userData as MeshData, selection, span)
+       const surfaceStyle = style === 'cabinet' &&
+-        !(mesh.userData.exportName || mesh.userData.liquidVisualDetail)
++        !(mesh.userData.exportName || mesh.userData.liquidVisualDetail || mesh.userData.equipmentVisualDetail)
+         ? highlightStyle(selection.node) : style
+       paintMeshHighlight(mesh, on, surfaceStyle, active, refade, cap)
+     })

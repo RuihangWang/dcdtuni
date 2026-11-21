@@ -1,0 +1,156 @@
+bool Foam::polyMeshTetDecomposition::checkFaceTets
+(
+    const polyMesh& mesh,
+    scalar tol,
+    const bool report,
+    labelHashSet* setPtr
+)
+{
+    const labelList& own = mesh.faceOwner();
+    const labelList& nei = mesh.faceNeighbour();
+    const polyBoundaryMesh& patches = mesh.boundaryMesh();
+
+    const vectorField& cc = mesh.cellCentres();
+    const vectorField& fc = mesh.faceCentres();
+
+    // Calculate coupled cell centre
+    pointField neiCc(mesh.nBoundaryFaces());
+
+    for (label facei = mesh.nInternalFaces(); facei < mesh.nFaces(); ++facei)
+    {
+        neiCc[facei - mesh.nInternalFaces()] = cc[own[facei]];
+    }
+
+    syncTools::swapBoundaryFacePositions(mesh, neiCc);
+
+    const faceList& fcs = mesh.faces();
+
+    const pointField& p = mesh.points();
+
+    label nErrorTets = 0;
+
+    forAll(fcs, facei)
+    {
+        const face& f = fcs[facei];
+
+        forAll(f, fPtI)
+        {
+            scalar tetQual = tetPointRef
+            (
+                p[f[fPtI]],
+                p[f.nextLabel(fPtI)],
+                fc[facei],
+                cc[own[facei]]
+            ).quality();
+
+            if (tetQual > -tol)
+            {
+                if (setPtr)
+                {
+                    setPtr->insert(facei);
+                }
+
+                nErrorTets++;
+                break;              // no need to check other tets
+            }
+        }
+
+        if (mesh.isInternalFace(facei))
+        {
+            // Create the neighbour tet - it will have positive volume
+            const face& f = fcs[facei];
+
+            forAll(f, fPtI)
+            {
+                scalar tetQual = tetPointRef
+                (
+                    p[f[fPtI]],
+                    p[f.nextLabel(fPtI)],
+                    fc[facei],
+                    cc[nei[facei]]
+                ).quality();
+
+                if (tetQual < tol)
+                {
+                    if (setPtr)
+                    {
+                        setPtr->insert(facei);
+                    }
+
+                    nErrorTets++;
+                    break;
+                }
+            }
+
+            if (findSharedBasePoint(mesh, facei, tol, report) == -1)
+            {
+                if (setPtr)
+                {
+                    setPtr->insert(facei);
+                }
+
+                nErrorTets++;
+            }
+        }
+        else
+        {
+            const label patchi = patches.patchID(facei);
+
+            if (patches[patchi].coupled())
+            {
+                if
+                (
+                    findSharedBasePoint
+                    (
+                        mesh,
+                        facei,
+                        neiCc[facei - mesh.nInternalFaces()],
+                        tol,
+                        report
+                    ) == -1
+                )
+                {
+                    if (setPtr)
+                    {
+                        setPtr->insert(facei);
+                    }
+
+                    nErrorTets++;
+                }
+            }
+            else
+            {
+                if (findBasePoint(mesh, facei, tol, report) == -1)
+                {
+                    if (setPtr)
+                    {
+                        setPtr->insert(facei);
+                    }
+
+                    nErrorTets++;
+                }
+            }
+        }
+    }
+
+    reduce(nErrorTets, sumOp<label>());
+
+    if (nErrorTets > 0)
+    {
+        if (report)
+        {
+            Info<< " ***Error in face tets: "
+                << nErrorTets << " faces with low quality or negative volume "
+                << "decomposition tets." << endl;
+        }
+
+        return true;
+    }
+
+    if (report)
+    {
+        Info<< "    Face tets OK." << endl;
+    }
+
+    return false;
+}

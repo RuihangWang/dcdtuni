@@ -1,0 +1,47 @@
+--- src/frontend/react/src/styles.css
++++ src/frontend/react/src/styles.css
+@@ -2994,3 +2994,44 @@
+ .lr-chart-header > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+ .lr-chart-close { flex-shrink: 0; padding: 2px 6px; text-decoration: none; font-size: 18px; }
+ .lr-chart-dialog .ts-chart { width: 100%; box-sizing: border-box; border-radius: 6px; }
++
++/* OV display controls share the editor palette and stay above the log dock. */
++.ov-postprocess-panel {
++  box-sizing: border-box; min-width: 0; width: 100%; overflow: auto;
++  padding: 10px; background: var(--panel); color: var(--text);
++  border: 1px solid var(--border-bright); border-radius: 8px;
++  box-shadow: 0 8px 24px rgba(0, 0, 0, .3); font: 12px/1.5 var(--font-primary);
++  pointer-events: auto; scrollbar-gutter: stable;
++}
++.ov-postprocess-panel > summary {
++  position: sticky; top: -10px; z-index: 1; margin: -10px -10px 0; padding: 9px 10px;
++  background: var(--header-bg); color: var(--highlight); cursor: pointer; font-weight: 600;
++}
++.ov-postprocess-panel[open] > summary { margin-bottom: 10px; border-bottom: 1px solid var(--border); }
++.ov-postprocess-panel summary:focus-visible { outline: 2px solid var(--highlight); outline-offset: -2px; }
++.ov-postprocess-panel fieldset {
++  display: grid; gap: 8px; min-width: 0; margin: 0 0 12px; padding: 10px;
++  border: 1px solid var(--border); border-radius: 6px;
++}
++.ov-postprocess-panel fieldset:last-of-type { margin-bottom: 0; }
++.ov-postprocess-panel legend { padding: 0 5px; color: var(--accent3); font-weight: 600; }
++.ov-postprocess-panel label {
++  display: grid; grid-template-columns: minmax(70px, .95fr) minmax(0, 1.25fr);
++  align-items: center; gap: 8px; min-width: 0;
++}
++.ov-postprocess-panel label.ov-dataset-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
++.ov-postprocess-panel :is(input[type=number], select) {
++  box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-height: 30px;
++  padding: 5px 7px; border: 1px solid var(--border-bright); border-radius: 5px;
++  background: var(--bg-input); color: var(--text); color-scheme: dark; font: inherit;
++}
++.ov-postprocess-panel :is(input[type=number], select):focus { outline: 1px solid var(--highlight); border-color: var(--highlight); }
++.ov-postprocess-panel :is(input, select, button):disabled { opacity: .55; cursor: default; }
++.ov-postprocess-panel :is(input[type=checkbox], input[type=radio]) { accent-color: var(--highlight); margin: 0; flex: 0 0 auto; }
++.ov-postprocess-panel label:has(input[type=checkbox]), .ov-volume-options > label {
++  display: flex; align-items: center; gap: 7px; min-width: 0;
++}
++.ov-volume-options { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
++.ov-postprocess-panel p { min-width: 0; margin: 0; overflow-wrap: anywhere; }
++.ov-postprocess-panel .liquid-experiment-note { color: var(--text-dim); font-size: 11px; line-height: 1.6; }
++.ov-postprocess-panel .btn { margin: 0; min-width: 0; width: 100%; white-space: normal; }

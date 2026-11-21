@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "source": "test",
+  "projectName": "BlindEndTest",
+  "gravity": [0, 0, 0],
+  "fluid": {
+    "rho_kg_m3": 997.0,
+    "cp_J_kgK": 4182.0,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1.0,
+    "N_t": 3,
+    "bdf_order": 1
+  },
+  "racks": [],
+  "nodes": [
+    {"id": "supply", "type": "pressure_bc", "position_m": [0,0,0], "bc": {"P_Pa": 200000, "T_K": 308.15}},
+    {"id": "mid", "type": "junction", "position_m": [1,0,0]},
+    {"id": "return", "type": "pressure_bc", "position_m": [2,0,0], "bc": {"P_Pa": 100000}},
+    {"id": "dead_end", "type": "junction", "position_m": [1,1,0]}
+  ],
+  "edges": [
+    {
+      "id": "pipe_main_a", "type": "pipe",
+      "from": "supply", "to": "mid",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[0,0,0],[1,0,0]], "K_minor_per_bend": 0.5}
+    },
+    {
+      "id": "pipe_main_b", "type": "pipe",
+      "from": "mid", "to": "return",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[1,0,0],[2,0,0]], "K_minor_per_bend": 0.5}
+    },
+    {
+      "id": "pipe_blind", "type": "pipe",
+      "from": "mid", "to": "dead_end",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 2,
+                 "waypoints_m": [[1,0,0],[1,1,0]], "K_minor_per_bend": 0.5}
+    }
+  ],
+  "events": [],
+  "initial_conditions": {"T_fluid_K": 308.15, "T_solid_K": 340.0, "P_uniform_Pa": 150000},
+  "solver": {
+    "optimizer": "adam", "lr": 0.01, "max_epochs": 3000, "convergence_tol": 1e-4,
+    "weights": {"mass": 1.0, "momentum": 1e-5, "energy": 1.0, "bc": 100.0, "ic": 10.0}
+  }
+}

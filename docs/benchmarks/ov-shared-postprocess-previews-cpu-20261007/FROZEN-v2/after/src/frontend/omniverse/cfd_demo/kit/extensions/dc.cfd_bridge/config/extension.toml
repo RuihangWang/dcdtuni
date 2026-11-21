@@ -1,0 +1,27 @@
+[package]
+title = "DC CFD Bridge"
+version = "0.1.0"
+description = "Auto-loads the GTC scene and routes WebRTC data-channel commands to CAE viz (volume + ROI)."
+category = "Simulation"
+keywords = ["cae", "cfd", "datacenter", "webrtc"]
+
+[dependencies]
+"omni.usd" = {}
+"omni.ui.scene" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.livestream.messaging" = {}
+"omni.cae.data" = {}
+"omni.cae.viz" = {}
+"omni.cae.schema" = {}
+"omni.cae.importer.vtk" = {}
+# Reads the .vtu/.vti prims importer.vtk creates. Upstream kit-cae's streaming app does not
+# load it (omni.cae.bundle pulls only the other delegates), so it must be declared here.
+"omni.cae.delegate.vtk" = {}
+# The common signed regular grid is stored directly as NanoVDB, without DAV resampling.
+"omni.cae.delegate.nvdb" = {}
+
+[[python.module]]
+name = "dc.cfd_bridge"
+
+[settings]
+exts."dc.cfd_bridge".boundedDisplayReadback.enabled = false

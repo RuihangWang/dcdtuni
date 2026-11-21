@@ -1,0 +1,240 @@
+--- a/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
++++ b/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
+@@ -318,6 +318,12 @@
+             temporary = runtime / "tmp"
+             temporary.mkdir(exist_ok=True)
+             environment["TMPDIR"] = str(temporary)
++            # Texture uploads belong to this launch, regardless of inherited cache overrides.
++            texture_cache = runtime / "render-textures"
++            if not texture_cache.resolve().is_relative_to(root):
++                raise RuntimeError("texture cache must stay inside this checkout")
++            texture_cache.mkdir(exist_ok=True)
++            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = str(texture_cache)
+             if args.gpu is not None:
+                 def run_probe(command, *, env, timeout):
+                     return owner.probe(command, env=env,
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -629,7 +629,8 @@
+                         not re.fullmatch(r'[0-9a-f]{64}', project_hash)):
+                     raise ValueError('Invalid project content hash')
+                 print(f'[dc.cfd_bridge] scene load begin primitives={len(packet["primitives"])}')
+-                cache = os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE', '/tmp/dcdtuni-render-textures')
++                from .owned_paths import render_texture_cache_path
++                cache = render_texture_cache_path()
+                 result = render_scene.author_scene(stage, packet, cache, validated=True)
+                 print(f'[dc.cfd_bridge] scene load authored primitives={result["primitives"]}')
+                 self._render_uid_paths = result['uidPaths']
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/owned_paths.py
+@@ -0,0 +1,25 @@
++
++"""Repository boundary for bridge-created display textures (no Kit imports)."""
++import os
++from pathlib import Path
++
++
++def render_texture_cache_path(environment=None):
++    """Require an explicit checkout-local path before any texture write.
++
++    The normal owner supplies its own runtime/render-textures. Direct bridge
++    use must opt into a repository path too; cwd and inherited /tmp defaults
++    must never decide where product-created textures are written.
++    """
++    environment = os.environ if environment is None else environment
++    value = environment.get("DCDTUNI_RENDER_TEXTURE_CACHE")
++    if not isinstance(value, str) or not value.strip():
++        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must explicitly name a directory inside this checkout")
++    candidate = Path(value)
++    if not candidate.is_absolute():
++        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must be an absolute directory inside this checkout")
++    root = Path(__file__).resolve().parents[9]
++    resolved = candidate.resolve()
++    if not resolved.is_relative_to(root):
++        raise ValueError("DCDTUNI_RENDER_TEXTURE_CACHE must stay inside this checkout")
++    return str(resolved)
+--- a/src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py
+@@ -535,3 +535,41 @@
+         for sig,handler in handlers.items():signal.signal(sig,handler)
+     assert not calls
+     assert (runtime/"kit.failure").read_text().strip()=="startup deadline expired before Xvfb launch"
++
++
++
++@pytest.mark.parametrize("cwd", ["/", str(ROOT)])
++@pytest.mark.parametrize("inherited_cache", [None, "/tmp/legacy-render-textures"])
++def test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env(tmp_path, cwd, inherited_cache):
++    """Observe the real supervisor child environment, not an assignment regex."""
++    runtime = tmp_path / "texture-runtime"
++    observed = tmp_path / "texture-environment.json"
++    code = ("import json,os,pathlib\n"
++            f"pathlib.Path({str(observed)!r}).write_text(json.dumps("
++            "{'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n")
++    environment = dict(os.environ)
++    environment.pop("DCDTUNI_RENDER_TEXTURE_CACHE", None)
++    if inherited_cache is not None:
++        environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = inherited_cache
++    result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
++        sys.executable, "-c", code], cwd=cwd, env=environment, capture_output=True, text=True, timeout=5)
++    assert result.returncode == 0, result.stdout + result.stderr
++    actual = json.loads(observed.read_text())["cache"]
++    assert actual == str(runtime.resolve() / "render-textures")
++    assert Path(actual).is_absolute() and Path(actual).is_relative_to(ROOT)
++    assert Path(actual).is_dir()
++    assert (runtime / "kit.exit").read_text().strip() == "0"
++
++
++def test_texture_cache_symlink_escape_rejects_before_child_spawn(tmp_path):
++    runtime = tmp_path / "escaped-texture-runtime"
++    runtime.mkdir()
++    (runtime / "render-textures").symlink_to("/", target_is_directory=True)
++    child_marker = tmp_path / "escaped-child-started"
++    code = f"from pathlib import Path;Path({str(child_marker)!r}).write_text('unexpected')"
++    result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
++        sys.executable, "-c", code], capture_output=True, text=True, timeout=5)
++    assert result.returncode != 0
++    assert not child_marker.exists() and not (runtime / "kit.pid").exists()
++    assert "texture cache must stay inside this checkout" in (runtime / "kit.failure").read_text()
++    assert (runtime / "kit.exit").read_text().strip() != "0"
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py
+@@ -0,0 +1,86 @@
++
++"""Owned texture-cache boundary tests; no GPU, Kit or USD process is started."""
++import importlib.util
++import json
++from pathlib import Path
++import sys
++import types
++
++import pytest
++
++from test_render_scene_progress import _extension_without_kit
++
++ROOT = Path(__file__).resolve().parents[5]
++BRIDGE = ROOT / "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge"
++
++
++def helper():
++    spec = importlib.util.spec_from_file_location("owned_texture_path_test", BRIDGE / "owned_paths.py")
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module.render_texture_cache_path
++
++
++def bridge_route(monkeypatch):
++    extension, acks = _extension_without_kit(monkeypatch)
++    # The actual route sees a ready stage; only author_scene is observed/stopped.
++    context = types.SimpleNamespace(get_stage=lambda: object())
++    monkeypatch.setattr(sys.modules["omni.usd"], "get_context", lambda: context)
++    extension._render_transfer.finish = lambda request: {"primitives": []}
++    from dc.cfd_bridge import render_scene
++    calls = []
++
++    def author(stage, packet, cache, **kwargs):
++        calls.append(cache)
++        raise RuntimeError("test reached the author with validated cache")
++
++    monkeypatch.setattr(render_scene, "author_scene", author)
++    return extension, acks, calls
++
++
++@pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
++def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
++    extension, acks, calls = bridge_route(monkeypatch)
++    if cache is None:
++        monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
++    else:
++        monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
++    extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
++    assert calls == []
++    assert len(acks) == 1 and acks[0][0] == "cache-boundary"
++    assert acks[0][1]["ok"] is False
++    assert "DCDTUNI_RENDER_TEXTURE_CACHE" in acks[0][1]["error"]
++
++
++def test_bridge_valid_cache_is_forwarded_absolute_without_cli_change(monkeypatch, tmp_path):
++    extension, acks, calls = bridge_route(monkeypatch)
++    cache = tmp_path / "runtime" / "render-textures"
++    monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", str(cache))
++    extension._route_render_command("loadRenderScene", json.dumps({"requestId": "owned-cache"}))
++    assert calls == [str(cache.resolve())]
++    assert acks == [("owned-cache", {"ok": False, "error": "test reached the author with validated cache"})]
++    # The check only validates; it must not create files before scene authoring.
++    assert not cache.exists()
++
++
++@pytest.mark.parametrize("environment", [{}, {"DCDTUNI_RENDER_TEXTURE_CACHE": ""},
++                                        {"DCDTUNI_RENDER_TEXTURE_CACHE": "relative"},
++                                        {"DCDTUNI_RENDER_TEXTURE_CACHE": "/tmp/dcdtuni-render-textures"}])
++def test_helper_requires_explicit_absolute_checkout_path(environment):
++    with pytest.raises(ValueError, match="DCDTUNI_RENDER_TEXTURE_CACHE"):
++        helper()(environment)
++
++
++def test_helper_rejects_checkout_symlink_escape_without_writing(tmp_path):
++    link = tmp_path / "cache-escape"
++    link.symlink_to("/", target_is_directory=True)
++    with pytest.raises(ValueError, match="inside this checkout"):
++        helper()({"DCDTUNI_RENDER_TEXTURE_CACHE": str(link)})
++    assert link.is_symlink()
++
++
++def test_helper_is_independent_of_cwd_and_does_not_create_cache(monkeypatch, tmp_path):
++    target = tmp_path / "abs-runtime" / "render-textures"
++    monkeypatch.chdir("/")
++    assert helper()({"DCDTUNI_RENDER_TEXTURE_CACHE": str(target)}) == str(target.resolve())
++    assert not target.exists()
+--- a/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py
+@@ -7,6 +7,7 @@
+ import os
+ from pathlib import Path
+ import subprocess
++import socket
+ import sys
+ import time
+ 
+@@ -71,13 +72,20 @@
+     (tmp_path / "fake_kit.py").write_text(
+         "import json, os, pathlib, sys, time\n"
+         "pathlib.Path(os.environ['DC_CFD_RUNTIME_DIR'], 'observed.json').write_text(json.dumps({"
+-        "'args':sys.argv[1:], 'cuda':os.environ['CUDA_VISIBLE_DEVICES'], 'tmp':os.environ['TMPDIR']}))\n"
++        "'args':sys.argv[1:], 'cuda':os.environ['CUDA_VISIBLE_DEVICES'], 'tmp':os.environ['TMPDIR'],"
++        "'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n"
+         "time.sleep(60)\n")
+     # Reuse a synthetic already-live display; never start an X server.
+     (binaries / "xdpyinfo").write_text("#!/bin/bash\nexit 0\n")
+     (binaries / "xdpyinfo").chmod(0o755)
++    # The real user Kit may occupy production port8301; only use our own fake port.
++    with socket.socket() as signaling:
++        signaling.bind(("127.0.0.1", 0))
++        signal_port = signaling.getsockname()[1]
+     environment = dict(os.environ, PATH=str(binaries) + ":" + os.environ["PATH"],
+-        DC_CFD_KIT_BUILD=str(build), DC_CFD_AI="0", DC_CFD_VULKAN_ICD=str(manifest))
++        DC_CFD_KIT_BUILD=str(build), DC_CFD_AI="0", DC_CFD_VULKAN_ICD=str(manifest),
++        DC_CFD_SIGNAL_PORT=str(signal_port),
++        DCDTUNI_RENDER_TEXTURE_CACHE="/tmp/legacy-demo-textures")
+     environment.pop("DC_CFD_GPU", None)
+     environment.pop("CFD_GPU", None)
+     return environment, binaries
+@@ -119,7 +127,7 @@
+     environment.update(DC_CFD_RUNTIME_DIR=str(runtime), DC_CFD_MANAGED="1")
+     with (tmp_path / "launch.log").open("wb") as output:
+         process = subprocess.Popen(["bash", str(DEMO / "scripts/start_demo.sh")],
+-            env=environment, stdout=output, stderr=subprocess.STDOUT)
++            cwd="/", env=environment, stdout=output, stderr=subprocess.STDOUT)
+         child_pid = int(_wait_file(runtime / "kit.pid", process))
+         try:
+             observed = json.loads(_wait_file(runtime / "observed.json", process))
+@@ -131,6 +139,9 @@
+             assert f"--/log/file={runtime}/kit-internal.log" in observed["args"]
+             assert f"--/app/userConfigPath={runtime}/user.config.json" in observed["args"]
+             assert Path(observed["tmp"]).is_relative_to(ROOT)
++            assert observed["cache"] == str(runtime / "render-textures")
++            assert Path(observed["cache"]).is_absolute()
++            assert Path(observed["cache"]).resolve().is_relative_to(ROOT)
+             assert (runtime / "gpu.txt").read_text().startswith("index=0\n")
+         finally:
+             _fuser(runtime)

@@ -1,0 +1,51 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/ovPostProcessPanel.test.tsx -t waits for old display|uses actual nearest --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/ovPostProcessPanel.test.tsx (15 tests | 2 failed | 13 skipped) 116ms
+   × waits for old display mutation to settle and ignores its ACK before replacing a frame 112ms
+     → expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+   × uses actual nearest earlier time after playhead movement, while a snapped manual pick stays exact 2ms
+     → freshProject is not a function
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovPostProcessPanel.test.tsx > waits for old display mutation to settle and ignores its ACK before replacing a frame
+AssertionError: expected [ { …(2) }, { …(2) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ test/ovPostProcessPanel.test.tsx:321:59
+    319|   await act(async()=>[...host.querySelectorAll<HTMLInputElement>('inpu…
+    320|   await pickFrame('.01')
+    321|   expect(c.calls.filter(c=>c.name==='loadResultDataset')).toHaveLength…
+       |                                                           ^
+    322|   await act(async()=>oldVolume.resolve({requestId:'old',ok:true,volume…
+    323|   expect(c.calls.filter(c=>c.name==='loadResultDataset')).toHaveLength…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/ovPostProcessPanel.test.tsx > uses actual nearest earlier time after playhead movement, while a snapped manual pick stays exact
+TypeError: freshProject is not a function
+ ❯ test/ovPostProcessPanel.test.tsx:328:23
+    326| })
+    327| it('uses actual nearest earlier time after playhead movement, while a …
+    328|   const project=store.freshProject()
+       |                       ^
+    329|   project.transient={ mode:'transient',durationS:10,gridS:1,interpolat…
+    330|   store.loadProject(project)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 skipped (15)
+   Start at  02:12:27
+   Duration  5.37s (transform 1.83s, setup 0ms, collect 4.07s, tests 116ms, environment 847ms, prepare 78ms)
+

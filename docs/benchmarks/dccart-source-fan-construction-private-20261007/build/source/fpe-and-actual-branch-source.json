@@ -1,0 +1,383 @@
+{
+  "normalC": {
+    "sha256": "bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d",
+    "bytes": 838843
+  },
+  "normalSource": [
+    {
+      "line": 13440,
+      "text": "            }"
+    },
+    {
+      "line": 13441,
+      "text": "        }"
+    },
+    {
+      "line": 13442,
+      "text": "        if (best.empty()) { ++qualityFanUnsupported;return; }"
+    },
+    {
+      "line": 13443,
+      "text": "        if (best!=pieces) { pieces=std::move(best);++qualityFanChanged; }"
+    },
+    {
+      "line": 13444,
+      "text": "    };"
+    },
+    {
+      "line": 13445,
+      "text": "    // Plan every base in coordinate-canonical order before changing incidence."
+    },
+    {
+      "line": 13446,
+      "text": "    for (label f=0;f<oldFaces;++f)"
+    },
+    {
+      "line": 13447,
+      "text": "    {"
+    },
+    {
+      "line": 13448,
+      "text": "        if (!m.faceAlive[f]) { continue; }"
+    },
+    {
+      "line": 13449,
+      "text": "        const label o=m.owner[f],n=m.neighbour[f];"
+    },
+    {
+      "line": 13450,
+      "text": "        const bool used=marked[o] || (n>=0 && marked[n]);"
+    },
+    {
+      "line": 13451,
+      "text": "        if (!used || !splitFace[f]) { piecesOf[f].push_back(f);continue; }"
+    },
+    {
+      "line": 13452,
+      "text": "        std::vector<label> poly=canonical[f];vector av;point fc;faceAreaCentreOF(m.points,poly,av,fc);"
+    },
+    {
+      "line": 13453,
+      "text": "        const vector normal=av/mag(av);bool convex=true;"
+    },
+    {
+      "line": 13454,
+      "text": "        for (size_t j=0;j<poly.size();++j)"
+    },
+    {
+      "line": 13455,
+      "text": "        {"
+    },
+    {
+      "line": 13456,
+      "text": "            const vector edge=m.points[poly[(j+1)%poly.size()]]-m.points[poly[j]];"
+    },
+    {
+      "line": 13457,
+      "text": "            const scalar len=mag(edge);"
+    },
+    {
+      "line": 13458,
+      "text": "            for (label q:poly) if ((((edge^(m.points[q]-m.points[poly[j]]))&normal)/len)<-1e-12*std::sqrt(mag(av))) { convex=false; }"
+    },
+    {
+      "line": 13459,
+      "text": "        }"
+    },
+    {
+      "line": 13460,
+      "text": "        std::vector<std::vector<label>> pieces;"
+    },
+    {
+      "line": 13461,
+      "text": "        if (convex)"
+    },
+    {
+      "line": 13462,
+      "text": "        {"
+    },
+    {
+      "line": 13463,
+      "text": "            if (getenv(\"DCCART_CONES_PREFER_VERTEX_FAN\")!=nullptr) for (size_t k=0;k<poly.size();++k)"
+    },
+    {
+      "line": 13464,
+      "text": "            {"
+    },
+    {
+      "line": 13465,
+      "text": "                std::vector<std::vector<label>> trial;bool positive=true;"
+    },
+    {
+      "line": 13466,
+      "text": "                for (size_t j=1;j+1<poly.size();++j)"
+    },
+    {
+      "line": 13467,
+      "text": "                {"
+    },
+    {
+      "line": 13468,
+      "text": "                    const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];"
+    },
+    {
+      "line": 13469,
+      "text": "                    const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;"
+    },
+    {
+      "line": 13470,
+      "text": "                    if (!std::isfinite(area) || area<=1e-15*mag(av)"
+    },
+    {
+      "line": 13471,
+      "text": "                     || !writablePolygon({a,b,c})) { positive=false;break; }trial.push_back({a,b,c});"
+    },
+    {
+      "line": 13472,
+      "text": "                }"
+    },
+    {
+      "line": 13473,
+      "text": "                if (positive) { pieces=std::move(trial);break; }"
+    },
+    {
+      "line": 13474,
+      "text": "            }"
+    },
+    {
+      "line": 13475,
+      "text": "            if (!pieces.empty()) { ++anchorFan; }"
+    },
+    {
+      "line": 13476,
+      "text": "            else"
+    },
+    {
+      "line": 13477,
+      "text": "            {"
+    },
+    {
+      "line": 13478,
+      "text": "                const label q=insertPoint(fc,true);if (q<0) { ++closePoints;continue; }"
+    },
+    {
+      "line": 13479,
+      "text": "                for (size_t j=0;j<poly.size();++j) { pieces.push_back({poly[j],poly[(j+1)%poly.size()],q}); }"
+    },
+    {
+      "line": 13480,
+      "text": "                ++faceFan;"
+    },
+    {
+      "line": 13481,
+      "text": "            }"
+    },
+    {
+      "line": 13482,
+      "text": "        }"
+    },
+    {
+      "line": 13483,
+      "text": "        else"
+    },
+    {
+      "line": 13484,
+      "text": "        {"
+    },
+    {
+      "line": 13485,
+      "text": "            // A simple, planar star polygon may have a strictly positive"
+    },
+    {
+      "line": 13486,
+      "text": "            // original-vertex fan. Otherwise refuse; never overlap triangles."
+    },
+    {
+      "line": 13487,
+      "text": "            bool simple=true;"
+    },
+    {
+      "line": 13488,
+      "text": "            auto onSegment=[&](const point& a,const point& b,const point& p)"
+    }
+  ],
+  "installedVectorSpace": {
+    "source": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/VectorSpaceI.H",
+    "binding": {
+      "sha256": "19d865d2533f2c35a0fdd5f9fbecf7a039c05b79ebce8c7d75017675b4d09a8b",
+      "bytes": 19798
+    },
+    "excerpt": [
+      {
+        "line": 460,
+        "text": "}"
+      },
+      {
+        "line": 461,
+        "text": ""
+      },
+      {
+        "line": 462,
+        "text": ""
+      },
+      {
+        "line": 463,
+        "text": "template<class Form, class Cmpt, direction Ncmpts>"
+      },
+      {
+        "line": 464,
+        "text": "inline scalar magSqr"
+      },
+      {
+        "line": 465,
+        "text": "("
+      },
+      {
+        "line": 466,
+        "text": "    const VectorSpace<Form, Cmpt, Ncmpts>& vs"
+      },
+      {
+        "line": 467,
+        "text": ")"
+      },
+      {
+        "line": 468,
+        "text": "{"
+      },
+      {
+        "line": 469,
+        "text": "    scalar ms = magSqr(vs.v_[0]);"
+      },
+      {
+        "line": 470,
+        "text": "    VectorSpaceOps<Ncmpts,1>::SeqOp(ms, vs, plusEqMagSqrOp2<scalar, Cmpt>());"
+      },
+      {
+        "line": 471,
+        "text": "    return ms;"
+      },
+      {
+        "line": 472,
+        "text": "}"
+      },
+      {
+        "line": 473,
+        "text": ""
+      },
+      {
+        "line": 474,
+        "text": ""
+      },
+      {
+        "line": 475,
+        "text": "template<class Form, class Cmpt, direction Ncmpts>"
+      },
+      {
+        "line": 476,
+        "text": "inline scalar mag"
+      },
+      {
+        "line": 477,
+        "text": "("
+      },
+      {
+        "line": 478,
+        "text": "    const VectorSpace<Form, Cmpt, Ncmpts>& vs"
+      },
+      {
+        "line": 479,
+        "text": ")"
+      },
+      {
+        "line": 480,
+        "text": "{"
+      },
+      {
+        "line": 481,
+        "text": "    return ::sqrt(magSqr(static_cast<const Form&>(vs)));"
+      },
+      {
+        "line": 482,
+        "text": "}"
+      }
+    ]
+  },
+  "installedVector": {
+    "source": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/VectorI.H",
+    "binding": {
+      "sha256": "73875748d239062bc08e4d27f6d0175865e36684141db473d3b1e60f93c3cded",
+      "bytes": 7266
+    },
+    "excerpt": [
+      {
+        "line": 82,
+        "text": "template<class Cmpt>"
+      },
+      {
+        "line": 83,
+        "text": "inline Foam::scalar Foam::Vector<Cmpt>::magSqr() const"
+      },
+      {
+        "line": 84,
+        "text": "{"
+      },
+      {
+        "line": 85,
+        "text": "    return"
+      },
+      {
+        "line": 86,
+        "text": "    ("
+      },
+      {
+        "line": 87,
+        "text": "        Foam::magSqr(this->x())"
+      },
+      {
+        "line": 88,
+        "text": "      + Foam::magSqr(this->y())"
+      },
+      {
+        "line": 89,
+        "text": "      + Foam::magSqr(this->z())"
+      },
+      {
+        "line": 90,
+        "text": "    );"
+      },
+      {
+        "line": 91,
+        "text": "}"
+      },
+      {
+        "line": 92,
+        "text": ""
+      },
+      {
+        "line": 93,
+        "text": ""
+      },
+      {
+        "line": 94,
+        "text": "template<class Cmpt>"
+      },
+      {
+        "line": 95,
+        "text": "inline Foam::scalar Foam::Vector<Cmpt>::mag() const"
+      },
+      {
+        "line": 96,
+        "text": "{"
+      },
+      {
+        "line": 97,
+        "text": "    return ::sqrt(this->magSqr());"
+      },
+      {
+        "line": 98,
+        "text": "}"
+      }
+    ]
+  },
+  "inference": "The unchanged C13453 av/mag(av) evaluates magSqr on the same av before the added check in the convex centre-fan fallback. The new magSqr duplicates that arithmetic; it does not introduce its first upstream FPE category. This is source evidence, not a runtime FPE or geometry acceptance claim. All used splitFace fallback includes internal faces; no boundary-only scope claimed."
+}

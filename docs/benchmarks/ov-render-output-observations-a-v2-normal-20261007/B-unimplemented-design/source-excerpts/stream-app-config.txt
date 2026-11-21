@@ -1,0 +1,37 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.livestream.app-9.0.0+109.0.0.lx64.r.cp312/config/extension.toml
+FULL_SHA256 3464e392016acfe88a42962a6af1364498272447fdca2ec5d1407cdb564b45ee
+LINES 1–6
+1: [package]
+2: version = "9.0.0" # Semantic Versioning is used: https://semver.org/
+3: 
+4: # These fields are used primarily for display in the UI.
+5: title = "Kit Livestream Application"
+6: description = "Streams the entire application framebuffer."
+LINES 17–32
+17: [dependencies]
+18: "omni.kit.livestream.webrtc" = {}
+19: "omni.kit.renderer.core" = {}
+20: 
+21: # Restrict to the Kit version used to build (and higher).
+22: [package.writeTarget]
+23: kit = true
+24: 
+25: # Define the Python modules that this extension provides.
+26: # C++ only extensions need this just so tests don't fail.
+27: [[python.module]]
+28: name = "omni.kit.livestream.app"
+29: 
+30: # Define the native plugins that this extension provides.
+31: [[native.plugin]]
+32: path = "bin/*.plugin"
+LINES 41–50
+41: # Default values for settings applied to the primary application stream.
+42: [settings.exts."omni.kit.livestream.app".primaryStream]
+43: allowDynamicResize = false  # Allow dynamic resizing of the video stream? May be detrimental to overall streaming performance. Not supported if spectator streams are used.
+44: enableEventTracing = true   # Enable event trace logging for this stream? These can be used to diagnose issues with the stream, but can grow quite large and use disk space.
+45: enableOpenTelemetry = false # Enable/emit open telemetry for this stream? Set OMNI_OTEL_METRICS_FILE_PATH env var or observability/metrics/file/path setting to output path.
+46: publicIp = ""               # Fixed ip used to transport streaming media. Can help for connecting when server is behind a NAT.
+47: signalPort = 49100          # TCP port used for negotiating a connection. Must be unique for each stream, if not specified an attempt will be made to use an unoccupied port.
+48: streamPort = 47998          # UDP port used to transport streaming media. Must be unique for each stream, if not specified an attempt will be made to use an unoccupied port.
+49: streamType = "webrtc"       # Type of streaming implementation to create. webrtc=standard WebRTC protocol, native=proprietary. Must be defined for the stream to be created.
+50: targetFps = 60              # The target frames per second of the stream. May be adjusted in response to quality of service (QoS) feedback to improve streaming performance.

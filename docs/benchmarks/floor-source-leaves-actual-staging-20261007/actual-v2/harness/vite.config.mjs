@@ -1,0 +1,1 @@
+export default {cacheDir:'/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-shift-pick-private-20261007/UNDERGROUND-TRANSPORT-private-20261007T085926Z/FLOOR-SOURCE-SURFACE-private-v2/tmp/vite',resolve:{preserveSymlinks:true},test:{environment:"jsdom",pool:"forks",poolOptions:{forks:{singleFork:true}},testTimeout:15000}}

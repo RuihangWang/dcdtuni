@@ -1,0 +1,90 @@
+{
+  "schema": "dcdtuni.owned-ov-texture-cache-review.v1",
+  "recordedUtc": "2026-10-05T10:44:35.764019+00:00",
+  "checkout": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration",
+  "head": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+  "sourcePaths": [
+    "src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py",
+    "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py",
+    "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/owned_paths.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py"
+  ],
+  "behavior": {
+    "normalLauncher": "Supervisor forces the real Kit child environment DCDTUNI_RENDER_TEXTURE_CACHE to the resolved owned runtime/render-textures before preflight or child creation; inherited overrides cannot select an outside path.",
+    "boundary": "Runtime must already resolve inside this checkout; a pre-existing render-textures symlink escape is rejected before the Kit child is created.",
+    "directBridge": "loadRenderScene requires an explicit absolute cache inside the extension's actual checkout before author_scene; missing, relative, outside and symlink-escaping values fail through the existing error ACK path.",
+    "cwdIndependent": true,
+    "independentExportCli": "render_scene.py and its existing explicit texture_dir API are byte-identical to HEAD; no CLI export behavior changed.",
+    "gpuSelection": "GPU0 default, --gpu/--ov-gpu aliases, UUID confinement and vendor ICD selection are untouched."
+  },
+  "tests": {
+    "before": {
+      "failed": 8,
+      "deselected": 31,
+      "seconds": 2.43,
+      "log": "before-tests.log"
+    },
+    "firstRelated": {
+      "passed": 50,
+      "failed": 1,
+      "seconds": 12.72,
+      "log": "first-related-50-pass-1-fail.log",
+      "reason": "An existing fake launcher fixture used the real default signaling port 8301. The live user's Kit owns it; production correctly rejected the foreign listener."
+    },
+    "fixtureCorrection": "Only the CPU fake fixture now reserves a free private signaling port. Production 8301 default is unchanged. It also checks the actual fake child cache environment from cwd /.",
+    "final": {
+      "passed": 51,
+      "failed": 0,
+      "seconds": 16.26,
+      "returncode": 0,
+      "log": "final-corrected-tests.log",
+      "command": "final-corrected-command.json"
+    },
+    "resources": {
+      "cpuAffinity": "36-39",
+      "CUDA_VISIBLE_DEVICES": "",
+      "realKitGpuProbes": false,
+      "servicesStartedOrRestarted": false,
+      "frontendBuild": false
+    },
+    "coverage": "Real CPU supervisor subprocess environment; inside/outside/relative/symlink paths; cwd independence; real extension loadRenderScene dispatch before texture authoring; existing launch cleanup and render progress suites."
+  },
+  "acceptanceBoundary": {
+    "sourceAndCpuFakeTests": "passed",
+    "currentLiveKit": "not changed or restarted by this task",
+    "actualRepositoryTextureAuthoring": "pending parent-owned commit/deployment/restart and real browser scene",
+    "outsideOldCache": "not deleted or modified by this task",
+    "priorLiquidIndependent12Files": "not modified"
+  },
+  "credentialScreening": {
+    "method": "Bounded stored log scan for bearer/JWT/private-key literals; new observed child payloads contain only the cache directory, not grants or user credentials.",
+    "results": {
+      "before-tests.log": {
+        "bearerCredential": 0,
+        "jwtCredential": 0,
+        "privateKey": 0
+      },
+      "final-tests.log": {
+        "bearerCredential": 0,
+        "jwtCredential": 0,
+        "privateKey": 0
+      },
+      "first-related-50-pass-1-fail.log": {
+        "bearerCredential": 0,
+        "jwtCredential": 0,
+        "privateKey": 0
+      },
+      "final-corrected-tests.log": {
+        "bearerCredential": 0,
+        "jwtCredential": 0,
+        "privateKey": 0
+      }
+    }
+  },
+  "index": {
+    "mutatedByThisTask": false,
+    "cachedPathsAtFreeze": []
+  }
+}

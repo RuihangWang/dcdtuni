@@ -1,0 +1,15 @@
+# BOX/CDU structural GeometryProduct implementation
+
+One owned plain-buffer producer now supplies both domain methods and the existing Three BOX/CDU carrier. It owns face frames, patch/hole clipping, exact Earcut index order, local Float32 then layout Float32 positions/normals, raw UV, structural part identities and plain material source recipes. BaseEntity.geometryProduct() uses the registered definition kind and explicitly rejects unsupported types. An explicit PDU asset lowers as physical BOX; a name alone never assigns PDU physics.
+
+The original 31-file producer baseline remains unchanged. Its 10 carrier controls retain complete buffer bytes, index order, world matrices, grouped STL strings (toFixed(6)) and scene snapshots. The missing-method red tests are preserved there. The regression source only dropped an unused type import for TypeScript; its assertions/fixture/capture bytes were not rerecorded.
+
+Validation: 186 related tests passed in 13 files. After the final base-method placement, 77 tests passed in BOX/CDU, kernel and domain-project files (overlapping the related run); the latest successful unique test set is 227. Final TypeScript exit 0. Exact commands and timings are in receipt.json and the command files. CPU 36–39, CUDA empty, TMP/cache under this owned directory. No normal frontend/native build, browser, business run, service operation or Git mutation was performed.
+
+Raw UV and source recipes are deliberately limited. Existing spawnRenderable PBR/image UV scaling, image/material IO and cache code remains byte-identical, proved by unchanged-carrier-suffix.json. The original golden uses webglAvailable=false and no images; these tests do not qualify all renderer material/UV variants. Existing non-wall ACU, cold_plate and custom-without-cache callers retain their legacy carrier and have actual dispatch regressions.
+
+The Earcut 3.0.2 numerical body is copied unchanged from installed Three 0.184.0, with only three export keywords removed for a shared UMD wrapper. Original source identity, an owned original copy and full ISC notice are bound in earcut-final-binding.json. No second BOX/CDU algorithm or ShapeGeometry fallback is used. Unrelated Three carriers retain their existing installed triangulator.
+
+Intermediate authored test failures and first typecheck diagnostics are retained. The cold_plate first draft omitted the established meta.legacyKind persisted marker; the unknown-bucket first draft called default topLevel rather than full allEntities. Correcting these test inputs did not change production numerical arithmetic.
+
+source-final.json lists all 14 production/test/fixture paths and their exact frozen copies. implementation.diff covers production and authored test changes; original fixture/capture are copied unchanged. Root document commits may advance HEAD; source hashes bind this change independently. This is a structural product slice awaiting independent source review and normal build/browser acceptance, not a declaration that the full OOP/SimReady/renderer/solver migration or strict native meshing is complete.

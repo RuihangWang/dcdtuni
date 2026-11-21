@@ -1,0 +1,28 @@
+  async function returnToThree() {
+    if(returning)return
+    setReturning(true)
+    const token=++session.current
+    const sourceKey=key
+    // If a new project/frame has not reached Kit yet, its camera/selection reply
+    // belongs to the previous scene. Preserve the newer local state instead.
+    const canRead=!!sync.current?.isCurrent(key)
+    sync.current?.close();sync.current=null
+    overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+    resultSync.current?.close();resultSync.current=null
+    client.current?.onEditEvent(null);sceneRevision.current=-1;ackedSceneHash.current=null
+    degraded.current=false
+    try {
+      if(client.current&&ready&&canRead) {
+        const ack=await waitForRenderView(client.current.readView())
+        if(session.current!==token||currentKey.current!==sourceKey||ack.view?.timeSeconds!==timeSeconds)return
+        const handle=getViewportHandle()
+        const root=(window as unknown as {globalGroup?:THREE.Object3D}).globalGroup
+        if(ack.view?.camera&&handle&&root) {
+          restoreRenderCamera(ack.view.camera,root,handle.camera,handle.controls.target)
+          handle.controls.update()
+        }
+        if(ack.view)onSelection(ack.view.selectedUids)
+      }
+    }catch(error){if(session.current===token)setMessage({key:'renderer.local_view_fallback',vars:{error:String(error)}})}
+    finally {if(session.current===token){client.current=null;setReady(false);setMode('three');setReturning(false);setOvSession({client:null,ready:false,degraded:false,liquidActive:false,sceneIdle:null,projectUid:null,projectContentSha256:null,sceneRevision:null})}}
+  }

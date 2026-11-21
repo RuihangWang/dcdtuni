@@ -1,0 +1,23 @@
+# Producer implementation independent review — scoped GO
+
+结论：两层一文件候选在声明范围内可进入正常源码验证；未发现需阻止应用的 P1/P2 产品问题。目标仍为 src/frontend/shared/js/cfdrun_build.js。第一层精确 304712d4507ee85ea93bb965580f4b2bd5c3fa91bf13bdcb9509e2c283af1e8b → bfc1470cbb488beff2393d5752a278caf6ab129051c126d503469264bc820cbe；第二层 bfc147… → 1503bafe0c1c10c433236cec89bb521310f4ddbd14ebddb0bb9f8930e89628bf。累计正常补丁 a4b732e158ad8912347d5d39e9214c25bd705a081aee9d68d660c65250e2a561。此评审没有应用、提交、构建、native、GPU、API、浏览器或服务操作。
+
+独立逐字节读取两包全部 payload 并复算 hash/size：F1 manifest 5789e8a6fe4c759f66a06287242d698eb22c6ae483ea62a0fa262bb835b04953，1523 文件 / 14,227,475 B；F2 manifest 611b60dd3ac7fbafa37d399ce80773c0006d38be1c585d3ee2c3c784a562d39b，2929 / 29,182,482 B，均无不符。已读 REPORT、README、SCOPE、apply-map，两层全部实际 patch、改变区域完整 JS、实际 normal geometry_scene WeakMap 生产逻辑、React exact hash binder、cfdrun_export thermal translator、后端 source contract 和 STLGenRunner/ResolvedRun 路径。before-and-full-payload-verification.json 是逐文件全量读取回执，不是抽样。
+
+第一层只为当前 construction owner 的显式 BOX wallObject 与原生 CDU、实际 `_boxGeometryProduct` pure base parts 建立 structural_wall 描述，世界坐标三角形来自 exact grouped OO literal。验证 schema/project、snapshot、UID、每文件 exact block、facetCount、真实面积及名称碰撞。自定义 flat/V4 字段不进入本路径。它不创建 BC、bulk source、物理 sourceObjectUid、材料或人工角色/hash；已存在的真实热/设备绑定保持。geometryExport 的新增描述可让纯 wall input 原本空 solids 的来源门通过，但不是物理修复。
+
+第二层 fixedTemperature native BOX/CDU 非 heatSource 面复用已 scoped 的唯一 OO 名，修复旧双 model 前缀；同时填入实际 STL file/path、world area，CDU 路径使用 cdus。非 base、同 face、单 refId 的产品 parts 与唯一实际 emission 必须相符。return/body/重叠/同名/自定义来源拒绝。固定 42/20 C、功率 321 W、原 321→482 W schedule/源科学参数不重定；旧 fixed-temperature schedule 执行、旧 CDU return BC/null 引用未修复。本层局部 schema/project 检查沿用全产品链下游 bindStlFileHashes 118–127 行；独立 foreign-schema/project 负例完整链拒绝，不能只评价中间 rich map。
+
+独立测试不是复制作者 assessor 的绿色数字。自写 production imports/OO CPU harness，经 JSON round-trip/reviveKinds、createSceneBuilder、shared producer、完整 manifest 和 exact source/hash binder，读取 installed 正常 provider；唯一来源重定向分别 normal/structural/thermal，metafile、redirects、逐输入绑定已保留。14 个 tiny 源场景 × 三版本共 42 个观察，其中 24 个完整导出、18 个明确拒绝，不称“42 cases 通过”。正常/两候选成功的 6 种核心来源逐项保证 saved project、STL bytes、sourceRegions/sourceSurfaces 和其他科学 manifest 字段相等。包含 box/cdu/fixed BOX/fixed CDU/generic 带合法 fixed patch/缩放；缺 catalogue、stale snapshot、foreign project/schema、改 literal、return conflict、nested custom 固温来源负例均按实际路径拒绝。
+
+独立正常后端在新的 owned cases 对 7 个实际新 manifest 执行原 STL identity preflight、_load、正常全部字典生成和 complete ResolvedRun/BridgeBCRegistry；未执行 native。纯墙 normal source false → structural source true；fixed BOX structural baseline 保持双前缀和 strict null-file refusal/source false → thermal correct patch strict reader + source/Weight true，实际 BC 类型 fixedTemperature、temperature=42，完整 BCSpec 在唯一名映射下逐字段相等。CDU 与缩放面也真实 42 C / strict / source true。篡改实际 original STL 的追加正常 preflight 负例拒绝。corrected-backend-fresh/independent-assessment.json 160 checks / 0 failure，所有原始 stdout/stderr、case/raw/dict/registry 保存。
+
+首次 independent assessor 160 checks 有 1 个 RED，保存在 history/first-original-RED-*。这是我预期口径错误，不是产品错误：我假定 generic BOX 加合法 fixed patch 仍须 source false。实际原合同 190 行要求非空 wall solids，159–162 行接受 verifiedOriginalNamedSolid，276–277 行接受真实 generatedWall 完整 inventory。该实际场景只新增授权 fixed patch 的来源描述，不新增 generic structural body；真实生成合同本来允许。修正仅 assessor 预期，独立新增 backend fresh 重新运行 7 个来源/字典，0.84 s；JS 输入复制逐 hash 相等，候选产品及合同始终未变。纯 generic 无 BC 的旧 Frozen 场景仍 empty solids 拒绝，不能把两输入混为一物。原 RED、修正说明和前后 assessor hash 均保留。
+
+作者 F1 的 28 pair / 1199 检查与 14 已知拒绝、F2 的 42 pair / 1040 检查与 20 条分离旧 strict/seed 拒绝均按原文件读取，不当作所有 case 执行成功。旧 legacy heat/rack/server/CDU return null STL 引用、floor dual-side seed 失败、fixed-temperature schedule 尚无执行保留。作者初次采集键名与脚本错误也在各原包 history；本评审未改其原包。
+
+物理限制：回读并复算 Root actual APP 一手 26 文件及 Frozen 副本；旧 OFF、新 OFF、新 ON、np2 ON stock literal 全 Failed 3 / D14 W8 VR2，ON lifecycle captured/staged/committed 0/0/0。source eligible 只是必要修复，没有实际 APP positive、strict MeshOK、完整风冷求解或 5 min 保证。本评审的 scoped GO 只允许一文件正常应用后受约束前端/生产导出回归；不能将这两层当作用户完整 dcCart 任务完成。
+
+收尾 normal 23 producer/backend/source authority 与两套 Frozen bindings 仍全部原 hash；cfdrun_build.js 仍 304712d…；Main 29 项 held 变化列表完全相同，integration/air tracked dirty 为空。Root 已声明其 docs-only HEAD 前移 integration f2aa5fe7 / air 69c8ce4d，记录为合法外部并行变动。所有本评审新文件在唯一 B/.codex-tmp/review-producer-implementation-independent-20261007；CPU30–31 / CUDA空 / OMP BLAS1，总执行11.32 s，纠正后 backend 0.84 s。没有声称整个机器进程/所有源码 immutable；实际 guards 的范围见文件。
+
+附记：最初 Root native 摘录辅助脚本用“14 cells”子串，实际 literal 是“number of cells: 14”，因此该元数据 false 并非 native 无 D14；原元数据在 history/original-D14-substring-parser.json 保留，修正 literal regex 后四份原 stock output 均严格 D14/W8/VR2。26 份 primary 路径与 Frozen 副本逐字节独立核验完成；native 源文件没有更改。

@@ -1,0 +1,174 @@
+{
+  "scope": "Proposal only; no Stage 2 implementation or renderer/solver acceptance",
+  "entityCoverage": [
+    {
+      "bucket": "boxes",
+      "class": "BoxEntity / explicit PduEntity",
+      "geometryOwner": "patched box face geometry; named PDU display decoration separately",
+      "physicsOwner": "source face/patch declarations, no name-based electrical physics"
+    },
+    {
+      "bucket": "customMeshes",
+      "class": "CustomMeshEntity",
+      "geometryOwner": "imported asset buffers and named regions",
+      "physicsOwner": "explicit asset availability; missing assets cannot authorize placeholder STL"
+    },
+    {
+      "bucket": "surfaces",
+      "class": "SurfaceEntity",
+      "geometryOwner": "authored surface geometry/patches",
+      "physicsOwner": "surface boundary declarations"
+    },
+    {
+      "bucket": "walls",
+      "class": "WallEntity",
+      "geometryOwner": "wall planar/thickness/openings",
+      "physicsOwner": "wall/patch boundary declarations"
+    },
+    {
+      "bucket": "partitionWalls",
+      "class": "PartitionWallEntity",
+      "geometryOwner": "partition CSG/openings",
+      "physicsOwner": "same physical faces and region names"
+    },
+    {
+      "bucket": "baffles",
+      "class": "BaffleEntity",
+      "geometryOwner": "baffle outline/cutouts",
+      "physicsOwner": "boundary/interface declarations"
+    },
+    {
+      "bucket": "floors",
+      "class": "FloorEntity",
+      "geometryOwner": "sheet/polygon/holes",
+      "physicsOwner": "floor patch roles"
+    },
+    {
+      "bucket": "racks",
+      "class": "RackEntity",
+      "geometryOwner": "frame, doors, nested server/partition/RDHX and manifold products",
+      "physicsOwner": "rack ports and authored child topology"
+    },
+    {
+      "bucket": "rows",
+      "class": "RowEntity",
+      "geometryOwner": "preserve existing row source behavior; explicit strategy not silent fallback",
+      "physicsOwner": "existing source-only declarations"
+    },
+    {
+      "bucket": "servers",
+      "class": "ServerEntity / RackServerEntity",
+      "geometryOwner": "box/nested face patches and rack-local placement",
+      "physicsOwner": "heat/cooling/CP-CU memberships"
+    },
+    {
+      "bucket": "acus",
+      "class": "AcuEntity",
+      "geometryOwner": "box or wall-mounted unit, supply/return face islands",
+      "physicsOwner": "air boundary roles and declared HX/fan parameters"
+    },
+    {
+      "bucket": "cdus",
+      "class": "CduEntity",
+      "geometryOwner": "physical shell/ports; display-only HMI/internal trim separated",
+      "physicsOwner": "pump/HX/valve fragment and authored loop ports"
+    },
+    {
+      "bucket": "pipeSegments",
+      "class": "PipeSegmentEntity",
+      "geometryOwner": "polyline/ports with source transforms",
+      "physicsOwner": "authored connections/length/diameter parameters"
+    },
+    {
+      "bucket": "pipeJunctions",
+      "class": "PipeJunctionEntity",
+      "geometryOwner": "fitting body/port geometry",
+      "physicsOwner": "junction topology"
+    },
+    {
+      "bucket": "pipes",
+      "class": "PipeEntity",
+      "geometryOwner": "current bends/reducers/waypoints/inline valve products",
+      "physicsOwner": "connected port paths and physical volumes"
+    },
+    {
+      "bucket": "sensors",
+      "class": "SensorEntity",
+      "geometryOwner": "explicit marker/none policy separate from body export",
+      "physicsOwner": "instrumentation bindings, not an invented solid"
+    },
+    {
+      "bucket": "liquidFlowNetworks",
+      "class": "LiquidFlowNetworkEntity",
+      "geometryOwner": "topology-only product",
+      "physicsOwner": "authored nodes/edges; no implicit box/STL"
+    },
+    {
+      "bucket": "heatGains",
+      "class": "HeatGainEntity",
+      "geometryOwner": "preserve explicit existing geometry/marker policy",
+      "physicsOwner": "declared heat-source binding, no new defaults"
+    }
+  ],
+  "additionalCoverage": [
+    "room",
+    "raisedFloor",
+    "falseCeiling",
+    "rack-local servers/partitions/RDHX",
+    "server chips/coldPlates/CP-CU records",
+    "CDU heatExchanger/pump/valve",
+    "ACU HX/fans",
+    "cooling ports/valves",
+    "pipe waypoints",
+    "model faces/patches/cutouts",
+    "network node/edge",
+    "instrumentation/library definitions"
+  ],
+  "proposedNewFiles": [
+    "src/frontend/react/src/domain/geometry/geometryProduct.ts",
+    "src/frontend/react/src/domain/geometry/modelPose.ts",
+    "src/frontend/react/src/domain/geometry/boxSurfaceKernel.ts",
+    "src/frontend/react/src/domain/materials/materialRecipe.ts",
+    "src/frontend/react/src/domain/physics/physicalTopology.ts",
+    "src/frontend/react/src/domain/physics/equipmentPortFrames.ts",
+    "src/frontend/react/src/geometry/domainThreeAdapter.ts",
+    "src/frontend/react/src/renderer/domainSceneSnapshot.ts"
+  ],
+  "existingSeams": [
+    "src/frontend/react/src/domain/BaseEntity.ts",
+    "src/frontend/react/src/domain/entityRegistry.ts",
+    "src/frontend/react/src/domain/DomainProject.ts",
+    "src/frontend/react/src/interaction/sceneBuilder.ts",
+    "src/frontend/react/src/legacy/geometryBuilder.ts",
+    "src/frontend/shared/js/geometry_pure.js",
+    "src/frontend/shared/js/geometry_scene.js",
+    "src/frontend/shared/js/stl_writer.js",
+    "src/frontend/shared/js/stl_naming.js",
+    "src/frontend/shared/js/pbr_materials.js",
+    "src/frontend/react/src/io/stlExport.ts",
+    "src/frontend/react/src/geometry/liquidEquipmentVisuals.ts",
+    "src/frontend/react/src/geometry/pduEquipmentVisuals.ts",
+    "src/frontend/react/src/renderer/sceneSnapshot.ts",
+    "src/frontend/react/src/renderer/renderSceneExport.ts",
+    "src/frontend/shared/schema/render-scene.schema.json",
+    "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py",
+    "src/frontend/react/src/liquid/dynamicLiquidGraph.ts",
+    "src/frontend/react/src/liquid/liquidRunGraph.ts",
+    "src/frontend/react/src/legacy/liquidGraphgen.ts",
+    "src/frontend/shared/js/liquid_graphgen.js",
+    "src/frontend/react/src/liquid/liquidExperiment.ts",
+    "src/frontend/react/src/run/runSubmit.ts",
+    "src/frontend/react/src/run/runPayload.ts",
+    "src/frontend/react/src/run/session.ts",
+    "src/frontend/react/src/legacy/cfdrunBuild.ts",
+    "src/frontend/shared/js/cfdrun_build.js",
+    "src/frontend/shared/js/cfdrun_export.js",
+    "src/backend/aircooling/runner/cfdrun_reader.py",
+    "src/backend/aircooling/runner/stlgen_runner.py",
+    "src/server/server.py",
+    "src/frontend/react/src/projectStore.ts"
+  ],
+  "firstVerticalSlice": "Pure numeric pose+port kernels and patched BOX physical geometry/material products consumed by real Three/STL/render-scene; delegate legacy callers to the same kernels, preserve wire IDs and exact output ordering",
+  "remainingMigration": "Each registered known class receives an explicit physical/display/topology capability; named legacy bridge is transitional and cannot be called full OOP completion",
+  "authority": "Plain .cfdproj authoritative; strict run snapshots and Three/USD products derived; methods/cache/typed buffers never serialized into project JSON"
+}

@@ -1,0 +1,176 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/airCancellationLifecycle.test.ts (12 tests | 9 failed) 4217ms
+   × air job cancellation waits for backend completion > recovers a silent healthy SSE via status polling, refreshes disk state, thaws, and allows a fresh run 2653ms
+     → expected +0 to be 1 // Object.is equality
+   × air job cancellation waits for backend completion > does not claim cancellation after an abort http failure and supports retry 232ms
+     → expected { id: 'job-1', kind: 'mesh', …(9) } to match object { running: true, aborted: false }
+(9 matching properties omitted from actual)
+   × air job cancellation waits for backend completion > does not claim cancellation after an abort network failure and supports retry 115ms
+     → stop offline
+   × air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status http failure and recovers 124ms
+     → expected false to be true // Object.is equality
+   × air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status network failure and recovers 126ms
+     → expected false to be true // Object.is equality
+   × air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status malformed failure and recovers 154ms
+     → expected false to be true // Object.is equality
+   × air job cancellation waits for backend completion > coalesces stop requests and fallback monitors, then ignores late terminal events 139ms
+     → expected 2 to be 1 // Object.is equality
+   × air job cancellation waits for backend completion > does not treat an already-completed successful run as cancelled 140ms
+     → expected { id: 'job-1', kind: 'mesh', …(9) } to match object { Object (running, returncode, ...) }
+(8 matching properties omitted from actual)
+   × air job cancellation waits for backend completion > does not refresh or unlock another project from an old cancelled job 126ms
+     → expected true to be false // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 3 passed (12)
+   Start at  04:10:07
+   Duration  5.61s (transform 1.26s, setup 0ms, collect 122ms, tests 4.22s, environment 869ms, prepare 76ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > recovers a silent healthy SSE via status polling, refreshes disk state, thaws, and allows a fresh run
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/airCancellationLifecycle.test.ts:94:25
+     92|     await session.abortJob()
+     93|     await settle()
+     94|     expect(statusCalls).toBe(1)
+       |                         ^
+     95|     expect(session.getJob()?.running).toBe(true)
+     96|     expect(session.isUiFrozen()).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > does not claim cancellation after an abort http failure and supports retry
+AssertionError: expected { id: 'job-1', kind: 'mesh', …(9) } to match object { running: true, aborted: false }
+(9 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "aborted": false,
++   "aborted": true,
+    "running": true,
+  }
+
+ ❯ test/airCancellationLifecycle.test.ts:116:30
+    114|       : async () => { throw new Error('stop offline') }
+    115|     await session.abortJob()
+    116|     expect(session.getJob()).toMatchObject({ running: true, aborted: f…
+       |                              ^
+    117|     expect(session.getJob()?.error).toContain(failure === 'http' ? 'st…
+    118|     expect(session.isUiFrozen()).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > does not claim cancellation after an abort network failure and supports retry
+Error: stop offline
+ ❯ abortReply test/airCancellationLifecycle.test.ts:114:29
+    112|     abortReply = failure === 'http'
+    113|       ? async () => response({ error: 'stop rejected' }, 500)
+    114|       : async () => { throw new Error('stop offline') }
+       |                             ^
+    115|     await session.abortJob()
+    116|     expect(session.getJob()).toMatchObject({ running: true, aborted: f…
+ ❯ test/airCancellationLifecycle.test.ts:57:58
+ ❯ raw src/run/auth.ts:81:26
+ ❯ window.fetch src/run/auth.ts:202:24
+ ❯ Module.abortJob src/run/session.ts:644:11
+ ❯ test/airCancellationLifecycle.test.ts:115:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status http failure and recovers
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status network failure and recovers
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > keeps an unconfirmed job frozen after a status malformed failure and recovers
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/airCancellationLifecycle.test.ts:137:39
+    135|     streams[0]!.onerror?.()
+    136|     await vi.advanceTimersByTimeAsync(5000)
+    137|     expect(session.getJob()?.running).toBe(true)
+       |                                       ^
+    138|     expect(session.isUiFrozen()).toBe(true)
+    139|     expect(session.getJob()?.error).toBeTruthy()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > coalesces stop requests and fallback monitors, then ignores late terminal events
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ test/airCancellationLifecycle.test.ts:153:24
+    151|     const first = session.abortJob()
+    152|     const second = session.abortJob()
+    153|     expect(abortCalls).toBe(1)
+       |                        ^
+    154|     reply(response({ status: 'aborting' }))
+    155|     await Promise.all([first, second])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > does not treat an already-completed successful run as cancelled
+AssertionError: expected { id: 'job-1', kind: 'mesh', …(9) } to match object { Object (running, returncode, ...) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "aborted": false,
+-   "returncode": 0,
+-   "running": false,
++   "aborted": true,
++   "returncode": null,
++   "running": true,
+  }
+
+ ❯ test/airCancellationLifecycle.test.ts:186:30
+    184|     await session.abortJob()
+    185|     await settle()
+    186|     expect(session.getJob()).toMatchObject({ running: false, returncod…
+       |                              ^
+    187|   })
+    188| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  test/airCancellationLifecycle.test.ts > air job cancellation waits for backend completion > does not refresh or unlock another project from an old cancelled job
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/airCancellationLifecycle.test.ts:197:39
+    195|     jobStatus = async () => response({ done: true, returncode: -15, ca…
+    196|     await vi.advanceTimersByTimeAsync(5000)
+    197|     expect(session.getJob()?.running).toBe(false)
+       |                                       ^
+    198|     expect(session.getCurrentCaseJob()).toBeNull()
+    199|     expect(scans).toBe(beforeScans)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+

@@ -1,0 +1,7 @@
+# Focus selected visible models
+
+The View tools button fits the current selected visible surfaces into the actual gap between the side panels, expanded toolbar and log. It preserves camera viewing direction/up and uses ordinary position/target coordinates already supported by the OV camera bridge. The original full-canvas centre can be under a toolbar, so the fit checks all eight world-space bounding-box corners against the unobscured rectangle. No asymmetric projection or model transform is written.
+
+The action includes rotated structural render roots and identity-bound liquid pipe/junction overlays and blind caps, while excluding hidden ancestors, transparent/invisible materials and editing helpers. It reads current roots/selection at click time and disables during the existing job freeze. It updates only camera/controls and clip coverage; project, geometry, selection and history are unchanged.
+
+Four original Toolbar regressions fail before the new control. Final validation has 20 new semantic tests and 55 passing related tests across eight files. The saved production tsc/Vite build succeeds; Vite reports 10.62 s. The first mixed-Map test typing failure is retained with its correction. Logs and argument/return-code records were copied byte-for-byte from the agent's ignored working directory; agent-manifest.json retains that original file manifest. source-test-identity.json binds all seven exact source/test paths. This source receipt does not claim actual browser focus, CDU Shift-click or live OV video; root owns those subsequent checks.

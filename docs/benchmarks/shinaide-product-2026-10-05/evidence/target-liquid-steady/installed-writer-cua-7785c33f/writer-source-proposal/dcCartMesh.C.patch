@@ -1,0 +1,24 @@
+--- src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C.before
++++ src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -2818,7 +2818,11 @@
+ 
+         if (getenv("DCCART_CONFORMING_CONES") != nullptr)
+         {
+-            dcCartCutCells::decomposeConformingCones(m,patchNames,patchTypes,patchNeighbours,myProc);
++            dcCartCutCells::decomposeConformingCones
++            (
++                m,patchNames,patchTypes,patchNeighbours,myProc,
++                runTime,surfaces.faceZoneNames(),patchGroups
++            );
+             budgetCheck("conforming-mixed-cone-experiment");
+         }
+ 
+@@ -2932,6 +2936,8 @@
+             patchNames, patchTypes, surfaces.faceZoneNames(),
+             patchNeighbours, patchGroups
+         );
++        if (getenv("DCCART_CONE_LITERAL_UNIONS"))
++        { budgetCheck("literal-union-final-installed-writer"); }
+         const label nCellsAll = sumAll(meshPtr->nCells());
+         Info<< "Cut mesh: cells " << nCellsAll << " over " << nProcs << " rank(s); this rank " << meshPtr->nCells()
+             << ", points " << meshPtr->nPoints()

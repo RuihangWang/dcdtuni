@@ -1,0 +1,19 @@
+--- a/src/frontend/react/test/RendererControl.test.ts
++++ b/src/frontend/react/test/RendererControl.test.ts
+@@ -116,11 +116,13 @@
+   next.view.selectedUids = ['new-rack']
+   const camera = { position: [4, 5, 6] as [number, number, number], target: [0, 1, 0] as [number, number, number],
+     up: [0, 1, 0] as [number, number, number], fov: 45, aspect: 1.5, near: 0.1, far: 500 }
+-  const ack = { requestId: 'live', ok: true, view: { camera, selectedUids: ['old-rack'], timeSeconds: 0 } }
+-  expect(keepActiveOvCamera(next, ack, 'project-a').view).toEqual({
++  const identity = { projectUid: 'project-a', projectHash: 'a'.repeat(64), sceneRevision: 4 }
++  const ack = { requestId: 'live', ok: true, projectHash: identity.projectHash, sceneRevision: identity.sceneRevision,
++    view: { camera, selectedUids: ['old-rack'], timeSeconds: 0 } }
++  expect(keepActiveOvCamera(next, ack, 'project-a', identity).view).toEqual({
+     camera, selectedUids: ['new-rack'], timeSeconds: 600,
+   })
+-  expect(keepActiveOvCamera(packet('project-b', 0), ack, 'project-a').view.camera).toBeUndefined()
++  expect(keepActiveOvCamera(packet('project-b', 0), ack, 'project-a', identity).view.camera).toBeUndefined()
+ })
+ 
+ it('keeps one latest pending state while the previous scene awaits its acknowledgement', async () => {

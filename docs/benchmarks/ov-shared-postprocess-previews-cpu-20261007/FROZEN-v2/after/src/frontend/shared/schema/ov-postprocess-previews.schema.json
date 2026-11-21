@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dcdtuni.ov-postprocess-previews/v1",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectUid",
+        "projectContentSha256",
+        "cfdrunSha256",
+        "meshReceiptSha256",
+        "meshQuality",
+        "run"
+      ],
+      "properties": {
+        "projectUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "projectContentSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cfdrunSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "meshReceiptSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "meshQuality": {
+          "enum": [
+            "accepted",
+            "diagnostic"
+          ]
+        },
+        "run": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uid",
+                "receiptSha256"
+              ],
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "receiptSha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "packetSha256",
+        "timeSeconds",
+        "sceneRevision",
+        "displayGeneration",
+        "scopeKey",
+        "ownerKey"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "packetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "timeSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1e+18
+        },
+        "sceneRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "displayGeneration": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "scopeKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "ownerKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "binding",
+        "handles"
+      ],
+      "properties": {
+        "schema": {
+          "const": "dcdtuni.ov-postprocess-previews/v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "handles": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "setId",
+                  "origin",
+                  "normal",
+                  "radius"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "ring"
+                  },
+                  "setId": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "const": "draft"
+                      }
+                    ]
+                  },
+                  "origin": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "number",
+                      "minimum": -1e+18,
+                      "maximum": 1e+18
+                    }
+                  },
+                  "normal": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "number",
+                      "minimum": -1e+18,
+                      "maximum": 1e+18
+                    }
+                  },
+                  "radius": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1e+18
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "setId",
+                  "centre",
+                  "radius"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "seed"
+                  },
+                  "setId": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "const": "draft"
+                      }
+                    ]
+                  },
+                  "centre": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "number",
+                      "minimum": -1e+18,
+                      "maximum": 1e+18
+                    }
+                  },
+                  "radius": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1e+18
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "packet",
+        "leaseKey",
+        "ready"
+      ],
+      "properties": {
+        "schema": {
+          "const": "dcdtuni.ov-postprocess-previews-ack/v1"
+        },
+        "packet": {
+          "$ref": "#/$defs/packet"
+        },
+        "leaseKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "ready": {
+          "const": true
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "binding",
+        "leaseKey",
+        "sequence",
+        "kind",
+        "setId",
+        "position"
+      ],
+      "properties": {
+        "schema": {
+          "const": "dcdtuni.ov-postprocess-preview-event/v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "leaseKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "kind": {
+          "enum": [
+            "ring",
+            "seed"
+          ]
+        },
+        "setId": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "const": "draft"
+            }
+          ]
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": -1e+18,
+            "maximum": 1e+18
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/packet"
+    },
+    {
+      "$ref": "#/$defs/ack"
+    },
+    {
+      "$ref": "#/$defs/event"
+    }
+  ]
+}

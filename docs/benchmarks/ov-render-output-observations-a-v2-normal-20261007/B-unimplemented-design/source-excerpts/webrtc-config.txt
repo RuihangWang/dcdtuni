@@ -1,0 +1,29 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.livestream.webrtc-9.0.2+109.0.0.lx64.r.cp312/config/extension.toml
+FULL_SHA256 f2c58f5540c1dc6d0a5a87eabd35d78afb0c4aa71f914e7648e2eebaf28f6d89
+LINES 1–8
+1: [package]
+2: version = "9.0.2" # Semantic Versioning is used: https://semver.org/
+3: 
+4: # These fields are used primarily for display in the UI.
+5: title = "Kit Livestream WebRTC Server"
+6: description = "Streams provided frames to a WebRTC client."
+7: category = "Livestream"
+8: keywords = ["livestream", "streaming", "streamsdk", "webrtc"]
+LINES 20–36
+20: # Restrict to the Kit version used to build (and higher).
+21: [package.writeTarget]
+22: kit = true
+23: 
+24: # Define the Python modules that this extension provides.
+25: # C++ only extensions need this just so tests don't fail.
+26: [[python.module]]
+27: name = "omni.kit.livestream.webrtc"
+28: 
+29: # Define the native plugins that this extension provides.
+30: [[native.plugin]]
+31: path = "bin/omni.kit.livestream.webrtc.plugin"
+32: 
+33: # Define any test specific properties for this extension.
+34: [[test]]
+35: args = ["--/log/channels/omni.kit.livestream.streamsdk=error"] # Suppress superfluous StreamSDK logs.
+36: cppTests.libraries = ["bin/${lib_prefix}omni.kit.livestream.webrtc.tests${lib_ext}"]

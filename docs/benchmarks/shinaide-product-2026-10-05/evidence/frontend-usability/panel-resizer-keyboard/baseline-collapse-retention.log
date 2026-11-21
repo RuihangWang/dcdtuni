@@ -1,0 +1,40 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/panelResizerKeyboard.test.tsx (21 tests | 2 failed | 19 skipped) 247ms
+   × retains manual side widths through the actual App collapse reset of both requests 220ms
+     → expected 340 to be close to 334.4, received difference is 5.600000000000023, but expected 0.005
+   × retains a manual request through a resizer remount and the App default-width write 25ms
+     → expected 330 to be close to 304.4, received difference is 25.600000000000023, but expected 0.005
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 19 skipped (21)
+   Start at  03:52:52
+   Duration  1.94s (transform 323ms, setup 0ms, collect 523ms, tests 247ms, environment 838ms, prepare 78ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > retains manual side widths through the actual App collapse reset of both requests
+AssertionError: expected 340 to be close to 334.4, received difference is 5.600000000000023, but expected 0.005
+ ❯ test/panelResizerKeyboard.test.tsx:211:26
+    209|   expect(drawn('left')).toBe(0)
+    210|   expect(document.documentElement.style.getPropertyValue('--left-panel…
+    211|   expect(drawn('right')).toBeCloseTo(right)
+       |                          ^
+    212|   await act(async () => {
+    213|     document.documentElement.style.setProperty('--left-panel-width', '…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > retains a manual request through a resizer remount and the App default-width write
+AssertionError: expected 330 to be close to 304.4, received difference is 25.600000000000023, but expected 0.005
+ ❯ test/panelResizerKeyboard.test.tsx:228:25
+    226|   root = createRoot(host)
+    227|   act(() => root.render(<PanelResizers />))
+    228|   expect(drawn('left')).toBeCloseTo(before)
+       |                         ^
+    229| })
+    230| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

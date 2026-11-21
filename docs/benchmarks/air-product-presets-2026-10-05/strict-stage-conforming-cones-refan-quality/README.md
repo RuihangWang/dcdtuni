@@ -1,0 +1,9 @@
+# Canonical fan and contiguous convex merge: single-factor diagnostic
+
+The generic OFF experiment enumerates every positive original-vertex fan for an eligible planar split base with at most eight outline nodes, then merges contiguous groups of one to three triangles. Every piece must be strictly convex without redundant collinear edge nodes. It preserves every original boundary node, the exact outline, signed geometric area and first moment, and patch/zone identity. All original parent apexes remain unchanged. Shared bases use the same canonical coordinate geometry; the policy does not use case coordinates or parent IDs.
+
+Necessary within-base weight/area-ratio gates and a proven any-apex upper bound reject impossible physical triangular tetrahedra. Passing a necessary upper bound does not prove the resulting cell quality. Independent enumeration 4408e019 verifies the front/back seven-node witnesses uniquely produce the supported four-piece refan under the uniform rules, including rotated/reversed cycles and relabeled nodes.
+
+Real React export and mesh API job 776ea39f completed in 88.890882 s (native 67.3381 s). Fifty-one of 55 triggered bases changed. The unchanged stock allTopology/allGeometry checker reduced Failed4 to Failed3: both skew failures disappeared (max 3.4835), determinants decreased 3353 to 3257, low weights 984 to 812, and low volume ratios 68 to 65. The remaining three checks still reject mesh/solver authorization.
+
+New actual coupled-pair audit proves all 24 cyclic and seven processor pairs have exact reciprocal roles, relative polygon order, common point zero and same-start reverse orientation. No processorCyclic patch exists in this actual case, so that class is not claimed tested. Source identity, raw SSE, native stdout, exported input, writer failure sets and optional trace hashes are preserved. No stock thresholds were changed.

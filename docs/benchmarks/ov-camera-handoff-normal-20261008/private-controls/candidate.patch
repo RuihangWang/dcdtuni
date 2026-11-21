@@ -1,0 +1,427 @@
+--- a/src/frontend/react/src/renderer/RendererControl.tsx
++++ b/src/frontend/react/src/renderer/RendererControl.tsx
+@@ -105,6 +105,8 @@
+   projectUid:string
+   projectHash:string|null
+   sceneRevision:number
++  /** Present for a camera transaction pinned to an accepted source packet. */
++  primitives?:number
+ }
+ export function isAcceptedRenderView(ack:RenderAck,identity:AcceptedRenderViewIdentity):boolean {
+   return identity.projectUid.trim().length>0&&typeof identity.projectHash==='string'
+@@ -112,6 +114,8 @@
+     &&Number.isSafeInteger(identity.sceneRevision)&&identity.sceneRevision>=0
+     &&ack.ok===true&&ack.projectHash===identity.projectHash
+     &&ack.sceneRevision===identity.sceneRevision
++    &&(identity.primitives===undefined||(Number.isSafeInteger(identity.primitives)&&identity.primitives>=0
++      &&Number.isSafeInteger(ack.primitives)&&ack.primitives===identity.primitives))
+ }
+ /** An acknowledged OV orbit survives a project edit; new time/selection still win. */
+ export function keepActiveOvCamera(packet:SceneSnapshot,ack:RenderAck,activeProjectUid:string,
+@@ -207,6 +211,7 @@
+   const resultSync=useRef<LatestSceneSync<ResultTransmission>|null>(null)
+   const sceneEpoch=useRef(0)
+   const sceneRevision=useRef(-1)
++  const acceptedPrimitiveCount=useRef(-1)
+   const ackedSceneHash=useRef<string|null>(null)
+   const acceptedModelUids=useRef<ReadonlySet<string>>(new Set())
+   const sourceQueryBridge=useRef<ReturnType<typeof createOvEditBridge>|null>(null)
+@@ -277,6 +282,7 @@
+     if(!live?.uid||live.uid!==packet.project.uid||
+        cfdrunExport().projectContentHashSync(live)!==expectedHash)return false
+     acceptedModelUids.current=new Set(packet.primitives.map(p=>p.modelUid))
++    acceptedPrimitiveCount.current=packet.primitives.length
+     sceneRevision.current=ack.sceneRevision
+     ackedSceneHash.current=ack.projectHash
+     setOvResultStage(value,{projectUid:packet.project.uid,projectHash:ack.projectHash,sceneRevision:ack.sceneRevision})
+@@ -335,7 +341,7 @@
+     viewDelivery.current?.close();viewDelivery.current=null
+     overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+     resultSync.current?.close();resultSync.current=null
+-    client.current?.onEditEvent(null);sceneRevision.current=-1;ackedSceneHash.current=null
++    client.current?.onEditEvent(null);sceneRevision.current=-1;acceptedPrimitiveCount.current=-1;ackedSceneHash.current=null
+     degraded.current=false
+     setOvSession({client:null,ready:false,degraded:false,liquidActive:false,sceneIdle:null,projectUid:null,projectContentSha256:null,sceneRevision:null})
+     setMessage({key:getServerInfo()?.ovBridge===false?'renderer.ov_not_started':'renderer.ov_unavailable',vars:{error:error.message}})
+@@ -351,7 +357,7 @@
+     const token=++session.current
+     const sourceKey=key
+     const capturedClient=client.current
+-    const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
++    const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current,primitives:acceptedPrimitiveCount.current}
+     let diagnosticContext:ReturnType<typeof captureDiagnosticContext>|null=null
+     let diagnosticCaptureError:unknown=null
+     try {
+@@ -365,14 +371,14 @@
+     sync.current?.close();sync.current=null
+     overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+     resultSync.current?.close();resultSync.current=null
+-    client.current?.onEditEvent(null);sceneRevision.current=-1;ackedSceneHash.current=null
++    client.current?.onEditEvent(null);sceneRevision.current=-1;acceptedPrimitiveCount.current=-1;ackedSceneHash.current=null
+     degraded.current=false
+     try {
+       if(diagnosticCaptureError)throw diagnosticCaptureError
+       if(client.current&&ready&&canRead) {
+         // Healthy Kit replies can take several seconds; keep one bounded handoff.
+         const ack=await waitForRenderView(diagnosticContext
+-          ?capturedClient!.readViewDiagnostics(diagnosticContext):capturedClient!.readView(),diagnosticContext?3000:8000)
++          ?capturedClient!.readViewDiagnostics(diagnosticContext):capturedClient!.readView("camera-handoff"),diagnosticContext?3000:8000)
+         if(session.current!==token||currentKey.current!==sourceKey||client.current!==capturedClient
+           ||ack.view?.timeSeconds!==timeSeconds||selectedResultTime()!==timeSeconds)return
+         const liveProject=store.getProject()
+@@ -569,8 +575,8 @@
+         sync.current=new LatestSceneSync<SceneTransmission>(async ({packet,hash})=>{
+           let next=packet
+           if(packet.project.uid===sentProjectUid.current){
+-            const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
+-            const ack=await waitForRenderView(value.readView(),3000)
++            const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current,primitives:acceptedPrimitiveCount.current}
++            const ack=await waitForRenderView(value.readView("camera-handoff"),3000)
+             if(session.current!==token||client.current!==value)return
+             if(sentProjectUid.current===acceptedView.projectUid
+               &&ackedSceneHash.current===acceptedView.projectHash&&sceneRevision.current===acceptedView.sceneRevision)
+--- a/src/frontend/react/src/renderer/ovProtocol.ts
++++ b/src/frontend/react/src/renderer/ovProtocol.ts
+@@ -508,8 +508,15 @@
+     }
+     throw new Error(`Omniverse acknowledgement timed out: the Kit->browser channel never opened after ${attempts} probes (${last})`)
+   }
+-  readView(): Promise<RenderAck> {
+-    return this.request(id => this.command('getViewState', { requestId: id }))
++  /** Camera handoff reads live state and scene identity without requesting a
++   * derived decoration proof. Default reads keep the complete display receipt. */
++  readView(purpose?: 'camera-handoff'): Promise<RenderAck> {
++    if (purpose !== undefined && purpose !== 'camera-handoff') {
++      return Promise.reject(new Error('Invalid Omniverse view purpose'))
++    }
++    return this.request(id => this.command('getViewState', {
++      requestId: id, ...(purpose === undefined ? {} : { purpose }),
++    }))
+   }
+   /** Only the explicit return selector opts into this bounded readonly branch. */
+   readViewDiagnostics(context:DiagnosticContext):Promise<DiagnosticReply> {
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -800,11 +800,12 @@
+                         _native_grid_receipt_diagnostic('flush-send',payload.get('gridDisplay'))
+                     except Exception:
+                         pass  # Diagnostic import/sink failure cannot suppress ACK.
+-                    # Carb drops None dictionary entries. Keep a freshly
+-                    # revalidated native receipt as explicit JSON text; no
+-                    # nullable proof field is reconstructed by the receiver.
++                    # Carb drops None dictionary entries and turns empty arrays
++                    # into objects. Preserve real views and freshly revalidated
++                    # native receipts as JSON; the receiver reconstructs no fields.
+                     wire_grid = payload.get('gridDisplay')
+-                    if type(wire_grid) is dict and 'nativeGeometry' in wire_grid:
++                    if (type(wire_grid) is dict and 'nativeGeometry' in wire_grid
++                            or type(payload.get('view')) is dict):
+                         try:
+                             import json
+                             wire = {'renderAckJSON': json.dumps(
+@@ -812,7 +813,7 @@
+                                 separators=(',', ':'))}
+                             app.get_message_bus_event_stream().push(event, payload=wire)
+                         except Exception:
+-                            # No legacy fallback can carry a failed native proof.
++                            # No legacy fallback can carry a failed view/proof.
+                             # A failed encode/send must not discard later ACKs.
+                             continue
+                     else:
+@@ -948,7 +949,9 @@
+             if set(args) != allowed[command] and not (
+                     (command == 'loadRenderScene' and set(args) == {'requestId', 'projectHash'}) or
+                     (command == 'clearRenderResultLayers' and set(args) == {'requestId', 'displayGeneration'}) or
+-                    (command == 'getViewState' and set(args) == {'requestId', 'diagnostics'})):
++                    (command == 'getViewState' and set(args) == {'requestId', 'diagnostics'}) or
++                    (command == 'getViewState' and set(args) == {'requestId', 'purpose'}
++                     and args['purpose'] == 'camera-handoff')):
+                 raise ValueError('Unexpected or missing render command fields')
+             if command in {'beginRenderResultLayers', 'renderResultLayersChunk',
+                            'renderResultLayersProgress', 'loadRenderResultLayers'}:
+@@ -1211,6 +1214,15 @@
+                     return
+                 selection_paths = ctx.get_selection().get_selected_prim_paths()
+                 view = render_scene.read_view(stage, selection_paths)
++                if args.get('purpose') == 'camera-handoff':
++                    # This live camera/scene transaction cannot authorize grid
++                    # appearance. Ordinary reads still verify the full receipt.
++                    self._render_ack(request_id, ok=True, view=view,
++                                     primitives=sum(len(x) for x in self._render_uid_paths.values()),
++                                     sceneRevision=self._scene_revision, projectHash=self._render_project_hash,
++                                     sceneRequestId=self._last_scene_request_id)
++                    self._trace_source_selection('state-query', selection_paths, view.get('selectedUids'))
++                    return
+                 # Idempotent state query: also the scene identity a scene ack
+                 # carries, so a lost scene ack is recoverable (ovProtocol).
+                 self._render_ack(request_id, ok=True, view=view,
+--- a/src/frontend/react/test/cameraPurposeProtocol.test.ts
++++ b/src/frontend/react/test/cameraPurposeProtocol.test.ts
+@@ -0,0 +1,49 @@
++import {expect,it,vi} from 'vitest'
++import {OvCommandClient} from '../src/renderer/ovProtocol'
++it('requests a camera handoff explicitly and waits for its matching ACK',async()=>{
++ const sent:{command_name:string;message:string}[]=[]
++ const client=new OvCommandClient(async p=>{sent.push(p)})
++ const promise=client.readView('camera-handoff');void promise.catch(()=>{})
++ let settled=false;void promise.then(()=>{settled=true},()=>{})
++ try{
++  await Promise.resolve();expect(sent).toHaveLength(1)
++  const args=JSON.parse(sent[0]!.message)
++  expect(sent[0]!.command_name).toBe('getViewState')
++  expect(Object.keys(args).sort()).toEqual(['purpose','requestId'])
++  expect(args.purpose).toBe('camera-handoff')
++  client.receive({event_type:'dcdtuni:renderAck',payload:{requestId:'wrong-request',ok:true}})
++  await Promise.resolve();expect(settled).toBe(false)
++  const ack={requestId:args.requestId,ok:true,sceneRevision:19,projectHash:'a'.repeat(64),primitives:2152,
++   sceneRequestId:'last-authored',view:{selectedUids:['rack'],timeSeconds:null,
++    camera:{position:[1,2,3],target:[0,0,0],up:[0,1,0],fov:45,aspect:2,near:.1,far:400}}}
++  client.receive({event_type:'dcdtuni:renderAck',payload:ack})
++  expect(await promise).toEqual(ack);expect((await promise).gridDisplay).toBeUndefined()
++ }finally{client.dispose();await promise.catch(()=>{})}
++})
++it('keeps ordinary view reads without a selector and preserves their full grid receipt',async()=>{
++ const sent:{command_name:string;message:string}[]=[]
++ const client=new OvCommandClient(async p=>{sent.push(p)}),p=client.readView();void p.catch(()=>{})
++ try{
++  await Promise.resolve();const args=JSON.parse(sent[0]!.message)
++  expect(Object.keys(args)).toEqual(['requestId'])
++  const gridDisplay={phase:'unsupported',gridPixelVerified:false,nativeGeometry:{timeSeconds:null}}
++  client.receive({event_type:'dcdtuni:renderAck',payload:{renderAckJSON:JSON.stringify({
++   requestId:args.requestId,ok:true,gridDisplay,view:{selectedUids:[],timeSeconds:null}})}})
++  expect((await p).gridDisplay).toEqual(gridDisplay)
++ }finally{client.dispose();await p.catch(()=>{})}
++})
++it('rejects unknown purposes before any transport submission',async()=>{
++ vi.useFakeTimers()
++ const send=vi.fn(async()=>{}),client=new OvCommandClient(send,10)
++ const p=client.readView('grid-proof' as never);void p.catch(()=>{})
++ try{await vi.advanceTimersByTimeAsync(25);await expect(p).rejects.toThrow('Invalid Omniverse view purpose');expect(send).not.toHaveBeenCalled()}
++ finally{client.dispose();vi.useRealTimers()}
++})
++it('does not resurrect a retired camera query from a late matching ACK',async()=>{
++ const sent:{command_name:string;message:string}[]=[]
++ const client=new OvCommandClient(async p=>{sent.push(p)}),p=client.readView('camera-handoff')
++ await Promise.resolve();const id=JSON.parse(sent[0]!.message).requestId
++ client.dispose();await expect(p).rejects.toThrow('disconnected')
++ client.receive({event_type:'dcdtuni:renderAck',payload:{requestId:id,ok:true,sceneRevision:1,projectHash:'a'.repeat(64)}})
++ await Promise.resolve()
++})
+--- a/src/frontend/react/test/cameraReadbackMounted.test.ts
++++ b/src/frontend/react/test/cameraReadbackMounted.test.ts
+@@ -45,10 +45,10 @@
+  const packet=media.props!.snapshot()
+  let finish!:(ack:RenderAck)=>void
+  const delayed=new Promise<RenderAck>(resolve=>{finish=resolve})
+- const ack=(overrides:Partial<RenderAck>={}):RenderAck=>({requestId:'controlled-read',ok:true,projectHash:hash,sceneRevision:revision,
++ const ack=(overrides:Partial<RenderAck>={}):RenderAck=>({requestId:'controlled-read',ok:true,projectHash:hash,sceneRevision:revision,primitives:packet.primitives.length,
+    view:{...packet.view,camera:{...packet.view.camera!,position:[...low]},selectedUids:[],timeSeconds:selectedResultTime()},...overrides})
+  const client={onEditEvent:vi.fn(),updateView:vi.fn(async(view:RenderViewState)=>ack({view})),readView:vi.fn(()=>delayed),
+-  loadScene:vi.fn(async(p:SceneSnapshot)=>ack({view:p.view})),loadOverlay:vi.fn(async()=>ack()),clearResultLayers:vi.fn(async()=>ack())}
++  loadScene:vi.fn(async(p:SceneSnapshot,projectHash:string)=>ack({view:p.view,projectHash,primitives:p.primitives.length})),loadOverlay:vi.fn(async()=>ack()),clearResultLayers:vi.fn(async()=>ack())}
+  await act(async()=>{media.props!.onReady!(client as unknown as OvCommandClient,ack({view:packet.view}),packet);await ticks()})
+  expect(select.value).toBe('ov')
+  if(startReturn){
+@@ -96,3 +96,30 @@
+  expect(f.client.loadScene).not.toHaveBeenCalled()
+  expect(f.camera.position.toArray()).toEqual([...iso])
+ })
++
++it('uses the explicit camera handoff transaction when returning to Three',async()=>{
++ const f=await mounted()
++ expect(f.client.readView).toHaveBeenCalledWith('camera-handoff')
++ await act(async()=>{f.finish(f.ack());await ticks()})
++ expect(f.select.value).toBe('three')
++})
++it('uses the explicit camera handoff before a same-project scene resync',async()=>{
++ const f=await mounted(false)
++ await act(async()=>{
++  store.loadProject({...f.project,meta:{casePath:'/controlled/current-case'}},null)
++  root!.render(createElement(RendererControl,{project:store.getProject(),activeTab:'mesh',airMode:false,selectedUids:[],onSelection:f.selection,view:DEFAULT_VIEW_OPTIONS}))
++  await ticks()
++ })
++ await act(async()=>{await new Promise(resolve=>setTimeout(resolve,370));await ticks()})
++ expect(f.client.readView).toHaveBeenCalledWith('camera-handoff')
++ await act(async()=>{f.finish(f.ack());await ticks()})
++ expect(f.select.value).toBe('ov');expect(f.client.loadScene).toHaveBeenCalledTimes(1)
++})
++
++for(const primitives of [undefined,-1,1,0.5]){
++ it('keeps the local camera and selection when handoff primitive count is '+String(primitives),async()=>{
++  const f=await mounted()
++  await act(async()=>{f.finish(f.ack({primitives}));await ticks()})
++  expect(f.select.value).toBe('three');expect(f.camera.position.toArray()).toEqual([...iso]);expect(f.selection).not.toHaveBeenCalled()
++ })
++}
+--- a/src/frontend/omniverse/cfd_demo/tests/test_camera_handoff_purpose.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_camera_handoff_purpose.py
+@@ -0,0 +1,101 @@
++import asyncio
++import copy
++import json
++import sys
++import types
++import pytest
++from test_dataset_scene_race import _harness
++
++def fixture(monkeypatch,tmp_path):
++ ext,scene,stage,*_= _harness(monkeypatch,tmp_path,None)
++ view={'selectedUids':['owned-rack'],'timeSeconds':None,'camera':{'position':[1,2,3],
++  'target':[0,0,0],'up':[0,1,0],'fov':45,'aspect':2,'near':.1,'far':400}}
++ calls=[]
++ def read(target,paths):
++  assert target is stage and paths==[]
++  calls.append('live-view');return copy.deepcopy(view)
++ monkeypatch.setattr(sys.modules['race_bridge.render_scene'],'read_view',read)
++ ext._render_uid_paths={'rack':['first','second'],'cdu':['third']}
++ ext._trace_source_selection=lambda *args:None
++ def proof(target,v):
++  assert target is stage and v==view
++  calls.append('grid-proof')
++  return {'phase':'unsupported','gridPixelVerified':False,'nativeGeometry':{'timeSeconds':None,'controlledProof':True}}
++ ext._grid_raster=types.SimpleNamespace(display_receipt=proof)
++ return ext,view,calls
++
++def test_camera_handoff_returns_live_identity_without_grid_proof(monkeypatch,tmp_path):
++ async def scenario():
++  ext,view,calls=fixture(monkeypatch,tmp_path)
++  def forbidden(*args):raise AssertionError('camera handoff reached expensive grid proof')
++  ext._grid_raster.display_receipt=forbidden
++  ext._route_render_command('getViewState',json.dumps({'requestId':'camera-read','purpose':'camera-handoff'}))
++  assert calls==['live-view']
++  assert ext.acks==[{'requestId':'camera-read','ok':True,'view':view,'primitives':3,
++   'sceneRevision':1,'projectHash':'a'*64,'sceneRequestId':'before'}]
++  assert 'gridDisplay' not in ext.acks[0]
++ asyncio.run(scenario())
++
++def test_ordinary_read_still_carries_the_full_grid_proof(monkeypatch,tmp_path):
++ async def scenario():
++  ext,view,calls=fixture(monkeypatch,tmp_path)
++  ext._route_render_command('getViewState',json.dumps({'requestId':'ordinary'}))
++  assert calls==['live-view','grid-proof'];assert ext.acks[0]['ok'] is True
++  assert ext.acks[0]['gridDisplay']=={'phase':'unsupported','gridPixelVerified':False,
++   'nativeGeometry':{'timeSeconds':None,'controlledProof':True}}
++ asyncio.run(scenario())
++
++@pytest.mark.parametrize('purpose',['','camera','grid-proof',None,False,{},[]])
++def test_wrong_purpose_is_refused_before_any_read(monkeypatch,tmp_path,purpose):
++ async def scenario():
++  ext,_,calls=fixture(monkeypatch,tmp_path)
++  ext._route_render_command('getViewState',json.dumps({'requestId':'wrong','purpose':purpose}))
++  assert calls==[];assert ext.acks[0]['ok'] is False
++  assert ext.acks[0]['error']=='Unexpected or missing render command fields'
++ asyncio.run(scenario())
++
++@pytest.mark.parametrize('extra',[{'diagnostics':{}},{'gridDisplay':{}},{'sceneRevision':1}])
++def test_extra_purpose_fields_cannot_reach_any_read_or_proof(monkeypatch,tmp_path,extra):
++ async def scenario():
++  ext,_,calls=fixture(monkeypatch,tmp_path)
++  ext._route_render_command('getViewState',json.dumps({'requestId':'wrong','purpose':'camera-handoff',**extra}))
++  assert calls==[];assert ext.acks[0]['ok'] is False
++ asyncio.run(scenario())
++
++
++def _flush_harness():
++ from test_dataset_scene_race import _class_methods
++ wires=[]
++ class App:
++  async def next_update_async(self):pass
++  def get_message_bus_event_stream(self):
++   return types.SimpleNamespace(push=lambda event,**kw:wires.append(kw['payload']))
++ app=App()
++ globals_={'asyncio':asyncio,'omni':types.SimpleNamespace(kit=types.SimpleNamespace(app=types.SimpleNamespace(get_app=lambda:app))),
++  'carb':types.SimpleNamespace(events=types.SimpleNamespace(type_from_string=lambda _:3))}
++ Ext=_class_methods('extension.py','CfdBridgeExtension',{'_flush_acks'},globals_)
++ ext=Ext();ext.ACK_QUIET_FRAMES=2;ext.ACK_MAX_WAIT_FRAMES=120;ext._inbound_seq=0;ext._ack_flushing=True
++ return ext,wires
++
++@pytest.mark.parametrize('time_seconds',[None,0,2.5])
++@pytest.mark.parametrize('selected',[[],['owned-rack']])
++def test_actual_flush_preserves_explicit_time_and_selection(time_seconds,selected):
++ ext,wires=_flush_harness()
++ payload={'requestId':'view-flush','ok':True,'view':{'timeSeconds':time_seconds,'selectedUids':selected,
++  'camera':{'position':[1,2,3],'target':[0,0,0],'up':[0,1,0]}}}
++ ext._ack_queue=[copy.deepcopy(payload)]
++ asyncio.run(ext._flush_acks())
++ assert len(wires)==1 and set(wires[0])=={'renderAckJSON'}
++ assert json.loads(wires[0]['renderAckJSON'])==payload
++ assert ext._ack_flushing is False
++
++def test_no_view_ack_keeps_ordinary_plain_wire():
++ ext,wires=_flush_harness();payload={'requestId':'plain','ok':True,'primitives':7}
++ ext._ack_queue=[copy.deepcopy(payload)];asyncio.run(ext._flush_acks())
++ assert wires==[payload] and ext._ack_flushing is False
++
++def test_failed_view_encoding_has_no_plain_fallback_and_keeps_later_ack():
++ ext,wires=_flush_harness();plain={'requestId':'later','ok':False,'error':'controlled-refusal'}
++ ext._ack_queue=[{'requestId':'invalid-view','ok':True,'view':{'timeSeconds':float('nan'),'selectedUids':[]}},plain]
++ asyncio.run(ext._flush_acks())
++ assert wires==[plain] and ext._ack_flushing is False
+--- a/src/frontend/react/test/ovReturnDeadline.test.tsx
++++ b/src/frontend/react/test/ovReturnDeadline.test.tsx
+@@ -46,7 +46,7 @@
+  const view=structuredClone(f.lastView);view.camera={...view.camera,position:[9,4,7]};view.selectedUids=['controlled-selection'];view.timeSeconds=null
+  // Synthetic metadata fixture exercises lossless transport, not native proof.
+  const binding={projectUid:f.project.uid,projectContentSha256:f.hash,sceneRevision:1,viewRevision:1}
+- return{requestId:id,ok:true,sceneRevision:1,projectHash:f.hash,view,gridDisplay:{phase:'unsupported',reason:'stream-layout-unresolved',gridPixelVerified:false,nativeGeometry:{
++ return{requestId:id,ok:true,sceneRevision:1,projectHash:f.hash,primitives:0,view,gridDisplay:{phase:'unsupported',reason:'stream-layout-unresolved',gridPixelVerified:false,nativeGeometry:{
+  schema:'dcdtuni.native-grid-geometry/v1',phase:'synchronized',domain:'native-world-plane',binding,grid:structuredClone(view.backgroundGrid),
+  requestedCamera:structuredClone(f.lastView.camera),acceptedCamera:structuredClone(view.camera),timeSeconds:null,
+  nativeSource:{ownerSha256:'b'.repeat(64),projectionSha256:'c'.repeat(64),frameNumber:4,resolution:[1920,1080],fullResolution:[1920,1080]},carrierSha256:'d'.repeat(64),gridPixelVerified:false,encodedFrameProof:'unresolved'}}}
+--- a/src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
+@@ -235,9 +235,11 @@
+     acks = [n for n in ast.walk(route) if isinstance(n, ast.Call)
+             and getattr(n.func, "attr", "") == "_render_ack"
+             and any(k.arg == "sceneRequestId" for k in n.keywords)]
+-    assert len(acks) == 1, "exactly the view-state reply reports sceneRequestId"
+-    keys = {k.arg for k in acks[0].keywords}
+-    assert {"view", "primitives", "sceneRevision", "projectHash", "sceneRequestId"} <= keys
++    assert len(acks) == 2, "ordinary view and explicit camera handoff report the authored scene"
++    keys = [{k.arg for k in ack.keywords} for ack in acks]
++    for reply in keys:
++        assert {"view", "primitives", "sceneRevision", "projectHash", "sceneRequestId"} <= reply
++    assert sum("gridDisplay" in reply for reply in keys) == 1
+     author = next(n for n in cls.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "_author_render_scene")
+     src = ast.unparse(author)
+     assert src.index("author_scene(") < src.index("self._last_scene_request_id = request_id")
+--- a/src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py
+@@ -176,7 +176,7 @@
+     Extension = _class_methods("extension.py", "CfdBridgeExtension",
+         {"_route_render_command", "_load_granted_dataset", "_clear_display", "_ack_after",
+          "_author_render_scene", "_apply_render_view", "_result_scene_identity",
+-         "_current_scene_context", "_ensure_grid_raster", "_observe_grid_viewport", "_sample_grid_raster",
++         "_current_scene_context", "_ensure_grid_raster", "_observe_grid_viewport", "_sample_grid_raster", "_sample_native_grid",
+          "_prepare_output_layout", "_clear_verified_result"}, dict(globals_))
+     Scene = _class_methods("scene.py", "CfdScene",
+         {"load_dataset", "_ingest_dataset"}, dict(globals_))
+--- a/src/frontend/omniverse/cfd_demo/tests/test_native_grid_ack_json_transport.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_native_grid_ack_json_transport.py
+@@ -50,12 +50,22 @@
+  assert decoded['gridDisplay']['gridPixelVerified'] is False
+  assert decoded['gridDisplay']['nativeGeometry']['encodedFrameProof']=='unresolved'
+ @pytest.mark.parametrize('kind',['ordinary','withdrawn'])
+-def test_old_ordinary_and_withdrawn_native_ack_remain_object_path(kind):
++def test_no_view_ordinary_and_withdrawn_native_ack_keep_plain_object_path(kind):
++ payload=ack(native() if kind=='withdrawn' else None);del payload['view']
++ raw,wire=flush([payload],fresh={})
++ assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
++ assert 'view' not in raw[0] and raw==wire
++ assert raw[0]['gridDisplay']['gridPixelVerified'] is False
++@pytest.mark.parametrize('kind',['ordinary','withdrawn'])
++def test_real_view_ordinary_and_withdrawn_native_ack_keep_lossless_view_without_proof_repair(kind):
+  payload=ack(native() if kind=='withdrawn' else None)
+  raw,wire=flush([payload],fresh={})
+- assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
+- assert raw[0]['view']['timeSeconds'] is None
+- assert 'timeSeconds' not in wire[0]['view']
++ assert set(raw[0])=={'renderAckJSON'} and raw==wire
++ decoded=json.loads(wire[0]['renderAckJSON'])
++ assert decoded['view']==payload['view']
++ assert decoded['view']['timeSeconds'] is None and decoded['view']['selectedUids']==[]
++ assert 'nativeGeometry' not in decoded['gridDisplay']
++ assert decoded['gridDisplay']=={'phase':'unsupported','reason':'stream-layout-unresolved','gridPixelVerified':False}
+ @pytest.mark.parametrize('kind',['nan','infinite','unsupported-value','sink'])
+ def test_failed_native_encoding_or_send_never_falls_back_and_does_not_drop_next_ack(kind):
+  n=native()

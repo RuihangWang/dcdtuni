@@ -1,0 +1,2 @@
+import {defineConfig} from 'vite'
+export default defineConfig({root:"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-scene-content-identity-root-repro-20261007/before/src/frontend/react",cacheDir:"/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-scene-content-identity-root-repro-20261007/before/src/frontend/react/cache/vite",test:{environment:'jsdom',cache:false,pool:'threads',poolOptions:{threads:{singleThread:true}},maxWorkers:1,minWorkers:1}})

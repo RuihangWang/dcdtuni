@@ -1,0 +1,183 @@
+{
+  "schema": "dcdtuni-domain-object-primary-source-research/v1",
+  "retrievedAtUTC": "2026-10-05T19:52:51Z",
+  "retrievedDateSGT": "2026-10-06",
+  "decision": "Use domain objects as authoritative engineering meaning and render/simulation adapters as derived views. This is our user-requested architecture choice, supported by but not mandated by DSX/SimReady/OpenUSD.",
+  "noOverclaim": [
+    "No repository architecture/source audit was performed by this standards reviewer; ROOT is auditing local code separately.",
+    "No installedNVIDIA/OpenUSD SDK or validator compatibility was tested here.",
+    "No external code, assets or dependencies were fetched; no installation or service mutation.",
+    "No official claim that DCTwin is SimReady/DSX-certified.",
+    "AIF latest docs are mutable. A fixed2026.08.0 feature URL returned an internal web retrieval error; the Foundation release as a whole is not asserted. Feature/profile versions0.1.0/0.2.0 are explicitly read from current official pages.",
+    "The AIF guide has residual cross-version naming/assetClass/defaultPrim ambiguities; detailed versioned requirement docs should govern mappings until an actual target validator is checked."
+  ],
+  "applicableRequirements": [
+    {
+      "id": "D0",
+      "classification": "DCTwin proposed requirement based on user instruction; not mandated byOpenUSD",
+      "requirement": "BaseDomainObject统一稳定instanceId、kind、parentId、schemaVersion、transform、geometry、visualMaterial、physics、ports和provenance。Rack、Server、Wall、Baffle、CDU、PDU、Pipe等类型各自实现领域校验与几何/边界编译方法。",
+      "acceptance": "编辑、保存、重新加载、复制与撤销仍保持对象种类和身份；所有对象有可定位的字段错误。未知扩展保留，不能静默清空。",
+      "basis": [
+        "SIMREADY-FAQ",
+        "AIF-META"
+      ]
+    },
+    {
+      "id": "D1",
+      "classification": "DCTwin architecture proposal",
+      "requirement": "方法属于版本化代码中的类型/能力注册表，工程文档保存恢复方法所需的数据和实现标识；不要把JS/Python函数文本、Three对象或Kit句柄序列化成权威工程数据。",
+      "acceptance": "由同一记录重新hydrate相同领域类型；不创建渲染器也能校验并编译物理输入。",
+      "basis": [
+        "SIMREADY-FAQ"
+      ]
+    },
+    {
+      "id": "D2",
+      "classification": "User-authorized project/run contract proposal, no NVIDIA file-format mandate",
+      "requirement": ".cfdproj为可恢复工程数据；.cfdrun为从已校验工程冻结的运行输入及结果快照。快照至少绑定工程/资产哈希、编译器版本、单位、坐标系、时间轴、边界、执行设置及accepted在线命令账本。保留既有.liquidrun v4兼容路径。",
+      "acceptance": "播放、切换Three/OV与相机操作不改变工程输入修订或运行哈希；真实物理编辑可判结果过期。",
+      "basis": [
+        "DSX-ARCH",
+        "USD-MEMORY"
+      ]
+    },
+    {
+      "id": "D3",
+      "classification": "DCTwin adapter requirement",
+      "requirement": "Three、OV/USD均由同一领域记录生成显示。稳定objectId关联选择/高亮/树节点；USDprim路径和人类名称不是物理身份。渲染hidden与物理included分别保存。",
+      "acceptance": "CDU/PDU/子服务器Shift选中、树开关及双向渲染切换保持同一objectId；隐藏对象不意外删除壁面/挡板物理边界。",
+      "basis": [
+        "AIF-CP-FEATURE",
+        "DSX-ARCH"
+      ]
+    },
+    {
+      "id": "D4",
+      "classification": "OpenUSD model-hierarchy constraint plus proposed mapping",
+      "requirement": "含服务器子模型的rack用assembly/group；server为component；CDU/PDU/wall/baffle可作为无子模型的component，内部部件用subcomponent或普通几何prim。实际映射按组装结构判断。",
+      "acceptance": "model层级连续，component下面不嵌入子model。",
+      "basis": [
+        "USD-HIERARCHY"
+      ]
+    },
+    {
+      "id": "D5",
+      "classification": "Version-specific SimReady port vocabulary applied throughDCTwin adapter",
+      "requirement": "端口存本地位姿、稳定portId和命名的领域/系统/方向/物理连接参数。导出0.2.0时映射Xform+五个base属性及相应领域属性；拓扑关系保留在工程连接图，不能从名字或几何近邻推断。",
+      "acceptance": "两个同名、异系统或异流体端口不被错误连通；端口缺失额定值显式提示，不用假零凑production完整度。",
+      "basis": [
+        "AIF-CP-BASE",
+        "AIF-CP-DOMAIN",
+        "AIF-CP-CAPABILITY"
+      ]
+    },
+    {
+      "id": "D6",
+      "classification": "Unit conversion requirement",
+      "requirement": "内部几何以米、液冷温度K、热功率W、质量流量kg/s等明确单位存储；导出或导入以字段语义转换。AIF核心mm、port Celsius/L/s、设备额定kW和LPM不得靠一个全局尺度处理。",
+      "acceptance": "往返单位测试和端口到DAE边界转换同时覆盖°C↔K、L/s↔kg/s、kW↔W及mm↔m；密度和压力参考明确。",
+      "basis": [
+        "AIF-META",
+        "AIF-CP-DOMAIN",
+        "USD-UNITS"
+      ]
+    },
+    {
+      "id": "D7",
+      "classification": "Coordinate-frame adapter proposal",
+      "requirement": "保留当前工程坐标系并显式声明upAxis/handedness。普通USD可Y或Z；针对AIF-Entity的Z-up导出在适配器转换，并同步处理法线、端口、重力和相机，不在读取时偷偷互换Y/Z。",
+      "acceptance": "带旋转CDU端口位置、风口法线、重力方向和摄像机往返一致。",
+      "basis": [
+        "USD-UPAXIS",
+        "AIF-PROFILE"
+      ]
+    },
+    {
+      "id": "D8",
+      "classification": "Material separation proposal informed by primaryguides",
+      "requirement": "视觉PBR字段、纹理资源/色彩空间/UV与物理材料ρ/cp/k/发射率等分开；按部件绑定材质。取色/贴图或温度着色不修改热物性。",
+      "acceptance": "Three和OV共有材质输入可比较，法线/粗糙度纹理无sRGB误读；资源缺失显示诊断与明确回退，工程资源引用可恢复。",
+      "basis": [
+        "USD-PBR",
+        "SIMREADY-MATERIAL"
+      ]
+    },
+    {
+      "id": "D9",
+      "classification": "Profile honesty and asset-provenance requirement",
+      "requirement": "记录资产definitionId、instanceId、版本、来源、许可/文档引用、mock或测量属性来源和目标Profile版本。只有明确满足且实测过的Profile/能力才声明通过；墙/挡板/服务器没有现行AIF类映射时使用自有领域类型。",
+      "acceptance": "能够报告已覆盖、缺失和不适用能力，不将外观漂亮或USD可打开当求解正确或SimReady认证。",
+      "basis": [
+        "AIF-PROFILE",
+        "AIF-META",
+        "SIMREADY-FAQ"
+      ]
+    },
+    {
+      "id": "D10",
+      "classification": "Engineering validation proposal",
+      "requirement": "领域校验、静态载体校验、网格checkMesh严格验收、求解物理校验和真实浏览器交互分别报告。任何简化视觉LOD不得静默取代物理挡板、墙面和液冷端口语义。",
+      "acceptance": "非法物理参数/缺失关键端口在进入求解前定位对象；网格严格门槛保留，结果对实际声明输入敏感。",
+      "basis": [
+        "AIF-CP-CAPABILITY",
+        "DSX-ARCH"
+      ]
+    }
+  ],
+  "unitMappingExamples": [
+    {
+      "field": "aif:core:height/width/depth/overallGeometryDimensions",
+      "externalUnit": "mm",
+      "internalUnit": "m",
+      "conversion": "multiply external value by1e-3"
+    },
+    {
+      "field": "simready:connectionPoint:thermal:designTemperature/maxTemperature",
+      "externalUnit": "Celsius",
+      "internalUnit": "K",
+      "conversion": "T_K=T_C+273.15"
+    },
+    {
+      "field": "simready:connectionPoint:thermal:designFlowRate/maxFlowRate",
+      "externalUnit": "L/s",
+      "internalUnit": "kg/s",
+      "conversion": "massFlow=rho_kg_m3*externalFlow*1e-3; density explicit"
+    },
+    {
+      "field": "aif:spec:referenceTechnologyCoolantFlowRate",
+      "externalUnit": "LPM",
+      "internalUnit": "kg/s",
+      "conversion": "massFlow=rho_kg_m3*externalFlow*1e-3/60"
+    },
+    {
+      "field": "aif:spec:nominalFlow/maximumFlow",
+      "externalUnit": "m3/s",
+      "internalUnit": "kg/s",
+      "conversion": "massFlow=rho_kg_m3*externalFlow"
+    },
+    {
+      "field": "aif:spec:nominalCoolingCapacity",
+      "externalUnit": "kW according toTCcapability",
+      "internalUnit": "W",
+      "conversion": "multiply by1000"
+    },
+    {
+      "field": "simready:connectionPoint:thermal:operatingPressure",
+      "externalUnit": "Pa gauge",
+      "internalUnit": "Pa with explicit pressure reference",
+      "conversion": "do not treat gauge as absolute; bind reference"
+    },
+    {
+      "field": "simready:connectionPoint:airflow:designAirflowRate",
+      "externalUnit": "m3/s",
+      "internalUnit": "m3/s or explicit massflow",
+      "conversion": "convert with air density only when downstream contract expects kg/s"
+    }
+  ],
+  "implementationSequenceProposal": [
+    "先把现有保存记录包成纯领域类型与registry，保留旧格式round-trip，不立即全面重写受保护工程。",
+    "以CDU、Rack含Server、Wall和Baffle作切片：领域校验→现有Three载体→共享内存快照→OV/USD载体，同时保持已有求解入口。",
+    "将视觉与物理表示明确区分，再把已有风口/液冷拓扑编译入口接到领域能力上。",
+    "通过save-load、view-toggle、selection、单位与端口编译实证后逐步扩展全部对象；原有checkMesh、瞬态与DAE验证继续独立过门。"
+  ]
+}

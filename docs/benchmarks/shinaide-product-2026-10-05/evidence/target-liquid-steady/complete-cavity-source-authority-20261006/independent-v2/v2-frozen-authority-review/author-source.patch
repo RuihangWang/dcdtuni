@@ -1,0 +1,527 @@
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -12583,13 +12583,25 @@
+     const wordList& patchNeighbours, label myRank,
+     const Time& runTime, const wordList& faceZoneNames,
+     const wordList& patchGroups,
+-    const weightUnionAuthority& weightAuthority
++    const weightUnionAuthority& weightAuthority,
++    const completeCavityAuthority& cavityAuthority
+ )
+ {
+     // Optional conservative final subdivision. No original coordinate moves.
+     // All unsupported inputs fail before writer authorization. Coupled bases
+     // use exact coordinate-canonical cycles and collective closure.
+     const label oldCells=m.nCells,oldFaces=label(m.faces.size());
++    // Source-only state. No cavity is replaced/enabled by this setup.
++    // Origins are fixed before any cone appends or accepted union changes.
++    auto cavityAvailable=[&]()
++    {
++        if (!cavityAuthority.ready()) return false;
++        const scalar seconds=cavityAuthority.remainingSeconds();
++        return std::isfinite(seconds) && seconds>0;
++    };
++    if (cavityAuthority.ready())
++        m.completeCavityLineage.initialize
++            (std::size_t(oldCells),cavityAuthority.recordedParent,cavityAvailable);
+     std::vector<std::vector<label>> cf;buildCellFaces(m,cf);
+     std::vector<vector> areas(oldFaces,vector::zero);
+     std::vector<point> centres(oldFaces,point::zero),apex(oldCells,point::zero);
+@@ -14160,6 +14172,7 @@
+                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
+                 if (literalUnions) { unionParent.push_back(c); }
++                m.completeCavityLineage.inherit(child,c,cavityAvailable);
+             }
+             first=false;
+             const auto& poly=m.faces[f];
+@@ -14776,6 +14789,9 @@
+                         if (traceCones) { m.coneEvidenceParent[keep]=-1; }
+                         ++m.weightUnionState->accepted;
+                     }
++                    // Record every surviving origin; failure only makes this
++                    // new permission unavailable, never alters the old union.
++                    m.completeCavityLineage.join(keep,drop,cavityAvailable);
+                     m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;
+                     if (!joinedPhysical.empty())
+                     {
+@@ -14958,6 +14974,16 @@
+             }
+         }
+     }
++    if (m.completeCavityLineage.started())
++    {
++        const auto& lineage=m.completeCavityLineage;
++        Pout<<"Normal complete-cavity lineage: rank "<<myRank<<", active "<<lineage.active()
++            <<", native cell keys/composite sets "<<lineage.size()<<'/'<<lineage.compositeCount()
++            <<", key/sparse capacity bytes "<<lineage.keyCapacityBytes()<<'/'<<lineage.compositeCapacityBytes()
++            <<", refusals [none,missing,budget,cell-cap,index,unknown,origin-cap,set-cap,repeat,binding] ";
++        for (const auto count:lineage.refusals()) { Pout<<count<<' '; }
++        Pout<<"; source-only permission, no cavity replacement"<<endl;
++    }
+     rekeyPiecesByGeometry(m);
+     decomposed=returnReduce(decomposed,sumOp<label>());added=returnReduce(added,sumOp<label>());
+     partitioned=returnReduce(partitioned,sumOp<label>());faceFan=returnReduce(faceFan,sumOp<label>());anchorFan=returnReduce(anchorFan,sumOp<label>());
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -31,6 +31,7 @@
+ #include "dcCartSurfaces.H"
+ #include "dcCartMeshBuilder.H"
+ #include "dcCartGrid.H"
++#include "dcCartCompleteCavityOriginCore.H"
+ #include "point.H"
+ #include "labelList.H"
+ #include "boolList.H"
+@@ -73,6 +74,20 @@
+         std::function<scalar()> remainingSeconds;
+         // Immutable normal post-carve origin producer; absence refuses W.
+         std::function<weightUnionOrigin(label)> normalOriginFromSnapshot;
++    };
++    // Separate many-origin source permission; never a replacement for the
++    // existing exactly-two/distinct-parent W authority or geometry guards.
++    struct completeCavityAuthority
++    {
++        std::function<bool(label)> recordedParent;
++        std::function<weightUnionOrigin(label)> normalOriginFromSnapshot;
++        std::function<bool(const std::vector<weightUnionOrigin>&)> completeOrigins;
++        std::function<scalar()> remainingSeconds;
++        bool ready() const
++        {
++            return bool(recordedParent) && bool(normalOriginFromSnapshot)
++                && bool(completeOrigins) && bool(remainingSeconds);
++        }
+     };
+     struct writerWeightUnionState;
+ 
+@@ -127,6 +142,9 @@
+         std::shared_ptr<writerCoupledBaseline> writerBaseline;
+         // Sparse normal W lineage. Independent of TRACE and the coupled baseline.
+         std::shared_ptr<writerWeightUnionState> weightUnionState;
++        // Normal pre-cone lineage: one bounded native-slot key per child.
++        // Empty when source authority is absent; no TRACE IDs or coordinates.
++        dcCartCompleteCavityOriginCore::Lineage<label> completeCavityLineage;
+     };
+ 
+     struct writerCoupledFace
+@@ -776,7 +794,8 @@
+             const wordList& patchNeighbours, label myRank,
+             const Time& runTime, const wordList& faceZoneNames,
+             const wordList& patchGroups,
+-            const weightUnionAuthority& weightAuthority = weightUnionAuthority()
++            const weightUnionAuthority& weightAuthority = weightUnionAuthority(),
++            const completeCavityAuthority& cavityAuthority = completeCavityAuthority()
+         );
+ 
+         static label auditRegularTransitionRoofs(cutMesh& m, const boolList& coupledPatch);
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFluidOriginSnapshotCore.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFluidOriginSnapshotCore.H
+@@ -24,6 +24,8 @@
+ struct Snapshot {
+     bool completedFluidOnlyPath=false,complete=false;
+     std::string rawSha256,rolesDigest,materialKey,materialDigest,producerDigest;
++    // Fresh normal boundary-role membership, independent of face/IO offsets.
++    std::string boundaryMembershipDigest;
+     std::vector<Coord> points;
+     std::vector<Facet> faces;
+     std::vector<Parent> parents;
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartPostCarveFluidOwnershipPreview.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartPostCarveFluidOwnershipPreview.H
+@@ -39,6 +39,7 @@
+     s->completedFluidOnlyPath=true;s->rawSha256=material.rawSha256;
+     s->rolesDigest=material.rolesDigest;s->materialKey=material.materialKey;
+     s->materialDigest=material.materialDigest;s->producerDigest=material.producerDigest;
++    s->boundaryMembershipDigest=material.boundaryMembershipDigest;
+     const label nc=m.nCells,nf=m.faces.size(),np=m.points.size();
+     if(nc<0 || m.cellAlive.size()!=std::size_t(nc) || m.cellRank.size()!=std::size_t(nc)
+      || m.cellLevel.size()!=std::size_t(nc) || m.cellLeaf.size()!=std::size_t(nc)
+--- a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -42,6 +42,7 @@
+ #include "dcCartPointRepairSourceContract.H"
+ #include "dcCartWeightUnionSourceContract.H"
+ #include "dcCartPostCarveFluidOwnershipPreview.H"
++#include "dcCartCompleteCavityAuthority.H"
+ 
+ #include <array>
+ #include <chrono>
+@@ -2833,6 +2834,7 @@
+             FatalErrorInFunction << "cross-parent W enable differs across ranks; no mesh written"
+                                  << exit(FatalError);
+         dcCartCutCells::weightUnionAuthority weightAuthority;
++        dcCartCutCells::completeCavityAuthority cavityAuthority;
+         if (maxRequestedW)
+         {
+             // This remains the actual normal product clock during the
+@@ -2870,6 +2872,8 @@
+                 { return dcCartPostCarveFluidOwnershipPreview::origin(snapshot,parent); };
+             weightAuthority=dcCartWeightUnionSourceContract::readAuthority
+                 (meshDict,ownership,remainingW,sourceOrigin);
++            cavityAuthority=dcCartCompleteCavityAuthority::read
++                (meshDict,snapshot,weightAuthority,remainingW);
+             Pout<<"Normal W material authority: rank "<<myProc
+                 <<", material gate "<<weightAuthority.globallyNoMaterialNoBulk
+                 <<"; individual complete origin and installed quality guards required"<<endl;
+@@ -2879,7 +2883,7 @@
+             dcCartCutCells::decomposeConformingCones
+             (
+                 m,patchNames,patchTypes,patchNeighbours,myProc,
+-                runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority
++                runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority,cavityAuthority
+             );
+             budgetCheck("conforming-mixed-cone-experiment");
+         }
+--- /dev/null
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityOriginCore.H
+@@ -0,0 +1,235 @@
++#ifndef dcCartCompleteCavityOriginCore_H
++#define dcCartCompleteCavityOriginCore_H
++#include "dcCartFluidOriginSnapshotCore.H"
++#include <limits>
++#include <functional>
++#include <new>
++namespace dcCartCompleteCavityOriginCore
++{
++constexpr std::size_t maxOrigins=8,maxCavityCells=128,maxCompositeSets=4096;
++constexpr std::size_t maxKeyBytes=64u*1024u*1024u,maxCompositeBytes=1024u*1024u;
++enum class Refusal : unsigned char
++{
++    none,missingAuthority,budget,cellCapacity,invalidIndex,unknownOrigin,
++    originCapacity,compositeCapacity,repeatInitialization,invalidBinding,count
++};
++struct Fingerprint
++{
++    std::string raw,roles,materialKey,material,producer,boundaryMembership;
++};
++struct Origin
++{
++    dcCartFluidOriginSnapshotCore::Identity identity;
++    std::vector<std::array<int,3>> facets;
++};
++inline bool digest(const std::string& s)
++{
++    return s.size()==64 && std::all_of(s.begin(),s.end(),[](char c)
++        { return (c>='0' && c<='9') || (c>='a' && c<='f'); });
++}
++inline bool validFingerprint(const Fingerprint& p)
++{
++    return digest(p.raw) && digest(p.roles) && !p.materialKey.empty()
++        && digest(p.material) && digest(p.producer) && digest(p.boundaryMembership);
++}
++// A complete normal-origin permission is only a necessary source guard.
++// It does not authorize any topology replacement or geometry/quality result.
++inline bool verifyMany
++(
++    const dcCartFluidOriginSnapshotCore::Snapshot& snapshot,
++    const std::vector<Origin>& origins,const Fingerprint& fresh,int actualRank,
++    const std::function<bool()>& available
++)
++{
++    if (!available || !available() || actualRank<0 || !validFingerprint(fresh)
++     || origins.empty() || origins.size()>maxOrigins
++     || snapshot.boundaryMembershipDigest!=fresh.boundaryMembership) return false;
++    std::set<int> unique;
++    for (const Origin& o:origins)
++    {
++        if (!available() || std::get<0>(o.identity)!=actualRank
++         || !unique.insert(std::get<1>(o.identity)).second
++         || !dcCartFluidOriginSnapshotCore::verify
++            (snapshot,o.identity,o.facets,fresh.raw,fresh.roles,fresh.materialKey,
++             fresh.material,fresh.producer)) return false;
++    }
++    return available();
++}
++// Native cell slots keep one key, not a copy of every source polygon.
++// Nonnegative keys name immutable pre-cone parent slots. -1 is unknown.
++// Other negative keys refer to a bounded, interned complete-origin set.
++template<class Label> class Lineage
++{
++    struct Composite
++    {
++        std::array<Label,maxOrigins> parents{};
++        unsigned char count=0;
++    };
++    bool started_=false,active_=false;
++    std::vector<Label> keys_;
++    // Fixed-size entries: no nested vectors/maps with unbounded capacities.
++    std::vector<Composite> composite_;
++    std::array<std::size_t,std::size_t(Refusal::count)> refusals_{};
++    void refuse(Refusal reason) { ++refusals_[std::size_t(reason)]; }
++    void invalidate()
++    {
++        active_=false;std::vector<Label>().swap(keys_);
++        std::vector<Composite>().swap(composite_);
++    }
++    bool reserveOne()
++    {
++        const std::size_t limit=maxKeyBytes/sizeof(Label);
++        if (keys_.size()>=limit) return false;
++        if (keys_.size()==keys_.capacity())
++        {
++            const std::size_t next=std::min(limit,std::max(std::size_t(1),keys_.capacity()*2));
++            keys_.reserve(next);
++        }
++        return true;
++    }
++    bool decode(Label key,std::vector<Label>& out) const
++    {
++        if (key>=0) { out.push_back(key);return true; }
++        if (key==Label(-1)) return false;
++        const std::size_t index=std::size_t(-(key+Label(2)));
++        if (index>=composite_.size()) return false;
++        const auto& entry=composite_[index];
++        out.insert(out.end(),entry.parents.begin(),entry.parents.begin()+entry.count);return true;
++    }
++public:
++    bool active() const { return active_; }
++    bool started() const { return started_; }
++    std::size_t size() const { return keys_.size(); }
++    std::size_t compositeCount() const { return composite_.size(); }
++    std::size_t keyCapacityBytes() const { return keys_.capacity()*sizeof(Label); }
++    std::size_t compositeCapacityBytes() const { return composite_.capacity()*sizeof(Composite); }
++    const std::array<std::size_t,std::size_t(Refusal::count)>& refusals() const { return refusals_; }
++    bool initialize
++    (
++        std::size_t cells,const std::function<bool(Label)>& recordedParent,
++        const std::function<bool()>& available
++    )
++    {
++        // Never recapture a later accepted geometry as the earliest origin.
++        if (started_) { refuse(Refusal::repeatInitialization);invalidate();return false; }
++        started_=true;
++        if (!recordedParent || !available)
++        { refuse(Refusal::missingAuthority);return false; }
++        if (!available()) { refuse(Refusal::budget);return false; }
++        if (cells>maxKeyBytes/sizeof(Label)
++         || cells>std::size_t(std::numeric_limits<Label>::max()))
++        { refuse(Refusal::cellCapacity);return false; }
++        try
++        {
++            keys_.assign(cells,Label(-1));
++            for (std::size_t c=0;c<cells;++c)
++            {
++                if ((c&1023u)==0 && !available())
++                { refuse(Refusal::budget);invalidate();return false; }
++                if (recordedParent(Label(c))) keys_[c]=Label(c);
++            }
++        }
++        catch (const std::bad_alloc&)
++        { refuse(Refusal::cellCapacity);invalidate();return false; }
++        if (!available()) { refuse(Refusal::budget);invalidate();return false; }
++        active_=true;return true;
++    }
++    void inherit(Label child,Label parent,const std::function<bool()>& available)
++    {
++        if (!active_) return;
++        if (child<0 || std::size_t(child)!=keys_.size() || parent<0
++         || std::size_t(parent)>=keys_.size())
++        { refuse(Refusal::invalidIndex);invalidate();return; }
++        if ((keys_.size()&1023u)==0 && (!available || !available()))
++        { refuse(Refusal::budget);invalidate();return; }
++        try
++        {
++            if (!reserveOne())
++            { refuse(Refusal::cellCapacity);invalidate();return; }
++            keys_.push_back(keys_[parent]);
++        }
++        catch (const std::bad_alloc&)
++        { refuse(Refusal::cellCapacity);invalidate(); }
++    }
++    bool join(Label keep,Label drop,const std::function<bool()>& available)
++    {
++        if (!active_) return false;
++        if (!available || !available())
++        { refuse(Refusal::budget);invalidate();return false; }
++        if (keep<0 || drop<0 || keep==drop || std::size_t(keep)>=keys_.size()
++         || std::size_t(drop)>=keys_.size())
++        { refuse(Refusal::invalidIndex);invalidate();return false; }
++        std::vector<Label> parents;
++        if (!decode(keys_[keep],parents) || !decode(keys_[drop],parents))
++        { refuse(Refusal::unknownOrigin);keys_[keep]=keys_[drop]=Label(-1);return false; }
++        std::sort(parents.begin(),parents.end());
++        parents.erase(std::unique(parents.begin(),parents.end()),parents.end());
++        if (parents.size()>maxOrigins)
++        { refuse(Refusal::originCapacity);keys_[keep]=keys_[drop]=Label(-1);return false; }
++        Label key=parents.front();
++        if (parents.size()>1)
++        {
++            std::size_t index=0;
++            for (;index<composite_.size();++index)
++            {
++                if ((index&63u)==0 && !available())
++                { refuse(Refusal::budget);invalidate();return false; }
++                const auto& entry=composite_[index];
++                if (entry.count==parents.size()
++                 && std::equal(parents.begin(),parents.end(),entry.parents.begin())) break;
++            }
++            if (index==composite_.size())
++            {
++                const std::size_t limit=std::min(maxCompositeSets,maxCompositeBytes/sizeof(Composite));
++                if (index>=limit)
++                { refuse(Refusal::compositeCapacity);keys_[keep]=keys_[drop]=Label(-1);return false; }
++                try
++                {
++                    if (composite_.empty()) composite_.reserve(limit);
++                    Composite entry;entry.count=parents.size();
++                    std::copy(parents.begin(),parents.end(),entry.parents.begin());
++                    composite_.push_back(entry);
++                }
++                catch (const std::bad_alloc&)
++                { refuse(Refusal::compositeCapacity);keys_[keep]=keys_[drop]=Label(-1);return false; }
++            }
++            key=Label(-2)-Label(index);
++        }
++        keys_[keep]=key;keys_[drop]=Label(-1);return true;
++    }
++    bool originsForCells(const std::vector<Label>& cells,std::vector<Label>& out) const
++    {
++        out.clear();
++        if (!active_ || cells.empty() || cells.size()>maxCavityCells) return false;
++        std::set<Label> uniqueCells;
++        for (Label cell:cells)
++            if (cell<0 || std::size_t(cell)>=keys_.size()
++             || !uniqueCells.insert(cell).second || !decode(keys_[cell],out))
++            { out.clear();return false; }
++        std::sort(out.begin(),out.end());out.erase(std::unique(out.begin(),out.end()),out.end());
++        if (out.empty() || out.size()>maxOrigins) { out.clear();return false; }
++        return true;
++    }
++    // The normal writer's real native->compact binding is required; no
++    // guessed identity mapping and no implicit duplicate survivor permission.
++    bool compactKeys(const std::vector<Label>& nativeToCompact,std::size_t count,
++                     std::vector<Label>& out) const
++    {
++        out.clear();
++        if (!active_ || nativeToCompact.size()!=keys_.size()
++         || count>maxKeyBytes/sizeof(Label)) return false;
++        out.assign(count,Label(-1));std::vector<unsigned char> seen(count,0);
++        for (std::size_t c=0;c<keys_.size();++c)
++        {
++            const Label compact=nativeToCompact[c];
++            if (compact==Label(-1)) continue;
++            if (compact<0 || std::size_t(compact)>=count || seen[compact])
++            { out.clear();return false; }
++            seen[compact]=1;out[compact]=keys_[c];
++        }
++        if (std::find(seen.begin(),seen.end(),0)!=seen.end()) { out.clear();return false; }
++        return true;
++    }
++};
++}
++#endif
+--- /dev/null
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityAuthority.H
+@@ -0,0 +1,114 @@
++#ifndef dcCartCompleteCavityAuthority_H
++#define dcCartCompleteCavityAuthority_H
++#include "dcCartPostCarveFluidOwnershipPreview.H"
++#include "dcCartCompleteCavityOriginCore.H"
++namespace Foam { namespace dcCartCompleteCavityAuthority
++{
++inline bool available(const std::function<scalar()>& remaining)
++{
++    if (!remaining) return false;
++    const scalar seconds=remaining();
++    return std::isfinite(seconds) && seconds>0;
++}
++inline dcCartCutCells::completeCavityAuthority read
++(
++    const dictionary& meshDict,
++    const std::shared_ptr<const dcCartPostCarveFluidOwnershipPreview::Snapshot>& snapshot,
++    const dcCartCutCells::weightUnionAuthority& agreedPairAuthority,
++    const std::function<scalar()>& actualRemainingSeconds
++)
++{
++    dcCartCutCells::completeCavityAuthority out;
++    const auto material=dcCartWeightUnionSourceContract::readLocal(meshDict);
++    const auto necessary=dcCartPointRepairSourceContract::readLocal(meshDict);
++    // Reuse the existing APP's all-rank dictionary agreement, not a second
++    // collective or a global-bool permission. Complete normal shape/facet
++    // binding and every fresh digest are independently required below.
++    if (!agreedPairAuthority.globallyNoMaterialNoBulk
++     || !agreedPairAuthority.homogeneousOrigins
++     || !agreedPairAuthority.normalOriginFromSnapshot
++     || !necessary.valid || !necessary.eligible || !material.valid || !material.eligible
++     || !snapshot || !snapshot->complete || !snapshot->completedFluidOnlyPath
++     || !available(actualRemainingSeconds)
++     || agreedPairAuthority.rawSha256!=material.rawSha256
++     || agreedPairAuthority.rolesDigest!=material.rolesDigest
++     || agreedPairAuthority.homogeneousFluidKey!=material.materialKey) return out;
++    const auto& absence=meshDict.subDict("dcdtuniPointRepairSourceRoleContract");
++    const ITstream* raw=dcCartPointRepairSourceContract::primitive(absence,"rawSha256");
++    const ITstream* roles=dcCartPointRepairSourceContract::primitive(absence,"rolesDigest");
++    if (!raw || !roles || std::string((*raw)[0].stringToken())!=material.rawSha256
++     || std::string((*roles)[0].stringToken())!=material.rolesDigest) return out;
++    const dcCartCompleteCavityOriginCore::Fingerprint fresh
++    {
++        material.rawSha256,material.rolesDigest,material.materialKey,
++        material.materialDigest,material.producerDigest,material.boundaryMembershipDigest
++    };
++    if (!dcCartCompleteCavityOriginCore::validFingerprint(fresh)
++     || snapshot->rawSha256!=fresh.raw || snapshot->rolesDigest!=fresh.roles
++     || snapshot->materialKey!=fresh.materialKey || snapshot->materialDigest!=fresh.material
++     || snapshot->producerDigest!=fresh.producer
++     || snapshot->boundaryMembershipDigest!=fresh.boundaryMembership) return out;
++    const label actualRank=Pstream::myProcNo();
++    out.remainingSeconds=actualRemainingSeconds;
++    out.recordedParent=[snapshot,actualRank](label parent)
++    {
++        if (parent<0 || parent>=label(snapshot->parents.size())
++         || parent>=label(snapshot->valid.size()) || !snapshot->valid[parent]) return false;
++        const auto& id=snapshot->parents[parent].identity;
++        return std::get<0>(id)==actualRank && std::get<1>(id)==parent && std::get<2>(id)>=0;
++    };
++    out.normalOriginFromSnapshot=[snapshot](label parent)
++        { return dcCartPostCarveFluidOwnershipPreview::origin(snapshot,parent); };
++    out.completeOrigins=[snapshot,fresh,actualRank,actualRemainingSeconds]
++        (const std::vector<dcCartCutCells::weightUnionOrigin>& origins)
++    {
++        if (origins.empty() || origins.size()>dcCartCompleteCavityOriginCore::maxOrigins) return false;
++        std::vector<dcCartCompleteCavityOriginCore::Origin> records;
++        records.reserve(origins.size());
++        for (const auto& origin:origins)
++        {
++            if (origin.region!=std::string(polyMesh::defaultRegion)) return false;
++            dcCartCompleteCavityOriginCore::Origin record;
++            record.identity=dcCartFluidOriginSnapshotCore::Identity
++                (origin.rank,origin.nativeParent,origin.level,origin.leaf,origin.piece);
++            if (origin.sourceFacets.size()>512) return false;
++            for (const auto& face:origin.sourceFacets)
++                record.facets.push_back({{face[0],face[1],face[2]}});
++            records.push_back(std::move(record));
++        }
++        return dcCartCompleteCavityOriginCore::verifyMany
++            (*snapshot,records,fresh,actualRank,[actualRemainingSeconds]()
++                { return available(actualRemainingSeconds); });
++    };
++    return out;
++}
++// A future topology consumer must still prove the complete current cavity,
++// exact shell/coverage and all installed guards. This function grants only
++// current live-cell -> immutable complete-origin permission, never geometry.
++inline bool collectCompleteOrigins
++(
++    const dcCartCutCells::cutMesh& mesh,
++    const dcCartCutCells::completeCavityAuthority& authority,
++    const std::vector<label>& cells,
++    std::vector<dcCartCutCells::weightUnionOrigin>& origins
++)
++{
++    origins.clear();
++    if (!authority.ready() || !available(authority.remainingSeconds)
++     || mesh.nCells<0 || mesh.cellAlive.size()!=std::size_t(mesh.nCells)
++     || mesh.completeCavityLineage.size()!=std::size_t(mesh.nCells)) return false;
++    for (label cell:cells)
++        if (cell<0 || cell>=mesh.nCells || !mesh.cellAlive[cell]) return false;
++    std::vector<label> parents;
++    if (!mesh.completeCavityLineage.originsForCells(cells,parents)) return false;
++    for (label parent:parents)
++    {
++        if (!available(authority.remainingSeconds) || !authority.recordedParent(parent))
++        { origins.clear();return false; }
++        origins.push_back(authority.normalOriginFromSnapshot(parent));
++    }
++    if (!authority.completeOrigins(origins)) { origins.clear();return false; }
++    return true;
++}
++} }
++#endif

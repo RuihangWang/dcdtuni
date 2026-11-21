@@ -1,0 +1,13 @@
+# P9/P10 native W-prefix failures: small reviewable evidence
+
+Both normal React jobs stopped with native rc1 before final mesh write and before final checkMesh. Their terminal records say missing_final_checkmesh, failedChecks:null, cancelled:false and cancelRequested:false. These were FOAM fatal guard stops, not completed meshes or user cancellation. No native Total line was captured in either complete decoded log. Native meshing duration is therefore unknown. The SSE capture durations (P9 118.398257s; P10 141.449684s), build times and archive times are separate wall measurements and must not be reported as native Total.
+
+P9 ad5eea49 captured complete post-carve ownership snapshots on all eight ranks and reports two locally accepted W-only unions. The origin snapshots establish source provenance, not final quality. Installed prefix verification then refused one packet and aborted globally. P10 a40875df added refusal observations with the same boolean/arithmetic guard expressions; it again reports two local acceptances and one installed prefix refusal. Neither run proves whole-case mesh quality or five-minute success.
+
+P10's actual installed diagnostic identified keep/drop715455/945959, shared face2167751, metric1 (W), reason bad-count-or-worst-severity. The local D bad count fell2→1 and W bad count4→3, but worst W severity rose from0.75109063333106985 to0.75109063333764969: the printed decimal difference is6.57984e-12. These numbers are normalized failed severity, max(0,.05/W−1), not raw weight. The strict severity guard refused the increase. Exact unchanged geometry has not been proved; this is not permission to remove the guard or treat the difference as harmless roundoff.
+
+The actual cfdrun files are SHA-bound and preserved here as deterministic gzip copies. An independent JSON comparison confirms only /runId and /sourceProject/exportedAt differ between P9/P10. Each run's project and13 STL business inputs match its before/after bindings exactly. Build source lists, binary/live mappings and source-import/diagnostic patches bind the distinct runs. No current live case was used as either run's result.
+
+The two case-delta archive receipts retain the complete large-artifact locations and hashes. Full source-case manifests are included as inventories, without mesh payloads, ELF or screenshots. Small decoded/SSE/build logs and cfdrun copies decompress byte-exactly to their originals. Independent-review.json states these limits; manifest.json binds every staged byte and every selected source copy. Existing proof directories and manifests were not altered.
+
+This staging is for ROOT review/publication. It does not claim large air/solver acceptance, final Failed-check counts, unchanged geometry, or a native Total duration.

@@ -1,0 +1,96 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > draws an honest static service schematic on an unlit sRGB HMI
+AssertionError: expected MeshStandardMaterial{ …(82) } to be an instance of MeshBasicMaterial
+ ❯ test/cduAppearanceDisplay.test.ts:89:26
+     87|   it('draws an honest static service schematic on an unlit sRGB HMI', …
+     88|     const labels = canvasDrawing(), group = visual(), hmi = screen(gro…
+     89|     expect(hmi.material).toBeInstanceOf(THREE.MeshBasicMaterial)
+       |                          ^
+     90|     expect(hmi.material.toneMapped).toBe(false)
+     91|     expect(hmi.material.map).toBeInstanceOf(THREE.CanvasTexture)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > softens only CDU cabinet paint and keeps other shared PBR surfaces unchanged
+AssertionError: expected 0.38 to be less than or equal to 0.1
+ ❯ test/cduAppearanceDisplay.test.ts:104:29
+    102|       const mat = (group.getObjectByName(name) as THREE.Mesh).material…
+    103|       expect(mat.metalness).toBeGreaterThanOrEqual(.05)
+    104|       expect(mat.metalness).toBeLessThanOrEqual(.1)
+       |                             ^
+    105|       expect(mat.normalScale.toArray()).toEqual([.16, .16])
+    106|       expect(mat.userData.pbrRole).toBe('painted-steel')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > retains the HMI map after whole-cabinet highlight and shares no owned display texture
+AssertionError: expected null to be truthy
+
+- Expected: 
+true
+
++ Received: 
+null
+
+ ❯ test/cduAppearanceDisplay.test.ts:116:17
+    114|     canvasDrawing()
+    115|     const group = visual(), other = visual(), hmi = screen(group), ori…
+    116|     expect(map).toBeTruthy()
+       |                 ^
+    117|     expect(map).not.toBe(screen(other).material.map)
+    118|     const roots: Array<[string, THREE.Object3D]> = [['m_30', group]]
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > clears owned HMI resources once with selected=false without disposing cached paint
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > clears owned HMI resources once with selected=true without disposing cached paint
+AssertionError: expected null to be truthy
+
+- Expected: 
+true
+
++ Received: 
+null
+
+ ❯ test/cduAppearanceDisplay.test.ts:133:26
+    131|     cached.forEach((texture, index) => texture.addEventListener('dispo…
+    132|     const { host, builder } = scene(project(), true), hmi = screen(hos…
+    133|     expect(original.map).toBeTruthy()
+       |                          ^
+    134|     const textureEvent = vi.fn(), materialEvent = vi.fn()
+    135|     original.map!.addEventListener('dispose', textureEvent)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > provides a dark nontextured HMI when a 2D canvas is unavailable
+AssertionError: expected MeshStandardMaterial{ …(82) } to be an instance of MeshBasicMaterial
+ ❯ test/cduAppearanceDisplay.test.ts:150:26
+    148|     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getConte…
+    149|     const hmi = screen(visual())
+    150|     expect(hmi.material).toBeInstanceOf(THREE.MeshBasicMaterial)
+       |                          ^
+    151|     expect(hmi.material.map).toBeNull()
+    152|     expect(hmi.material.color.getHex()).toBe(0x123138)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/cduAppearanceDisplay.test.ts > CDU display appearance > carries the static screen through the actual supported OV snapshot without shader-only maps
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/cduAppearanceDisplay.test.ts:164:40
+    162|     for (const primitive of screens) {
+    163|       expect(primitive.modelUid).toBe('m_30')
+    164|       expect(primitive.material.unlit).toBe(true)
+       |                                        ^
+    165|       expect(primitive.material.mapColorSpace).toBe('srgb')
+    166|       expect(packet.textures[primitive.material.map!]).toMatch(/^data:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+

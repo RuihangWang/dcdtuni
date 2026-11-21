@@ -1,0 +1,233 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/authoredTBranch.test.ts > real shared upgrade inherits the authored 73mm diameter rather than bridge25mm or spec text
+[liquid_mode.js] Loaded
+ACTUAL_SPLIT {"inputDiameter":0.073,"inputSpec":"pipe_999mm","junctionDiameter":0.073,"partDiameters":[0.073,0.073]}
+
+stdout | test/authoredTBranch.test.ts > both real creation factories author an explicit25mm three-port physical fitting
+ACTUAL_FACTORY {"free":{"type":"T_branch","quaternion":{"x":0,"y":0,"z":0,"w":1},"fittingDiameterM":0.025,"ports":[{"id":"port_1","offset":{"x":-0.04,"y":0,"z":0},"direction":{"x":-1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_2","offset":{"x":0.04,"y":0,"z":0},"direction":{"x":1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_3","offset":{"x":0,"y":0,"z":0.04},"direction":{"x":0,"y":0,"z":1},"type":"out","connectedPipeId":null}]},"bridge":{"type":"T_branch","quaternion":{"x":0,"y":0,"z":0,"w":1},"fittingDiameterM":0.025,"ports":[{"id":"port_1","offset":{"x":-0.04,"y":0,"z":0},"direction":{"x":-1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_2","offset":{"x":0.04,"y":0,"z":0},"direction":{"x":1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_3","offset":{"x":0,"y":0,"z":0.04},"direction":{"x":0,"y":0,"z":1},"type":"out","connectedPipeId":null}]}}
+
+stdout | test/authoredTBranch.test.ts > exports the factory physical fitting after yaw and uniform scale, with real source UID/carrier provenance and outward closed triangles
+[STLExport] rackStlCache: 0.053ms
+[STLExport] groups: 0.25ms
+[STLExport] buckets: 0.149ms
+
+stdout | test/authoredTBranch.test.ts > keeps old absent fitting physics absent through actual load/save/reload and honestly rejects export with an actionable message
+[STLExport] rackStlCache: 0.018ms
+[STLExport] groups: 0.033ms
+
+stdout | test/authoredTBranch.test.ts > does not infer a missing physical port direction from its display or offset
+[STLExport] rackStlCache: 0.015ms
+[STLExport] groups: 0.025ms
+
+stdout | test/authoredTBranch.test.ts > runs the real73mm split through save/reload and grouped physical export without changing hydraulic input or contributor identities
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 0.084ms
+[STLExport] buckets: 0.018ms
+
+stdout | test/authoredTBranch.test.ts > split semantics preserves authored blind outer endpoints {"start":true,"end":false}
+ACTUAL_SPLIT_BLIND {"input":{"start":true,"end":false},"result":[{"waypoints":[{"x":-1,"y":0.25,"z":0},{"x":0,"y":0.25,"z":0}],"connection":{"startPortId":null,"endPortId":"m_2.port_1","blindEnds":{"start":true,"end":false},"junctions":[]}},{"waypoints":[{"x":0,"y":0.25,"z":0},{"x":1,"y":0.25,"z":0}],"connection":{"startPortId":"m_2.port_2","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics preserves authored blind outer endpoints {"start":false,"end":true}
+ACTUAL_SPLIT_BLIND {"input":{"start":false,"end":true},"result":[{"waypoints":[{"x":-1,"y":0.25,"z":0},{"x":0,"y":0.25,"z":0}],"connection":{"startPortId":"source.supply","endPortId":"m_2.port_1","blindEnds":{"start":false,"end":false},"junctions":[]}},{"waypoints":[{"x":0,"y":0.25,"z":0},{"x":1,"y":0.25,"z":0}],"connection":{"startPortId":"m_2.port_2","endPortId":null,"blindEnds":{"start":false,"end":true},"junctions":[]}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics preserves authored blind outer endpoints {"start":true,"end":true}
+ACTUAL_SPLIT_BLIND {"input":{"start":true,"end":true},"result":[{"waypoints":[{"x":-1,"y":0.25,"z":0},{"x":0,"y":0.25,"z":0}],"connection":{"startPortId":null,"endPortId":"m_2.port_1","blindEnds":{"start":true,"end":false},"junctions":[]}},{"waypoints":[{"x":0,"y":0.25,"z":0},{"x":1,"y":0.25,"z":0}],"connection":{"startPortId":"m_2.port_2","endPortId":null,"blindEnds":{"start":false,"end":true},"junctions":[]}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects inline flow-control valve before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"inline flow-control valve","input":{"valves":[{"id":"authored_valve","type":"flow_control","side":"below","position":{"x":-0.5,"y":0.25,"z":0},"connectedManifoldPortId":"","connectedRackId":""}],"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]},"valves":[{"id":"authored_valve","type":"flow_control","side":"below","position":{"x":-0.5,"y":0.25,"z":0},"connectedManifoldPortId":"","connectedRackId":""}]}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects tee branch with physical diameter and waypoints before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"tee branch with physical diameter and waypoints","input":{"valves":[{"id":"authored_tee","type":"tee_junction","side":"below","position":{"x":0.5,"y":0.25,"z":0},"connectedManifoldPortId":"","connectedRackId":"","branchDiameterM":0.031,"branchWaypoints":[{"x":0.5,"y":0.25,"z":0},{"x":0.5,"y":0.25,"z":0.6}]}],"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]},"valves":[{"id":"authored_tee","type":"tee_junction","side":"below","position":{"x":0.5,"y":0.25,"z":0},"connectedManifoldPortId":"","connectedRackId":"","branchDiameterM":0.031,"branchWaypoints":[{"x":0.5,"y":0.25,"z":0},{"x":0.5,"y":0.25,"z":0.6}]}]}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects opaque connection junction declaration before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"opaque connection junction declaration","input":{"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[{"declared":"unallocated"}]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[{"declared":"unallocated"}]}}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects malformed valve container before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"malformed valve container","input":{"valves":{"id":"not-an-array"},"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":[]},"valves":{"id":"not-an-array"}}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects malformed junction container before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"malformed junction container","input":{"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":"not-an-array"}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false},"junctions":"not-an-array"}}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects malformed blind endpoint flag before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"malformed blind endpoint flag","input":{"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":"yes","end":false},"junctions":[]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":"yes","end":false},"junctions":[]}}}]}
+
+stdout | test/authoredTBranch.test.ts > split semantics rejects unknown blind endpoint declaration before factories, undo, store or map mutation
+ACTUAL_SPLIT_METADATA {"label":"unknown blind endpoint declaration","input":{"connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false,"authoredUnknown":true},"junctions":[]}},"returned":null,"originalStillPresent":true,"parts":[{"cooling":{"spec":"pipe_999mm","loopRole":"return","connection":{"startPortId":"source.supply","endPortId":"destination.return","blindEnds":{"start":false,"end":false,"authoredUnknown":true},"junctions":[]}}}]}
+
+ ✓ test/authoredTBranch.test.ts (24 tests) 432ms
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+(node:598184) Warning: Label '[STLExport] groups' already exists for console.time()
+stdout | test/floorSourceSurfaceEmission.test.ts > binds every actual raised-floor base/patch fragment to the saved canonical top face
+[STLExport] rackStlCache: 0.035ms
+[STLExport] groups: 14.833ms
+[STLExport] buckets: 0.14ms
+ACTUAL_FLOOR_PHYSICAL_BYTES {"merged_floor_ceiling.stl":{"sha256":"4a693b6d77a21c354c19a1c2af7b0098e54feadf3312f7e2c358ef9e75eaac19","bytes":48271}}
+
+stdout | test/floorSourceSurfaceEmission.test.ts > recognizes a hybrid wallBaffle floor covered by its real fragmented sheet export
+[STLExport] rackStlCache: 0.009ms
+[STLExport] groups: 13.289ms
+[STLExport] buckets: 0.012ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > certifies explicitly included disabled floors through the actual temporary canonical renderer
+[STLExport] rackStlCache: 0.01ms
+[STLExport] groups: 8.471ms
+[STLExport] buckets: 0.012ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > does not invent fragmented face identities from a copied legacy STL map
+[STLExport] rackStlCache: 0.008ms
+[STLExport] groups: 4.995ms
+[STLExport] buckets: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects stale rendered geometry before it can certify a current floor source face
+[STLExport] rackStlCache: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects a same-name mesh that did not come from the canonical floor producer
+[STLExport] rackStlCache: 0.008ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects controlled missing emitter face metadata in the actual binder
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 51.278ms
+[STLExport] buckets: 0.01ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects controlled wrong face emitter face metadata in the actual binder
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 9.196ms
+[STLExport] buckets: 0.007ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects controlled wrong representation emitter face metadata in the actual binder
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 6.464ms
+[STLExport] buckets: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects retained real emitted floor sources after the source project or bytes change
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 5.55ms
+[STLExport] buckets: 0.01ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > keeps one unpartitioned canonical top sheet rather than allocating a fake leaf UID
+[STLExport] rackStlCache: 0.004ms
+[STLExport] groups: 0.095ms
+[STLExport] buckets: 0.005ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > binds the actual connected remainder with a hole to the canonical generated remainder sheet
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 0.124ms
+[STLExport] buckets: 0.009ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > allows display but rejects source certification for duplicate actual saved patch IDs
+[STLExport] rackStlCache: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > allows display but rejects an actual overlap union belonging to two saved patch leaves
+[STLExport] rackStlCache: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > allows disconnected remainder display but refuses multiple base physical fragments
+[STLExport] rackStlCache: 0.004ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects reverse changes to same-name render userData rather than granting another patch identity
+[STLExport] rackStlCache: 0.005ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects reverse changes to the producer exportName even if the new name is an existing leaf name
+[STLExport] rackStlCache: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects controlled aliasing of two literal solids to one real saved physical patch leaf
+[STLExport] rackStlCache: 0.005ms
+[STLExport] groups: 107.741ms
+[STLExport] buckets: 0.006ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > rejects controlled stale/mismatched saved patch metadata in the real consumer
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 4.869ms
+[STLExport] buckets: 0.005ms
+
+stdout | test/floorSourceSurfaceEmission.test.ts > roundtrips the saved OO project with stable leaf identities and identical physical bytes
+[STLExport] rackStlCache: 0.007ms
+[STLExport] groups: 4.904ms
+[STLExport] buckets: 0.006ms
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 5.315ms
+[STLExport] buckets: 0.006ms
+
+ ✓ test/floorSourceSurfaceEmission.test.ts (20 tests) 849ms
+ ✓ test/liquidFactories.test.ts (19 tests) 14ms
+stdout | test/liquidTransportSolid.test.ts > exports a closed mitered underground envelope in world waypoint coordinates, with no display registry
+[STLExport] rackStlCache: 0.037ms
+[STLExport] groups: 0.246ms
+[STLExport] buckets: 0.111ms
+
+stdout | test/liquidTransportSolid.test.ts > unions a three-port fitting without inner caps and keeps partial exterior ownership in one closed carrier
+[STLExport] rackStlCache: 0.012ms
+[STLExport] groups: 0.039ms
+[STLExport] buckets: 0.031ms
+
+stdout | test/liquidTransportSolid.test.ts > exports mirrored metre-scaled world triangles with outward winding
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 0.021ms
+[STLExport] buckets: 0.019ms
+
+stdout | test/liquidTransportSolid.test.ts > rejects retained union provenance after any supporting current equipment owner changes
+[STLExport] rackStlCache: 0.008ms
+[STLExport] groups: 0.023ms
+[STLExport] buckets: 0.013ms
+
+stdout | test/liquidTransportSolid.test.ts > pins a non-contributing CDU port owner and refuses cached bytes after the supporting cabinet moves
+[STLExport] rackStlCache: 0.005ms
+[STLExport] groups: 0.11ms
+[STLExport] buckets: 0.01ms
+
+stdout | test/liquidTransportSolid.test.ts > rejects malformed branches, nonfinite routes, and missing physical fitting declarations
+[STLExport] rackStlCache: 0.005ms
+[STLExport] groups: 0.013ms
+[STLExport] rackStlCache: 0.004ms
+[STLExport] groups: 0.013ms
+[STLExport] rackStlCache: 0.003ms
+[STLExport] groups: 0.016ms
+
+stdout | test/liquidTransportSolid.test.ts > rejects an actual boolean result with a removed exterior polygon instead of filling its hole
+[STLExport] rackStlCache: 0.004ms
+[STLExport] groups: 0.015ms
+
+stdout | test/liquidTransportSolid.test.ts > binds actual carrier wall regions through the shared cfdrun compiler and preserves liquid graph input
+[STLExport] rackStlCache: 0.007ms
+[STLExport] groups: 0.02ms
+[STLExport] buckets: 0.223ms
+
+stdout | test/liquidTransportSolid.test.ts > binds actual carrier wall regions through the shared cfdrun compiler and preserves liquid graph input
+[STLExport] rackStlCache: 0.006ms
+[STLExport] groups: 0.018ms
+[STLExport] buckets: 0.013ms
+
+ ✓ test/liquidTransportSolid.test.ts (10 tests | 1 skipped) 1058ms
+   ✓ retains the existing legacy graph two-point rack branch convention without writing defaults into that project 442ms
+ ✓ test/legacy/liquidGlobals.test.ts (13 tests) 10ms
+ ✓ test/projectFiles.test.ts (27 tests) 13ms
+stderr | test/PipeJunctionInspector.test.tsx > the actual common Inspector edits physical bore in display mm, preserves arbitrary saved ports/frame and roundtrips through the codec
+Warning: An update to AuthOverlay inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at AuthOverlay (/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/AuthOverlay.tsx:12:39)
+
+ ✓ test/PipeJunctionInspector.test.tsx (5 tests) 127ms
+ ✓ test/i18n.test.ts (9 tests) 3085ms
+   ✓ keys referenced by the app > every t('key') in the source exists in the dictionary 3041ms
+ ✓ test/pipeInspector.test.ts (8 tests) 8ms
+
+ Test Files  9 passed (9)
+      Tests  134 passed | 1 skipped (135)
+   Start at  13:02:42
+   Duration  15.12s (transform 3.49s, setup 0ms, collect 7.75s, tests 5.59s, environment 13.72s, prepare 1.13s)
+

@@ -1,0 +1,115 @@
+--- a/src/frontend/react/src/renderer/RendererControl.tsx
++++ b/src/frontend/react/src/renderer/RendererControl.tsx
+@@ -146,19 +146,13 @@
+     const observer=new ResizeObserver(update);observer.observe(toolbar)
+     return ()=>observer.disconnect()
+   },[])
+-  // The renderer switch lives in the top bar (user ruling 2026-09-30) via a
+-  // portal into Toolbar's slot; while the bar is collapsed (slot hidden) it
+-  // falls back to the viewport overlay so the choice is never unreachable.
++  // Keep the renderer row in Toolbar's mounted slot even when the toolbar
++  // is collapsed. Only a view without a toolbar uses the viewport fallback.
+   const [toolbarSlot,setToolbarSlot]=useState<HTMLElement|null>(null)
+   useEffect(()=>{
+     const toolbar=document.getElementById('toolbar')
+     const slot=document.getElementById('renderer-switch-slot')
+-    if(!toolbar||!slot)return
+-    const sync=()=>setToolbarSlot(toolbar.classList.contains('collapsed')?null:slot)
+-    sync()
+-    if(typeof MutationObserver==='undefined')return
+-    const observer=new MutationObserver(sync);observer.observe(toolbar,{attributes:true,attributeFilter:['class']})
+-    return ()=>observer.disconnect()
++    if(toolbar&&slot)setToolbarSlot(slot)
+   },[])
+   const [mode,setMode]=useState<'three'|'ov'>('three')
+   const endpointInfo=useSyncExternalStore(subscribeSession,getServerInfo)
+--- a/src/frontend/react/test/RendererControl.test.ts
++++ b/src/frontend/react/test/RendererControl.test.ts
+@@ -1,5 +1,8 @@
+ import { afterEach, expect, it, vi } from 'vitest'
+-import { LatestSceneSync, advertisedOvEndpoint, currentResultTransmission, keepActiveOvCamera, preferredOvEndpoint, waitForRenderView } from '../src/renderer/RendererControl'
++import { act, createElement } from 'react'
++import { createRoot } from 'react-dom/client'
++import { Toolbar, DEFAULT_VIEW_OPTIONS } from '../src/components/Toolbar'
++import { RendererControl, LatestSceneSync, advertisedOvEndpoint, currentResultTransmission, keepActiveOvCamera, preferredOvEndpoint, waitForRenderView } from '../src/renderer/RendererControl'
+ import type { SceneSnapshot } from '../src/renderer/sceneSnapshot'
+ import type { ResultLayerSet } from '../src/renderer/resultLayers'
+ import * as store from '../src/projectStore'
+@@ -7,6 +10,8 @@
+ import { clearResultLayerSet, clearStaleResultLayerSet, currentResultLayerSet,
+   publishResultLayerSet, setLiveAirResultSelection } from '../src/renderer/resultLayerRevision'
+ import * as meshPreviewSession from '../src/run/meshPreviewSession'
++
++;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+ 
+ function packet(uid: string, time: number): SceneSnapshot {
+   return { schema: 'dcdtuni.render-scene/v1', project: { uid, name: uid },
+@@ -216,15 +221,59 @@
+   expect(ovSession().client).toBeNull()
+ })
+ 
+-it('the renderer switch is portalled into the top bar slot, and falls back when the bar collapses', async () => {
+-  const { readFileSync } = await import('node:fs')
+-  const { resolve } = await import('node:path')
+-  const src = readFileSync(resolve(__dirname, '../src/renderer/RendererControl.tsx'), 'utf8')
+-  const bar = readFileSync(resolve(__dirname, '../src/components/Toolbar.tsx'), 'utf8')
+-  expect(bar).toContain('id="renderer-switch-slot"')
+-  expect(src).toMatch(/createPortal\(switchRow,toolbarSlot\)/)
+-  expect(src).toMatch(/!toolbarSlot&&switchRow/)
+-  expect(src).toMatch(/classList\.contains\('collapsed'\)\?null:slot/)
++it('keeps renderer controls in the same toolbar slot through collapse and expansion', async () => {
++  const host = document.createElement('div')
++  document.body.append(host)
++  const root = createRoot(host)
++  try {
++    await act(async () => {
++      root.render(createElement('div', null,
++        createElement(Toolbar, { view: DEFAULT_VIEW_OPTIONS, onChange: () => {},
++          hasSelection: false, project: null }),
++        createElement(RendererControl, { project: null, selectedUids: [],
++          onSelection: () => {}, activeTab: 'mesh', airMode: false })))
++    })
++    const toolbar = document.getElementById('toolbar')!
++    const slot = document.getElementById('renderer-switch-slot')!
++    const select = slot.querySelector('select')!
++    const connection = slot.querySelector('details')!
++    expect(select.value).toBe('three')
++    connection.open = true
++    const collapse = document.getElementById('toolbar-collapse-btn')!
++    await act(async () => { collapse.click() })
++    expect(toolbar.classList.contains('collapsed')).toBe(true)
++    expect(document.getElementById('renderer-switch-slot')).toBe(slot)
++    expect(slot.querySelector('select')).toBe(select)
++    expect(slot.querySelector('details')).toBe(connection)
++    expect(connection.open).toBe(true)
++    expect(host.querySelector('.renderer-controls select')).toBeNull()
++    expect(host.querySelectorAll('option[value="ov"]')).toHaveLength(1)
++    await act(async () => { collapse.click() })
++    expect(toolbar.classList.contains('collapsed')).toBe(false)
++    expect(slot.querySelector('select')).toBe(select)
++    expect(connection.open).toBe(true)
++    expect(host.querySelector('.renderer-controls select')).toBeNull()
++  } finally {
++    await act(async () => { root.unmount() })
++    host.remove()
++  }
++})
++
++it('keeps the renderer controls available when no toolbar slot is mounted', async () => {
++  const host = document.createElement('div')
++  document.body.append(host)
++  const root = createRoot(host)
++  try {
++    await act(async () => {
++      root.render(createElement(RendererControl, { project: null, selectedUids: [],
++        onSelection: () => {}, activeTab: 'mesh', airMode: false }))
++    })
++    expect(host.querySelector<HTMLSelectElement>('.renderer-controls select')?.value).toBe('three')
++    expect(host.querySelectorAll('option[value="ov"]')).toHaveLength(1)
++  } finally {
++    await act(async () => { root.unmount() })
++    host.remove()
++  }
+ })
+ 
+ it('flipping Kit liquid colouring on freezes the result part of the sync key instead of reshaping it', async () => {

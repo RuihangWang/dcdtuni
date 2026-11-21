@@ -1,0 +1,680 @@
+{
+ "version": "3.0",
+ "source": "react-dynamic",
+ "projectName": "LiquidSingle_Control",
+ "gravity": [
+  0,
+  -9.81,
+  0
+ ],
+ "fluid": {
+  "rho_kg_m3": 997,
+  "cp_J_kgK": 4182,
+  "mu_Pa_s": 0.00089,
+  "k_W_mK": 0.606
+ },
+ "time": {
+  "dt_s": 1,
+  "N_t": 1,
+  "bdf_order": 1
+ },
+ "racks": [
+  {
+   "id": "m_2",
+   "position_m": [
+    0,
+    0,
+    0
+   ],
+   "n_slots": 42,
+   "manifold": {
+    "supply_node": "m_2_mf_supply",
+    "return_node": "m_2_mf_return",
+    "layout": "split",
+    "D_m": 0.025
+   },
+   "servers": [
+    {
+     "id": "e_2",
+     "slot_range": [
+      27,
+      32
+     ],
+     "z_m": 1.2446000000000002,
+     "cp_cu_pairs": [
+      {
+       "id": "CP-CU_1",
+       "edge_id": "m_2_e_2_cp_CP-CU_1",
+       "Q_W": 3500
+      }
+     ],
+     "inlet_node": "m_2_e_2_in",
+     "outlet_node": "m_2_e_2_out"
+    }
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "id": "m_1_supply",
+   "type": "junction",
+   "position_m": [
+    2.401392890500783,
+    1.53,
+    -0.3050184090404052
+   ]
+  },
+  {
+   "id": "m_1_return",
+   "type": "pressure_bc",
+   "position_m": [
+    2.401392890500783,
+    1.48,
+    -0.3050184090404052
+   ],
+   "bc": {
+    "P_Pa": 150000
+   }
+  },
+  {
+   "id": "m_2_mf_supply",
+   "type": "junction",
+   "position_m": [
+    -0.0225,
+    1.8224500000000003,
+    0.05
+   ]
+  },
+  {
+   "id": "m_2_mf_return",
+   "type": "junction",
+   "position_m": [
+    -0.5775,
+    1.8224500000000003,
+    0.05
+   ]
+  },
+  {
+   "id": "m_2_e_2_in",
+   "type": "junction",
+   "position_m": [
+    -0.0225,
+    1.2446000000000002,
+    0.05
+   ]
+  },
+  {
+   "id": "m_2_e_2_out",
+   "type": "junction",
+   "position_m": [
+    -0.5775,
+    1.2446000000000002,
+    0.05
+   ]
+  },
+  {
+   "id": "m_3_blind_start",
+   "type": "junction",
+   "position_m": [
+    -0.7902337298666648,
+    2.825613594601141,
+    0.08660076227333047
+   ]
+  },
+  {
+   "id": "m_3_tee_valve_1779191286514",
+   "type": "junction",
+   "position_m": [
+    -0.5856378578986017,
+    2.825613594601141,
+    0.08660076227333048
+   ]
+  },
+  {
+   "id": "m_4_blind_start",
+   "type": "junction",
+   "position_m": [
+    -0.6366285596247045,
+    3.215474733307139,
+    -0.1310936563654544
+   ]
+  },
+  {
+   "id": "m_4_tee_tee_1779191317140",
+   "type": "junction",
+   "position_m": [
+    -0.018787762057075108,
+    3.215474733307139,
+    -0.1310936563654544
+   ]
+  },
+  {
+   "id": "m_1_pump_discharge",
+   "type": "junction",
+   "position_m": [
+    2.401392890500783,
+    1.53,
+    -0.3050184090404052
+   ]
+  },
+  {
+   "id": "m_3_control_valve_1779191286514_out",
+   "type": "junction",
+   "position_m": [
+    -0.5856378578986017,
+    2.825613594601141,
+    0.08660076227333048
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "id": "m_1_pump",
+   "type": "pump",
+   "from": "m_1_return",
+   "to": "m_1_pump_discharge",
+   "params": {
+    "rpm_ratio": 1
+   },
+   "parameter_ref": "pump-demo"
+  },
+  {
+   "id": "m_2_e_2_branch_in",
+   "type": "pipe",
+   "from": "m_2_mf_supply",
+   "to": "m_2_e_2_in",
+   "params": {
+    "D_m": 0.025,
+    "roughness_m": 1.5e-06,
+    "n_cells": 2,
+    "waypoints_m": [
+     [
+      -0.0225,
+      1.8224500000000003,
+      0.05
+     ],
+     [
+      -0.0225,
+      1.2446000000000002,
+      0.05
+     ]
+    ],
+    "K_minor_per_bend": 0.3
+   }
+  },
+  {
+   "id": "m_2_e_2_branch_out",
+   "type": "pipe",
+   "from": "m_2_e_2_out",
+   "to": "m_2_mf_return",
+   "params": {
+    "D_m": 0.025,
+    "roughness_m": 1.5e-06,
+    "n_cells": 2,
+    "waypoints_m": [
+     [
+      -0.5775,
+      1.2446000000000002,
+      0.05
+     ],
+     [
+      -0.5775,
+      1.8224500000000003,
+      0.05
+     ]
+    ],
+    "K_minor_per_bend": 0.3
+   }
+  },
+  {
+   "id": "m_2_e_2_cp_CP-CU_1",
+   "type": "cold_plate",
+   "from": "m_2_e_2_in",
+   "to": "m_2_e_2_out",
+   "params": {
+    "dp_a": 2263560.9939145423,
+    "dp_b": 0,
+    "UA_W_per_K": 300,
+    "C_solid_J_per_K": 8000,
+    "V_fluid_m3": 0.00019999999999999998,
+    "Q_W": 3500
+   }
+  },
+  {
+   "id": "m_3_spoke_valve_1779191286514",
+   "type": "pipe",
+   "from": "m_3_control_valve_1779191286514_out",
+   "to": "m_2_mf_return",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 5,
+    "waypoints_m": [
+     [
+      -0.5856378578986017,
+      2.825613594601141,
+      0.08660076227333048
+     ],
+     [
+      -0.5775,
+      1.8224500000000003,
+      0.05
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_3_seg0",
+   "type": "pipe",
+   "from": "m_3_blind_start",
+   "to": "m_3_tee_valve_1779191286514",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 2,
+    "waypoints_m": [
+     [
+      -0.7902337298666648,
+      2.825613594601141,
+      0.08660076227333047
+     ],
+     [
+      -0.5856378578986017,
+      2.825613594601141,
+      0.08660076227333048
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_3_seg1",
+   "type": "pipe",
+   "from": "m_3_tee_valve_1779191286514",
+   "to": "m_1_return",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 25,
+    "waypoints_m": [
+     [
+      -0.5856378578986017,
+      2.825613594601141,
+      0.08660076227333048
+     ],
+     [
+      1.339407716567286,
+      2.825613594601141,
+      0.08660076227333058
+     ],
+     [
+      2.310229551799053,
+      2.825613594601141,
+      0.08660076227333069
+     ],
+     [
+      2.310229551799053,
+      1.9868646657296196,
+      0.08660076227333069
+     ],
+     [
+      2.310229551799053,
+      1.9868646657296196,
+      -0.6061070708226176
+     ],
+     [
+      2.401392890500783,
+      1.48,
+      -0.3050184090404052
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_4_spoke_tee_1779191317140",
+   "type": "pipe",
+   "from": "m_4_tee_tee_1779191317140",
+   "to": "m_2_mf_supply",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 7,
+    "waypoints_m": [
+     [
+      -0.018787762057075108,
+      3.215474733307139,
+      -0.1310936563654544
+     ],
+     [
+      -0.0225,
+      1.8224500000000003,
+      0.05
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_4_seg0",
+   "type": "pipe",
+   "from": "m_4_blind_start",
+   "to": "m_4_tee_tee_1779191317140",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 3,
+    "waypoints_m": [
+     [
+      -0.6366285596247045,
+      3.215474733307139,
+      -0.1310936563654544
+     ],
+     [
+      -0.018787762057075108,
+      3.215474733307139,
+      -0.1310936563654544
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_4_seg1",
+   "type": "pipe",
+   "from": "m_4_tee_tee_1779191317140",
+   "to": "m_1_supply",
+   "params": {
+    "D_m": 0.1,
+    "roughness_m": 1.5e-06,
+    "n_cells": 24,
+    "waypoints_m": [
+     [
+      -0.018787762057075108,
+      3.215474733307139,
+      -0.1310936563654544
+     ],
+     [
+      1.4930128868092463,
+      3.215474733307139,
+      -0.1310936563654544
+     ],
+     [
+      2.4638347220410135,
+      3.215474733307139,
+      -0.1310936563654544
+     ],
+     [
+      2.4638347220410135,
+      2.3767258044356177,
+      -0.1310936563654544
+     ],
+     [
+      2.4638347220410135,
+      2.3767258044356177,
+      -0.648715314618256
+     ],
+     [
+      2.401392890500783,
+      1.53,
+      -0.3050184090404052
+     ]
+    ],
+    "K_minor_per_bend": 0.5
+   }
+  },
+  {
+   "id": "m_1_hx",
+   "type": "heat_exchanger",
+   "from": "m_1_pump_discharge",
+   "to": "m_1_supply",
+   "parameter_ref": "hx-demo",
+   "params": {}
+  },
+  {
+   "id": "m_3_control_valve_1779191286514",
+   "type": "valve",
+   "from": "m_3_tee_valve_1779191286514",
+   "to": "m_3_control_valve_1779191286514_out",
+   "parameter_ref": "valve-demo",
+   "params": {
+    "opening": 1
+   }
+  }
+ ],
+ "events": [],
+ "initial_conditions": {
+  "T_fluid_K": 308.15,
+  "T_solid_K": 340,
+  "P_uniform_Pa": 175000
+ },
+ "parameter_pack": {
+  "schema_version": "1.0",
+  "id": "liquid-demo-equipment",
+  "revision": "mock-1-dae-v3",
+  "source": "mock",
+  "description": "Synthetic single-phase water-loop parameters for software demonstrations only. These are not NVIDIA or Vertiv specifications. Replace this pack on the unresolved project input and rerun for vendor/calibrated data. Explicit mock two-mixed-volume HX interpretation; not NV measurements or calibrated vendor performance.",
+  "profiles": {
+   "water": {
+    "type": "fluid",
+    "params": {
+     "rho_kg_m3": 997,
+     "cp_J_kgK": 4182,
+     "mu_Pa_s": 0.00089,
+     "k_W_mK": 0.606
+    },
+    "units": {
+     "rho_kg_m3": "kg/m3",
+     "cp_J_kgK": "J/(kg*K)",
+     "mu_Pa_s": "Pa*s",
+     "k_W_mK": "W/(m*K)"
+    }
+   },
+   "pipe-25mm": {
+    "type": "pipe",
+    "params": {
+     "D_m": 0.025,
+     "roughness_m": 1.5e-06,
+     "K_minor_per_bend": 0.5,
+     "n_cells": 3
+    },
+    "units": {
+     "D_m": "m",
+     "roughness_m": "m",
+     "K_minor_per_bend": "1",
+     "n_cells": "1"
+    }
+   },
+   "pump-demo": {
+    "type": "pump",
+    "params": {
+     "H0_m": 6,
+     "a_coef": 20000000,
+     "rpm_ratio": 1
+    },
+    "units": {
+     "H0_m": "m",
+     "a_coef": "m/(m3/s)^2",
+     "rpm_ratio": "1"
+    }
+   },
+   "valve-demo": {
+    "type": "valve",
+    "params": {
+     "D_m": 0.025,
+     "Kv_max": 1.5,
+     "opening": 1,
+     "characteristic": "linear"
+    },
+    "units": {
+     "D_m": "m",
+     "Kv_max": "m3/h@1bar",
+     "opening": "1",
+     "characteristic": "enum"
+    }
+   },
+   "rack-equivalent": {
+    "type": "cold_plate",
+    "params": {
+     "dp_a": 2000000,
+     "dp_b": 10000,
+     "UA_W_per_K": 300,
+     "C_solid_J_per_K": 8000,
+     "V_fluid_m3": 0.0002
+    },
+    "units": {
+     "dp_a": "Pa/(kg/s)^2",
+     "dp_b": "Pa/(kg/s)",
+     "UA_W_per_K": "W/K",
+     "C_solid_J_per_K": "J/K",
+     "V_fluid_m3": "m3"
+    }
+   },
+   "hx-demo": {
+    "type": "heat_exchanger",
+    "params": {
+     "dp_a": 20000,
+     "dp_b": 5000,
+     "UA_W_per_K": 2000
+    },
+    "units": {
+     "dp_a": "Pa/(kg/s)^2",
+     "dp_b": "Pa/(kg/s)",
+     "UA_W_per_K": "W/K"
+    }
+   }
+  }
+ },
+ "object_bindings": {
+  "m_2": {
+   "label": "Default_Rack_1",
+   "kind": "rack",
+   "node_ids": [
+    "m_2_mf_supply",
+    "m_2_mf_return",
+    "m_2_e_2_in",
+    "m_2_e_2_out"
+   ],
+   "edge_ids": [
+    "m_2_e_2_branch_in",
+    "m_2_e_2_branch_out",
+    "m_2_e_2_cp_CP-CU_1"
+   ]
+  },
+  "m_2/e_2": {
+   "label": "liquid-server_1",
+   "kind": "server",
+   "parent_uid": "m_2",
+   "node_ids": [
+    "m_2_e_2_in",
+    "m_2_e_2_out"
+   ],
+   "edge_ids": [
+    "m_2_e_2_branch_in",
+    "m_2_e_2_branch_out",
+    "m_2_e_2_cp_CP-CU_1"
+   ]
+  },
+  "m_1": {
+   "label": "CDU_1",
+   "kind": "cdu",
+   "node_ids": [
+    "m_1_supply",
+    "m_1_return",
+    "m_1_pump_discharge"
+   ],
+   "edge_ids": [
+    "m_1_pump",
+    "m_1_hx"
+   ]
+  },
+  "m_3": {
+   "label": "Pipe_1",
+   "kind": "pipe_segment",
+   "node_ids": [
+    "m_3_blind_start",
+    "m_3_tee_valve_1779191286514",
+    "m_3_control_valve_1779191286514_out"
+   ],
+   "edge_ids": [
+    "m_3_spoke_valve_1779191286514",
+    "m_3_seg0",
+    "m_3_seg1",
+    "m_3_control_valve_1779191286514"
+   ]
+  },
+  "m_4": {
+   "label": "Pipe_1_copy",
+   "kind": "pipe_segment",
+   "node_ids": [
+    "m_4_blind_start",
+    "m_4_tee_tee_1779191317140"
+   ],
+   "edge_ids": [
+    "m_4_spoke_tee_1779191317140",
+    "m_4_seg0",
+    "m_4_seg1"
+   ]
+  },
+  "m_3/valve_1779191286514": {
+   "label": "valve_1779191286514",
+   "kind": "valve",
+   "parent_uid": "m_3",
+   "node_ids": [
+    "m_3_control_valve_1779191286514_out"
+   ],
+   "edge_ids": [
+    "m_3_control_valve_1779191286514"
+   ]
+  }
+ },
+ "equation_system": "incompressible_thermal_dae",
+ "analysis": {
+  "mode": "steady",
+  "initialization": "steady"
+ },
+ "newton": {
+  "max_iterations": 40,
+  "atol": 1e-10,
+  "rtol": 1e-10,
+  "max_backtracks": 18
+ },
+ "primary_circuits": [
+  {
+   "edge_id": "m_1_hx",
+   "flow_kg_s": 1,
+   "inlet_K": 293.15,
+   "cp_J_kgK": 4182,
+   "rho_kg_m3": 997,
+   "primary_volume_m3": 0.02,
+   "secondary_volume_m3": 0.02,
+   "source": "mock",
+   "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+  }
+ ],
+ "execution": {
+  "backend": "pytorch",
+  "device": "cpu",
+  "dtype": "float64",
+  "max_threads": 2
+ },
+ "format": "liquidrun",
+ "schemaVersion": 3,
+ "source_project": {
+  "format": "cfdproj",
+  "schema_version": 5,
+  "project_uid": "proj_liquid_single_control_mock_v1",
+  "project_name": "LiquidSingle_Control",
+  "sha256": "a73d9b5f89489ef7ed28b8fa13aa7b330160a72793fd6988b4cbf321806b5813"
+ },
+ "units": {
+  "length": "m",
+  "time": "s",
+  "temperature": "K",
+  "pressure": "Pa",
+  "mass_flow": "kg/s",
+  "power": "W"
+ },
+ "controllers": []
+}

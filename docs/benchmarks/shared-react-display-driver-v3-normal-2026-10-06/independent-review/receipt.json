@@ -1,0 +1,80 @@
+{
+  "scope": "Independent PRIVATE v3 frontend FIFO/lifecycle source review and executable controlled transport tests; no runtime Kit/browser/backend acceptance",
+  "decision": "No scoped P1/P2 found",
+  "frozenManifest": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/shared-postprocess-driver-private-20261006/frozen-v3/manifest.json",
+  "frozenManifestSha256": "099b63277bcd1670855270a62c0a3d1f49b03793c708676ef1465a95ded110ae",
+  "original95PayloadUnchanged": true,
+  "focused15": {
+    "command": [
+      "taskset",
+      "-c",
+      "8-15",
+      "node",
+      "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/candidate/src/frontend/react/node_modules/vitest/vitest.mjs",
+      "run",
+      "test/ovResultMutationQueue.test.ts",
+      "test/sharedPostprocessDriver.test.ts",
+      "test/sharedOvPostprocessAdapter.test.ts",
+      "test/sharedDisplayUiOwnership.test.tsx",
+      "test/windResultProducer.test.ts",
+      "test/resultLayers.test.ts",
+      "test/resultLayerRevision.test.ts",
+      "test/RendererControl.test.ts",
+      "test/meshPreviewOverlay.test.ts",
+      "test/components/PostprocessPlayhead.test.tsx",
+      "test/components/PostprocessUnitSync.test.tsx",
+      "test/components/PostprocessTimeSelection.test.tsx",
+      "test/components/PostprocessVolumeField.test.tsx",
+      "test/liquidPostprocessHost.test.tsx",
+      "test/liquidPostprocessSelectionFailure.test.tsx",
+      "--maxWorkers=2",
+      "--minWorkers=1"
+    ],
+    "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/candidate/src/frontend/react",
+    "environment": {
+      "CUDA_VISIBLE_DEVICES": "",
+      "TMPDIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/tmp",
+      "DCDTUNI_PRIVATE_VITE_CACHE": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/cache",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "returncode": 0,
+    "seconds": 18.53712666593492
+  },
+  "independent9": {
+    "command": [
+      "taskset",
+      "-c",
+      "8-15",
+      "node",
+      "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/candidate/src/frontend/react/node_modules/vitest/vitest.mjs",
+      "run",
+      "test/independentFifoLifecycle.test.tsx",
+      "--maxWorkers=2",
+      "--minWorkers=1"
+    ],
+    "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/candidate/src/frontend/react",
+    "env": {
+      "CUDA_VISIBLE_DEVICES": "",
+      "TMPDIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/tmp",
+      "DCDTUNI_PRIVATE_VITE_CACHE": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/shared-postprocess-v3-independent-review-20261006/cache",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "returncode": 0,
+    "elapsedSeconds": 3.9820843250490725
+  },
+  "uniqueTests": 112,
+  "executions": 120,
+  "extraCameraCase": "Same public RendererControl is disabled through 999ms pending valid camera read and returns Three at 1000ms despite unfulfilled remote result load; old camera-await behavior is unchanged except new session identity reset fields.",
+  "testsUse": "Actual frozen driver, adapter and mounted public RendererControl; mocked normal transport with deferred ACKs, jsdom DOM, fake clock. No source-string assertion tests added.",
+  "boundaries": [
+    "A permanently unfulfilled OV transfer correctly holds later OV mutations on the same client lane; return to Three has its own lane and does not await that result transfer.",
+    "Camera handover retains a pre-existing bounded 1000ms readView wait; public mode transition is not literally zero-latency in that case.",
+    "Protocol/backend/Kit transport, accepted physical result producer, GPU rendering and public browser are not exercised.",
+    "111 existing focused tests plus 1 new independent camera case; the second 9-case run repeats 8 existing mounted tests, so 120 executions is not 120 unique tests.",
+    "Preserved jsdom canvas-not-implemented stderr in focused15; no dependency installation or production build."
+  ]
+}

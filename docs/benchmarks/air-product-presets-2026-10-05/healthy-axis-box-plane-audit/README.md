@@ -1,0 +1,13 @@
+# Healthy source box: bounded plane propagation diagnostic
+
+No native mesh was run and no source point was moved. This is a read-only explanation of why the current fan decomposition can fail even when its source body has a passing determinant.
+
+The actual rank-1 source parent 30430 retains its bbox and volume but changes from 12 faces / 17 vertices / 23 written children / zero bad determinants to 45 faces / 67 vertices / 98 children / 18 bad determinants. These counts come from the independently mapped current-star migration. The seed span is [0.0625, 0.063888889, 0.0771484375] m, with one physical side.
+
+Every distinct interior node coordinate would produce a 192-box tensor grid, including two outer-boundary coordinates separated from the bbox by only one ULP. Those near-boundary values are excluded from *candidate interior cuts* by the existing 3 micrometre clearance; no original value is merged, deleted or moved. The resulting 19 candidate planes (1 X, 13 Y, 5 Z) define 168 ideal boxes. The selected-Sf determinant, correctly excluding the physical side where applicable, has minimum 0.050478260782; the ideal sum volume differs from the source by less than 2e-18 m3. These are ideal box metrics, not a proof of original boundary/node equivalence or an actual mesh.
+
+`parent30430-bounded-closure.json` uses a queue with unique source-cell discovery and a strict 128-cell cap for each plane. Sixteen planes reach that cap. Three exhaust the queue but encounter protected point stars, nonbox source cells or an unequal original node within the plane clearance. No plane has an unblocked, untruncated closure. The partial union already discovers 814 distinct source cells; it is not a complete propagation size or time estimate. Protected/nonbox counts are repeated visits, not unique parents. The postghost trace cannot prove preghost remote-rank protection.
+
+The first report is retained separately; its older queue counted pending entries rather than unique cells and must not be used for cell-count claims. The corrected generic tool records actual blocker point/face/patch/zone witnesses and exactly binds the source manifest and geometry oracle. Seven independent tests cover the original-node clearance, independent Gram determinant, positive finite widths, unique queue bounds and protected-witness rejection.
+
+A local tensor grid therefore is not ready for a native trial: preserving the original interfaces requires additional conforming transitions at nonbox and protected boundaries. The current mesh remains rejected by the full stock checker. No default or quality threshold changes are justified by this audit.

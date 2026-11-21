@@ -1,0 +1,607 @@
+diff --git a/src/frontend/react/src/components/MeshPanel.tsx b/src/frontend/react/src/components/MeshPanel.tsx
+index 0a5e089d..ac36e967 100644
+--- a/src/frontend/react/src/components/MeshPanel.tsx
++++ b/src/frontend/react/src/components/MeshPanel.tsx
+@@ -759,6 +759,7 @@ function MeshRunBlock() {
+   const [, bump] = useState(0)
+   const [error, setError] = useState<string | null>(null)
+   const [preparing, setPreparing] = useState(false)
++  const [checking, setChecking] = useState(false)
+   useEffect(() => session.subscribeSession(() => bump((n) => n + 1)), [])
+ 
+   const job = session.getCurrentCaseJob()
+@@ -800,6 +801,28 @@ function MeshRunBlock() {
+     }
+   }
+ 
++  async function check() {
++    if (preparing || checking || running) return
++    setError(null)
++    setChecking(true)
++    store.logOperation('checkMesh', t('btn.check_mesh'))
++    try {
++      await session.runCheckMesh()
++    } catch (err) {
++      const message = err instanceof Error && err.message === 'mesh not found'
++        ? t('status.mesh_not_found')
++        : t('status.check_failed', { error: err instanceof Error ? err.message : String(err) })
++      setError(message)
++      store.logOperation('checkMesh', message)
++    } finally {
++      setChecking(false)
++    }
++  }
++
++  const qualityJob = job?.kind === 'mesh' || job?.kind === 'checkMesh' ? job : null
++  const qualityOk = qualityJob?.returncode === 0 && !qualityJob.aborted &&
++    qualityJob.checkMeshOk === true && (qualityJob.failedChecks === null || qualityJob.failedChecks === 0)
++
+   return (
+     <div className={RUN_BLOCK_CLASS} style={{ margin: 8 }}>
+       <div className="prop-hint" style={{ marginBottom: 6 }}>
+@@ -808,7 +831,7 @@ function MeshRunBlock() {
+       <button
+         className="btn success"
+         id="mesh-run-btn"
+-        disabled={!validated || running || preparing}
++        disabled={!validated || running || preparing || checking}
+         title={validated ? undefined : t('error.validate_dctwin_first')}
+         onClick={() => void run()}
+       >
+@@ -827,8 +850,21 @@ function MeshRunBlock() {
+           {job.abortPending || job.abortRequested ? t('status.stopping') : t('btn.abort_mesh')}
+         </button>
+       )}
+-      {error && <div className="error">{error}</div>}
+-      {job?.kind === 'mesh' && job.error && <div className={`error ${LIVE_CLASS}`} role="alert">{job.error}</div>}
++      <button
++        className={`btn ${LIVE_CLASS}`}
++        id="mesh-check-btn"
++        disabled={!validated || running || preparing || checking}
++        title={validated ? undefined : t('error.validate_dctwin_first')}
++        onClick={() => void check()}
++      >
++        {checking || job?.kind === 'checkMesh' && job.running
++          ? t('status.running_checkmesh') : t('btn.check_mesh')}
++      </button>
++      {session.getCaseStatus()?.meshExists && !session.isMeshReady() && !running && (
++        <div className="prop-hint" role="status">{t('hint.mesh_quality_required')}</div>
++      )}
++      {error && <div className="error" role="alert">{error}</div>}
++      {qualityJob?.error && <div className={`error ${LIVE_CLASS}`} role="alert">{qualityJob.error}</div>}
+       {/* The same mesh preview the right column's sub-tab shows. The legacy
+           puts this shortcut at the bottom of the run block, where a user lands
+           the moment a mesh finishes (STL_generate.html:268). */}
+@@ -843,15 +879,15 @@ function MeshRunBlock() {
+         {t('mp.show_mesh')}
+       </button>
+       <div id="mesh-run-status">
+-      {job?.kind === 'mesh' && !job.running && (job.returncode !== null || job.aborted) && (
+-        <div className="prop-hint" style={{ color: job.aborted ? 'var(--hint-color)' : job.returncode !== 0 ? '#ff5c72' : job.checkMeshOk === false ? '#ffb800' : 'var(--highlight)' }}>
+-          {job.aborted
++      {qualityJob && !qualityJob.running && (qualityJob.returncode !== null || qualityJob.aborted) && (
++        <div className="prop-hint" role="status" style={{ color: qualityJob.aborted ? 'var(--hint-color)' : qualityJob.returncode !== 0 ? '#ff5c72' : !qualityOk ? '#ffb800' : 'var(--highlight)' }}>
++          {qualityJob.aborted
+             ? t('status.aborted')
+-            : job.returncode !== 0
+-              ? t('status.mesh_failed', { code: job.returncode ?? '?' })
+-              : job.checkMeshOk === false
+-                ? t('status.checkmesh_failed')
+-                : t('status.mesh_ok')}
++            : qualityJob.returncode !== 0
++              ? t('status.mesh_failed', { code: qualityJob.returncode ?? '?' })
++              : !qualityOk
++                ? t('status.checkmesh_rejected')
++                : qualityJob.kind === 'checkMesh' ? t('status.checkmesh_ok') : t('status.mesh_ok')}
+         </div>
+       )}
+       </div>
+diff --git a/src/frontend/react/src/run/session.ts b/src/frontend/react/src/run/session.ts
+index 47cbb400..dba5845a 100644
+--- a/src/frontend/react/src/run/session.ts
++++ b/src/frontend/react/src/run/session.ts
+@@ -66,6 +66,9 @@ export interface JobState {
+ 
+ /** What the server finds already on disk for the current case. */
+ export interface CaseStatus {
++  /** Physical mesh presence; checking remains possible before strict acceptance. */
++  meshExists?: boolean
++  /** Accepted strict quality bound to the current mesh and case input bytes. */
+   meshReady: boolean
+   solveReady: boolean
+   liquidReady: boolean
+@@ -79,7 +82,7 @@ interface SessionState {
+   infoError: string | null
+   /** Why the last `/api/server-info` did not come back usable. Null before the first try. */
+   diagnosis: ServerDiagnosis | null
+-  /** Set once a mesh job has finished with returncode 0 — gates the solver tab. */
++  /** Explicit successful strict quality for this case — gates the solver tab. */
+   meshReady: boolean
+   status: CaseStatus | null
+   job: JobState | null
+@@ -109,6 +112,15 @@ let caseWrites: Promise<unknown> = Promise.resolve()
+ let pendingCaseWrite: { context: number; promise: Promise<boolean> } | null = null
+ let serverInfoSequence = 0
+ let caseStatusSequence = 0
++// A scan from before a quality job's success cannot suppress that new verdict.
++// Results/logRuns stay available; only the mesh-readiness fact gets this stamp.
++let meshReadinessGeneration = 0
++let statusMeshReadinessGeneration = -1
++
++function invalidateMeshReadinessScan(): void {
++  ++meshReadinessGeneration
++  ++caseStatusSequence
++}
+ 
+ type Listener = () => void
+ const listeners = new Set<Listener>()
+@@ -172,19 +184,20 @@ export function getCaseStatus(): CaseStatus | null {
+ }
+ 
+ /**
+- * Is there a mesh to solve on?
++ * Has this case's mesh passed the strict solve gate?
+  *
+- * Either this session just made one, OR the server found one already on disk.
+- * Tracking only this session's history would lock the solver tab after every
+- * page reload even though the mesh is right there — which is exactly what
+- * happened before `scanCaseStatus` was wired in.
++ * A fresh disk scan restores acceptance across reloads and can revoke stale
++ * cached readiness. A current failed/running quality job still overrides an
++ * older scan. Physical polyMesh presence alone cannot authorize solving.
+  */
+ export function isMeshReady(): boolean {
+-  // The latest mesh attempt supersedes any earlier disk scan. A failed mesh
+-  // can leave a partial or stale polyMesh on disk, which must not unlock solve.
+   const job = getCurrentCaseJob()
+-  if (job?.kind === 'mesh') return !job.running && !job.aborted && job.returncode === 0
+-  return state.meshReady || !!state.status?.meshReady
++  if (job && (job.kind === 'mesh' || job.kind === 'checkMesh')) {
++    if (job.running || job.aborted || job.returncode !== 0 || job.checkMeshOk !== true ||
++        (job.failedChecks !== null && job.failedChecks !== 0)) return false
++  }
++  return state.status && statusMeshReadinessGeneration === meshReadinessGeneration
++    ? state.status.meshReady === true : state.meshReady
+ }
+ 
+ /** Retain old jobs for monitoring, but never present them as this case's result. */
+@@ -204,11 +217,14 @@ export function isPostprocessReady(): boolean {
+ /** Ask the server what the current case directory already contains. */
+ async function scanForContext(context: number): Promise<CaseStatus | null> {
+   const sequence = ++caseStatusSequence
++  const meshGeneration = meshReadinessGeneration
+   try {
+     const resp = await fetch('/api/scan-case-status', { cache: 'no-store' })
+     if (!resp.ok) throw new Error(`server returned ${resp.status}`)
+     const status = (await resp.json()) as CaseStatus
+-    if (!isCasePathContextCurrent(context) || sequence !== caseStatusSequence) return null
++    if (!isCasePathContextCurrent(context) || sequence !== caseStatusSequence ||
++        meshGeneration !== meshReadinessGeneration) return null
++    statusMeshReadinessGeneration = meshGeneration
+     state = { ...state, status }
+     emit()
+     return status
+@@ -228,7 +244,8 @@ export async function scanCaseStatus(): Promise<CaseStatus | null> {
+ 
+ function invalidateCaseReadiness(): void {
+   ++serverInfoSequence
+-  ++caseStatusSequence
++  invalidateMeshReadinessScan()
++  statusMeshReadinessGeneration = -1
+   state = { ...state, info: null, infoError: null, diagnosis: null, meshReady: false, status: null }
+   emit()
+ }
+@@ -420,6 +437,7 @@ export async function runJob(kind: JobKind): Promise<void> {
+   const { jobId } = (await resp.json()) as { jobId?: string }
+   if (!jobId) throw new Error('server did not return a jobId')
+ 
++  if (kind === 'mesh' && isCasePathContextCurrent(context)) invalidateMeshReadinessScan()
+   state = {
+     ...state,
+     job: {
+@@ -457,6 +475,8 @@ export async function runCheckMesh(): Promise<void> {
+   const existsBody = (await exists.json()) as { meshReady?: boolean }
+   if (!isCasePathContextCurrent(context)) return
+   if (!existsBody.meshReady) {
++    // An explicit missing mesh supersedes an older accepted disk scan.
++    invalidateMeshReadinessScan()
+     state = { ...state, meshReady: false }
+     emit()
+     throw new Error('mesh not found')
+@@ -467,6 +487,7 @@ export async function runCheckMesh(): Promise<void> {
+   if (body.error) throw new Error(body.error)
+   if (!body.jobId) throw new Error('server did not return a jobId')
+ 
++  if (isCasePathContextCurrent(context)) invalidateMeshReadinessScan()
+   state = {
+     ...state,
+     job: {
+@@ -506,11 +527,15 @@ function finishJob(jobId: string, context: number, final: JobStatus): void {
+   const aborted = final.cancelled === true || final.cancelRequested === true ||
+     (job.abortRequested === true && final.returncode !== 0)
+   const ok = final.returncode === 0 && !aborted
++  const qualityOk = ok && final.checkMeshOk === true &&
++    (final.failedChecks == null || final.failedChecks === 0)
++  if (currentCase && (job.kind === 'mesh' || job.kind === 'checkMesh')) {
++    invalidateMeshReadinessScan()
++  }
+   state = {
+     ...state,
+     meshReady: !currentCase ? state.meshReady
+-      : job.kind === 'mesh' ? ok
+-      : job.kind === 'checkMesh' ? true
++      : job.kind === 'mesh' || job.kind === 'checkMesh' ? qualityOk
+       : state.meshReady,
+     job: {
+       ...job, running: false, aborted, abortPending: false,
+diff --git a/src/frontend/react/test/airCancellationLifecycle.test.tsx b/src/frontend/react/test/airCancellationLifecycle.test.tsx
+index e4ad3267..7019763d 100644
+--- a/src/frontend/react/test/airCancellationLifecycle.test.tsx
++++ b/src/frontend/react/test/airCancellationLifecycle.test.tsx
+@@ -216,7 +216,7 @@ describe('air job cancellation waits for backend completion', () => {
+     jobStatus = async () => response({ done: true, returncode: 1, checkMeshOk: false, failedChecks: 3 })
+     await vi.advanceTimersByTimeAsync(5000)
+     expect(session.getJob()?.running).toBe(false)
+-    expect(session.isMeshReady()).toBe(true)
++    expect(session.isMeshReady()).toBe(false) // explicit rejected quality overrides earlier disk acceptance
+   })
+ 
+   it('performs solve completion side effects once when polling beats the SSE final', async () => {
+diff --git a/src/frontend/react/test/caseDirSession.test.ts b/src/frontend/react/test/caseDirSession.test.ts
+index 546acc59..600b6ebc 100644
+--- a/src/frontend/react/test/caseDirSession.test.ts
++++ b/src/frontend/react/test/caseDirSession.test.ts
+@@ -99,6 +99,26 @@ describe('automatic project directory restoration', () => {
+     await ready('/saved')
+   })
+ 
++  it('keeps solving locked after reload when files exist but strict quality is rejected', async () => {
++    fetcher.mockImplementation(async (url: string, options?: RequestInit) => {
++      if (url === '/api/set-case-dir') {
++        backendPath = JSON.parse(String(options?.body)).caseDir
++        return response({ ok: true, caseDir: backendPath })
++      }
++      if (url === '/api/server-info') return info()
++      if (url === '/api/scan-case-status') return response({
++        meshExists: true, meshReady: false, solveReady: false,
++        postprocessReady: false, logRuns: [], liquidRuns: [],
++      })
++      throw new Error('unexpected request ' + url)
++    })
++    store.loadProject(project('/rejected'), null)
++    await vi.waitFor(() => expect(session.getCaseStatus()?.meshExists).toBe(true))
++    expect(session.isValidated()).toBe(true)
++    expect(session.isMeshReady()).toBe(false)
++    expect(session.getCurrentCaseJob()).toBeNull()
++  })
++
+   it('ignores a startup response that arrives after a different project was loaded', async () => {
+     let finish!: (response: Response) => void
+     fetcher.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+@@ -167,7 +187,9 @@ describe('background jobs after a project switch', () => {
+     onerror: (() => void) | null = null
+     close = vi.fn()
+     constructor() { streams.push(this) }
+-    finish() { this.onmessage?.({ data: JSON.stringify({ done: true, returncode: 0 }) }) }
++    finish() { this.onmessage?.({ data: JSON.stringify({
++      done: true, returncode: 0, checkMeshOk: true, failedChecks: 0,
++    }) }) }
+   }
+   let streams: JobStream[]
+ 
+@@ -260,6 +282,188 @@ describe('background jobs after a project switch', () => {
+     expect(session.getJob()?.running).toBe(false)
+   })
+ 
++  it.each(['mesh', 'checkMesh'] as const)(
++    'unlocks a fresh %s success from disk=false before its new scan, then permits revocation',
++    async (kind) => {
++      fetcher.mockImplementationOnce(async () => response({
++        meshExists: true, meshReady: false, postprocessReady: true,
++        logRuns: [{ path: '/A' }], liquidRuns: [],
++      }))
++      await session.scanCaseStatus()
++      expect(session.isMeshReady()).toBe(false)
++      expect(session.isPostprocessReady()).toBe(true)
++
++      if (kind === 'mesh') await session.runJob('mesh')
++      else await session.runCheckMesh()
++      let finishFreshScan!: (value: Response) => void
++      fetcher.mockImplementationOnce(() => new Promise(resolve => { finishFreshScan = resolve }))
++      streams[0]!.finish()
++
++      // The explicit new quality success supersedes the pre-run disk=false.
++      expect(session.isMeshReady()).toBe(true)
++      expect(session.isPostprocessReady()).toBe(true)
++      // Only a scan requested after that success may revoke it.
++      finishFreshScan(response({
++        meshExists: true, meshReady: false, postprocessReady: true,
++        logRuns: [{ path: '/A' }], liquidRuns: [],
++      }))
++      await settle()
++      expect(session.isMeshReady()).toBe(false)
++    },
++  )
++
++  it('ignores a late running-job scan after a fresh success from disk=false', async () => {
++    fetcher.mockImplementationOnce(async () => response({
++      meshExists: true, meshReady: false, postprocessReady: true,
++      logRuns: [{ path: '/A' }], liquidRuns: [],
++    }))
++    await session.scanCaseStatus()
++    expect(session.isMeshReady()).toBe(false)
++    await session.runJob('mesh')
++    let finishOldScan!: (value: Response) => void
++    fetcher.mockImplementationOnce(() => new Promise(resolve => { finishOldScan = resolve }))
++    const oldScan = session.scanCaseStatus()
++    streams[0]!.finish()
++    expect(session.isMeshReady()).toBe(true)
++    finishOldScan(response({
++      meshExists: true, meshReady: false, postprocessReady: true,
++      logRuns: [{ path: '/A' }], liquidRuns: [],
++    }))
++    await oldScan
++    await settle()
++    expect(session.isMeshReady()).toBe(true)
++  })
++
++  it('keeps a fresh success from disk=false if its new status scan fails', async () => {
++    fetcher.mockImplementationOnce(async () => response({
++      meshExists: true, meshReady: false, postprocessReady: true,
++      logRuns: [{ path: '/A' }], liquidRuns: [],
++    }))
++    await session.scanCaseStatus()
++    await session.runCheckMesh()
++    fetcher.mockRejectedValueOnce(new Error('scan unavailable'))
++    streams[0]!.finish()
++    expect(session.isMeshReady()).toBe(true)
++    await settle()
++    expect(session.isMeshReady()).toBe(true)
++  })
++
++  it.each(['mesh', 'checkMesh'] as const)(
++    'refuses %s terminal success without an explicit true quality field',
++    async (kind) => {
++      const invalid = [undefined, null, false, 'true', 1]
++      for (const checkMeshOk of invalid) {
++        if (kind === 'mesh') await session.runJob('mesh')
++        else await session.runCheckMesh()
++        streams.at(-1)!.onmessage?.({ data: JSON.stringify({
++          done: true, returncode: 0, checkMeshOk, failedChecks: 0,
++        }) })
++        expect(session.isMeshReady()).toBe(false)
++        await settle()
++        // Even an older/accepted scan cannot override this current quality job.
++        expect(session.isMeshReady()).toBe(false)
++      }
++    },
++  )
++
++  it.each([
++    { returncode: 1, checkMeshOk: true, failedChecks: 0 },
++    { returncode: 0, checkMeshOk: true, failedChecks: 2 },
++    { returncode: 0, checkMeshOk: true, failedChecks: 0, cancelled: true },
++    { returncode: 0, checkMeshOk: true, failedChecks: 0, cancelRequested: true },
++  ])('keeps a failed or aborted check-only job locked: %j', async (final) => {
++    expect(session.isMeshReady()).toBe(true)
++    await session.runCheckMesh()
++    expect(session.isMeshReady()).toBe(false)
++    streams[0]!.onmessage?.({ data: JSON.stringify({ done: true, ...final }) })
++    expect(session.isMeshReady()).toBe(false)
++    await settle()
++    expect(session.isMeshReady()).toBe(false)
++  })
++
++  it.each([true, false])(
++    'preserves the prior quality verdict %s through a solve job with no quality metadata',
++    async (accepted) => {
++      const results = await import('../src/run/sensorResults')
++      vi.spyOn(results, 'onSolveFinished').mockResolvedValue(null)
++      fetcher.mockImplementationOnce(async () => response({
++        meshExists: true, meshReady: false, postprocessReady: true,
++        logRuns: [{ path: '/A' }], liquidRuns: [],
++      }))
++      await session.scanCaseStatus()
++      await session.runCheckMesh()
++      fetcher.mockRejectedValueOnce(new Error('scan unavailable'))
++      streams[0]!.onmessage?.({ data: JSON.stringify({
++        done: true, returncode: 0, checkMeshOk: accepted, failedChecks: accepted ? 0 : 2,
++      }) })
++      await settle()
++      expect(session.isMeshReady()).toBe(accepted)
++      await session.runJob('solve')
++      expect(session.getCurrentCaseJob()?.kind).toBe('solve')
++      expect(session.isMeshReady()).toBe(accepted)
++      fetcher.mockRejectedValueOnce(new Error('scan unavailable'))
++      streams.at(-1)!.onmessage?.({ data: JSON.stringify({ done: true, returncode: 0 }) })
++      expect(session.isMeshReady()).toBe(accepted)
++      await settle()
++      expect(session.isMeshReady()).toBe(accepted)
++    },
++  )
++
++  it.each(['mesh', 'checkMesh'] as const)(
++    'does not invalidate a new case scan when an old %s POST is accepted late',
++    async (kind) => {
++      let finishPost!: (value: Response) => void
++      const previous = fetcher.getMockImplementation()!
++      fetcher.mockImplementation(async (url: string, options?: RequestInit) => {
++        if (url === (kind === 'mesh' ? '/api/run-mesh' : '/api/run-check-mesh')) {
++          return new Promise(resolve => { finishPost = resolve })
++        }
++        if (url === '/api/scan-case-status' && backendPath === '/B') return response({
++          meshReady: true, postprocessReady: true, logRuns: [{ path: '/B' }], liquidRuns: [],
++        })
++        return previous(url, options)
++      })
++      const starting = kind === 'mesh' ? session.runJob('mesh') : session.runCheckMesh()
++      await vi.waitFor(() => expect(finishPost).toBeTypeOf('function'))
++      store.loadProject(project('/B'), null)
++      await ready('/B')
++      expect(session.isMeshReady()).toBe(true)
++      let finishScan!: (value: Response) => void
++      fetcher.mockImplementationOnce(() => new Promise(resolve => { finishScan = resolve }))
++      const newCaseScan = session.scanCaseStatus()
++      finishPost(response({ jobId: 'late-job-A' }))
++      await starting
++      expect(session.getCurrentCaseJob()).toBeNull()
++      expect(session.isMeshReady()).toBe(true)
++      finishScan(response({
++        meshReady: false, postprocessReady: true, logRuns: [{ path: '/B' }], liquidRuns: [],
++      }))
++      await newCaseScan
++      expect(session.isMeshReady()).toBe(false)
++    },
++  )
++
++  it('does not let a rejected check unlock a previously ready mesh', async () => {
++    expect(session.isMeshReady()).toBe(true)
++    await session.runCheckMesh()
++    streams[0]!.onmessage?.({ data: JSON.stringify({
++      done: true, returncode: 0, checkMeshOk: false, failedChecks: 2,
++    }) })
++    expect(session.isMeshReady()).toBe(false)
++  })
++
++  it('revokes cached acceptance when a fresh disk scan rejects changed mesh bytes', async () => {
++    await session.runCheckMesh()
++    streams[0]!.finish()
++    expect(session.isMeshReady()).toBe(true)
++    fetcher.mockImplementationOnce(async () => response({
++      meshExists: true, meshReady: false, solveReady: false,
++      postprocessReady: false, logRuns: [], liquidRuns: [],
++    }))
++    await session.scanCaseStatus()
++    expect(session.isMeshReady()).toBe(false)
++  })
++
+   it('keeps a zero-exit mesh job visibly failed when final checkMesh rejects its quality', async () => {
+     const quality = await import('../src/run/meshWarnings')
+     quality.installMeshWarningFeed()
+@@ -271,6 +475,7 @@ describe('background jobs after a project switch', () => {
+     expect(session.getJob()).toMatchObject({
+       kind: 'mesh', running: false, returncode: 0, checkMeshOk: false, failedChecks: 3,
+     })
++    expect(session.isMeshReady()).toBe(false)
+     expect(quality.blockingMeshWarnings().map(w => w.code)).toEqual(['high_skewness'])
+   })
+ 
+diff --git a/src/frontend/react/test/components/SolverPanelCheckStatus.test.tsx b/src/frontend/react/test/components/SolverPanelCheckStatus.test.tsx
+index dafe547b..2a1442f7 100644
+--- a/src/frontend/react/test/components/SolverPanelCheckStatus.test.tsx
++++ b/src/frontend/react/test/components/SolverPanelCheckStatus.test.tsx
+@@ -155,8 +155,10 @@ it('reports a failed full check as rejected and blocks the solve after a normal
+   })
+   await vi.waitFor(() => expect(host.querySelector('#check-mesh-result')?.textContent).toBe(i18n.t('status.checkmesh_rejected')))
+   expect(host.querySelector('#check-mesh-result')?.textContent).not.toContain('仍可求解')
+-  flushSync(() => host.querySelector<HTMLButtonElement>('#solve-run-btn')!.click())
+-  expect(document.querySelector('#mesh-quality-warning-dialog')?.textContent).toContain('77')
++  expect(session.isMeshReady()).toBe(false)
++  const solve = host.querySelector<HTMLButtonElement>('#solve-run-btn')!
++  expect(solve.disabled).toBe(true)
++  flushSync(() => solve.click())
+   expect(document.getElementById('mesh-warn-continue-btn')).toBeNull()
+   expect(jobs).toBe(1)
+ })
+diff --git a/src/frontend/shared/i18n/en-US.json b/src/frontend/shared/i18n/en-US.json
+index ee7d0144..18b22d58 100644
+--- a/src/frontend/shared/i18n/en-US.json
++++ b/src/frontend/shared/i18n/en-US.json
+@@ -277,6 +277,7 @@
+   "label.res_temperature": "(temperature)",
+   "label.res_turbulence": "(turbulence)",
+   "btn.check_mesh": "🔍 Check Mesh Status",
++  "hint.mesh_quality_required": "This mesh has not passed the full quality check. Check the existing mesh or generate it again before solving.",
+   "btn.run_solve": "🚀 Run Solver",
+   "btn.abort_solve": "⏹ Abort Solver",
+   "hint.postprocess_desc": "📊 Post-processing: visualize CFD results (temperature, velocity, streamlines).",
+diff --git a/src/frontend/shared/i18n/zh-CN.json b/src/frontend/shared/i18n/zh-CN.json
+index 6ed9e8d1..5fc6d5e5 100644
+--- a/src/frontend/shared/i18n/zh-CN.json
++++ b/src/frontend/shared/i18n/zh-CN.json
+@@ -282,6 +282,7 @@
+   "label.res_temperature": "(温度)",
+   "label.res_turbulence": "(湍流)",
+   "btn.check_mesh": "🔍 检测网格状态",
++  "hint.mesh_quality_required": "此网格尚未通过完整质量检查。请检测已有网格，或重新生成后再求解。",
+   "btn.run_solve": "🚀 执行求解",
+   "btn.abort_solve": "⏹ 中断求解",
+   "hint.postprocess_desc": "📊 后处理模式：可视化 CFD 求解结果（温度场、速度场、流线图）。",
+diff --git a/src/server/server.py b/src/server/server.py
+index f7de47c5..7c2ea12d 100644
+--- a/src/server/server.py
++++ b/src/server/server.py
+@@ -2663,16 +2663,52 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+ # GET /api/scan-case-status  — scan case dir for mesh + solve status
+ # ---------------------------------------------------------------------------
+ 
++def _scan_case_mesh_status(case_dir: Path) -> dict:
++    """Solve readiness requires accepted strict quality for these exact bytes.
++
++    Mesh existence remains a separate fact used by the check-only probe.
++    This scan reads an existing receipt; it never launches checkMesh.
++    """
++    from backend.aircooling.runner.mesh_layout import mesh_exists
++    from backend.aircooling.runner.air_mesh_quality_receipt import (
++        verify_air_mesh_quality_receipt,
++    )
++
++    mesh_dir = case_dir / "Mesh"
++    status = {"meshExists": mesh_exists(mesh_dir), "meshReady": False}
++    receipt_path = case_dir / "mesh-quality-receipt.json"
++    if not status["meshExists"] or not receipt_path.is_file():
++        return status
++    try:
++        with case_execution_lock(case_dir):
++            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
++            # Refusal needs no expensive full-mesh identity scan.
++            if not isinstance(receipt, dict) or receipt.get("status") != "accepted":
++                return status
++            inputs = [path for path in (case_dir / "model").glob("*.cfdrun")
++                      if path.is_file()]
++            if len(inputs) != 1:
++                return status
++            verify_air_mesh_quality_receipt(
++                receipt_path, mesh_dir, inputs[0], require_accepted=True,
++            )
++            status["meshReady"] = True
++    except (CaseExecutionBusyError, OSError, ValueError):
++        pass
++    return status
++
++
+ def handle_scan_case_status(handler: http.server.BaseHTTPRequestHandler) -> None:
+     """Return structured status of mesh readiness and all solve log runs."""
+     import re
+-    from backend.aircooling.runner.mesh_layout import available_result_times, mesh_exists
++    from backend.aircooling.runner.mesh_layout import available_result_times
+     from backend.aircooling.runner.convergence import run_is_transient
+ 
+     with CASE_DIR_LOCK:
+         cd = CASE_DIR
+     if not cd:
+         _send_json(handler, 200, {
++            "meshExists": False,
+             "meshReady": False,
+             "logRuns": [],
+             "solveReady": False,
+@@ -2680,8 +2716,8 @@ def handle_scan_case_status(handler: http.server.BaseHTTPRequestHandler) -> None
+         })
+         return
+ 
+-    # 1. Check mesh readiness
+-    mesh_ready = mesh_exists(cd / "Mesh")
++    # 1. Restore readiness only from the bound strict quality verdict.
++    mesh_status = _scan_case_mesh_status(cd)
+ 
+     # 2. Scan log/ for run directories
+     #    Air-mode: YYYY-MM-DD-HH-MM-SS_<name>  (all hyphens)
+@@ -2745,7 +2781,7 @@ def handle_scan_case_status(handler: http.server.BaseHTTPRequestHandler) -> None
+     postprocess_ready = solve_ready or liquid_ready
+ 
+     _send_json(handler, 200, {
+-        "meshReady": mesh_ready,
++        **mesh_status,
+         "logRuns": log_runs,
+         "liquidRuns": liquid_runs,
+         "solveReady": solve_ready,

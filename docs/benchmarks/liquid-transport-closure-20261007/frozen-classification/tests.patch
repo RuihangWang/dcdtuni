@@ -1,0 +1,179 @@
+--- a/src/frontend/react/test/shinaideHybridCompiler.test.ts
++++ b/src/frontend/react/test/shinaideHybridCompiler.test.ts
+@@ -19,10 +19,46 @@
+ import * as store from '../src/projectStore'
+ import { assertPhysicalManifoldBranches } from './helpers/physicalManifoldBranchOracle'
+ import type { DynamicLiquidGraph } from '../src/liquid/dynamicLiquidGraph'
++import { auditLiteralClosedCarrier } from './helpers/literalCarrierOracle'
+ 
+ const sourcePath=resolve(process.cwd(),'../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj')
+ const sha=(value:string)=>createHash('sha256').update(value).digest('hex')
+ const timestamp='2026-09-26T00:00:00.000Z'
++const legacyAirFiles=['merged_acu.stl','merged_baffle.stl','merged_box.stl','merged_floor_ceiling.stl',
++  'merged_perforatedBlankingPanel_3U.stl','merged_perforatedBlankingPanel_4U.stl','merged_perforatedBlankingPanel_5U.stl',
++  'merged_rack_frame.stl','merged_server_4U.stl','merged_server_8U.stl','merged_server_interface_walls.stl','room_wall.stl'].sort()
++function assertTransportOutput(manifest:CfdrunV2,files:Record<string,string>) {
++  const name='merged_liquid_transport.stl'
++  expect(Object.keys(files).filter(n=>n!==name).sort()).toEqual(legacyAirFiles)
++  expect(Object.keys(files).filter(n=>n===name)).toEqual([name])
++  const output=manifest.geometryExport
++  const fileEntries=Object.entries(output.stlFiles),matches=fileEntries.filter(([,f])=>f.path===name)
++  expect(fileEntries.map(([,f])=>f.path).filter(n=>n!==name).sort()).toEqual(legacyAirFiles)
++  expect(matches).toHaveLength(1);const [fileId,file]=matches[0]!
++  expect(file.contentHash).toBe(sha(files[name]!))
++  const audit=auditLiteralClosedCarrier(files[name]!)
++  const regions=Object.values(output.sourceRegions??{}).filter(r=>r.stlFileId===fileId)
++  expect(regions.map(r=>r.sourceEntityUid).sort()).toEqual(['m_31','m_32'])
++  const catalogue=(window as unknown as {geometryScene:{getGroupedStlSourceCatalogue(f:Record<string,string>):
++    {liquidTransport:{carrierUid:string;contributors:string[]};regions:Array<{filename:string;sourceEntityUid:string;facetCount:number}>}|null}})
++    .geometryScene.getGroupedStlSourceCatalogue(files)
++  expect(catalogue?.liquidTransport.contributors).toEqual(['m_31','m_32'])
++  expect(catalogue?.regions.filter(r=>r.filename===name).map(r=>r.sourceEntityUid).sort()).toEqual(['m_31','m_32'])
++  for(const region of regions) {
++    expect(region.operation).toBe('liquidTransportUnionBoundary')
++    expect(region.carrierUid).toBe(`${manifest.sourceProject!.uid}/liquid-transport/carrier/v1`)
++    expect(region.carrierContributorUids).toEqual(['m_31','m_32'])
++    expect(region.sourceFacetCount).toBe(audit.regionFacetCounts[region.solidName])
++    expect(region.sourceFacetCount).toBeGreaterThan(0)
++    const block=[...files[name]!.matchAll(/^solid[ \t]+([^\r\n]+)\r?\n([\s\S]*?)^endsolid[ \t]+([^\r\n]+)[ \t]*\r?\n?/gm)].find(m=>m[1]===region.solidName)![0]
++    expect(region.sourceRegionSha256).toBe(sha(block))
++    const solids=Object.values(output.solids).filter(s=>s.stlFileId===fileId&&s.solidName===region.solidName)
++    expect(solids).toHaveLength(1);expect(solids[0]!.role).toBe('wall')
++    expect(solids[0]!.objectPath).toBe(`constructions.pipeSegments.${region.sourceEntityUid}`)
++    expect(solids[0]!.areaM2).toBeGreaterThan(0)
++  }
++}
++
+ 
+ async function air(project:CfdProject,includeLeakage=false) {
+   // Geometry builders may materialize caches/defaults. Isolate that work so
+@@ -152,8 +188,8 @@
+   expect(validateManifest(manifest)).toEqual([])
+   expect(manifest.schemaVersion).toBe(4)
+   expect(manifest.sourceProject?.uid).toBe(project.uid)
+-  expect(Object.keys(stlFiles)).toHaveLength(12)
+-  expect(Object.keys(manifest.geometryExport.stlFiles)).toHaveLength(12)
++  assertTransportOutput(manifest,stlFiles)
++  expect(Object.keys(manifest.geometryExport.stlFiles)).toHaveLength(13)
+   expect(Object.values(stlFiles).every(text=>text.includes('solid '))).toBe(true)
+   expect(sha(readFileSync(currentPath,'utf8'))).toBe(sha(source))
+ 
+@@ -308,7 +344,7 @@
+   const {manifest,stlFiles,normalizedProject}=await air(reopened,true)
+   expect(validateManifest(manifest)).toEqual([])
+   expect(manifest.schemaVersion).toBe(4)
+-  expect(Object.keys(stlFiles)).toHaveLength(12)
++  assertTransportOutput(manifest,stlFiles)
+   expect(manifest.sourceProject?.uid).toBe(liquid.source_project.project_uid)
+   const canonical=(window as unknown as {cfdrunExport:{stableStringify(value:unknown):string}})
+     .cfdrunExport.stableStringify
+--- /dev/null
++++ b/src/frontend/react/test/helpers/literalCarrierOracle.ts
+@@ -0,0 +1,27 @@
++/** Independent literal whole-carrier oracle, not per partial source region. */
++export function auditLiteralClosedCarrier(text:string) {
++  const points:number[][]=[],pointIds=new Map<string,number>(),edges=new Map<string,[number,number]>()
++  const regions=new Map<string,number>();let solid:string|null=null,triangle:number[]=[],count=0,volume=0
++  let normal:number[]=[]
++  for(const line of text.split('\n')) {
++    const words=line.trim().split(/\s+/)
++    if(words[0]==='solid') {if(solid)throw new Error('nested STL solid');solid=words[1]!;if(regions.has(solid))throw new Error('duplicate STL solid');regions.set(solid,0)}
++    else if(words[0]==='endsolid') {if(words[1]!==solid)throw new Error('STL region delimiter mismatch');solid=null}
++    else if(words[0]==='facet') {normal=words.slice(2).map(Number);triangle=[]}
++    else if(words[0]==='vertex') {
++      const v=words.slice(1).map(Number);if(v.length!==3||v.some(n=>!Number.isFinite(n)))throw new Error('nonfinite STL point')
++      const key=v.join(',');let id=pointIds.get(key);if(id===undefined){id=points.length;points.push(v);pointIds.set(key,id)}triangle.push(id)
++    } else if(words[0]==='endfacet') {
++      if(!solid||triangle.length!==3)throw new Error('invalid STL facet')
++      const [ia,ib,ic]=triangle as [number,number,number],a=points[ia]!,b=points[ib]!,c=points[ic]!
++      const u=b.map((v,i)=>v-a[i]!),v=c.map((n,i)=>n-a[i]!),cross=[u[1]!*v[2]!-u[2]!*v[1]!,u[2]!*v[0]!-u[0]!*v[2]!,u[0]!*v[1]!-u[1]!*v[0]!]
++      const area=Math.hypot(...cross)/2
++      if(!Number.isFinite(area)||area<=1e-20||normal.length!==3||normal.some(n=>!Number.isFinite(n))||normal.reduce((s,n,i)=>s+n*cross[i]!,0)<=0)throw new Error('degenerate or reversed written STL facet')
++      for(const [x,y] of [[ia,ib],[ib,ic],[ic,ia]] as Array<[number,number]>) {const key=Math.min(x,y)+':'+Math.max(x,y);const row:[number,number]=edges.get(key)??[0,0];row[x<y?0:1]++;edges.set(key,row)}
++      volume+=(a[0]!*(b[1]!*c[2]!-b[2]!*c[1]!)+a[1]!*(b[2]!*c[0]!-b[0]!*c[2]!)+a[2]!*(b[0]!*c[1]!-b[1]!*c[0]!))/6
++      regions.set(solid,regions.get(solid)!+1);count++
++    }
++  }
++  if(solid||!count||!Number.isFinite(volume)||volume<=1e-12||[...edges.values()].some(([a,b])=>a!==1||b!==1))throw new Error('written carrier is not a closed oriented solid')
++  return {triangles:count,volumeM3:volume,regionFacetCounts:Object.fromEntries(regions)}
++}
+--- /dev/null
++++ b/src/frontend/react/test/transportCsgPrecision.test.ts
+@@ -0,0 +1,55 @@
++/** Local transport precision; legacy CSG producers retain their default. */
++import { expect,it } from 'vitest'
++import * as THREE from 'three'
++import '../src/legacy/geometryBuilder'
++const CSG=(window as unknown as {ThreeCSG:{CSG:any}}).ThreeCSG.CSG
++const mesh=(x=0)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(2,2,2));m.position.x=x;m.updateMatrix();return m}
++const volume=(csg:any)=>csg.polygons.reduce((s:number,p:any)=>{
++  const a=new THREE.Vector3(p.vertices[0].pos.x,p.vertices[0].pos.y,p.vertices[0].pos.z)
++  return s+p.vertices.slice(2).reduce((q:number,v:any,i:number)=>q+a.dot(new THREE.Vector3(p.vertices[i+1].pos.x,p.vertices[i+1].pos.y,p.vertices[i+1].pos.z).cross(new THREE.Vector3(v.pos.x,v.pos.y,v.pos.z)))/6,0)
++},0)
++const seed=()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float64Array([0,0,0,1,0,0,0,1,0]),3));g.computeVertexNormals();return CSG.fromGeometry(g,37,1e-9).polygons[0]}
++it('does not change default EPS or lend transport precision to subsequent default objects',()=>{
++  const a=CSG.fromMesh(mesh(),37),p=CSG.fromMesh(mesh(),41,1e-9),b=CSG.fromMesh(mesh(),43)
++  expect(a.polygons.every((q:any)=>q.plane.classificationEpsilon===undefined)).toBe(true)
++  expect(b.polygons.every((q:any)=>q.plane.classificationEpsilon===undefined)).toBe(true)
++  expect(p.polygons.every((q:any)=>q.plane.classificationEpsilon===1e-9)).toBe(true)
++  expect(a.polygons[0].plane.constructor.EPSILON).toBe(1e-5)
++  expect(volume(a.union(b))).toBeCloseTo(8,12)
++})
++it('rejects invalid or looser precision before creating geometry',()=>{
++  for(const v of [0,-1,NaN,Infinity,1e-4])expect(()=>CSG.fromMesh(mesh(),37,v)).toThrow('positive and no looser')
++})
++it('classifies a real five-micrometre span without moving its endpoints and leaves default classification unchanged',()=>{
++  const p=seed(),Vertex=p.vertices[0].constructor,Vector=p.vertices[0].pos.constructor,Polygon=p.constructor,Plane=p.plane.constructor
++  const vertices=[[-5e-6,-1,0],[5e-6,-1,0],[5e-6,1,0],[-5e-6,1,0]].map(([x,y,z])=>new Vertex(new Vector(x,y,z),new Vector(0,0,1),new Vector()))
++  const poly=new Polygon(vertices,37,p.plane),normal=new Vector(1,0,0),cut=new Plane(normal,0),front:any[]=[],back:any[]=[],coplanar:any[]=[]
++  cut.classificationEpsilon=p.plane.classificationEpsilon;cut.splitPolygon(poly,coplanar,coplanar,front,back)
++  expect(front).toHaveLength(1);expect(back).toHaveLength(1);expect(coplanar).toHaveLength(0)
++  expect(front[0].vertices.some((v:any)=>v.pos.x===5e-6)).toBe(true);expect(back[0].vertices.some((v:any)=>v.pos.x===-5e-6)).toBe(true)
++  expect(front[0].vertices.some((v:any)=>v.pos.x===0)).toBe(true)
++  const oldCut=new Plane(new Vector(1,0,0),0),oldCo:any[]=[],oldFront:any[]=[],oldBack:any[]=[]
++  oldCut.splitPolygon(poly,oldCo,oldCo,oldFront,oldBack);expect(oldCo).toHaveLength(1);expect(oldFront).toHaveLength(0);expect(oldBack).toHaveLength(0)
++})
++it('preserves precise clipped plane lineage and independent clone/flip ownership',()=>{
++  const p=seed(),Vertex=p.vertices[0].constructor,Vector=p.vertices[0].pos.constructor,Polygon=p.constructor,Plane=p.plane.constructor
++  const vertices=[[-1,1,0],[-1,-1,0],[0,-1,0],[1,-1,0],[1,1,0]].map(([x,y,z])=>new Vertex(new Vector(x,y,z),new Vector(0,0,1),new Vector()))
++  const poly=new Polygon(vertices,37,p.plane),cut=new Plane(new Vector(1,0,0),-.5),front:any[]=[],back:any[]=[];cut.classificationEpsilon=1e-9
++  cut.splitPolygon(poly,[],[],front,back);expect(front).toHaveLength(1);expect(back).toHaveLength(1)
++  expect(front[0].vertices.slice(0,3).map((v:any)=>[v.pos.x,v.pos.y,v.pos.z])).toEqual([[-.5,-1,0],[0,-1,0],[1,-1,0]])
++  const before={...poly.plane.normal},cloned=front[0].clone();expect({...cloned.plane.normal}).toEqual(before);expect(cloned.plane.classificationEpsilon).toBe(1e-9);expect(cloned.shared).toBe(37)
++  cloned.flip();expect({...front[0].plane.normal}).toEqual(before);expect({...back[0].plane.normal}).toEqual(before);expect({...poly.plane.normal}).toEqual(before)
++})
++it('binds precise support planes after affine transform before split/clone',()=>{
++  const m=mesh();m.position.set(3,2,-4);m.rotation.set(.23,.45,-.12);m.scale.set(1.2,.8,1.5);m.updateMatrix()
++  const a=CSG.fromMesh(m,37,1e-9),clone=a.clone(),inverse=a.inverse();expect(volume(a)).toBeCloseTo(11.52,10);expect(volume(clone)).toBe(volume(a));expect(volume(inverse)).toBeCloseTo(-volume(a),12)
++  a.polygons.forEach((p:any,i:number)=>{for(const v of p.vertices)expect(Math.abs(p.plane.normal.dot(v.pos)-p.plane.w)).toBeLessThan(1e-12)
++    expect(p.plane).not.toBe(clone.polygons[i].plane);expect(p.plane.classificationEpsilon).toBe(1e-9);expect(p.plane.normal.dot(inverse.polygons[i].plane.normal)).toBeCloseTo(-1,14)})
++})
++it('keeps a physical one-micrometre Boolean intersection and original owners',()=>{
++  const a=CSG.fromMesh(mesh(),37,1e-9),b=CSG.fromMesh(mesh(2-1e-6),41,1e-9)
++  const intersection=a.intersect(b),union=a.union(b)
++  expect(volume(intersection)).toBeCloseTo(4e-6,12);expect(volume(union)).toBeCloseTo(16-4e-6,12)
++  for(const out of [intersection,union])expect(out.polygons.every((p:any)=>(p.shared===37||p.shared===41)&&p.plane.classificationEpsilon===1e-9)).toBe(true)
++  const xs=intersection.polygons.flatMap((p:any)=>p.vertices.map((v:any)=>v.pos.x));expect(Math.min(...xs)).toBe(Math.min(...b.polygons.flatMap((p:any)=>p.vertices.map((v:any)=>v.pos.x))));expect(Math.max(...xs)).toBe(1)
++})
+--- /dev/null
++++ b/src/frontend/react/test/literalCarrierOracle.test.ts
+@@ -0,0 +1,19 @@
++import { expect,it } from 'vitest'
++import { auditLiteralClosedCarrier } from './helpers/literalCarrierOracle'
++const O=[0,0,0],A=[1,0,0],B=[0,1,0],C=[0,0,1]
++const facet=(v:number[][],n:number[])=>`  facet normal ${n.join(' ')}\n    outer loop\n${v.map(p=>`      vertex ${p.join(' ')}\n`).join('')}    endloop\n  endfacet\n`
++const f=[facet([O,B,A],[0,0,-1]),facet([O,A,C],[0,-1,0]),facet([O,C,B],[-1,0,0]),facet([A,B,C],[1,1,1])]
++const region=(name:string,faces:string[])=>`solid ${name}\n${faces.join('')}endsolid ${name}\n`
++const carrier=()=>region('supply',f.slice(0,2))+region('return',f.slice(2))
++it('checks one closed carrier whose individual source regions are partial exterior sheets',()=>{
++  const a=auditLiteralClosedCarrier(carrier());expect(a.triangles).toBe(4);expect(a.volumeM3).toBeCloseTo(1/6,15);expect(a.regionFacetCounts).toEqual({supply:2,return:2})
++  expect(()=>auditLiteralClosedCarrier(region('supply',f.slice(0,2)))).toThrow('not a closed oriented solid')
++})
++it('rejects missing and duplicate facets rather than filling holes or dropping them',()=>{
++  expect(()=>auditLiteralClosedCarrier(region('supply',f.slice(0,3)))).toThrow('not a closed oriented solid')
++  expect(()=>auditLiteralClosedCarrier(region('supply',[...f,f[0]!]))).toThrow('not a closed oriented solid')
++})
++it('rejects reversed normals and aliased STL source labels',()=>{
++  expect(()=>auditLiteralClosedCarrier(carrier().replace('normal 0 0 -1','normal 0 0 1'))).toThrow('reversed written STL facet')
++  expect(()=>auditLiteralClosedCarrier(carrier().replaceAll('return','supply'))).toThrow('duplicate STL solid')
++})

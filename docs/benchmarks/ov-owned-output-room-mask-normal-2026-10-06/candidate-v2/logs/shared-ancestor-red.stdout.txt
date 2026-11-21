@@ -1,0 +1,95 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_____ test_shared_weak_parent_is_removed_after_restoring_multiple_siblings _____
+
+    def test_shared_weak_parent_is_removed_after_restoring_multiple_siblings():
+        scene, stage, weak = weak_siblings()
+        before = layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak)
+        handlers._set_geometry_hidden(scene, stage, True)
+        handlers._set_geometry_hidden(scene, stage, False)
+>       assert layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak) == before
+E       assert ('#usda 1.0\n...    }\n}\n\n') == ('#usda 1.0\n...    }\n}\n\n')
+E         
+E         At index 0 diff: '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a1c2300:weak@\n    ]\n)\n\nover "World"\n{\n    over "Weak"\n    {\n    }\n}\n\n' != '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a1c2300:weak@\n    ]\n)\n\n'
+E         Use -v to get more diff
+
+tests/test_layered_mask.py:306: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 2 prims)
+___ test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry[False] ___
+
+during_on = False
+
+    @pytest.mark.parametrize("during_on", [False, True])
+    def test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry(during_on):
+        scene, stage, weak = weak_siblings()
+        before = layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak)
+        if during_on:
+            # Strong visible B forces rollback, whose B restoration fails once.
+            UsdGeom.Imageable(stage.GetPrimAtPath("/World/Weak/B")).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+            before = layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak)
+        else:
+            handlers._set_geometry_hidden(scene, stage, True)
+        restoring = handlers._restore_visibility
+        def fail_b_once(stage_arg, snapshot):
+            if str(snapshot[2]) == "/World/Weak/B.visibility":
+                raise RuntimeError("controlled B restore failure")
+            return restoring(stage_arg, snapshot)
+        with mock.patch.object(handlers, "_restore_visibility", fail_b_once):
+            with pytest.raises(RuntimeError, match="rollback failed" if during_on else "restore failed"):
+                handlers._set_geometry_hidden(scene, stage, during_on)
+        assert list(scene._volume_geometry_saved) == ["/World/Weak/B"]
+        assert scene._volume_geometry_hidden
+        assert stage.GetEditTarget().GetLayer() == stage.GetSessionLayer()
+        handlers._set_geometry_hidden(scene, stage, False)
+>       assert layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak) == before
+E       assert ('#usda 1.0\n...    }\n}\n\n') == ('#usda 1.0\n...    }\n}\n\n')
+E         
+E         At index 0 diff: '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a1cf0a0:weak@\n    ]\n)\n\nover "World"\n{\n    over "Weak"\n    {\n    }\n}\n\n' != '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a1cf0a0:weak@\n    ]\n)\n\n'
+E         Use -v to get more diff
+
+tests/test_layered_mask.py:331: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 1 prims)
+___ test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry[True] ____
+
+during_on = True
+
+    @pytest.mark.parametrize("during_on", [False, True])
+    def test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry(during_on):
+        scene, stage, weak = weak_siblings()
+        before = layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak)
+        if during_on:
+            # Strong visible B forces rollback, whose B restoration fails once.
+            UsdGeom.Imageable(stage.GetPrimAtPath("/World/Weak/B")).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+            before = layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak)
+        else:
+            handlers._set_geometry_hidden(scene, stage, True)
+        restoring = handlers._restore_visibility
+        def fail_b_once(stage_arg, snapshot):
+            if str(snapshot[2]) == "/World/Weak/B.visibility":
+                raise RuntimeError("controlled B restore failure")
+            return restoring(stage_arg, snapshot)
+        with mock.patch.object(handlers, "_restore_visibility", fail_b_once):
+            with pytest.raises(RuntimeError, match="rollback failed" if during_on else "restore failed"):
+                handlers._set_geometry_hidden(scene, stage, during_on)
+        assert list(scene._volume_geometry_saved) == ["/World/Weak/B"]
+        assert scene._volume_geometry_hidden
+        assert stage.GetEditTarget().GetLayer() == stage.GetSessionLayer()
+        handlers._set_geometry_hidden(scene, stage, False)
+>       assert layer_bytes(stage.GetRootLayer(), stage.GetSessionLayer(), weak) == before
+E       assert ('#usda 1.0\n...    }\n}\n\n') == ('#usda 1.0\n...    }\n}\n\n')
+E         
+E         At index 0 diff: '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a2c8e90:weak@\n    ]\n)\n\nover "World"\n{\n    over "Weak"\n    {\n    }\n}\n\n' != '#usda 1.0\n(\n    subLayers = [\n        @anon:0x55a15a2c8e90:weak@\n    ]\n)\n\n'
+E         Use -v to get more diff
+
+tests/test_layered_mask.py:331: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 1 prims)
+=========================== short test summary info ============================
+FAILED tests/test_layered_mask.py::test_shared_weak_parent_is_removed_after_restoring_multiple_siblings
+FAILED tests/test_layered_mask.py::test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry[False]
+FAILED tests/test_layered_mask.py::test_failed_restore_keeps_shared_ancestor_cleanup_for_later_retry[True]
+3 failed, 16 deselected in 0.50s

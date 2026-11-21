@@ -1,0 +1,26 @@
+EXE_INC = \
+    -I$(LIB_SRC)/finiteVolume/lnInclude \
+    -I$(LIB_SRC)/meshTools/lnInclude \
+    -I$(LIB_SRC)/sampling/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
+    -I$(LIB_SRC)/transportModels \
+    -I$(LIB_SRC)/transportModels/incompressible/singlePhaseTransportModel \
+    -I$(LIB_SRC)/thermophysicalModels/radiation/lnInclude \
+    -I$(DC_FOAM_SRC)/lib/explicitBoundaryWrite \
+    -I$(DC_FOAM_SRC)/lib/pressureComponents
+
+EXE_LIBS = \
+    -lfiniteVolume \
+    -lfvOptions \
+    -lmeshTools \
+    -lsampling \
+    -lturbulenceModels \
+    -lincompressibleTurbulenceModels \
+    -lincompressibleTransportModels \
+    -lradiationModels \
+    -latmosphericModels \
+    -L$(FOAM_LIBBIN)/$(FOAM_MPI) -Wl,-rpath,$(FOAM_LIBBIN)/$(FOAM_MPI)
+
+/* dcdtuni: -I$(DC_FOAM_SRC)/... picks up our writeBCFields.H; the trailing
+   -L pins Pstream to the conda OpenFOAM v2412, not a system openfoam2406 */

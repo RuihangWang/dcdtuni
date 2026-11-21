@@ -1,0 +1,148 @@
+[
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "decomposeConformingCones",
+    "hits": [
+      {
+        "line": 12580,
+        "excerpt": "}\n\nFoam::label Foam::dcCartCutCells::decomposeConformingCones\n(\n    cutMesh& m, const wordList& patchNames, const wordList& patchTypes,\n    const wordList& patchNeighbours, label myRank,"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "clockTime oracleClock",
+    "hits": [
+      {
+        "line": 14210,
+        "excerpt": "        // The immutable raw checkpoint survives all candidates until the final\n        // writer certificate. Its baseline is never refreshed after mutation.\n        clockTime oracleClock;\n        if (m.writerBaseline)\n        { FatalErrorInFunction<<\"preoperator writer baseline must be captured once\"<<exit(FatalError); }\n        auto baseline=std::make_shared<writerCoupledBaseline>();"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "weightUnionPreview::capture",
+    "hits": [
+      {
+        "line": 14252,
+        "excerpt": "                // Every value and native binding is copied before oracle destruction.\n                m.weightUnionState->clock=clockTime();\n                dcCartWeightUnionPreview::capture\n                    (*m.weightUnionState,*checkpoint,*oracle,oracleBindings,unionParent,sourceOrigin);\n            }\n        }"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "m.weightUnionState->committed",
+    "hits": [
+      {
+        "line": 14786,
+        "excerpt": "                        { ++cavityQuality;return false; }\n                        auto record=*weightPacket;record.keep=keep;record.drop=drop;\n                        m.weightUnionState->committed.push_back(std::move(record));\n                        m.weightUnionState->survivorOrigins[keep]=weightPacket->origins;\n                        // Optional evidence must not pretend a multi-origin survivor is one cone parent.\n                        if (traceCones) { m.coneEvidenceParent[keep]=-1; }"
+      },
+      {
+        "line": 16451,
+        "excerpt": "        // Missing authority or an empty bounded pool retains the old path,\n        // including callers that do not request typed final bindings.\n        const label localWeightFailures=m.weightUnionState->committed.empty() ? 0\n            : (bindings\n                ? dcCartWeightUnionPreview::verify\n                    (*m.weightUnionState,m,mesh,*bindings,literalShell,capturePrefix):1);"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "One unconditional gather",
+    "hits": [
+      {
+        "line": 14942,
+        "excerpt": "            }\n        }\n        // One unconditional gather after all local work, including empty\n        // ranks. The statistics never affect the subsequent mesh algorithm.\n        List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(21,0);\n        mine[0]=examined;mine[1]=accepted;mine[2]=protectedCavity;mine[3]=geometryRejected;"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "rekeyPiecesByGeometry(m)",
+    "hits": [
+      {
+        "line": 7414,
+        "excerpt": "    // function \u2014 nothing here splits cells \u2014 so the incremental `local` map\n    // keys stay valid.\n    rekeyPiecesByGeometry(m);\n\n    // how many slivers a host has taken already: a host that keeps growing\n    // becomes the 60-face blob the solver chokes on"
+      },
+      {
+        "line": 9216,
+        "excerpt": "        // this function's own splits stamp history hashes too, so re-key at\n        // the start of EVERY round, before the proposals read gidOf.\n        rekeyPiecesByGeometry(m);\n        std::vector<std::vector<label>> cf;\n        buildCellFaces(m, cf);\n        std::vector<uint64_t> mine;"
+      },
+      {
+        "line": 9331,
+        "excerpt": "    for (label round=0;round<5;++round)\n    {\n        rekeyPiecesByGeometry(m);\n        std::vector<std::vector<label>> cf;\n        buildCellFaces(m,cf);\n        std::vector<bool> protectedPoint(m.points.size(),false);"
+      },
+      {
+        "line": 14987,
+        "excerpt": "        Pout<<\"; source-only permission, no cavity replacement\"<<endl;\n    }\n    rekeyPiecesByGeometry(m);\n    decomposed=returnReduce(decomposed,sumOp<label>());added=returnReduce(added,sumOp<label>());\n    partitioned=returnReduce(partitioned,sumOp<label>());faceFan=returnReduce(faceFan,sumOp<label>());anchorFan=returnReduce(anchorFan,sumOp<label>());\n    Info<<\"Conforming mixed cone experiment: decomposed \"<<decomposed<<\", added cells \"<<added"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "verifyWeightStage(true,true)",
+    "hits": [
+      {
+        "line": 16521,
+        "excerpt": "        }\n    };\n    verifyWeightStage(true,true);\n    if (!baselineOnly && remainingPointRepairSeconds)\n    {\n        // All ranks enter every gate, including false/empty ranks. The"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "verifyWeightStage(false,false)",
+    "hits": [
+      {
+        "line": 16568,
+        "excerpt": "    }\n    // The ACTUAL final installed state, after any point-repair refresh.\n    verifyWeightStage(false,false);\n    if (!baselineOnly && m.writerBaseline)\n    {\n        clockTime verifyClock;"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+    "needle": "verifyWriterCoupled(m,mesh",
+    "hits": [
+      {
+        "line": 16576,
+        "excerpt": "        // Every rank enters the same reduction, including empty/cert-zero ranks.\n        label localFailures=bindings\n            ? verifyWriterCoupled(m,mesh,*bindings,*m.writerBaseline) : 1;\n        writerCoupledBaseline actual;\n        actual.checkpoint=m.writerBaseline->checkpoint;\n        actual.copySeconds=m.writerBaseline->copySeconds;"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H",
+    "needle": "inline Search propose",
+    "hits": [
+      {
+        "line": 145,
+        "excerpt": "    bool stoppedByRequestCap=false,stoppedByTimeBudget=false;\n};\ninline Search propose\n(\n    unsigned dimension,\n    const std::function<Evaluation(const Row&)>& evaluate,"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H",
+    "needle": "inline Result apply",
+    "hits": [
+      {
+        "line": 1378,
+        "excerpt": "}\n\ninline Result apply\n(\n    polyMesh& mesh,const std::function<scalar()>& remainingStageBudget,\n    const std::function<bool(const std::vector<label>&)>& singletonSourceRoleContract={}"
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H",
+    "needle": "mesh.updateGeomPoints",
+    "hits": [
+      {
+        "line": 1371,
+        "excerpt": "    autoPtr<labelIOList> emptyTet;\n    mesh.clearTetBasePtIs();\n    mesh.updateGeomPoints(std::move(field),emptyTet);\n    (void)mesh.faceAreas();(void)mesh.faceCentres();\n    (void)mesh.cellCentres();(void)mesh.cellVolumes();\n    // All ranks call together; tetBasePtIs can exchange boundary information."
+      }
+    ]
+  },
+  {
+    "file": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H",
+    "needle": "mesh.clearTetBasePtIs",
+    "hits": [
+      {
+        "line": 1370,
+        "excerpt": "    );\n    autoPtr<labelIOList> emptyTet;\n    mesh.clearTetBasePtIs();\n    mesh.updateGeomPoints(std::move(field),emptyTet);\n    (void)mesh.faceAreas();(void)mesh.faceCentres();\n    (void)mesh.cellCentres();(void)mesh.cellVolumes();"
+      }
+    ]
+  }
+]

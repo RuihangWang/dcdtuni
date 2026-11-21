@@ -1,0 +1,82 @@
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/LeafBoundaryWallHalfOwnership.hpp lines 1-150 =====
+1: #pragma once
+2: #include <cmath>
+3: #include <vector>
+4: 
+5: // Private preview: only leaf-boundary wall-fragment ownership.
+6: // No geometry is snapped, reoriented or removed by this numeric policy.
+7: namespace meshgen_leaf_ownership {
+8: struct HalfOwnership {
+9:     bool boundaryTile = false;
+10:     bool plus = true;
+11:     bool minus = true;
+12:     bool allows(int half) const {
+13:         return half == 0 ? plus : (half == 1 ? minus : false);
+14:     }
+15:     bool allowsEdge(double sign) const {
+16:         if (!boundaryTile) return true;  // preserve all legacy non-boundary paths
+17:         if (sign == 1.0) return plus;     // existing edge sign means p+
+18:         if (sign == -1.0) return minus;   // existing edge sign means p-
+19:         return false;                    // no invented direction for a boundary tile
+20:     }
+21: };
+22: template<class Point>
+23: inline double component(const Point& p, int axis) {
+24:     return axis == 0 ? p.x : (axis == 1 ? p.y : p.z);
+25: }
+26: template<class Point>
+27: inline bool finitePoint(const Point& p) {
+28:     return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
+29: }
+30: template<class Point>
+31: inline bool inLeaf(const Point& p, const Point& lo, const Point& hi, double clipTol) {
+32:     for (int axis = 0; axis < 3; ++axis)
+33:         if (component(p, axis) < component(lo, axis) - clipTol ||
+34:             component(p, axis) > component(hi, axis) + clipTol)
+35:             return false;
+36:     return true;
+37: }
+38: template<class Point>
+39: inline HalfOwnership boundaryHalfOwnership(
+40:     const Point& lo, const Point& hi,
+41:     const Point& original0, const Point& original1, const Point& original2,
+42:     const std::vector<Point>& fragment, const Point& probePlus,
+43:     const Point& probeMinus, double clipTol, double areaNormSquared) {
+44:     HalfOwnership result;
+45:     // Unsupported or degenerate geometry follows the original path; this policy
+46:     // does not grant a new repair and leaves existing strict checks untouched.
+47:     if (!(clipTol > 0) || !std::isfinite(clipTol) ||
+48:         !(areaNormSquared > 0) || !std::isfinite(areaNormSquared) ||
+49:         fragment.size() < 3 || !finitePoint(lo) || !finitePoint(hi) ||
+50:         !finitePoint(original0) || !finitePoint(original1) ||
+51:         !finitePoint(original2) || !finitePoint(probePlus) || !finitePoint(probeMinus))
+52:         return result;
+53:     for (int axis = 0; axis < 3; ++axis)
+54:         if (!(component(lo, axis) < component(hi, axis))) return result;
+55:     for (const auto& p : fragment) if (!finitePoint(p)) return result;
+56:     // Both the source triangle and the actual fragment must be on the same
+57:     // existing boundary plane. The current clipTol is reused, not enlarged.
+58:     for (int axis = 0; axis < 3 && !result.boundaryTile; ++axis) {
+59:         for (int upper = 0; upper < 2 && !result.boundaryTile; ++upper) {
+60:             const double plane = component(upper ? hi : lo, axis);
+61:             if (std::abs(component(original0, axis) - plane) > clipTol ||
+62:                 std::abs(component(original1, axis) - plane) > clipTol ||
+63:                 std::abs(component(original2, axis) - plane) > clipTol)
+64:                 continue;
+65:             bool onPlane = true;
+66:             for (const auto& p : fragment) {
+67:                 if (std::abs(component(p, axis) - plane) > clipTol) {
+68:                     onPlane = false;
+69:                     break;
+70:                 }
+71:             }
+72:             if (onPlane) result.boundaryTile = true;
+73:         }
+74:     }
+75:     if (result.boundaryTile) {
+76:         result.plus = inLeaf(probePlus, lo, hi, clipTol);
+77:         result.minus = inLeaf(probeMinus, lo, hi, clipTol);
+78:     }
+79:     return result;
+80: }
+81: }  // namespace meshgen_leaf_ownership

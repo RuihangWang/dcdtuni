@@ -1,0 +1,236 @@
+FFFFFFFF...                                                              [100%]
+=================================== FAILURES ===================================
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_supply-nut] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu0')
+field = 'nut', role = 'acu_supply'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_supply-alphat] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu1')
+field = 'alphat', role = 'acu_supply'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_return-nut] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu2')
+field = 'nut', role = 'acu_return'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_return-alphat] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu3')
+field = 'alphat', role = 'acu_return'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_outlet-nut] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu4')
+field = 'nut', role = 'fan_outlet'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_outlet-alphat] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu5')
+field = 'alphat', role = 'fan_outlet'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_inlet-nut] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu6')
+field = 'nut', role = 'fan_inlet'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+_ test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_inlet-alphat] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-derived-flow-before/test_flow_diffusivity_is_calcu7')
+field = 'alphat', role = 'fan_inlet'
+
+    @pytest.mark.parametrize("field", ["nut", "alphat"])
+    @pytest.mark.parametrize("role", ["acu_supply", "acu_return", "fan_outlet", "fan_inlet"])
+    def test_flow_diffusivity_is_calculated_with_initial_value_preserved(tmp_path, field, role):
+        generator = FieldGenerator(case_dir=tmp_path)
+        # Registry semantics must take priority even for a mesh patch named "wall".
+        generator._imported_bc_data = {"wall_named_flow": {"bc_type": role}}
+        path = tmp_path / field
+        generator._write_simple_scalar_field(
+            path, [("wall_named_flow", "wall")], "0.09",
+            "volScalarField", "[0 2 -1 0 0 0 0]",
+        )
+        text = path.read_text()
+        block = _block(text, "wall_named_flow")
+>       assert re.search(r"type\s+calculated;", block), block
+E       AssertionError: 
+E                 type            fixedValue;
+E                 value           uniform 0.09;
+E             
+E       assert None
+E        +  where None = <function search at 0x7fe847e79900>('type\\s+calculated;', '\n        type            fixedValue;\n        value           uniform 0.09;\n    ')
+E        +    where <function search at 0x7fe847e79900> = re.search
+
+src/backend/tests/test_turbulence_derived_flow_patch.py:26: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_supply-nut]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_supply-alphat]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_return-nut]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[acu_return-alphat]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_outlet-nut]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_outlet-alphat]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_inlet-nut]
+FAILED src/backend/tests/test_turbulence_derived_flow_patch.py::test_flow_diffusivity_is_calculated_with_initial_value_preserved[fan_inlet-alphat]
+8 failed, 3 passed in 0.46s

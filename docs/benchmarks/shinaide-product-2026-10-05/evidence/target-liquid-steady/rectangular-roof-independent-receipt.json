@@ -1,0 +1,187 @@
+{
+  "format": "air-rectangular-roof-independent-receipt/v1",
+  "scope": "Math/diagnostic54-cell fixture only. Not original Tri/Liquid mesh, not actual packet eligibility, not usercase acceptance. No native source/binary/sourceSTL/productionmesh mutation.",
+  "sourceData": {
+    "tri": {
+      "originalPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/docs/benchmarks/air-product-presets-2026-10-05/strict-stage-roof-audit/shape-preflight.json",
+      "saved": "rectangular-roof-tri-source-preflight.json",
+      "sha256": "6b959c63d7e5deb4faed0c7395daf056c10bbf7b37060fa1ad0af899c0f0bde1"
+    },
+    "liquid": {
+      "originalPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/docs/benchmarks/air-product-presets-2026-10-05/strict-stage-roof-audit-liquid/shape-preflight.json",
+      "saved": "rectangular-roof-liquid-source-preflight.json",
+      "sha256": "3f72dffabfd08f2f698a99496160688aded49a66f8031aee69c68786ca3cad35"
+    }
+  },
+  "actualWidthsMetres": {
+    "Tri-rank0-cell11": [
+      0.2533333339999997,
+      0.25,
+      0.25501084600000024
+    ],
+    "Liquid-rank0-cell29": [
+      0.25,
+      0.255555556,
+      0.246875
+    ]
+  },
+  "pureMatrix": {
+    "actualAxisSignVariants": 12,
+    "allFullPureMetricGatePassed": true,
+    "sixAspect1p1BoundarySamplesAllPass": true
+  },
+  "proposedCandidateScaleGate": "Finite extents>1micrometre, max/min<=1.1, exactly one regular rectangular coarse box +four half-extents neighbours and same normalized3x3 grid, eta=.0005 of normal extent. Independent protected-point/full-star/overlap and complete quality gates remain mandatory. Aspect scope is deliberately narrow, not unlimited rectangular support.",
+  "affineProof": {
+    "area": "Sf'=det(A) A^-T Sf; area closure and planarity preserved.",
+    "centres": "All packet polygons are planar convex, so their area/centroid fan weights share one face scale: fc'=A fc. Signed pyramid volume and cell centre likewise give V'=det(A)V,cc'=A cc.",
+    "convexity": "n' proportional A^-T n, so all vertex halfspace signs are preserved.",
+    "strictFaceCentreDotBound": "For singular value ratio kappa, |dot(normalizedAd,normalizedA^-Tn)| >= |dot(normalizedd,n)|/kappa; signs unchanged.",
+    "unitMinimumStrictFaceCentreInwardUnitDot": 0.0004999998749999918,
+    "kappa1p1MinimumGuaranteedInwardDot": 0.00045454534090908345,
+    "determinantLowerBound": "det(T')/det(T) >= kappa^-6 when normalized by mean internal/coupled face area.",
+    "unitMinimumInternalAreaTensorDeterminant": 0.1249998905547024,
+    "kappa1p1MinimumGuaranteedAreaDeterminant": 0.07055917947770489,
+    "weightsAndVolumeRatios": "Both face-normal distance integrals gain det(A); each volume gains det(A). Internal weight and adjacent volume ratio invariant.",
+    "tet": "Every signed tet volume gains det(A)>0. Positive orientation is preserved; circumradius-normalized quality must be evaluated and final native checker still required."
+  },
+  "nativeFixture": {
+    "sample": "Liquid-rank0-cell29 extents, normalAxis0 negative",
+    "points": 130,
+    "faces": 222,
+    "internalFaces": 129,
+    "cells": 54,
+    "ranks": 2,
+    "rankCellCounts": [
+      18,
+      36
+    ],
+    "pureMetrics": {
+      "normalDisplacementMetres": 0.000125,
+      "aspectConditionNumber": 1.0351617458227849,
+      "totalVolumeM3": 0.3548828131171874,
+      "relativeTotalVolumeError": 3.12842150588607e-16,
+      "minimumTetFanQuality": 0.1146011697251634,
+      "minimumInternalAreaTensorDeterminant": 0.12492298249646425,
+      "minimumInternalWeight": 0.3330556596934931,
+      "minimumInternalVolumeRatio": 0.12490627343164198,
+      "allCellsStrictlyInsideFaceCentreCriterion": true,
+      "allNonincidentVerticesStrictInside": true,
+      "allOppositeEdgeCyclesClosed": true
+    },
+    "rankOwnerNoteEvidence": [
+      {
+        "nPoints": 81,
+        "nCells": 18,
+        "nFaces": 102,
+        "nInternalFaces": 33
+      },
+      {
+        "nPoints": 98,
+        "nCells": 36,
+        "nFaces": 156,
+        "nInternalFaces": 60
+      }
+    ]
+  },
+  "nativeChecker": {
+    "version": "2412",
+    "command": [
+      "mpirun",
+      "-np",
+      "2",
+      "taskset",
+      "-c",
+      "24-27",
+      "checkMesh",
+      "-constant",
+      "-allTopology",
+      "-allGeometry",
+      "-parallel",
+      "-case",
+      "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/roof-rectangular-diagnostic"
+    ],
+    "returncode": 0,
+    "MeshOK": true,
+    "fullFlags": true,
+    "stdoutEvidence": [
+      "    Min volume = 0.00197059. Max volume = 0.0157765.  Total volume = 0.354883.  Cell volumes OK.",
+      "    Mesh non-orthogonality Max: 25.3116 average: 13.2927",
+      "    Face tets OK.",
+      "    All face flatness OK.",
+      "    Cell determinant (wellposedness) : minimum: 0.124923 average: 1.1193",
+      "    Cell determinant check OK.",
+      "    Concave cell check OK.",
+      "    Face interpolation weight : minimum: 0.333056 average: 0.453407",
+      "    Face interpolation weight check OK.",
+      "    Face volume ratio : minimum: 0.124906 average: 0.75577",
+      "    Face volume ratio check OK.",
+      "Mesh OK."
+    ],
+    "limitation": "One legal rectangular analytic buffer. It does not authorize a production mesh or eliminate other clipped/concave/warped/weight/ratio problems."
+  },
+  "tests": "7 passed in 5.44s, including one >=2MPI fullchecker. Initial activation error preserved; decomposePar was not spawned and no native checker ran on that failed setup.",
+  "execution": {
+    "CPU": "24-27 checker/tests;24-31 puremath",
+    "CUDA_VISIBLE_DEVICES": "",
+    "OMP/OPENBLAS_THREADS": 1,
+    "productionSolverRuns": 0,
+    "actualCheckerRuns": 1,
+    "tmp": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/roof-rectangular-diagnostic/tmp"
+  },
+  "sourceSha256": {
+    "tools/audit_air_rectangular_roof.py": "a4d84808ac78b93fde509612c93446f9e8269d12dd3ad4a98dcc7e212008ecb2",
+    "src/backend/tests/test_audit_air_rectangular_roof.py": "78d3b9358910b8b19b5bb300fe9ee6c5b0dd63a49892693ceac6fc8631fedcc6",
+    "tools/audit_air_transition_roof.py": "9b7679313e737d9f843fe313b1d97cab345441b60e89fe1b373e69267fda9e82",
+    "tools/air_transition_roof_probe.py": "3defc26972d22343c9753130a9cb801fa86cb764d3b98ce5f02fd062e05e4bb7"
+  },
+  "fixtureInputSha256": {
+    "system/controlDict": "c3ad2650d5fe6f9e58d7abc7a5f3fb7273952c7dbed7c03bd18acc20a1d7b048",
+    "system/fvSchemes": "4ebe8c61637c62435962d5f8eaeeeb1de59476ab5f05084c3896fb4c88ed9056",
+    "system/decomposeParDict": "264344c0373f204eb696dfbc1d72ed1c7ba8b788b6cce7dada30e9c92e47d7b3",
+    "system/fvSolution": "38bce4c1d81d57e5cfd7be613759a5ed7272d5de7eaa84c8dc7726fd69188d50",
+    "constant/cellDecomp": "abade89851fecbca226d14de211b2c2d56163e698878ab10d29ce12a241597db",
+    "constant/polyMesh/neighbour": "9e008cb9e607e8d8744c4d720e6315b01870c2d39c667ab7e01838d945e586ae",
+    "constant/polyMesh/owner": "4f5b464afbaecdb8eee0b3927e2df5613faa6d7cdd60d96ed5ce8d532a6274d4",
+    "constant/polyMesh/points": "40395c3b5b8756b757524c547dc2871fa645f58089adeb359c200fe1a3133223",
+    "constant/polyMesh/boundary": "e7144dbee007652a4b5fb2ea5005b31aab47fda9af06db253493e13f2c1d7b17",
+    "constant/polyMesh/faces": "6149f23d4398d43c127008b89830fcdb602c68e337d11c3a8b3e5a19f5aada55"
+  },
+  "files": {
+    "rectangular-roof-independent-audit.json": {
+      "bytes": 8084855,
+      "sha256": "9824c9a23969b81df7628eb0789ad5cb2b933dac6c45bb0939a90b6c481fe971"
+    },
+    "rectangular-roof-independent-output.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "rectangular-roof-native-pytest-output.txt": {
+      "bytes": 98,
+      "sha256": "0b8cb4c0fbe7685ef707009f717f2a8909f34a0ce0ca9c21d3781d4ffd3c9e98"
+    },
+    "rectangular-roof-initial-environment-error.txt": {
+      "bytes": 9552,
+      "sha256": "f8443987112a937f13beefecfc97c73fe90c24600f2f0edc2a60c143973386b6"
+    },
+    "rectangular-roof-log.decomposePar.txt": {
+      "bytes": 2391,
+      "sha256": "acf531f15755796ef39e13a44cbf9f0f9dd3af88be858013634656558358e4cd"
+    },
+    "rectangular-roof-log.checkMesh.txt": {
+      "bytes": 4525,
+      "sha256": "dd9944060f95e7c26a22c45484c9a111af886079b6d29796a5e01ed04e25f5fd"
+    },
+    "rectangular-roof-tri-source-preflight.json": {
+      "bytes": 2777,
+      "sha256": "6b959c63d7e5deb4faed0c7395daf056c10bbf7b37060fa1ad0af899c0f0bde1"
+    },
+    "rectangular-roof-liquid-source-preflight.json": {
+      "bytes": 4868,
+      "sha256": "3f72dffabfd08f2f698a99496160688aded49a66f8031aee69c68786ca3cad35"
+    }
+  },
+  "nativeExecutableSha256": {
+    "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/checkMesh": "e38280298727e15e703a8bed2b5d3c8788f2408a3061c125f02a327fc4e0e7de",
+    "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/decomposePar": "d6e3c31ae4663c78767c235080aab0a3041de63fd535fbd4741cac7572f741a3"
+  }
+}

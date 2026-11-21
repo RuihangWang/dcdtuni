@@ -1,0 +1,12 @@
+{
+  "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartPostCarveFluidOwnershipPreview.H",
+  "sha256": "650e2153f40f44747b36a8384bccba19c39b276d4bd459c4dd86be88e2d3c802",
+  "bytes": 7098,
+  "existingPairVerifierRestriction": [
+    {
+      "line": 123,
+      "text": "        if(!s || origins.size()!=2 || origins[0].nativeParent==origins[1].nativeParent)return false;"
+    }
+  ],
+  "normalOriginProducerAndVerifier": "inline dcCartCutCells::weightUnionOrigin origin\n(\n    const std::shared_ptr<const Snapshot>& s,label parent\n)\n{\n    dcCartCutCells::weightUnionOrigin out;\n    if(!s || !s->complete || parent<0 || parent>=label(s->parents.size())\n     || !s->valid[parent] || !dcCartFluidOriginSnapshotCore::validShape(*s,s->parents[parent]))return out;\n    const auto& record=s->parents[parent];\n    out.rank=std::get<0>(record.identity);out.nativeParent=parent;\n    out.level=std::get<2>(record.identity);out.leaf=std::get<3>(record.identity);\n    out.piece=std::get<4>(record.identity);\n    out.region=std::string(polyMesh::defaultRegion); // IO label only, not authority\n    for(int f:record.facets) {\n        const auto& face=s->faces[f];\n        out.sourceFacets.push_back({{face.handle,face.patch,face.zone}});\n    }\n    return out;\n}\ninline dcCartWeightUnionSourceContract::NormalOriginVerifier verifier\n(\n    const std::shared_ptr<const Snapshot>& s\n)\n{\n    return [s](const std::vector<dcCartCutCells::weightUnionOrigin>& origins,\n               const dcCartWeightUnionSourceContract::GlobalMaterialContract& material)\n    {\n        if(!s || origins.size()!=2 || origins[0].nativeParent==origins[1].nativeParent)return false;\n        for(const auto& o:origins) {\n            if(o.region!=std::string(polyMesh::defaultRegion))return false;\n            // Both original identities/complete cut facet roles and full\n            // immutable oriented shape must match the current run's proof.\n            Identity id(o.rank,o.nativeParent,o.level,o.leaf,o.piece);\n            std::vector<std::array<int,3>> facets;\n            for(const auto& f:o.sourceFacets)facets.push_back({{f[0],f[1],f[2]}});\n            if(!dcCartFluidOriginSnapshotCore::verify(*s,id,facets,\n                material.rawSha256,material.rolesDigest,material.materialKey,\n                material.materialDigest,material.producerDigest))return false;\n        }\n        return true;\n    };\n}\n} }\n#endif"
+}

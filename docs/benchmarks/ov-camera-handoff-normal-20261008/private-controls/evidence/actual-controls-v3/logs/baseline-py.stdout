@@ -1,0 +1,44 @@
+F...........                                                             [100%]
+=================================== FAILURES ===================================
+_________ test_camera_handoff_returns_live_identity_without_grid_proof _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4e5db2a6b0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-camera-handoff-reply-private-20261008-v1/actual-controls-v3/tmp/baseline-py/test_camera_handoff_returns_li0')
+
+    def test_camera_handoff_returns_live_identity_without_grid_proof(monkeypatch,tmp_path):
+     async def scenario():
+      ext,view,calls=fixture(monkeypatch,tmp_path)
+      def forbidden(*args):raise AssertionError('camera handoff reached expensive grid proof')
+      ext._grid_raster.display_receipt=forbidden
+      ext._route_render_command('getViewState',json.dumps({'requestId':'camera-read','purpose':'camera-handoff'}))
+      assert calls==['live-view']
+      assert ext.acks==[{'requestId':'camera-read','ok':True,'view':view,'primitives':3,
+       'sceneRevision':1,'projectHash':'a'*64,'sceneRequestId':'before'}]
+      assert 'gridDisplay' not in ext.acks[0]
+>    asyncio.run(scenario())
+
+test_camera_handoff_purpose.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../../../fresh-clone-actual-20261007/dcdtuni/.codex-tmp/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../../../fresh-clone-actual-20261007/dcdtuni/.codex-tmp/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+     ext,view,calls=fixture(monkeypatch,tmp_path)
+     def forbidden(*args):raise AssertionError('camera handoff reached expensive grid proof')
+     ext._grid_raster.display_receipt=forbidden
+     ext._route_render_command('getViewState',json.dumps({'requestId':'camera-read','purpose':'camera-handoff'}))
+>    assert calls==['live-view']
+E    AssertionError: assert [] == ['live-view']
+E      
+E      Right contains one more item: 'live-view'
+E      Use -v to get more diff
+
+test_camera_handoff_purpose.py:33: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command getViewState rejected: Unexpected or missing render command fields
+=========================== short test summary info ============================
+FAILED test_camera_handoff_purpose.py::test_camera_handoff_returns_live_identity_without_grid_proof
+1 failed, 11 passed in 0.96s

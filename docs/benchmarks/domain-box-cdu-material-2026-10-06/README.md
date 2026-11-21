@@ -1,0 +1,11 @@
+# BOX/CDU material creation recipe — preserved source evidence
+
+This directory preserves the exact declared files and original manifests of five frozen packages: original baseline42, original type13, coldplate reference57, material implementation75 and independent review2. There are 189 original declared payloads plus five unchanged source manifests. Each byte-copy was verified against its source SHA/size; tmp/build/cache files were excluded. The original package README and RED/GREEN logs remain under their own prefixes.
+
+The source slice centralizes BOX/CDU material creation intent and delegates the existing carrier. Cached live material state, texture IO/readiness and GPU resources remain carrier-owned. Explicit false/0 parameters, public role/set context, normalScale fallback, single UV scaling and prior image-source precedence were preserved in the scoped source review. Existing controlled parity outputs equal the original16+4 material cases; BOX structural golden f37b and six protected CP sources remain unchanged.
+
+The independent review is source-only GO. Existing focused logs report42 PASS and tsc exit0; no test or build was executed as part of this publication preparation. Real UI/runtime and GPU acceptance are pending ROOT normal production build/browser verification. This directory does not claim completion, remote publication, raster correctness, fullPDU or independent USD lowering.
+
+gitpath-candidates.json gives the eight product/two new test candidate paths and four required preexisting immutable baseline-support files, without staging unrelated IT WIP. ROOT owns Git actions. next-normal-build-controls.json supplies source8+CP6+BOX3+original3goldens, the six protected Main inputs and read-only process/listener identity observations for the next normal npm build. User files/flags/locks, services and Kit were not modified.
+
+Normal build is npm run build in IT/src/frontend/react; the declared script is tsc -b && vite build. Normal server serves / from react/dist/index.html, /assets/* from react/dist/assets, and shared /js, textures and vendor assets from frontend/shared. The classic archived page is separate. This task did not execute startup/build/API or alter HANDOFF.

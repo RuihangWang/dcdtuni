@@ -1,0 +1,42 @@
+{
+  "scope": "Read-only diagnosis of all 125598 saved checker-concave cells on actual target mesh; no change to checkMesh thresholds or physical geometry",
+  "checkerSource": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+    "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+    "sha256": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+    "line": 872,
+    "criterion": "unit dot from current face centre to any other face centre > -planarCosAngle_, planarCosAngle_=1e-6"
+  },
+  "classification": "A convex-polyhedron diagnostic requires all vertices in every outward face halfspace to 1e-10*max(1,bboxExtent) metres, planar convex face polygons, relative area closure<1e-10 and positive volume. This numerical audit tolerance is not mesh acceptance.",
+  "counts": {
+    "convex-with-coplanar-facets": 123926,
+    "vertex-halfspace-violation": 1623,
+    "nonconvex-face-polygon": 49
+  },
+  "setCounts": {
+    "concaveCells": 125598,
+    "lowQualityTetFaces": 32,
+    "lowWeightFaces": 54,
+    "lowVolRatioFaces": 46,
+    "concaveFaces": 1674,
+    "warpedFaces": 2
+  },
+  "candidateLimit": "123948 cases have planar convex bases and positive centroid pyramids geometrically; candidate count does NOT establish matching boundary edge topology, strict child face-plane criterion, or full mesh quality.",
+  "provenanceLimit": "Native cell levels and merge/coalesce ancestry are not present in these written meshes. Polygon vertex count is descriptive, not proof of a merge stage.",
+  "faceSetsLimit": "Actual local lowQualityTetFaces sets total32 while checker reports35; discrepancy is retained, not normalized. All54lowweights/46lowvolratios are internal faces, so local two-cell estimates do not require remote pressure/cell data.",
+  "raw": {
+    "path": "full-mesh-geometry-audit.json",
+    "bytes": 5891255,
+    "sha256": "672da8be4ea1ad7735c67b468669e4b59417031a5ab4a0162282bb04e90e676a"
+  },
+  "summary": "mesh-geometry-summary.json",
+  "tests": "geometry-audit-compact-final-pytest-output.txt:7passed0.19s",
+  "development": [
+    "geometry-audit-pytest-output.txt preserves overescaped generated regex failure",
+    "geometry-audit-first-real-parser-error.txt preserves missed compact ASCII faceSet payload, covered after repair"
+  ],
+  "sourceSha256": {
+    "tools/audit_air_mesh_geometry.py": "f7f8dcea0ecf251695f8eda5b81b85a287d2c4860311fc4f6ca1a987e0374c6e",
+    "src/backend/tests/test_audit_air_mesh_geometry.py": "4d7836e3411ac92277a5836f6bad45d2636dcca6cada533fe2af100fbcfbbb6a"
+  }
+}

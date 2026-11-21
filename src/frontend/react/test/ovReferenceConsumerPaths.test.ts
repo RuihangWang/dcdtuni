@@ -1,0 +1,48 @@
+// @vitest-environment node
+import {describe,it,expect} from 'vitest'
+import * as fs from 'node:fs'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import vm from 'node:vm'
+import ts from 'typescript'
+const tree=fileURLToPath(new URL('../../../../',import.meta.url))
+const config=path.join(tree,'src/frontend/omniverse/cfd_demo/web/vite.config.ts')
+function values(env:Record<string,string>) {
+  let source=fs.readFileSync(config,'utf8')
+  source=source.slice(source.indexOf('// Reference-demo'),source.indexOf('\nconst TAIL_BYTES'))
+  if(!source.includes('checkoutReadPath')) {
+    source=fs.readFileSync(config,'utf8').replace(/^import .*$/gm,'')
+    source=source.slice(0,source.indexOf('\nconst TAIL_BYTES'))
+    source+='\nglobalThis.values={KIT_LOG};'
+  }else source+='\nglobalThis.values={KIT_LOG,tree:checkoutReadPath("DC_CFD_SCENE_TREE","scene-tree.json"),dataset:checkoutReadPath("DC_CFD_DATASET_INFO","dataset-info.json")};'
+  const context:any={fs,path,process:{env},__dirname:path.dirname(config)}
+  vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,context)
+  return context.values
+}
+describe('legacy side-channel consumer agrees with owned bridge defaults',()=>{
+ it('uses checkout paths without cwd or runtime env',()=>{
+   const v=values({})
+   expect(v.KIT_LOG).toBe(path.join(tree,'.codex-tmp/ov-bridge-metadata/kit.log'))
+   expect(v.tree).toBe(path.join(tree,'.codex-tmp/ov-bridge-metadata/scene-tree.json'))
+   expect(v.dataset).toBe(path.join(tree,'.codex-tmp/ov-bridge-metadata/dataset-info.json'))
+ })
+ it('uses explicit managed runtime and rejects outside overrides',()=>{
+   const runtime=path.join(tree,'.codex-tmp/reference-runtime')
+   expect(values({DC_CFD_RUNTIME_DIR:runtime}).dataset).toBe(path.join(runtime,'dataset-info.json'))
+   expect(()=>values({DC_CFD_KIT_LOG:'/tmp/foreign.log'})).toThrow()
+ })
+})
+
+describe('checkout parent is outside for every reference read channel',()=>{
+ for(const key of ['DC_CFD_KIT_LOG','DC_CFD_SCENE_TREE','DC_CFD_DATASET_INFO','DC_CFD_AI_LOG']){
+  it(key+' rejects the exact checkout parent',()=>{
+   const source=fs.readFileSync(config,'utf8')
+   const helper=source.slice(source.indexOf('// Reference-demo'),source.indexOf('\nconst KIT_LOG'))
+   const context:any={fs,path,process:{env:{[key]:path.dirname(tree)}},__dirname:path.dirname(config)}
+   vm.runInNewContext(ts.transpileModule(helper+'\nglobalThis.readPath=checkoutReadPath;',{
+    compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}
+   }).outputText,context)
+   expect(()=>context.readPath(key,'unused.json')).toThrow('inside this checkout')
+  })
+ }
+})

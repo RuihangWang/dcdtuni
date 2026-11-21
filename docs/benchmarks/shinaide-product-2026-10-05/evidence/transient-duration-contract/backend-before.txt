@@ -1,0 +1,63 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_v4_refuses_solver_duration_that_disagrees_with_timeline[None] ______
+
+seconds = None
+
+    @pytest.mark.parametrize("seconds", [None, 5, 60.0001])
+    def test_v4_refuses_solver_duration_that_disagrees_with_timeline(seconds):
+        raw = _minimal_manifest(schemaVersion=4, simulationConfig={"roomTemperatureC":22, "solverType":"transient", "endTimeSeconds":seconds},
+                                transient={"durationS":60, "start":{"kind":"uniform"}})
+>       with pytest.raises(ValueError, match="endTimeSeconds.*durationS"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_cfdrun_v4_single_config.py:116: Failed
+_______ test_v4_refuses_solver_duration_that_disagrees_with_timeline[5] ________
+
+seconds = 5
+
+    @pytest.mark.parametrize("seconds", [None, 5, 60.0001])
+    def test_v4_refuses_solver_duration_that_disagrees_with_timeline(seconds):
+        raw = _minimal_manifest(schemaVersion=4, simulationConfig={"roomTemperatureC":22, "solverType":"transient", "endTimeSeconds":seconds},
+                                transient={"durationS":60, "start":{"kind":"uniform"}})
+>       with pytest.raises(ValueError, match="endTimeSeconds.*durationS"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_cfdrun_v4_single_config.py:116: Failed
+____ test_v4_refuses_solver_duration_that_disagrees_with_timeline[60.0001] _____
+
+seconds = 60.0001
+
+    @pytest.mark.parametrize("seconds", [None, 5, 60.0001])
+    def test_v4_refuses_solver_duration_that_disagrees_with_timeline(seconds):
+        raw = _minimal_manifest(schemaVersion=4, simulationConfig={"roomTemperatureC":22, "solverType":"transient", "endTimeSeconds":seconds},
+                                transient={"durationS":60, "start":{"kind":"uniform"}})
+>       with pytest.raises(ValueError, match="endTimeSeconds.*durationS"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_cfdrun_v4_single_config.py:116: Failed
+_ test_v4_timeline_requires_transient_solver_and_executes_exact_subsecond_duration _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-duration-before/test_v4_timeline_requires_tran0')
+
+    def test_v4_timeline_requires_transient_solver_and_executes_exact_subsecond_duration(tmp_path):
+        raw = _minimal_manifest(schemaVersion=4, simulationConfig={"roomTemperatureC":22, "solverType":"transient", "endTimeSeconds":.005, "writeIntervalSeconds":.001},
+                                transient={"durationS":.005, "start":{"kind":"uniform"}})
+        assert CfdrunV2.model_validate(raw).transient.durationS == .005
+        sc = execution_blob(raw)["simulationConfig"]
+        from backend.aircooling.runner.openfoam_case import generate_control_dict
+        generate_control_dict(tmp_path, sc)
+        assert "endTime         0.005;" in (tmp_path/"system"/"controlDict").read_text()
+        raw["simulationConfig"]["solverType"] = "steady"
+>       with pytest.raises(ValueError, match="transient solver"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_cfdrun_v4_single_config.py:131: Failed
+----------------------------- Captured stderr call -----------------------------
+2026-10-04 19:49:36.506 | INFO     | backend.aircooling.runner.openfoam_case:generate_control_dict:198 - Generated controlDict (transient): endTime=0.005, writeInterval=0.001, probes=0
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_cfdrun_v4_single_config.py::test_v4_refuses_solver_duration_that_disagrees_with_timeline[None]
+FAILED src/backend/tests/test_cfdrun_v4_single_config.py::test_v4_refuses_solver_duration_that_disagrees_with_timeline[5]
+FAILED src/backend/tests/test_cfdrun_v4_single_config.py::test_v4_refuses_solver_duration_that_disagrees_with_timeline[60.0001]
+FAILED src/backend/tests/test_cfdrun_v4_single_config.py::test_v4_timeline_requires_transient_solver_and_executes_exact_subsecond_duration
+4 failed, 23 deselected in 0.45s

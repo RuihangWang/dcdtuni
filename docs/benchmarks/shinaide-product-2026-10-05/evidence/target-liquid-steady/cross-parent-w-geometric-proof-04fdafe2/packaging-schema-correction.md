@@ -1,0 +1,1 @@
+The first staging invocation assumed the build-source receipt was a dictionary. P11 correctly stores an absolute-path list; the invocation failed before publication. The corrected copy loop reads that list and checks each source SHA. No original receipt or business data was altered.

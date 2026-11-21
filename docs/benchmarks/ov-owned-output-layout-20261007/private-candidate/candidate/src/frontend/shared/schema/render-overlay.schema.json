@@ -1,0 +1,162 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "dcdtuni.render-overlay/v1"
+    },
+    "projectUid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "meshPreview"
+        },
+        "meshSnapshotKey": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "meshSnapshotKey"
+      ],
+      "additionalProperties": false
+    },
+    "primitives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "patchName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "triangles",
+              "lines"
+            ]
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 16,
+            "maxItems": 16
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "material": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "doubleSided": {
+                "type": "boolean"
+              },
+              "unlit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "color",
+              "opacity",
+              "doubleSided",
+              "unlit"
+            ],
+            "additionalProperties": false
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "patchName",
+          "kind",
+          "positions",
+          "indices",
+          "matrix",
+          "visible",
+          "material"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "projectUid",
+    "source",
+    "primitives"
+  ],
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "source": {
+        "properties": {
+          "meshSnapshotKey": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "meshSnapshotKey"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "source"
+    ],
+    "type": "object"
+  },
+  "then": {
+    "properties": {
+      "primitives": {
+        "type": "array",
+        "maxItems": 0
+      }
+    },
+    "required": [
+      "primitives"
+    ],
+    "type": "object"
+  }
+}

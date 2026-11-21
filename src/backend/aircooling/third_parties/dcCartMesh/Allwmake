@@ -1,0 +1,73 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# Allwmake -- build the custom snappyHexMeshDC library + application.
+#
+#   ./Allwmake            # incremental build
+#   ./Allwmake -j         # parallel (uses all cores via WM_NCOMPPROCS)
+#
+# Output (NON-destructive, never touches the conda prefix):
+#   platforms/<WM_OPTIONS>/lib/libsnappyHexMeshDC.so
+#   platforms/<WM_OPTIONS>/bin/snappyHexMeshDC
+# ---------------------------------------------------------------------------
+# NB: no `set -u` -- conda's activate.d scripts reference unbound vars.
+set -eo pipefail
+
+cd "$(dirname "$0")"
+SNAPPY_ROOT="$(pwd -P)"
+
+# shellcheck disable=SC1091
+source "$SNAPPY_ROOT/env.sh"
+
+LIB_DIR="$SNAPPY_ROOT/src/mesh/snappyHexMesh"
+APP_DIR="$SNAPPY_ROOT/applications/utilities/mesh/generation/snappyHexMesh"
+CART_LIB_DIR="$SNAPPY_ROOT/src/mesh/dcCartMesh"
+CART_APP_DIR="$SNAPPY_ROOT/applications/utilities/mesh/generation/dcCartMesh"
+CHECK_APP_DIR="$SNAPPY_ROOT/applications/utilities/mesh/manipulation/dcCheckMesh"
+
+# `./Allwmake --cart-only` skips the (slow) snappyHexMesh rebuild while
+# iterating on the Cartesian mesher.
+CART_ONLY=0
+ARGS=()
+for a in "$@"; do
+    case "$a" in
+        --cart-only) CART_ONLY=1 ;;
+        *) ARGS+=("$a") ;;
+    esac
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+
+if [ "$CART_ONLY" -eq 0 ]; then
+    echo "==> wmakeLnInclude (flatten snappyHexMesh headers)"
+    wmakeLnInclude -update "$LIB_DIR"
+
+    echo "==> building libsnappyHexMeshDC (wmake libso)"
+    # NB: wmake options (e.g. -j) must precede the target type ('libso')
+    ( cd "$LIB_DIR" && wmake "$@" libso )
+
+    echo "==> building snappyHexMeshDC application (wmake)"
+    ( cd "$APP_DIR" && wmake "$@" )
+fi
+
+echo "==> wmakeLnInclude (flatten dcCartMesh headers)"
+wmakeLnInclude -update "$CART_LIB_DIR"
+
+echo "==> building libdcCartMesh (wmake libso)"
+( cd "$CART_LIB_DIR" && wmake "$@" libso )
+
+echo "==> building dcCartMesh application (wmake)"
+( cd "$CART_APP_DIR" && wmake "$@" )
+
+# checkMesh with one coupled-edge synchronisation for all patches instead of
+# one per patch (same output; a data hall has thousands of patches)
+echo "==> building dcCheckMesh application (wmake)"
+( cd "$CHECK_APP_DIR" && wmake "$@" )
+
+echo
+echo "==> build complete:"
+if [ "$CART_ONLY" -eq 0 ]; then
+    ls -lh "$FOAM_USER_LIBBIN"/libsnappyHexMeshDC.so 2>/dev/null || echo "  (libsnappyHexMeshDC missing!)"
+    ls -lh "$FOAM_USER_APPBIN"/snappyHexMeshDC       2>/dev/null || echo "  (snappyHexMeshDC missing!)"
+fi
+ls -lh "$FOAM_USER_LIBBIN"/libdcCartMesh.so 2>/dev/null || echo "  (libdcCartMesh missing!)"
+ls -lh "$FOAM_USER_APPBIN"/dcCartMesh       2>/dev/null || echo "  (dcCartMesh missing!)"
+ls -lh "$FOAM_USER_APPBIN"/dcCheckMesh      2>/dev/null || echo "  (dcCheckMesh missing!)"

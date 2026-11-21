@@ -1,0 +1,91 @@
+--- MAIN/src/backend/aircooling/runner/stlgen_runner.py
++++ IT/src/backend/aircooling/runner/stlgen_runner.py
+@@ -1894,6 +1894,8 @@
+ 
+     def _verify_hybrid_source_stls(self) -> None:
+         """Freeze declared source STL bytes before mesh preparation rewrites files."""
++        # A prior job's semantic permission must never survive this preflight.
++        self._point_repair_source_receipt = None
+         payload = self._read_cfdrun_bytes()
+         raw = json.loads(payload)
+         hybrid = requires_hybrid_air_gate(raw)
+@@ -1906,6 +1908,17 @@
+         if hashlib.sha256(self._read_cfdrun_bytes()).hexdigest() != pinned:
+             raise RuntimeError("source manifest changed during STL verification")
+         self._verified_source_cfdrun_sha256 = pinned
++        # verify_exported_stl_hashes has just checked every declared original
++        # file against these exact bytes. Derived STL files may change during
++        # normal split/regroup; their current hashes are bound separately.
++        self._point_repair_source_receipt = {
++            "version": 1,
++            "rawSha256": pinned,
++            "verifiedFiles": {
++                key: {"path": record["path"], "contentHash": record["contentHash"]}
++                for key, record in raw["geometryExport"]["stlFiles"].items()
++            },
++        }
+         self._source_stls_verified = True
+         if hybrid:
+             self._hybrid_source_stls_verified = True
+@@ -7725,6 +7738,52 @@
+             if wall_pair_zones else ""
+         )
+ 
++        # This authority belongs to the current locked raw manifest and actual
++        # generated region tables, never a sticky launcher environment flag.
++        from backend.aircooling.runner.point_repair_source_contract import foam_contract
++        from backend.aircooling.runner.weight_union_source_contract import (
++            per_run_contracts, foam_weight_contract, invalidate,
++        )
++        try:
++            source_raw = self._read_cfdrun_bytes()
++        except OSError:
++            source_raw = b""  # Old writer-only callers have no manifest.
++        source_sha = hashlib.sha256(source_raw).hexdigest()
++        snappy_path = system_dir / "snappyHexMeshDict"
++        try:
++            snappy_bytes = snappy_path.read_bytes()
++        except OSError:
++            snappy_bytes = b""  # Missing generated input disables only singleton.
++        source_contracts = per_run_contracts(
++            source_raw,
++            locked_raw_sha256=getattr(self, "_execution_cfdrun_sha256", None),
++            derived_data=self._data,
++            resolved_run=getattr(self, "_resolved", None),
++            tri_surface_dir=self.tri_surface_dir,
++            snappy_bytes=snappy_bytes,
++            wall_pair_zones=set(wall_pair_zones),
++            verified_original_receipt=getattr(
++                self, "_point_repair_source_receipt", None,
++            ),
++        )
++        # Preserve the existing raw identity guard; never render stale authority.
++        try:
++            source_raw_after = self._read_cfdrun_bytes()
++        except OSError:
++            source_raw_after = b""
++        if source_raw and hashlib.sha256(source_raw_after).hexdigest() != source_sha:
++            raise RuntimeError("source manifest changed during role contract")
++        if not source_raw:
++            invalidate(source_contracts, "missingRawManifest")
++        try:
++            snappy_unchanged = snappy_path.read_bytes() == snappy_bytes
++        except OSError:
++            snappy_unchanged = False
++        if not snappy_unchanged:
++            invalidate(source_contracts, "generatedDictionaryIdentityChanged")
++        source_contract_block = foam_contract(source_contracts["singleton"])
++        weight_contract_block = foam_weight_contract(source_contracts["weight"])
++
+         text = f"""FoamFile
+ {{
+     version     2.0;
+@@ -7759,6 +7818,8 @@
+ firstLayerMax       {first_layer_max:g};
+ firstLayerSealGap   {first_layer_seal_gap:g};
+ {wall_pair_block}
++{source_contract_block}
++{weight_contract_block}
+ background
+ {{
+     x ({fmt(planes["x"])});

@@ -1,0 +1,146 @@
+/* Patch-list filter bar, row selection and the mesh-preview render-order panel.
+
+   The filter bar's DOM comes from shared/js/patch_filter.js, which the legacy page
+   styles in its own <style> block (STL_generate.html:40-93). The rules are
+   copied here rather than re-derived so the two apps' bars look and behave the
+   same; only the variable names change, to the ones this app defines.
+
+   Imported from patchListControls.ts, the module that builds the bar, so the
+   styles arrive with the feature instead of having to be remembered separately
+   in the shared stylesheet. */
+
+.patch-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border, #333);
+  background: var(--panel, #1e1e1e);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.patch-filter-bar .btn-toggle {
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  font: 11px monospace;
+  border-radius: 2px;
+}
+.patch-filter-bar .btn-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.patch-filter-bar .btn-toggle.active {
+  border-color: var(--accent3, #569cd6);
+  color: var(--accent3, #569cd6);
+  background: rgba(86, 156, 214, 0.08);
+}
+.patch-filter-bar .filter-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font: 12px monospace;
+  background: var(--bg-input, #111);
+  color: var(--text, #ddd);
+  border: 1px solid var(--border, #333);
+}
+/* An unfinished regex is a normal state while typing `^rack_(`, so it reads as
+   a warning on the field, not as an error dialog. */
+.patch-filter-bar .filter-input.invalid {
+  border-color: #e06c75;
+  background: rgba(224, 108, 117, 0.06);
+}
+.patch-filter-bar .filter-count {
+  font: 10px monospace;
+  color: var(--text-dim, #666);
+  min-width: 40px;
+  text-align: right;
+}
+
+.filter-hidden {
+  display: none !important;
+}
+.filter-hidden-group {
+  display: none !important;
+}
+
+[data-patch].row-selected {
+  border-left: 3px solid #9b59d0;
+  background: rgba(155, 89, 208, 0.08);
+}
+/* A group with a selected row inside: the kind head and the model head light
+   up too, so a patch picked in the viewport names its rack / ACU at a glance. */
+.pp-kind-head.row-selected-parent,
+.pp-model-head.row-selected-parent {
+  border-left: 3px solid #9b59d0;
+  background: rgba(155, 89, 208, 0.14);
+}
+
+/* The mesh-preview render-order panel. Same chips as the post-processing one —
+   .ro-chip and its parts are already styled in styles.css — so only the two
+   ids the panel introduces need rules. */
+#mp-render-order-panel {
+  margin-top: 6px;
+}
+#mp-render-order-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The mesh-preview patch tree. It reuses the .pp-kind / .pp-patch-row classes so
+   the two trees cannot drift apart visually; this is only the frame around it,
+   which the post-processing side gets from #pp-tree. */
+#mp-patch-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border, #2a2a3a);
+  border-radius: 4px;
+  background: var(--bg-input, #0d0d1a);
+  max-height: 420px;
+}
+#mp-patch-list .pp-kind-head,
+#mp-patch-list .pp-model-head,
+#mp-patch-list .pp-patch-row {
+  padding-left: 4px;
+}
+
+/* The volume-resolution radios (64 / 128 / 256). Laid out here rather than in
+   the shared stylesheet because this file is already in the bundle — both
+   patch panels import it — and the rule has no owner of its own otherwise.
+   Matches the legacy's inline flex row at STL_generate.html:686. */
+.pp-vol-res-group {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+  /* Nothing else, deliberately. The group keeps its default `min-width: auto`,
+     so its ~144px min-content is a floor and the row's LABEL shrinks around it
+     — one line of radios, as in the legacy. Both `min-width: 0` and
+     `flex-wrap: wrap` reverse that: the label wins and the three radios stack
+     into three lines. What must not be allowed to grow to fit is the enclosing
+     fieldset, and that is handled at `.prop-group`. */
+}
+.pp-vol-res-group label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+/* The per-server level inside a rack (mesh preview): one step further in
+   than the model head, same head styling. */
+.pp-server-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0 2px 14px;
+  font-size: 11px;
+  color: #9fb3c8;
+}
+.pp-server-body {
+  padding-left: 14px;
+}

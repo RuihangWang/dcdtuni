@@ -1,0 +1,38 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# Allwmake -- build the dcdtuni custom OpenFOAM solvers.
+#
+#   ./Allwmake            # incremental build
+#   ./Allwmake -j         # parallel
+#
+# Output (NON-DESTRUCTIVE, never touches the conda prefix):
+#   platforms/<WM_OPTIONS>/bin/buoyantBoussinesqSimpleFoam_new
+#   platforms/<WM_OPTIONS>/bin/buoyantBoussinesqPimpleFoam_new
+#   platforms/<WM_OPTIONS>/bin/writeExplicitBC
+# ---------------------------------------------------------------------------
+# NB: no `set -u` -- conda's activate.d scripts reference unbound vars.
+set -eo pipefail
+
+cd "$(dirname "$0")"
+DC_FOAM_ROOT="$(pwd -P)"
+
+# shellcheck disable=SC1091
+source "$DC_FOAM_ROOT/env.sh"
+
+SOLVERS=(
+    "src/applications/solvers/buoyantBoussinesqSimpleFoam_new"
+    "src/applications/solvers/buoyantBoussinesqPimpleFoam_new"
+    "src/applications/utilities/writeExplicitBC"
+)
+
+for d in "${SOLVERS[@]}"; do
+    echo "==> building $(basename "$d")"
+    ( cd "$DC_FOAM_ROOT/$d" && wmake "$@" )
+done
+
+echo
+echo "==> build complete:"
+for d in "${SOLVERS[@]}"; do
+    name="$(basename "$d")"
+    ls -lh "$FOAM_USER_APPBIN/$name" 2>/dev/null || echo "  ($name missing!)"
+done

@@ -1,0 +1,179 @@
+1378: inline Result apply
+1379: (
+1380:     polyMesh& mesh,const std::function<scalar()>& remainingStageBudget,
+1381:     const std::function<bool(const std::vector<label>&)>& singletonSourceRoleContract={}
+1382: )
+1383: {
+1384:     // Clock starts before any graph, geometry cache or census.
+1385:     const auto start=std::chrono::steady_clock::now();
+1386:     auto seconds=[&]()
+1387:     {
+1388:         return scalar(std::chrono::duration<double>
+1389:             (std::chrono::steady_clock::now()-start).count());
+1390:     };
+1391:     auto allowance=[&]()
+1392:     {
+1393:         const scalar external=remainingStageBudget ? remainingStageBudget() : 0;
+1394:         return finiteScalar(external) && external>0
+1395:             ? min(max(scalar(0),20-seconds()),external) : scalar(0);
+1396:     };
+1397:     // A reserve controls admission only; mandatory collective refresh/rollback
+1398:     // cannot be interrupted. Total time is measured and overrun rejects changes.
+1399:     auto available=[&]() { return allowance()>3; };
+1400:     Result result;
+1401: 
+1402:     // This is an unconditional initial installed boundary exchange, followed
+1403:     // by one max reduction: the warning ceiling includes real coupled neighbours.
+1404:     scalar ceiling=0;
+1405:     {
+1406:         const tmp<scalarField> orthogonality=polyMeshTools::faceOrthogonality
+1407:             (mesh,mesh.faceAreas(),mesh.cellCentres());
+1408:         for (scalar cosine:orthogonality())
+1409:         {
+1410:             if (!finiteScalar(cosine)) { ceiling=GREAT; break; }
+1411:             ceiling=max(ceiling,std::acos(max(scalar(-1),min(scalar(1),cosine)))
+1412:                 *180.0/constant::mathematical::pi);
+1413:         }
+1414:     }
+1415:     reduce(ceiling,maxOp<scalar>());
+1416:     // Non-finite input is unsupported, never treated as a permissive ceiling.
+1417:     label validCeiling=finiteScalar(ceiling) && ceiling<180;
+1418:     reduce(validCeiling,minOp<label>());
+1419:     // Earliest installed tet cache is forced collectively, not inside a trial.
+1420:     (void)mesh.tetBasePtIs();
+1421: 
+1422:     pointField originalPoints(mesh.points());
+1423:     pointField workingPoints(originalPoints);
+1424:     std::set<label> changedPoints;
+1425:     std::map<label,std::pair<vector,scalar>> currentCells;
+1426:     dcCartFiniteRepairKernel::PrefixRoles acceptedRoles;
+1427:     std::vector<label> targets;
+1428:     std::vector<unsigned char> protectedFace,protectedPoint;
+1429:     bool localReady=validCeiling && available();
+1430:     const Vector<label> dimensions=mesh.geometricD();
+1431:     for (direction k=0;k<3;++k) if (dimensions[k]!=1) localReady=false;
+1432: 
+1433:     if (localReady)
+1434:     {
+1435:         forAll(originalPoints,p)
+1436:         {
+1437:             if ((p&4095)==0 && !available()) { localReady=false;break; }
+1438:             if (!finiteVector(originalPoints[p])) { localReady=false;break; }
+1439:         }
+1440:     }
+1441:     if (localReady)
+1442:     {
+1443:         (void)mesh.cells();
+1444:         if (available()) (void)mesh.pointFaces(); else localReady=false;
+1445:     }
+1446:     if (localReady && available())
+1447:     {
+1448:         protectedFace.assign(mesh.nFaces(),0);
+1449:         protectedPoint.assign(mesh.nPoints(),0);
+1450:         for (label f=mesh.nInternalFaces();f<mesh.nFaces();++f)
+1451:         {
+1452:             protectedFace[f]=1;
+1453:             // Face boundary protects incident points regardless of patch kind.
+1454:             for (label p:mesh.faces()[f]) protectedPoint[p]=1;
+1455:         }
+1456:         for (const faceZone& zone:mesh.faceZones())
+1457:             for (label f:zone) protectedFace[f]=1;
+1458:         for (const pointZone& zone:mesh.pointZones())
+1459:             for (label p:zone) protectedPoint[p]=1;
+1460:         for (const cellZone& zone:mesh.cellZones())
+1461:             for (label c:zone) for (label f:mesh.cells()[c])
+1462:                 for (label p:mesh.faces()[f]) protectedPoint[p]=1;
+1463:         const auto& sf=mesh.faceAreas();
+1464:         const auto& fc=mesh.faceCentres();
+1705:         Stencil joint(mesh,originalPoints,moving,{},true);
+1706:         State before;
+1707:         std::vector<label> earliestTetBases;
+1708:         if (joint.eligible)
+1709:         {
+1710:             before=joint.evaluate(joint.fromGlobal(originalPoints),true);
+1711:             const auto& bases=mesh.tetBasePtIs();
+1712:             for (label f:joint.faceIDs) earliestTetBases.push_back(bases[f]);
+1713:         }
+1714:         const scalar installedStart=seconds();
+1715:         install(mesh,workingPoints); // All ranks, including zero-local-change.
+1716:         result.installedSeconds=seconds()-installedStart;
+1717:         const scalar guardStart=seconds();
+1718:         label failure=0;
+1719:         if (!moving.empty())
+1720:         {
+1721:             if (!joint.eligible || !before.valid) failure=1;
+1722:             else
+1723:             {
+1724:                 const pointField actual=joint.fromGlobal(mesh.points());
+1725:                 const State after=joint.evaluate(actual,true);
+1726:                 if (!qualityLineage(joint,before,after,ceiling)
+1727:                  || !geometricGuard(joint,before,after,actual)
+1728:                  || !prefixRoles(acceptedRoles,joint,after,false)) failure=1;
+1729:                 const auto& bases=mesh.tetBasePtIs();
+1730:                 for (label f=0;f<label(joint.faces.size());++f)
+1731:                 {
+1732:                     const label base=bases[joint.faces[f].id];
+1733:                     if (earliestTetBases[f]>=0 && (base<0
+1734:                      || base>=joint.faces[f].vertices.size())) failure=1;
+1735:                 }
+1736:             }
+1737:         }
+1738:         // Topology is never changed and all moving points had complete
+1739:         // internal, zone-free stars. Verify every other stored point bitwise.
+1740:         for (label p=0;p<mesh.nPoints();++p)
+1741:             if (!changedPoints.count(p) && !sameVector(originalPoints[p],mesh.points()[p]))
+1742:             { failure=1;break; }
+1743:         if (!finiteScalar(seconds()) || seconds()>20
+1744:          || !remainingStageBudget || !finiteScalar(remainingStageBudget())
+1745:          || remainingStageBudget()<=0) failure=1;
+1746:         result.guardSeconds=seconds()-guardStart;
+1747:         reduce(failure,maxOp<label>());
+1748:         if (failure)
+1749:         {
+1750:             const scalar rollbackStart=seconds();
+1751:             install(mesh,originalPoints); // Same refresh on every rank.
+1752:             result.rollbackSeconds=seconds()-rollbackStart;
+1753:             result.finalRolledBack=result.committed;result.committed=0;result.dwCommitted=0;
+1754:         }
+1755:     }
+1756:     result.elapsedSeconds=seconds();
+1757:     Pout<< "dcCart finite point repair: proposed=" << result.proposed
+1758:         << " committed=" << result.committed << " refused=" << result.refused
+1759:         << " unsupported=" << result.unsupported << " requests=" << result.requests
+1760:         << " budgetStopped=" << result.budgetStopped
+1761:         << " requestCapStopped=" << result.requestCapStopped
+1762:         << " dwProposed=" << result.dwProposed << " dwCommitted=" << result.dwCommitted
+1763:         << " dwRefused=" << result.dwRefused
+1764:         << " singletonContractRefused=" << result.singletonContractRefused << " rolledBack=" << result.finalRolledBack
+1765:         << " setup=" << result.setupSeconds << " proposal=" << result.proposalSeconds
+1766:         << " installed=" << result.installedSeconds << " guard=" << result.guardSeconds
+1767:         << " rollback=" << result.rollbackSeconds << " total=" << result.elapsedSeconds
+1768:         << " cap=20 ratioComponentCap=8 dwProposalCap=256 jointCoreCap=512 jointOutsideCap=512 jointFaceCap=4096 requestCapPerProposal=256" << nl;
+1769:     return result;
+1770: }
+1771: } // namespace dcCartFinitePointRepair
+1772: } // namespace Foam
+1773: #endif // production adapter
+1774: #endif // dcCartFinitePointRepair_H
+1004:                 {
+1005:                     const auto nei=stencil.cellGeometry(fd.neighbour,after);
+1006:                     q=tetPointRef(nei.first,points[poly[anchor]],points[b],points[a]).quality();
+1007:                     if (!finiteScalar(q) || q<=polyMeshTetDecomposition::minTetQuality) { good=false;break; }
+1008:                 }
+1009:             }
+1010:             if (good) { shared=true;break; }
+1011:         }
+1012:         if (!shared) return false;
+1013:     }
+1014:     return mag(newVolume-oldVolume)<=1e-10*max(mag(oldVolume),VSMALL)
+1015:         && mag(newMoment-oldMoment)<=1e-10*max
+1016:         (
+1017:             mag(oldMoment),mag(oldVolume)*stencil.scale
+1018:         );
+1019: }
+1020: 
+1021: inline dcCartFiniteRepairKernel::Mode selectMode
+1022: (
+1023:     const polyMesh& mesh,const pointField& points,label target,
+1024:     const std::vector<unsigned char>& protectedFace,
+1025:     const std::vector<unsigned char>& protectedPoint

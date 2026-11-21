@@ -1,0 +1,18 @@
+--- src/frontend/react/test/ovDataset.test.ts
++++ src/frontend/react/test/ovDataset.test.ts
+@@ -26,3 +26,15 @@
+   const g = vi.fn(async () => json({ run: 'r' }))
+   await expect(requestOvDatasetGrant(RID, g)).rejects.toThrow(/no display grant/)
+ })
++
++it('preserves actual complete positive times and the transient marker from the server', async () => {
++  const f = vi.fn(async () => json({ runs: [{ name: 'r', runId: RID, timesteps: [0, .01, .02], transient: true }] }))
++  expect(await listOvRuns(f)).toEqual([{ name: 'r', runId: RID, timesteps: [.01, .02], transient: true }])
++})
++
++it('sends an explicit numeric frame without changing the legacy request shape', async () => {
++  const grant = { payload: { kind: 'dataset', time: '1e-02', runId: RID }, signature: 'f'.repeat(64) }
++  const f = vi.fn(async (_u: string, _i?: RequestInit) => json({ grant, time: '1e-02' }))
++  await requestOvDatasetGrant(RID, f, .01)
++  expect(JSON.parse(String(f.mock.calls[0]![1]!.body))).toEqual({ runId: RID, time: .01 })
++})

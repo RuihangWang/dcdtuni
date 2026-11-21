@@ -1,0 +1,16 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "E8c — transient per-step convergence; steady/transient nonlinear thresholds in the Solve tab",
+  "date": "2026-10-01",
+  "verdict": "pass",
+  "branch": "feat/e8-config-modes",
+  "code": "66a56b82",
+  "openfoam_probe": {"version": "v2412", "form": "PIMPLE { residualControl { field { tolerance; relTol 0; } } }", "converged_line": "PIMPLE: converged in N iterations", "limit_line": "PIMPLE: not converged within N iterations", "run_continues": true},
+  "defaults": {"nOuterCorrectors": 20, "transientResidualControl": {"p_rgh": 1e-3, "U": 1e-4, "T": 1e-4, "k_epsilon": 1e-4}, "relaxation": "shared with steady (fields p_rgh 0.3, equations 0.7)"},
+  "tests": {"pytest_full": {"commit": "ad9c8e96", "passed": 1882, "skipped": 66, "failed": 4, "failed_same_on_main": true}, "vitest": {"commit": "ad9c8e96", "tests": 3175, "failed": 0}},
+  "browser_gate": {"case": "Slab", "upgrade_on_open": {"nOuterCorrectors": [2, 20]}, "ui": {"adaptive": true, "deltaT": 0.005, "maxDeltaT": 0.05, "maxCo": 5, "writeIntervalSeconds": 0.5, "transientResidualControl.T": 5e-5},
+    "manifest": {"schemaVersion": 4, "transient_block_without_keyframes": true},
+    "run": {"initial_T_K": 297.15, "TRef_K": 295.15, "verdict": "TRANSIENT_COMPLETED", "steps": 416, "outer_loop": {"steps_converged": 415, "steps_hit_limit": 1, "iterations_median": 17, "iterations_max": 20}}},
+  "relaxation_study": {"fixed_dt_0.01_Co23": "every step hit the limit (0.3/0.7)", "adaptive_maxCo5": {"0.3/0.7": "15-17 per step, stable", "0.5/0.7": "9-10 per step, diverged", "0.7/0.9": "diverged"}},
+  "fixed": {"ea294df7": "transient air run without keyframes now carries its transient block", "template": "PIMPLE block whitespace"}
+}

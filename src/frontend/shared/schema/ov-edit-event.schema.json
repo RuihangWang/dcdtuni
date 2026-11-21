@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schema/ov-edit-event-v1",
+  "title": "Omniverse editor interaction event V1",
+  "description": "Scene-bound source model actions and complete visible source-object selection. Result primitives never authorize source selection or motion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sceneRevision",
+    "projectHash",
+    "coordinateSystem",
+    "action"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "translate",
+                  "rotate"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "worldTransform": {}
+        },
+        "required": [
+          "worldTransform"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "properties": {
+              "type": {
+                "const": "selection"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "required": [
+          "selection"
+        ],
+        "properties": {
+          "primId": false,
+          "modelUid": false,
+          "worldTransform": false,
+          "selection": {}
+        },
+        "type": "object"
+      },
+      "else": {
+        "required": [
+          "primId",
+          "modelUid"
+        ],
+        "properties": {
+          "selection": false,
+          "primId": {},
+          "modelUid": {}
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "properties": {
+    "schema": {
+      "const": "dcdtuni.ov-edit/v1"
+    },
+    "sceneRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "projectHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "primId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "modelUid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "coordinateSystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upAxis",
+        "handedness",
+        "metersPerUnit"
+      ],
+      "properties": {
+        "upAxis": {
+          "const": "Y"
+        },
+        "handedness": {
+          "const": "right"
+        },
+        "metersPerUnit": {
+          "const": 1
+        }
+      }
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "pick"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "translate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "axis",
+            "degrees"
+          ],
+          "properties": {
+            "type": {
+              "const": "rotate"
+            },
+            "axis": {
+              "enum": [
+                "x",
+                "y",
+                "z"
+              ]
+            },
+            "degrees": {
+              "type": "number",
+              "minimum": -360,
+              "maximum": 360
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "selection"
+            }
+          }
+        }
+      ]
+    },
+    "worldTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "positionMeters",
+        "quaternion",
+        "scale"
+      ],
+      "properties": {
+        "positionMeters": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "quaternion": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "scale": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primId",
+          "modelUid"
+        ],
+        "properties": {
+          "primId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "modelUid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      }
+    }
+  }
+}

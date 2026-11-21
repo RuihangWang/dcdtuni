@@ -1,0 +1,738 @@
+diff --git a/case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj b/case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj
+index ddd418f1..fcc47f1c 100644
+--- a/case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj
++++ b/case/Shinaide_Liquid/Shinaide_dae_cpu.cfdproj
+@@ -12,7 +12,7 @@
+       "fixture_revision": "shinaide-demo-2",
+       "topology": {
+         "source": "mock",
+-        "description": "8 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX 的单环路。自有 Shinaide 合成夹具,不是 NV 现场 P&ID。"
++        "description": "14 机架 / 56 台液冷服务器,1 等效 CDU 泵 + 双容积 HX 的单环路。自有 Shinaide 合成夹具,不是 NV 现场 P&ID。"
+       },
+       "geometry": {
+         "source": "mock",
+@@ -29,7 +29,7 @@
+         {
+           "field": "constructions.cdus.m_30.cooling.totalFlowRate",
+           "value": 60,
+-          "note": "display-only:该字段当前零消费点,不进入编译物理;一次侧流量由 primary_circuits.flow_kg_s 决定"
++          "note": "curve-control fixture only: 当前 CDU 使用泵曲线控制，totalFlowRate 不作为此配置的泵流量方程输入；若显式切换 flow 控制，v4 编译会消费该字段。一次侧流量另由 primary_circuits.flow_kg_s 决定。"
+         }
+       ],
+       "missing": [
+diff --git a/case/Shinaide_Liquid/Shinaide_liquid.cfdproj b/case/Shinaide_Liquid/Shinaide_liquid.cfdproj
+index f6e07bb2..54c22384 100644
+--- a/case/Shinaide_Liquid/Shinaide_liquid.cfdproj
++++ b/case/Shinaide_Liquid/Shinaide_liquid.cfdproj
+@@ -7,7 +7,58 @@
+     "exportFileName": "default",
+     "description": "",
+     "inputUnit": "mm",
+-    "casePath": "/mnt/lv/litianyu/mycode/dcdtuni/case/Shinaide_Liquid"
++    "casePath": "/mnt/lv/home/litianyu/mycode/dcdtuni/case/Shinaide_Liquid",
++    "provenance": {
++      "fixture_revision": "shinaide-canonical-synthetic-dae-1",
++      "classification": "Synthetic software verification input; not measured operating data or vendor calibration.",
++      "topology": {
++        "source": "mock",
++        "rack_count": 14,
++        "server_count": 56,
++        "description": "14 racks / 56 liquid-cooled servers, one equivalent CDU pump and two-volume HX loop. Authored Shinaide topology, not an as-built P&ID."
++      },
++      "geometry": {
++        "source": "mock",
++        "description": "Original authored positions, dimensions, ports, pipe radii and routes retained. Pipe lengths remain derived by the shared geometry compiler; no physical port-layout correction or validation is implied."
++      },
++      "thermal": {
++        "source": "mock",
++        "description": "Original saved server/cold-plate loads retained, without calibration or a newly imposed load step. Initial fluid/solid temperature and pressure defaults come from liquid_graphgen.js; the parameter pack supplies synthetic cold-plate/copper capacities and conductances."
++      },
++      "primary_side": {
++        "source": "mock",
++        "flow_kg_s": 1,
++        "inlet_K": 293.15,
++        "primary_volume_m3": 0.02,
++        "secondary_volume_m3": 0.02,
++        "cp_J_kgK": 4180,
++        "rho_kg_m3": 992.2,
++        "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
++      },
++      "equipment_and_materials": {
++        "source": "mock",
++        "parameter_pack_id": "liquid-demo-equipment",
++        "parameter_pack_revision": "mock-1-dae-v3",
++        "source_reference": "src/backend/liquidcooling/data/mock-demo-v1.json; explicit two-mixed-volume HX interpretation from mockDAEChoices. Software assumptions only; no vendor performance or material calibration."
++      },
++      "experiment": {
++        "duration_s": 180,
++        "dt_s": 1,
++        "load_step": false,
++        "initial_mode": "steady",
++        "description": "Preserves the original effective experiment time settings. Steady exports one operating point; the top-bar liquid transient switch enables the project timeline."
++      },
++      "display_only": [
++        {
++          "field": "constructions.cdus.m_30.cooling.totalFlowRate",
++          "value": 60,
++          "note": "This fixture uses pump curve control: totalFlowRate is not the pump flow equation input here. In explicit flow-control mode the compiler uses totalFlowRate. Primary-side flow is separately bound in primary_circuits.flow_kg_s."
++        }
++      ],
++      "unresolved_physical_design": {
++        "description": "The authored rear ports have 50 mm centre spacing with 100 mm pipe diameters, and the current route approaches from inside the cabinet. This provenance records the ambiguity without changing port positions, routes, pipe radii or topology; the display clipping policy is not a physical design repair."
++      }
++    }
+   },
+   "geometry": {
+     "height": 3.6,
+@@ -15595,7 +15646,153 @@
+           "ic": 10
+         }
+       },
+-      "inheritResults": false
++      "inheritResults": false,
++      "experiment": {
++        "engine": "newton-dae",
++        "duration_s": 180,
++        "dt_s": 1,
++        "settings": {
++          "mode": "manual",
++          "pumpId": "",
++          "measurementId": "",
++          "setpoint": 45,
++          "kp": 0.03,
++          "ki": 0.002,
++          "bias": 0.8,
++          "loadStep": false,
++          "stepTime": 60,
++          "loadFactor": 1.5
++        },
++        "dae": {
++          "equation_system": "incompressible_thermal_dae",
++          "analysis": {
++            "mode": "steady",
++            "initialization": "steady"
++          },
++          "newton": {
++            "max_iterations": 40,
++            "atol": 1e-10,
++            "rtol": 1e-10,
++            "max_backtracks": 18
++          },
++          "primary_circuits": [
++            {
++              "edge_id": "m_30_hx",
++              "flow_kg_s": 1,
++              "inlet_K": 293.15,
++              "cp_J_kgK": 4180,
++              "rho_kg_m3": 992.2,
++              "primary_volume_m3": 0.02,
++              "secondary_volume_m3": 0.02,
++              "source": "mock",
++              "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
++            }
++          ],
++          "execution": {
++            "backend": "pytorch",
++            "device": "cpu",
++            "dtype": "float64",
++            "max_threads": 2
++          }
++        },
++        "parameterPack": {
++          "schema_version": "1.0",
++          "id": "liquid-demo-equipment",
++          "revision": "mock-1-dae-v3",
++          "source": "mock",
++          "description": "Synthetic single-phase water-loop parameters for software demonstrations only. These are not NVIDIA or Vertiv specifications. Replace this pack on the unresolved project input and rerun for vendor/calibrated data. Explicit mock two-mixed-volume HX interpretation; not NV measurements or calibrated vendor performance.",
++          "profiles": {
++            "water": {
++              "type": "fluid",
++              "params": {
++                "rho_kg_m3": 997,
++                "cp_J_kgK": 4182,
++                "mu_Pa_s": 0.00089,
++                "k_W_mK": 0.606
++              },
++              "units": {
++                "rho_kg_m3": "kg/m3",
++                "cp_J_kgK": "J/(kg*K)",
++                "mu_Pa_s": "Pa*s",
++                "k_W_mK": "W/(m*K)"
++              }
++            },
++            "pipe-25mm": {
++              "type": "pipe",
++              "params": {
++                "D_m": 0.025,
++                "roughness_m": 1.5e-06,
++                "K_minor_per_bend": 0.5,
++                "n_cells": 3
++              },
++              "units": {
++                "D_m": "m",
++                "roughness_m": "m",
++                "K_minor_per_bend": "1",
++                "n_cells": "1"
++              }
++            },
++            "pump-demo": {
++              "type": "pump",
++              "params": {
++                "H0_m": 6,
++                "a_coef": 20000000,
++                "rpm_ratio": 1
++              },
++              "units": {
++                "H0_m": "m",
++                "a_coef": "m/(m3/s)^2",
++                "rpm_ratio": "1"
++              }
++            },
++            "valve-demo": {
++              "type": "valve",
++              "params": {
++                "D_m": 0.025,
++                "Kv_max": 1.5,
++                "opening": 1,
++                "characteristic": "linear"
++              },
++              "units": {
++                "D_m": "m",
++                "Kv_max": "m3/h@1bar",
++                "opening": "1",
++                "characteristic": "enum"
++              }
++            },
++            "rack-equivalent": {
++              "type": "cold_plate",
++              "params": {
++                "dp_a": 2000000,
++                "dp_b": 10000,
++                "UA_W_per_K": 300,
++                "C_solid_J_per_K": 8000,
++                "V_fluid_m3": 0.0002
++              },
++              "units": {
++                "dp_a": "Pa/(kg/s)^2",
++                "dp_b": "Pa/(kg/s)",
++                "UA_W_per_K": "W/K",
++                "C_solid_J_per_K": "J/K",
++                "V_fluid_m3": "m3"
++              }
++            },
++            "hx-demo": {
++              "type": "heat_exchanger",
++              "params": {
++                "dp_a": 20000,
++                "dp_b": 5000,
++                "UA_W_per_K": 2000
++              },
++              "units": {
++                "dp_a": "Pa/(kg/s)^2",
++                "dp_b": "Pa/(kg/s)",
++                "UA_W_per_K": "W/K"
++              }
++            }
++          }
++        }
++      }
+     }
+   }
+ }
+diff --git a/src/frontend/react/src/components/LiquidExperimentPanel.tsx b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+index 9b371fa0..ad81e48a 100644
+--- a/src/frontend/react/src/components/LiquidExperimentPanel.tsx
++++ b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+ import type { CfdProject } from '../schema/cfdproj'
+ import * as store from '../projectStore'
+ import { compileDynamicLiquidGraph } from '../liquid/dynamicLiquidGraph'
+-import { adoptMockDAEExperiment, compileSavedExperiment, readExperiment, type ExperimentSettings, type SavedExperiment, type SupplySchedule } from '../liquid/liquidExperiment'
++import { adoptMockDAEExperiment, compileSavedExperiment, readExperiment, resolveSavedExperiment, type ExperimentSettings, type SavedExperiment, type SupplySchedule } from '../liquid/liquidExperiment'
+ import { schema } from '../legacy/cfdprojModules'
+ import { toCelsius } from '../liquid/liquidResults'
+ import * as runtime from '../liquid/liquidRuntimeClient'
+@@ -51,6 +51,12 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+   const active=status==='running'||status==='paused'||(status==='ready'&&hasNextStep)
+   const stale=state.session&&state.projectRevision!==revision
+   const dae=experiment.dae
++  // Mode display follows the same pure choice as compilation. Reading a
++  // stale marked input must not show an independent clock or edit the project.
++  const analysisMode=dae?(experiment.engine==='newton-dae'?domainModesOf(project).liquid:dae.analysis.mode):undefined
++  const initialization=experiment.engine==='newton-dae'&&analysisMode==='steady'?'steady'
++    :timeline&&analysisMode==='transient'?(timeline.start.kind==='uniform'?'consistent':'steady'):dae?.analysis.initialization
++  const newtonIntent=experiment.engine==='newton-dae'||!!dae
+   const daeRun=state.session?.metadata.solver==='differentiable_newton_dae'
+   const rpmControlIds=state.session?.metadata.pump_rpm_control_edge_ids
+   // Missing means a legacy backend; [] means this run has no RPM actuators.
+@@ -74,7 +80,7 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+     if(!project)return
+     setError(null)
+     try {
+-      const adopted=adoptMockDAEExperiment(project)
++      const adopted=adoptMockDAEExperiment(project,{analysis:{mode:domainModesOf(project).liquid,initialization:'steady'}})
+       adopted.dae!.execution={backend:'pytorch',device:'cpu',dtype:'float64',max_threads:2}
+       store.setRunConfig('liquid','experiment',adopted)
+       setNotice('lce.notice_adopted')
+@@ -132,15 +138,29 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+       save({settings:{...settings,pumpId:pumps.includes(settings.pumpId)?settings.pumpId:pumps.length===1?pumps[0]!: '',measurementId:plates.includes(settings.measurementId)?settings.measurementId:plates.length===1?plates[0]!: ''}})
+     }catch(e){setError(e instanceof Error?e.message:String(e))}
+   }
++  function compilePersistedScenario() {
++    const current=store.getProject()
++    if(!current)throw new Error('No current project')
++    let selected=resolveSavedExperiment(current)
++    if(!selected.parameterPack) {
++      const graph=compileDynamicLiquidGraph(current,{
++        duration_s:selected.duration_s,dt_s:selected.dt_s,
++      })
++      selected={...selected,parameterPack:graph.parameter_pack}
++    }
++    // Bind the hash to the adopted, saved inputs, never to the pre-edit object.
++    if(JSON.stringify(selected)!==JSON.stringify(readExperiment(current))) {
++      store.setRunConfig('liquid','experiment',selected)
++      if(JSON.stringify(readExperiment(store.getProject()))!==JSON.stringify(selected))throw new Error('Experiment inputs could not be saved')
++    }
++    return compileSavedExperiment(store.getProject()!)
++  }
+   async function create() {
+     if(!project)return
+     setError(null)
+     setCreating(true)
+     try {
+-      // Compile the project-owned scenario. Freeze the actual selected parameter
+-      // pack into the project so reopening never silently uses different curves.
+-      const scenario=compileSavedExperiment(project)
+-      if(!experiment.parameterPack)save({parameterPack:scenario.liquidrun.parameter_pack})
++      const scenario=compilePersistedScenario()
+       await runtime.createRuntimeSession(scenario.liquidrun,scenario.controllers,store.revision())
+     }catch(e){setError(e instanceof Error?e.message:String(e))}
+     finally {setCreating(false)}
+@@ -164,7 +184,7 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+   function downloadManifest() {
+     if(!project)return
+     try {
+-      const {liquidrun}=compileSavedExperiment(project)
++      const {liquidrun}=compilePersistedScenario()
+       const url=URL.createObjectURL(new Blob([JSON.stringify(liquidrun,null,2)],{type:'application/json'}))
+       const a=document.createElement('a');a.href=url;a.download=`${liquidrun.projectName||'project'}.liquidrun`;a.click()
+       setTimeout(()=>URL.revokeObjectURL(url),1000);setError(null)
+@@ -176,17 +196,19 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+     <p className="liquid-experiment-note">{t('lce.introduction')}</p>
+     <fieldset disabled={state.busy||!!active}>
+       <legend>{t('lce.dae_title')}</legend>
++      {experiment.engine==='newton-dae'&&!dae&&<p className="liquid-experiment-note" id="lce-default-newton-assumptions">{t('lce.default_newton_assumptions')}</p>}
++      {dae&&experiment.parameterPack?.source==='mock'&&<p className="liquid-experiment-note" id="lce-saved-mock-assumptions">{t('lce.saved_mock_assumptions')}</p>}
+       {!dae?<>
+         <button className="btn" type="button" disabled={!project} onClick={adoptDAE}>{t('lce.adopt_mock')}</button>
+         <p className="liquid-experiment-note">{t('lce.mock_description')}</p>
+       </>:<>
+         {/* Read-only (E8b): the top-bar switch is the one writer of the liquid mode. */}
+         <label className="liquid-experiment-field"><span>{t('lce.analysis_mode')}</span><span className="value" id="lce-analysis-mode" aria-label={t('lce.analysis_mode_aria')}>
+-          {dae.analysis.mode==='transient'?t('lce.mode_transient'):t('lce.mode_steady')}
+-          <span className="prop-hint" style={{marginLeft:6}}>{t(dae.analysis.mode==='transient'&&!timeline
++          {analysisMode==='transient'?t('lce.mode_transient'):t('lce.mode_steady')}
++          <span className="prop-hint" style={{marginLeft:6}}>{t(analysisMode==='transient'&&!timeline
+             ?'transient.mode.liquid_own_clock':'transient.mode.liquid_hint')}</span>
+         </span></label>
+-        <p className="liquid-experiment-note">{t('lce.saved_execution',{initialization:dae.analysis.initialization==='steady'?t('lce.init_steady'):t('lce.init_consistent'),device:execution.device==='cpu'?'CPU':execution.device,dtype:execution.dtype,threads:execution.max_threads})}</p>
++        <p className="liquid-experiment-note">{t('lce.saved_execution',{initialization:initialization==='steady'?t('lce.init_steady'):t('lce.init_consistent'),device:execution.device==='cpu'?'CPU':execution.device,dtype:execution.dtype,threads:execution.max_threads})}</p>
+         {execution.device==='cpu'&&<><label className="liquid-experiment-field"><span>{t('lce.cpu_threads')}</span><select aria-label={t('lce.cpu_threads_aria')} value={execution.max_threads}
+           onChange={e=>changeDAEThreads(Number(e.target.value))}>
+           {threadOptions.map(count=><option key={count} value={count}>{count}</option>)}
+@@ -201,18 +223,18 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+         </details>
+       </>}
+       <legend>{t('lce.time_load')}</legend>
+-      {dae?.analysis.mode!=='steady'&&(timeline
++      {analysisMode!=='steady'&&(timeline
+         ?<label className="liquid-experiment-field"><span>{t('lce.duration')}</span><span className="value" id="lce-duration-timeline">{t('transient.liquid.duration_hint',{d:timeline.durationS})}</span></label>
+         :number(t('lce.duration'),duration,v=>{if(Number.isFinite(v))save({duration_s:v})}))}
+       {number(t('lce.timestep'),dt,v=>{if(Number.isFinite(v))save({dt_s:v})},.1)}
+-      {showLoadStep&&<label className="liquid-experiment-check"><input type="checkbox" checked={settings.loadStep} disabled={dae?.analysis.mode==='steady'} onChange={e=>change('loadStep',e.target.checked)}/>{t('lce.add_load_step')}</label>}
++      {showLoadStep&&<label className="liquid-experiment-check"><input type="checkbox" checked={settings.loadStep} disabled={analysisMode==='steady'} onChange={e=>change('loadStep',e.target.checked)}/>{t('lce.add_load_step')}</label>}
+       {settings.loadStep&&<>{number(t('lce.step_time'),settings.stepTime,v=>change('stepTime',v))}{number(t('lce.load_factor'),settings.loadFactor,v=>change('loadFactor',v),.1)}<p className="liquid-experiment-note">{t('lce.load_factor_hint')}</p></>}
+       {/* The supply-temperature plan is part of the DAE (v3 .liquidrun)
+           contract: the v2 compile path cannot express an inlet_K series and
+           would silently drop it. Render the editor only when a DAE config
+           exists, so the expansion hint never overclaims. */}
+       {timeline&&<p className="liquid-experiment-note" id="lce-keyframe-hint">{t('transient.liquid.keyframe_hint')}</p>}
+-      {dae&&showSupply&&<><label className="liquid-experiment-field"><span>{t('lce.supply_mode')}</span><select aria-label={t('lce.supply_mode')} value={settings.supplySchedule?.mode??'fixed'} disabled={dae?.analysis.mode==='steady'}
++      {dae&&showSupply&&<><label className="liquid-experiment-field"><span>{t('lce.supply_mode')}</span><select aria-label={t('lce.supply_mode')} value={settings.supplySchedule?.mode??'fixed'} disabled={analysisMode==='steady'}
+         onChange={e=>{
+           const mode=e.target.value as 'fixed'|'step'|'ramp'|'sinusoid'
+           const gridTime=Math.max(dt,Math.round(duration/2/dt)*dt)
+@@ -227,7 +249,7 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+       </select></label>
+       {(()=>{
+         const sched=settings.supplySchedule
+-        if(!sched||sched.mode==='fixed'||dae?.analysis.mode==='steady')return null
++        if(!sched||sched.mode==='fixed'||analysisMode==='steady')return null
+         const patch=(p:Record<string,number>)=>change('supplySchedule',{...sched,...p} as SupplySchedule)
+         return <>
+           {(sched.mode==='step'||sched.mode==='ramp')&&<>
+@@ -245,10 +267,10 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+         </>
+       })()}</>}
+       <legend>{t('lce.pump_control')}</legend>
+-      <label className="liquid-experiment-field" htmlFor="lce-control-mode"><span>{t('lce.control_mode')}</span><select id="lce-control-mode" aria-label={t('lce.control_mode')} value={settings.mode} disabled={!!dae} onChange={e=>{
++      <label className="liquid-experiment-field" htmlFor="lce-control-mode"><span>{t('lce.control_mode')}</span><select id="lce-control-mode" aria-label={t('lce.control_mode')} value={settings.mode} disabled={newtonIntent} onChange={e=>{
+         const mode=e.target.value as ExperimentSettings['mode'];save({settings:{...settings,mode,setpoint:mode==='pressure'?30:45,kp:mode==='pressure'?.01:.03,ki:mode==='pressure'?.001:.002}})
+       }}><option value="manual">{t('lce.manual')}</option><option value="temperature">{t('lce.temperature_pi')}</option><option value="pressure">{t('lce.pressure_pi')}</option></select></label>
+-      {dae&&<p className="liquid-experiment-note">{t('lce.dae_control_hint')}</p>}
++      {newtonIntent&&<p className="liquid-experiment-note">{t('lce.dae_control_hint')}</p>}
+       {settings.mode!=='manual'&&<>
+         <button className="btn" type="button" onClick={readCatalog}>{t('lce.read_devices')}</button>
+         {!catalog.pumps.length&&<p className="liquid-experiment-note">{t('lce.saved_targets_hint')}</p>}
+diff --git a/src/frontend/react/src/liquid/liquidExperiment.ts b/src/frontend/react/src/liquid/liquidExperiment.ts
+index 78a317cc..07006f55 100644
+--- a/src/frontend/react/src/liquid/liquidExperiment.ts
++++ b/src/frontend/react/src/liquid/liquidExperiment.ts
+@@ -1,6 +1,6 @@
+ /** Physical scenario construction shared by the React controls and browser automation. */
+ import { compileDynamicLiquidGraph, type DynamicLiquidGraph, type EquipmentPack } from './dynamicLiquidGraph'
+-import { projectAtStart, sourceSchemaVersion, transientModel, transientOf } from '../transient/model'
++import { domainModesOf, projectAtStart, sourceSchemaVersion, transientModel, transientOf } from '../transient/model'
+ import { liquidTimeline, lowerEventsToSeries, scheduleLiquidInputs, type LiquidForm } from '../transient/runSchedules'
+ import type { CfdProject } from '../schema/cfdproj'
+ import { schema } from '../legacy/cfdprojModules'
+@@ -82,6 +82,8 @@ function applyCircuitSeries(dae:SavedDAEConfig,circuits:Map<string,Partial<Recor
+   })}
+ }
+ export interface SavedExperiment {
++  /** Lightweight intent only: reading it never builds a graph or supplies HX bindings. */
++  engine?: 'newton-dae'
+   duration_s: number
+   dt_s: number
+   settings: ExperimentSettings
+@@ -93,6 +95,7 @@ export function readExperiment(project: CfdProject | null): SavedExperiment {
+   const saved = (project as unknown as {runDefaults?: {liquid?: {experiment?: Partial<SavedExperiment>}}})
+     ?.runDefaults?.liquid?.experiment
+   return {
++    ...(!saved ? {engine:'newton-dae' as const} : saved.engine !== undefined ? {engine:saved.engine} : {}),
+     duration_s: saved?.duration_s ?? 180,
+     dt_s: saved?.dt_s ?? 1,
+     settings: {mode:'manual',pumpId:'',measurementId:'',setpoint:45,kp:.03,ki:.002,bias:.8,
+@@ -101,11 +104,39 @@ export function readExperiment(project: CfdProject | null): SavedExperiment {
+     ...(saved?.dae ? {dae:structuredClone(saved.dae)} : {}),
+   }
+ }
++/** Resolve missing Newton inputs for compilation, without editing the source.
++ * Existing explicit legacy experiments remain v2. Prepare/export persists this
++ * value through the normal store edit before computing the project hash.
++ */
++export function resolveSavedExperiment(project:CfdProject):SavedExperiment {
++  const experiment=readExperiment(project)
++  const errors=schema().validateLiquidExperiment(experiment)
++  if(errors.length)throw new Error(errors.map(e=>e.path+': '+e.msg).join('; '))
++  if(experiment.engine==='newton-dae') {
++    if(experiment.settings.mode!=='manual')throw new Error('Newton DAE requires manual schedules; saved PID settings are not discarded')
++    const mode=domainModesOf(project).liquid
++    if(!experiment.dae) {
++      const selected=adoptMockDAEExperiment(project,{
++        analysis:{mode,initialization:'steady'},
++        source_reference:'Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data.',
++      })
++      selected.dae!.execution={backend:'pytorch',device:'cpu',dtype:'float64',max_threads:2}
++      return {...experiment,parameterPack:selected.parameterPack,dae:selected.dae}
++    }
++    // Marked inputs take their mode from the top-bar domain choice. Unmarked
++    // saved v3 independent-clock inputs retain their existing compatibility.
++    if(experiment.dae.analysis.mode!==mode||(mode==='steady'&&experiment.dae.analysis.initialization!=='steady')) {
++      return {...experiment,dae:{...experiment.dae,analysis:{...experiment.dae.analysis,mode,
++        ...(mode==='steady'?{initialization:'steady' as const}:{})}}}
++    }
++  }
++  return experiment
++}
+ export function compileSavedExperiment(source: CfdProject) {
+   // Steady/v3 compile reads the start values (t = 0) whatever the playhead or
+   // file form; the content hash is of the canonical disk form either way.
+   const project=projectAtStart(source)
+-  const experiment=readExperiment(project)
++  const experiment=resolveSavedExperiment(project)
+   const errors=schema().validateLiquidExperiment(experiment)
+   if(errors.length)throw new Error(errors.map(e=>`${e.path}: ${e.msg}`).join('; '))
+   // A time-marching run of a transient v5 project follows its timeline: the
+diff --git a/src/frontend/react/test/LiquidDAEControls.test.tsx b/src/frontend/react/test/LiquidDAEControls.test.tsx
+index 73d4dbaf..bf5888a7 100644
+--- a/src/frontend/react/test/LiquidDAEControls.test.tsx
++++ b/src/frontend/react/test/LiquidDAEControls.test.tsx
+@@ -9,7 +9,7 @@ import { LiquidExperimentPanel } from '../src/components/LiquidExperimentPanel'
+ import { LiquidRuntimeMonitor } from '../src/components/LiquidRuntimeMonitor'
+ import * as store from '../src/projectStore'
+ import * as runtime from '../src/liquid/liquidRuntimeClient'
+-import { compileSavedExperiment, expandSupplySchedule, readExperiment } from '../src/liquid/liquidExperiment'
++import { adoptMockDAEExperiment, compileSavedExperiment, expandSupplySchedule, readExperiment } from '../src/liquid/liquidExperiment'
+ import { mmsAnalyticCurves } from '../src/liquid/mmsAnalytic'
+ import { serializeProjectState } from '../src/io/projectFiles'
+ import type { CfdProject } from '../src/schema/cfdproj'
+@@ -84,9 +84,18 @@ beforeEach(async()=>{
+   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true
+   runtime.resetRuntimeClient();current=null;frames=[];requests=[];textCalls.length=0;fixtureChipTrace=null;advertisedPumpControls=undefined
+   const project=JSON.parse(readFileSync(resolve(process.cwd(),'../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj'),'utf8')) as CfdProject
++  // Keep explicit v2 adoption/control coverage after the canonical case
++  // becomes a saved Newton DAE entry.
++  const legacy=readExperiment(project)
++  delete legacy.engine;delete legacy.dae;delete legacy.parameterPack
++  ;(project.runDefaults!.liquid as Record<string,unknown>).experiment=legacy
+   store.loadProject(project,null)
+   const saved=readExperiment(project)
+   store.setRunConfig('liquid','experiment',{...saved,duration_s:10,dt_s:1,settings:{...saved.settings,loadStep:true,stepTime:5,loadFactor:1.4}})
++  // This suite exercises time-marching controls. New adoption follows this
++  // explicit top-bar choice, rather than silently creating an independent clock.
++  setSimulationMode('transient','liquid')
++  store.edit('testTimeline','10 s control fixture',draft=>{(draft as any).transient.durationS=10})
+   ctx={measureText:(text:string)=>({width:text.length*6}),setTransform:vi.fn(),clearRect:vi.fn(),fillText:(text:string)=>textCalls.push(text),beginPath:vi.fn(),moveTo:vi.fn(),lineTo:vi.fn(),stroke:vi.fn(),fillRect:vi.fn(),setLineDash:vi.fn()}
+   vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+   vi.spyOn(globalThis,'fetch').mockImplementation(async(input,init)=>{
+@@ -180,7 +189,7 @@ it('edits an existing DAE project CPU budget through save, reopen and v3 export'
+ 
+ it('queues live power for the next accepted step and keeps equilibrium outside transient history',async()=>{
+   await click('采用 DAE mock 参数');await click('准备实验')
+-  expect(requests[0]!.body.liquidrun.schemaVersion).toBe(3)
++  expect(requests[0]!.body.liquidrun.schemaVersion).toBe(4)
+   const before=structuredClone(runtime.runtimeState().frames)
+   await click('120%（+20%）')
+   expect(requests.find(request=>request.url.endsWith('/inputs'))?.body).toEqual({heat_multiplier:1.2})
+@@ -320,11 +329,19 @@ it('renders each HX and flat DAE heat diagnostics through the actual time-series
+   expect(host.querySelector('#liquid-runtime-monitor')?.textContent).toContain('2.00e-7')
+ })
+ 
++async function openSavedOwnClockDAE() {
++  await act(async()=>{
++    setSimulationMode('steady','liquid')
++    const saved=adoptMockDAEExperiment(store.getProject()!,{analysis:{mode:'transient',initialization:'steady'}})
++    store.setRunConfig('liquid','experiment',saved)
++  })
++}
++
+ it('compiles the creation-phase supply schedule into the .liquidrun inlet_K while the saved binding stays scalar',async()=>{
+   // without a DAE config the editor must not render at all: the v2 compile
+   // path cannot express an inlet_K series and would silently drop it
+   expect(host.querySelector('select[aria-label="供水温度方案"]')).toBeNull()
+-  await click('采用 DAE mock 参数')
++  await openSavedOwnClockDAE()
+   expect(host.querySelector('select[aria-label="供水温度方案"]')).not.toBeNull()
+   // fixed is the default: no schedule parameter fields are rendered
+   expect(host.querySelector('input[aria-label="变化时刻（s）"]')).toBeNull()
+@@ -351,7 +368,7 @@ it('compiles the creation-phase supply schedule into the .liquidrun inlet_K whil
+ })
+ 
+ it('disables the schedule editor in steady mode and compiles the scalar binding untouched',async()=>{
+-  await click('采用 DAE mock 参数')
++  await openSavedOwnClockDAE()
+   choose('供水温度方案','step')
+   act(()=>{setSimulationMode('steady','liquid')})
+   const select=host.querySelector('select[aria-label="供水温度方案"]') as HTMLSelectElement
+@@ -388,7 +405,10 @@ it('queues online supply temperature for the next accepted step like pump and va
+ it('overlays the sha-bound MMS analytic reference only on a matching fixture replay',async()=>{
+   await click('采用 DAE mock 参数')
+   // stretch the run to the fixture horizon: dt=1 s over 60 s → N_t=61 (t=0..60)
+-  act(()=>store.setRunConfig('liquid','experiment',{...readExperiment(store.getProject()),duration_s:60,dt_s:1}))
++  act(()=>{
++    store.setRunConfig('liquid','experiment',{...readExperiment(store.getProject()),duration_s:60,dt_s:1})
++    store.edit('testTimeline','60 s MMS identity replay',draft=>{(draft as any).transient.durationS=60})
++  })
+   // replay the fixture's IDENTITY too: the honesty gate checks the solid trace
+   // against the receipt's DAE curve, not just the time axis
+   const daeSolid=mmsAnalyticCurves.load.dae_solid_K
+diff --git a/src/frontend/react/test/components/SeedInspector.test.tsx b/src/frontend/react/test/components/SeedInspector.test.tsx
+index 8518263e..46aa15dd 100644
+--- a/src/frontend/react/test/components/SeedInspector.test.tsx
++++ b/src/frontend/react/test/components/SeedInspector.test.tsx
+@@ -43,6 +43,15 @@ function render(node: React.ReactNode) {
+   flushSync(() => root.render(node))
+ }
+ 
++/** Browser input must bypass React's value tracker and commit after onChange. */
++function commitNumber(input: HTMLInputElement, value: string) {
++  flushSync(() => input.focus())
++  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
++  setValue.call(input, value)
++  flushSync(() => input.dispatchEvent(new Event('input', { bubbles: true })))
++  flushSync(() => input.blur())
++}
++
+ beforeEach(() => {
+   store.loadProject(load(), '/cases/Base_leakage.cfdproj')
+   host = document.createElement('div')
+@@ -108,11 +117,7 @@ describe('SeedInspector', () => {
+       />,
+     )
+     const input = host.querySelector('#seed-offset') as HTMLInputElement
+-    flushSync(() => {
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(input, '0.2')
+     const openings = (raisedFloor().geometry as { openings: { seedConfig?: { offset: number } }[] })
+       .openings
+     expect(openings[0]?.seedConfig?.offset).toBeCloseTo(0.2, 10)
+@@ -129,12 +134,7 @@ describe('SeedInspector', () => {
+     render(<SeedInspector {...props} />)
+     const before = host.querySelector('#seed-status')?.textContent
+     const surface = collectSeedSurfaces(store.getProject()).find((s) => s.owner === 'floor-opening')!
+-    flushSync(() => {
+-      const input = host.querySelector('#seed-offset') as HTMLInputElement
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(host.querySelector('#seed-offset') as HTMLInputElement, '0.2')
+     render(<SeedInspector {...props} model={raisedFloor()} />)
+     expect(surface.isCustom).toBe(false)
+     expect(host.querySelector('#seed-status')?.textContent).not.toBe(before)
+@@ -175,12 +175,9 @@ describe('SeedInspector', () => {
+       patchId: 'p_13',
+     }
+     render(<SeedInspector {...props} />)
+-    flushSync(() => {
+-      const input = host.querySelector('#seed-offset') as HTMLInputElement
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(host.querySelector('#seed-offset') as HTMLInputElement, '0.2')
++    const beforeReset = (raisedFloor().geometry as { openings: { seedConfig?: { offset: number } }[] }).openings
++    expect(beforeReset[0]?.seedConfig?.offset).toBeCloseTo(0.2, 10)
+     render(<SeedInspector {...props} model={raisedFloor()} />)
+     flushSync(() =>
+       (host.querySelector('#seed-reset-default') as HTMLButtonElement).dispatchEvent(
+diff --git a/src/frontend/react/test/liquidDAEProject.test.ts b/src/frontend/react/test/liquidDAEProject.test.ts
+index e9b78f40..ac76eba1 100644
+--- a/src/frontend/react/test/liquidDAEProject.test.ts
++++ b/src/frontend/react/test/liquidDAEProject.test.ts
+@@ -7,7 +7,12 @@ import * as store from '../src/projectStore'
+ import type { CfdProject } from '../src/schema/cfdproj'
+ 
+ function shinaide(): CfdProject {
+-  return JSON.parse(readFileSync(resolve(process.cwd(), '../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj'), 'utf8'))
++  const p=JSON.parse(readFileSync(resolve(process.cwd(),'../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj'),'utf8')) as CfdProject
++  // This suite checks the saved explicit legacy/opt-in contract.
++  const legacy=experiments.readExperiment(p)
++  delete legacy.engine;delete legacy.dae;delete legacy.parameterPack
++  ;(p.runDefaults!.liquid as Record<string,unknown>).experiment=legacy
++  return p
+ }
+ 
+ function prepare() {
+diff --git a/src/frontend/react/test/liquidSavedExperiment.test.ts b/src/frontend/react/test/liquidSavedExperiment.test.ts
+index e0714244..40f30032 100644
+--- a/src/frontend/react/test/liquidSavedExperiment.test.ts
++++ b/src/frontend/react/test/liquidSavedExperiment.test.ts
+@@ -9,7 +9,12 @@ import * as store from '../src/projectStore'
+ import type { CfdProject } from '../src/schema/cfdproj'
+ 
+ function shinaide(): CfdProject {
+-  return JSON.parse(readFileSync(resolve(process.cwd(),'../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj'),'utf8'))
++  const p=JSON.parse(readFileSync(resolve(process.cwd(),'../../../case/Shinaide_Liquid/Shinaide_liquid.cfdproj'),'utf8')) as CfdProject
++  // This suite checks the saved explicit legacy/opt-in contract.
++  const legacy=experiment.readExperiment(p)
++  delete legacy.engine;delete legacy.dae;delete legacy.parameterPack
++  ;(p.runDefaults!.liquid as Record<string,unknown>).experiment=legacy
++  return p
+ }
+ describe('saved project owns liquid experiment',()=>{
+   it('recompiles the same physics after saving and reopening the mixed Shinaide case',()=>{
+diff --git a/src/frontend/react/test/researchLiquidrunCompiler.test.ts b/src/frontend/react/test/researchLiquidrunCompiler.test.ts
+index b55824ce..04c2b02f 100644
+--- a/src/frontend/react/test/researchLiquidrunCompiler.test.ts
++++ b/src/frontend/react/test/researchLiquidrunCompiler.test.ts
+@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
+ import { expect, it } from 'vitest'
+ import * as store from '../src/projectStore'
+ import { serializeProjectState } from '../src/io/projectFiles'
+-import { adoptMockDAEExperiment } from '../src/liquid/liquidExperiment'
++import { adoptMockDAEExperiment, readExperiment } from '../src/liquid/liquidExperiment'
+ import { cfdrunExport } from '../src/legacy/cfdrunBuild'
+ import { compileProjectDocument } from '../../../../tools/compile_cfdproj_liquidrun_v3_entry'
+ import type { CfdProject } from '../src/schema/cfdproj'
+@@ -19,6 +19,11 @@ const sha256 = (bytes: Buffer | string) => createHash('sha256').update(bytes).di
+ function savedSmallProject(): CfdProject {
+   const base = JSON.parse(readFileSync(basePath, 'utf8')) as CfdProject
+   store.loadProject(base, null)
++  // This is the frozen saved-v3 research fixture, whose explicit independent
++  // clock must remain compatible rather than inheriting the new default intent.
++  const legacy=readExperiment(store.getProject())
++  delete legacy.engine
++  store.setRunConfig('liquid','experiment',legacy)
+   const adopted = adoptMockDAEExperiment(store.getProject()!, {
+     source_reference: 'Synthetic one-rack test fixture, not site measurements',
+   })
+diff --git a/src/frontend/react/test/viewFadeController.test.ts b/src/frontend/react/test/viewFadeController.test.ts
+index 83b96a71..1b752602 100644
+--- a/src/frontend/react/test/viewFadeController.test.ts
++++ b/src/frontend/react/test/viewFadeController.test.ts
+@@ -326,7 +326,8 @@ describe('the viewport routes both fades through the controller', () => {
+ 
+   it('the highlight effect publishes the pass it runs, fed with the live fades', () => {
+     const body = block('// --- highlight the selection', '}, [selectedUid, selectedUids, selectedNode, project, sceneVersion])')
+-    expect(body).toMatch(/paintHighlightsRef\.current = \(\) =>\s*paintSelectionHighlights\([^)]*viewFadesNow\(\)\)/)
++    expect(body).toMatch(/paintHighlightsRef\.current = \(\) =>\s*paintSelectionHighlights\(\s*registriesRef\.current\.renderRootMap,\s*selection,\s*spanFor,\s*viewFadesNow\(\),/)
++    expect(body).toContain("uid => String(registriesRef.current.modelMap.get(uid)?.kind ?? '')")
+     expect(body).toContain('paintHighlightsRef.current()')
+   })
+ 
+diff --git a/src/frontend/react/test/volumeVisibility.test.ts b/src/frontend/react/test/volumeVisibility.test.ts
+index 7690b340..a292acd9 100644
+--- a/src/frontend/react/test/volumeVisibility.test.ts
++++ b/src/frontend/react/test/volumeVisibility.test.ts
+@@ -48,8 +48,8 @@ function volumeBlock(): string {
+ }
+ 
+ describe('the volume layer handed to the viewport', () => {
+-  it('passes the payload whenever one has been fetched', () => {
+-    expect(volumeBlock()).toContain('payload: volumeRef.current?.payload ?? null')
++  it('passes a payload only when it belongs to the selected field', () => {
++    expect(volumeBlock()).toContain('payload: volumeRef.current?.field === s.volume.field ? volumeRef.current.payload : null')
+   })
+ 
+   it('does not gate the payload on the disclosure checkbox', () => {
+diff --git a/src/frontend/shared/i18n/en-US.json b/src/frontend/shared/i18n/en-US.json
+index c38e481b..ee7d0144 100644
+--- a/src/frontend/shared/i18n/en-US.json
++++ b/src/frontend/shared/i18n/en-US.json
+@@ -1887,6 +1887,8 @@
+   "lce.introduction": "Coupled CDU, pipe-network and cold-plate simulation. Pumps, heat exchangers and valves use replaceable mock parameters; equipment geometry and cold-plate parameters come from the current project.",
+   "lce.dae_title": "Differentiable Newton DAE",
+   "lce.adopt_mock": "Adopt DAE mock parameters",
++  "lce.default_newton_assumptions": "New experiments use differentiable Newton DAE. Preparing or exporting will save synthetic primary-side assumptions: 1 kg/s at 20°C, 0.02 m³ on each HX side, project-fluid cp/rho, and mock equipment/material curves. These are numerical assumptions, not measurements or vendor calibration.",
++  "lce.saved_mock_assumptions": "This DAE uses saved synthetic equipment, primary-side storage and material parameters. Review the primary-circuit details and parameter pack before running; these inputs are not measured or vendor-calibrated.",
+   "lce.mock_description": "Explicitly model finite primary-side flow and energy storage on both sides. Defaults: 1 kg/s at 20°C, with 0.02 m³ per side. Parameters are saved with the project and are not NV calibration.",
+   "lce.analysis_mode": "Analysis mode",
+   "lce.analysis_mode_aria": "DAE analysis mode",
+diff --git a/src/frontend/shared/i18n/zh-CN.json b/src/frontend/shared/i18n/zh-CN.json
+index ea315423..6ed9e8d1 100644
+--- a/src/frontend/shared/i18n/zh-CN.json
++++ b/src/frontend/shared/i18n/zh-CN.json
+@@ -1887,6 +1887,8 @@
+   "lce.introduction": "CDU—管网—冷板联动。泵、换热器与阀门使用可替换的 mock 参数；设备几何和冷板参数来自当前工程。",
+   "lce.dae_title": "可微 Newton DAE",
+   "lce.adopt_mock": "采用 DAE mock 参数",
++  "lce.default_newton_assumptions": "新实验默认使用可微 Newton DAE。准备或导出时会保存合成假设：一次侧 1 kg/s、20°C，换热器两侧各 0.02 m³、工程流体 cp/rho，以及 mock 设备和材料曲线。这些是数值假设，不是实测或厂商标定。",
++  "lce.saved_mock_assumptions": "此 DAE 使用已保存的合成设备、一次侧储能和材料参数。运行前请核对一次侧详情和参数包；这些输入不是实测或厂商标定。",
+   "lce.mock_description": "显式采用有限一次侧流量和两侧储能。默认一次侧 1 kg/s、20°C、两侧各 0.02 m³；参数随工程保存，不代表 NV 标定。",
+   "lce.analysis_mode": "分析模式",
+   "lce.analysis_mode_aria": "DAE 分析模式",
+diff --git a/src/frontend/shared/js/cfdproj_schema.js b/src/frontend/shared/js/cfdproj_schema.js
+index 264c4572..2dc3b9dc 100644
+--- a/src/frontend/shared/js/cfdproj_schema.js
++++ b/src/frontend/shared/js/cfdproj_schema.js
+@@ -351,13 +351,14 @@
+     const err = (key, msg) => errors.push({path:base + (key ? '.' + key : ''),msg});
+     const object = v => v && typeof v === 'object' && !Array.isArray(v);
+     if (!object(value)) { err('', 'expected an object'); return errors; }
+-    const allowed = new Set(['duration_s','dt_s','settings','parameterPack','dae']);
++    const allowed = new Set(['engine','duration_s','dt_s','settings','parameterPack','dae']);
+     Object.keys(value).forEach(k => { if (!allowed.has(k)) err(k, 'unknown experiment field'); });
+     for (const key of ['duration_s','dt_s']) {
+       if (typeof value[key] !== 'number' || !Number.isFinite(value[key]) || value[key] <= 0) err(key, 'must be positive and finite');
+     }
+     const intervals = value.duration_s / value.dt_s;
+     if (Number.isFinite(intervals) && Math.abs(intervals - Math.round(intervals)) > 1e-8) err('duration_s', 'must lie on the time-step grid');
++    if (value.engine !== undefined && value.engine !== 'newton-dae') err('engine', 'unknown solver intent');
+     const s = value.settings;
+     if (!object(s)) { err('settings', 'expected controller and load settings'); return errors; }
+     const keys = new Set(['mode','pumpId','measurementId','setpoint','kp','ki','bias','loadStep','stepTime','loadFactor','supplySchedule']);

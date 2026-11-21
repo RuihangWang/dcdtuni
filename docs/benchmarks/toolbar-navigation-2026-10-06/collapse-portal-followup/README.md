@@ -1,0 +1,9 @@
+# Toolbar collapse portal follow-up, 2026-10-06
+
+Toolbar content and its renderer slot already stay mounted during collapse. RendererControl intentionally cleared its portal target on the collapsed class, moving the renderer select/export/connection row into the viewport fallback. The fix retains ownership of the mounted toolbar slot. Views without a toolbar still have the standalone fallback. Existing collapse CSS hides the row; independent cube and renderer status/post-process overlays are untouched. PanelResizers already observes toolbar class changes and needs no modification.
+
+Only src/frontend/react/src/renderer/RendererControl.tsx and its existing test/RendererControl.test.ts changed. The former static source test that endorsed fallback on collapse was replaced with real Toolbar + RendererControl DOM regression and standalone fallback tests. The regression failed on old source when the collapsed slot lost its select; fixed source passes all 4 relevant files / 32 tests. Connection disclosure DOM identity and open state survive collapse/expansion. npm run typecheck and normal npm run build pass. Build emits existing dynamic/static import and chunk size warnings.
+
+Command receipts record inherited environment with CPU 24-31, CUDA empty, original installed Node/npm and no package installation. before/after snapshots and frontend.patch bind the minimal change. source-and-verification.json binds source, command results and production entry assets. Prior toolbar-navigation-20261006 manifest and all 28 frozen payloads were independently re-hashed unchanged. No git, services, browser, case, backend or native jobs were run or modified. Root owns real live OV/browser verification and integration.
+
+manifest.json maps each evidence payload to {sha256,bytes}; cache/ and the manifest itself are excluded. This sibling follow-up preserves all prior evidence and must not be represented as a new freeze of the old directory.

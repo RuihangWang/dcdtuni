@@ -1,0 +1,63 @@
+.....F..F.FF......                                                       [100%]
+=================================== FAILURES ===================================
+______ test_sourcebody_tensor_respects_selected_physical_and_coupled_mask ______
+
+    def test_sourcebody_tensor_respects_selected_physical_and_coupled_mask():
+        sf=np.array([[1.,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+        t={"patch":np.full(6,-1)}
+>       assert m.body_selected(t,np.arange(6),sf,{})==(1.,6)
+E       assert (0.9999999999999998, 6) == (1.0, 6)
+E         
+E         At index 0 diff: 0.9999999999999998 != 1.0
+E         Use -v to get more diff
+
+src/backend/tests/test_air_thin_source_migration.py:70: AssertionError
+____________ test_coordinate_axis_choice_is_geometric[permutation0] ____________
+
+permutation = [0, 1, 2]
+
+    @pytest.mark.parametrize("permutation",[[0,1,2],[2,0,1],[1,2,0]])
+    def test_coordinate_axis_choice_is_geometric(permutation):
+        p,f=extrusion([[0,0],[1,0],[1,1],[0,1]],height=.2)
+        got=m.classify_prism(p[:,permutation],f)
+        assert got["exactCoordinateAxisPrism"] and got["convexOutline"]
+>       assert got["axis"]==permutation.index(2)
+E       assert 0 == 2
+E        +  where 2 = <built-in method index of list object at 0x7f20c5f79940>(2)
+E        +    where <built-in method index of list object at 0x7f20c5f79940> = [0, 1, 2].index
+
+src/backend/tests/test_air_thin_source_migration.py:98: AssertionError
+____________ test_coordinate_axis_choice_is_geometric[permutation2] ____________
+
+permutation = [1, 2, 0]
+
+    @pytest.mark.parametrize("permutation",[[0,1,2],[2,0,1],[1,2,0]])
+    def test_coordinate_axis_choice_is_geometric(permutation):
+        p,f=extrusion([[0,0],[1,0],[1,1],[0,1]],height=.2)
+        got=m.classify_prism(p[:,permutation],f)
+        assert got["exactCoordinateAxisPrism"] and got["convexOutline"]
+>       assert got["axis"]==permutation.index(2)
+E       assert 0 == 1
+E        +  where 1 = <built-in method index of list object at 0x7f20c5f797c0>(2)
+E        +    where <built-in method index of list object at 0x7f20c5f797c0> = [1, 2, 0].index
+
+src/backend/tests/test_air_thin_source_migration.py:98: AssertionError
+____________ test_collinear_cap_nodes_are_retained_in_original_data ____________
+
+    def test_collinear_cap_nodes_are_retained_in_original_data():
+        p,f=extrusion([[0,0],[.5,0],[1,0],[1,1],[0,1]])
+        old=p.copy();got=m.classify_prism(p,f)
+        assert got["exactCoordinateAxisPrism"] and got["capOutlineVertices"]==4
+>       assert got["originalCapNodeCounts"]==[5,5]
+E       assert [4, 4] == [5, 5]
+E         
+E         At index 0 diff: 4 != 5
+E         Use -v to get more diff
+
+src/backend/tests/test_air_thin_source_migration.py:104: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_air_thin_source_migration.py::test_sourcebody_tensor_respects_selected_physical_and_coupled_mask
+FAILED src/backend/tests/test_air_thin_source_migration.py::test_coordinate_axis_choice_is_geometric[permutation0]
+FAILED src/backend/tests/test_air_thin_source_migration.py::test_coordinate_axis_choice_is_geometric[permutation2]
+FAILED src/backend/tests/test_air_thin_source_migration.py::test_collinear_cap_nodes_are_retained_in_original_data
+4 failed, 14 passed in 0.40s

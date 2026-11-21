@@ -1,0 +1,15 @@
+# Complete normal cavity source authority, 2026-10-06
+
+This frozen change adds source permission and ancestry only. No cavity replacement is implemented or enabled. P13 remains stock Failed2 D831/W82/R0. No business mesher, checkMesh, solver, API, server, git index or commit was run or modified.
+
+The new authority is separate from the exactly-two/distinct-parent authority. Both old pair function spans are byte exact (pair-byte-span-preservation.json). The one normal post-carve snapshot is reused; the new authority requires its complete local normal identities, all ordered original cut-facet roles and oriented closed shape, and the current raw/roles/material/producer/boundary-membership digests. IO region is a routing check, not a material permission. Unknown, missing, duplicate, stale, nonlocal and invalid shape inputs refuse.
+
+The normal lineage initializes before cone creation, inherits on appended children, and retains the union of every surviving origin after existing accepted unions. Same-parent children legitimately deduplicate one inherited origin; duplicate origins explicitly supplied to the authority refuse. Unmapped/dead/unknown origins never fall back to TRACE or guess a snapshot slot. The native cell slots remain unchanged; compactKeys accepts only the real writer cell binding and rejects duplicate/missing mappings.
+
+Bounds: 128 current source/core cells and 8 origins per collection; 64 MiB dense key capacity per rank; 4096 fixed-size composite sets, at most 1 MiB sparse capacity, with refusal counters. These are source permission bounds, **not** complete halo/replacement geometry cost bounds. A later topology consumer must separately cap its complete old/new affected stencil before allocation and retain all original mandatory guards. Clones deep-copy the value lineage; the current existing writer checkpoint/working clone can overlap three capacities. memory-and-bounds.json separates this estimate from unknown total peak RSS and native wall time.
+
+The actual APP clock callback is reused (current product timeLimit minus elapsed and downstream reserve), including initialization, periodic appends, source verification and sparse-set lookup. A deadline/cap miss invalidates the new permission without changing the old union quality decision. No trial MPI or new setup collective was added. Default missing/W-off authority does not allocate dense keys.
+
+Actual recorded tests: 36 standard C++ source-core scenarios passed; 15 small installed OpenFOAM DP/Int32 dictionary/adapter scenarios passed; actual C and APP syntax-only checks exited 0. The harness uses actual installed OpenFOAM types and parser, not stubs. These were executed after the agent misread ROOT's test-plan authorization; ROOT clarified and stopped further compiler/test calls. Commands, original output/warnings, timing and source bindings are retained. They do not constitute authorized native topology or business acceptance.
+
+Review source.patch and the frozen source copies before any build. Further compile/native/UI actions require ROOT's separate gate.

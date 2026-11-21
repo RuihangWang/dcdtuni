@@ -1,0 +1,283 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+index 83f1c819..3cc7cb9b 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -2766,6 +2766,12 @@ int main(int argc, char *argv[])
+         }
+ 
+ 
++        if (getenv("DCCART_STRICT_DECOMPOSE") != nullptr)
++        {
++            dcCartCutCells::decomposePlanarCells(m, rep, myProc);
++            budgetCheck("strict-local-pyramid-experiment");
++        }
++
+         // The census: the three numbers that separate a mesh the steady RAS
+         // solve converges on from one it does not, printed on every run so a
+         // regression shows up at mesh time instead of three days later at
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 3d9a0d28..fcf75774 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -11703,6 +11703,245 @@ void Foam::dcCartCutCells::coalesceCoplanarFaces
+ }
+ 
+ 
++Foam::label Foam::dcCartCutCells::decomposePlanarCells
++(
++    cutMesh& m, report& r, label myRank
++)
++{
++    // Experimental final local subdivision. Original base polygons and all
++    // source/coupled tags are untouched; every new face lies inside one old
++    // owned cell. There are no subsequent ghost/arbitration rounds.
++    const label oldCells = m.nCells, oldFaces = label(m.faces.size());
++    std::vector<std::vector<label>> cf;
++    buildCellFaces(m, cf);
++    std::vector<vector> area(oldFaces, vector::zero);
++    std::vector<point> centre(oldFaces, point::zero);
++    for (label f = 0; f < oldFaces; ++f)
++    {
++        if (m.faceAlive[f]) { faceAreaCentreOF(m.points, m.faces[f], area[f], centre[f]); }
++    }
++    struct edgeUse { label face; label a; label b; };
++    using edgeMap = std::map<std::pair<label, label>, std::vector<edgeUse>>;
++    std::vector<bool> chosen(oldCells, false);
++    std::vector<point> apex(oldCells, point::zero);
++    label nFlagged = 0, nUnsupported = 0, nChosen = 0, nAdded = 0;
++    // The writer canonicalises points within 1 micrometre. Keep every new
++    // apex clear of existing representatives by 3 micrometres, so it cannot
++    // move a source/coupled vertex or collapse a new side face at write time.
++    pointCanon existingPoints;
++    for (label p = 0; p < label(m.points.size()); ++p) { existingPoints.canon(m.points, p); }
++    auto apexTooNear = [&](const point& cc) -> bool
++    {
++        const long long qx = std::llround(cc.x() * 1e6);
++        const long long qy = std::llround(cc.y() * 1e6);
++        const long long qz = std::llround(cc.z() * 1e6);
++        for (int x = -4; x <= 4; ++x) for (int y = -4; y <= 4; ++y) for (int z = -4; z <= 4; ++z)
++        {
++            const pointCanon::slot* hit = existingPoints.lookup(qx+x, qy+y, qz+z);
++            if (hit && magSqr(m.points[hit->v] - cc) <= 9e-12) { return true; }
++        }
++        return false;
++    };
++    auto edgesOf = [&](label c) -> edgeMap
++    {
++        edgeMap edges;
++        for (const label f : cf[c])
++        {
++            const auto& poly = m.faces[f];
++            for (size_t q = 0; q < poly.size(); ++q)
++            {
++                label a = poly[q], b = poly[(q + 1) % poly.size()];
++                if (m.owner[f] != c) { std::swap(a, b); }
++                edges[std::minmax(a, b)].push_back(edgeUse{f, a, b});
++            }
++        }
++        return edges;
++    };
++    for (label c = 0; c < oldCells; ++c)
++    {
++        if (!m.cellAlive[c] || m.cellRank[c] != myRank || cf[c].size() < 4) { continue; }
++        bool flagged = false;
++        for (const label f : cf[c])
++        {
++            vector n = area[f] / max(mag(area[f]), VSMALL);
++            if (m.owner[f] != c) { n = -n; }
++            for (const label g : cf[c])
++            {
++                if (g == f) { continue; }
++                const vector d = centre[g] - centre[f];
++                // Exact installed OpenFOAM concave-or-planar criterion.
++                if ((d & n) / max(mag(d), VSMALL) > -1e-6) { flagged = true; break; }
++            }
++            if (flagged) { break; }
++        }
++        if (!flagged) { continue; }
++        ++nFlagged;
++        bool supported = true;
++        point estimate(point::zero);
++        for (const label f : cf[c]) { estimate += centre[f]; }
++        estimate /= scalar(cf[c].size());
++        point weighted(point::zero);
++        scalar volume = 0;
++        for (const label f : cf[c])
++        {
++            vector a = area[f];
++            if (m.owner[f] != c) { a = -a; }
++            const scalar pv = ((centre[f] - estimate) & a) / 3;
++            volume += pv;
++            weighted += pv * (0.25 * estimate + 0.75 * centre[f]);
++        }
++        if (volume <= VSMALL) { supported = false; }
++        const point cc = supported ? weighted / volume : estimate;
++        if (supported && apexTooNear(cc)) { supported = false; }
++        scalar piecesVolume = 0;
++        for (const label f : cf[c])
++        {
++            const auto& poly = m.faces[f];
++            const scalar ar = mag(area[f]);
++            if (poly.size() < 3 || ar <= VSMALL) { supported = false; break; }
++            const vector n = area[f] / ar;
++            const scalar outward = m.owner[f] == c ? 1 : -1;
++            const scalar pv = outward * ((centre[f] - cc) & area[f]) / 3;
++            if (pv <= VSMALL) { supported = false; break; }
++            piecesVolume += pv;
++            for (size_t q = 0; q < poly.size(); ++q)
++            {
++                const point& a = m.points[poly[q]];
++                const point& b = m.points[poly[(q + 1) % poly.size()]];
++                const point& d = m.points[poly[(q + 2) % poly.size()]];
++                const scalar scale = max(scalar(1e-12), max(mag(b - a), mag(d - b)));
++                if (mag((a - centre[f]) & n) > 1e-9 * max(scalar(1), scale))
++                { supported = false; break; }
++                // No concave base or folded face is subdivided by this path.
++                if ((((b - a) ^ (d - b)) & n) < -1e-10 * scale * scale)
++                { supported = false; break; }
++            }
++            if (!supported) { break; }
++        }
++        const edgeMap edges = supported ? edgesOf(c) : edgeMap();
++        for (const auto& kv : edges)
++        {
++            const auto& e = kv.second;
++            if (e.size() != 2 || e[0].face == e[1].face
++             || e[0].a != e[1].b || e[0].b != e[1].a)
++            { supported = false; break; }
++        }
++        if (supported && mag(piecesVolume - volume) > 1e-10 * volume)
++        { FatalErrorInFunction << "pyramid subdivision failed parent volume conservation" << exit(FatalError); }
++        if (!supported) { ++nUnsupported; continue; }
++        chosen[c] = true;
++        apex[c] = cc;
++        ++nChosen;
++    }
++    for (label c = 0; c < oldCells; ++c)
++    {
++        if (!chosen[c]) { continue; }
++        const edgeMap edges = edgesOf(c);
++        const label ap = label(m.points.size());
++        m.points.push_back(apex[c]);
++        std::map<label, label> childOf;
++        const bool origAlive = m.cellOrigAlive[c];
++        const scalar refVolume = m.cellRefVol[c];
++        const point refCentre = m.cellRefCentre[c];
++        const label level = m.cellLevel[c], rank = m.cellRank[c];
++        const uint64_t leaf = m.cellLeaf[c], piece = m.cellPiece[c];
++        bool first = true;
++        std::set<uint64_t> childPieces;
++        for (const label f : cf[c])
++        {
++            // A child is named from its parent's global piece and canonical
++            // base geometry; local point/face order never enters the key.
++            std::vector<std::tuple<long long,long long,long long>> q;
++            for (const label p : m.faces[f])
++            {
++                const point& x = m.points[p];
++                q.emplace_back(std::llround(x.x()*1e7), std::llround(x.y()*1e7), std::llround(x.z()*1e7));
++            }
++            std::sort(q.begin(), q.end());
++            uint64_t childPiece = splitMix64(piece ^ 0x706972616d696473ULL);
++            for (const auto& x : q)
++            {
++                childPiece = splitMix64(childPiece ^ uint64_t(std::get<0>(x)));
++                childPiece = splitMix64(childPiece ^ uint64_t(std::get<1>(x)));
++                childPiece = splitMix64(childPiece ^ uint64_t(std::get<2>(x)));
++            }
++            if (!childPieces.insert(childPiece).second)
++            { FatalErrorInFunction << "pyramid child geometry identity collision" << exit(FatalError); }
++            const label child = first ? c : m.nCells++;
++            if (!first)
++            {
++                m.cellAlive.push_back(true); m.cellOrigAlive.push_back(origAlive);
++                m.cellRefVol.push_back(refVolume); m.cellRefCentre.push_back(refCentre);
++                m.cellLevel.push_back(level); m.cellRank.push_back(rank);
++                m.cellLeaf.push_back(leaf); m.cellPiece.push_back(childPiece);
++                ++nAdded;
++            }
++            if (first) { m.cellPiece[c] = childPiece; }
++            first = false;
++            childOf.emplace(f, child);
++            if (m.owner[f] == c) { m.owner[f] = child; }
++            else if (m.neighbour[f] == c) { m.neighbour[f] = child; }
++            else { FatalErrorInFunction << "pyramid base lost its original cell incidence" << exit(FatalError); }
++        }
++        for (const auto& kv : edges)
++        {
++            const edgeUse& a = kv.second[0];
++            const edgeUse& b = kv.second[1];
++            m.faces.push_back(std::vector<label>{a.b, a.a, ap});
++            m.owner.push_back(childOf.at(a.face));
++            m.neighbour.push_back(childOf.at(b.face));
++            m.patch.push_back(-1); m.zone.push_back(-1); m.faceAlive.push_back(true);
++        }
++    }
++    // Join ONLY new internal side faces. Running a whole-mesh coalescer here
++    // could change an original base polygon after its coupling was fixed.
++    std::map<std::pair<label,label>, std::vector<label>> sideGroups;
++    for (label f = oldFaces; f < label(m.faces.size()); ++f)
++    { sideGroups[std::minmax(m.owner[f], m.neighbour[f])].push_back(f); }
++    for (auto& group : sideGroups)
++    {
++        auto& fs = group.second;
++        bool changed = true;
++        while (changed)
++        {
++            changed = false;
++            for (size_t i = 0; i < fs.size() && !changed; ++i)
++            {
++                for (size_t j = i+1; j < fs.size() && !changed; ++j)
++                {
++                    const label f = fs[i], g = fs[j];
++                    std::vector<label> other = m.faces[g];
++                    if (m.owner[f] != m.owner[g]) { std::reverse(other.begin(), other.end()); }
++                    vector af, ag; point cf0, cg0;
++                    faceAreaCentreOF(m.points, m.faces[f], af, cf0);
++                    faceAreaCentreOF(m.points, other, ag, cg0);
++                    const scalar sf = mag(af), sg = mag(ag);
++                    if (sf <= VSMALL || sg <= VSMALL || (af & ag) < (1-1e-10)*sf*sg
++                     || mag((cg0-cf0) & (af/sf)) > 1e-10) { continue; }
++                    std::vector<label> merged;
++                    if (!mergePolygons(m.points, m.faces[f], other, merged)) { continue; }
++                    vector combined; point centre0;
++                    faceAreaCentreOF(m.points, merged, combined, centre0);
++                    if (mag(mag(combined)-sf-sg) > 1e-10*(sf+sg)) { continue; }
++                    m.faces[f] = merged;
++                    m.faceAlive[g] = false;
++                    fs.erase(fs.begin()+j);
++                    changed = true;
++                }
++            }
++        }
++    }
++    const label flaggedAll = returnReduce(nFlagged, sumOp<label>());
++    const label chosenAll = returnReduce(nChosen, sumOp<label>());
++    const label unsupportedAll = returnReduce(nUnsupported, sumOp<label>());
++    const label addedAll = returnReduce(nAdded, sumOp<label>());
++    Info<< "Strict local pyramid experiment: flagged " << flaggedAll
++        << ", decomposed " << chosenAll << ", unsupported " << unsupportedAll
++        << ", additional cells " << addedAll << nl;
++    return chosenAll;
++}
++
++
+ void Foam::dcCartCutCells::dropGhostCells
+ (
+     cutMesh& m, label myRank, const std::vector<label>& procPatchOfRank
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+index a475d7bf..6ccc90d0 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -693,7 +693,10 @@ public:
+         //- Parallel: drop the halo cells of other ranks; a face between an
+         //  owned cell and a halo cell becomes a processor-patch face
+         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
+-        static void dropGhostCells
++        //- Opt-in final local subdivision; preserves original base polygons.
++    static label decomposePlanarCells(cutMesh& m, report& r, label myRank);
++
++    static void dropGhostCells
+         (
+             cutMesh& m, label myRank, const std::vector<label>& procPatchOfRank
+         );

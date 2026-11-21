@@ -1,0 +1,529 @@
+diff --git a/src/server/server.py b/src/server/server.py
+index 1378aebd..f7de47c5 100644
+--- a/src/server/server.py
++++ b/src/server/server.py
+@@ -943,6 +943,92 @@ def _publish_case_inputs(
+ # Global job registry: job_id -> {lines, done, returncode}
+ JOBS: dict = {}
+ JOBS_LOCK = threading.Lock()
++
++
++class _JobCancelledError(Exception):
++    """A registered worker was cancelled before starting its next operation."""
++
++
++def _new_job_state(lines: list[str], **fields) -> dict:
++    return {
++        "lines": lines, "done": False, "returncode": None, "proc": None,
++        "cancelRequested": False, "cancelled": False,
++        # Serializes tree termination with the worker's final cleanup. The
++        # abort handler never owns the terminal state or a case/controller lock.
++        "_stop_lock": threading.Lock(), "_stop_started": False,
++        **fields,
++    }
++
++
++def _raise_if_job_cancelled(job_id: str) -> None:
++    with JOBS_LOCK:
++        if JOBS[job_id].get("cancelRequested"):
++            raise _JobCancelledError()
++
++
++def _spawn_job_process(job_id: str, command, **kwargs):
++    # Cancellation and process publication are one transaction. An abort
++    # accepted while browser cleanup/admission is pending cannot late-spawn.
++    with JOBS_LOCK:
++        job = JOBS[job_id]
++        if job.get("cancelRequested"):
++            raise _JobCancelledError()
++        proc = subprocess.Popen(command, **kwargs)
++        job["proc"] = proc
++        return proc
++
++
++def _finish_job(job_id: str, returncode: int, *, quality=None,
++                cancelled_receipt: Path | None = None) -> None:
++    """Publish terminal state only from the worker, after its own cleanup."""
++    with JOBS_LOCK:
++        job = JOBS[job_id]
++        stop_lock = job["_stop_lock"]
++    # This final fence also covers an abort arriving after stdout/receipt work.
++    # The handler only try-acquires this lock while holding JOBS_LOCK.
++    with stop_lock:
++        with JOBS_LOCK:
++            cancelled = job.get("cancelRequested", False)
++            proc = job.get("proc")
++            if not cancelled:
++                if quality is not None:
++                    job.update(quality)
++                job.update(returncode=returncode, done=True)
++                return
++        if proc is not None:
++            while _terminate_job_tree(proc) is False:
++                time.sleep(0.1)
++            proc.wait()
++        if cancelled_receipt is not None:
++            try:
++                cancelled_receipt.unlink(missing_ok=True)
++            except OSError as exc:
++                with JOBS_LOCK:
++                    job["lines"].append(f"[server] Cancelled receipt cleanup failed: {exc}")
++        with JOBS_LOCK:
++            job.pop("meshQualityReceipt", None)
++            job.update(returncode=-15, cancelled=True, checkMeshOk=False, done=True)
++
++
++def _join_job_cleanup(job_id: str, proc) -> None:
++    if proc is None:
++        return
++    with JOBS_LOCK:
++        job = JOBS[job_id]
++        stop_lock = job["_stop_lock"]
++    # A pipe may reach EOF while the abort handler is still stopping a
++    # separately-sessioned MPI group. Wait for that cleanup before done.
++    with stop_lock:
++        with JOBS_LOCK:
++            cancelled = job.get("cancelRequested", False)
++        if cancelled:
++            while _terminate_job_tree(proc) is False:
++                time.sleep(0.1)
++        elif proc.returncode is None:
++            _terminate_job_tree(proc)
++        proc.wait()
++
++
+ _LATEST_SOLVE_PREFIX: str = ""
+ # The run directory of the solve that is running or just finished. Pinned from
+ # the runner's own "Created run directory:" line, because the prefix above is
+@@ -2461,11 +2547,10 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+         cmd = ["mpirun", "-np", str(len(meshes)), *cmd, "-parallel"]
+     job_id = str(uuid.uuid4())[:8]
+     with JOBS_LOCK:
+-        JOBS[job_id] = {
+-            "lines": [f"[server] Running: {' '.join(cmd)}"],
+-            "done": False, "returncode": None, "proc": None,
+-            "checkMeshOk": None, "failedChecks": None,
+-        }
++        JOBS[job_id] = _new_job_state(
++            [f"[server] Running: {' '.join(cmd)}"],
++            checkMeshOk=None, failedChecks=None,
++        )
+ 
+     def _run() -> None:
+         proc = None
+@@ -2473,7 +2558,9 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+         timed_out = threading.Event()
+         rc = -1
+         try:
++            _raise_if_job_cancelled(job_id)
+             with case_execution_lock(cd):
++                _raise_if_job_cancelled(job_id)
+                 # Recheck after asynchronous admission, before any subprocess.
+                 if mesh_identity_sha256(mesh_dir) != mesh_sha:
+                     raise ValueError("Mesh changed before checkMesh.")
+@@ -2483,14 +2570,11 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                 remaining = 300 - (time.monotonic() - started)
+                 if remaining <= 0:
+                     raise TimeoutError("checkMesh whole-job budget exhausted (300 s).")
+-                proc = subprocess.Popen(
+-                    cmd, cwd=str(mesh_dir), stdout=subprocess.PIPE,
++                proc = _spawn_job_process(
++                    job_id, cmd, cwd=str(mesh_dir), stdout=subprocess.PIPE,
+                     stderr=subprocess.STDOUT, text=True, bufsize=1,
+                     preexec_fn=os.setsid,
+                 )
+-                with JOBS_LOCK:
+-                    JOBS[job_id]["proc"] = proc
+-
+                 def expire() -> None:
+                     timed_out.set()
+                     # The launcher and every checker rank share this session.
+@@ -2513,6 +2597,7 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                 rc = proc.returncode
+                 raw = "".join(output)
+                 (mesh_dir / f"log.checkMesh_api_{job_id}.txt").write_text(raw, encoding="utf-8")
++                _raise_if_job_cancelled(job_id)
+                 if timed_out.is_set():
+                     rc = 124
+                     raise TimeoutError("checkMesh whole-job budget exhausted (300 s); MPI group stopped.")
+@@ -2542,6 +2627,8 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                     with JOBS_LOCK:
+                         JOBS[job_id].pop("meshQualityReceipt", None)
+                     raise TimeoutError("checkMesh whole-job budget exceeded after identity/receipt work (300 s).")
++        except _JobCancelledError:
++            pass
+         except Exception as exc:
+             if proc is not None and proc.returncode is None:
+                 try:
+@@ -2556,18 +2643,17 @@ def handle_run_check_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+         finally:
+             if timer:
+                 timer.cancel()
++            _join_job_cleanup(job_id, proc)
+             with JOBS_LOCK:
+                 lines = list(JOBS[job_id]["lines"])
+             summary = _summarize_check_mesh_result(lines, rc)
+             if not summary["checkMeshOk"] and rc == 0:
+                 rc = 1
+-            with JOBS_LOCK:
+-                JOBS[job_id].update(
+-                    done=True, returncode=rc,
+-                    checkMeshOk=summary["checkMeshOk"],
+-                    failedChecks=summary["failedChecks"],
+-                    meshWarnings=summary.get("meshWarnings", []),
+-                )
++            _finish_job(
++                job_id, rc, quality=summary,
++                cancelled_receipt=(cd / "mesh-quality-receipt.json")
++                if proc is not None else None,
++            )
+ 
+     threading.Thread(target=_run, daemon=True).start()
+     _send_json(handler, 200, {"jobId": job_id})
+@@ -3848,7 +3934,8 @@ def handle_browser_full_pipeline(handler) -> None:
+         # Step 4: Run mesh (reuse existing run_mesh logic)
+         import uuid
+         job_id = uuid.uuid4().hex[:8]
+-        JOBS[job_id] = {"lines": [], "done": False, "returncode": None, "proc": None}
++        with JOBS_LOCK:
++            JOBS[job_id] = _new_job_state([])
+ 
+         # Build argv list — NO shell=True. With the sanitizer above, cfdrun_path
+         # is guaranteed to be a safe pathname, but we still avoid the shell
+@@ -3864,33 +3951,41 @@ def handle_browser_full_pipeline(handler) -> None:
+             cmd_argv.append("--solve-only")
+ 
+         def _run():
++            proc = None
++            quality = None
+             try:
++                _raise_if_job_cancelled(job_id)
+                 _release_idle_software_browser()
+-                proc = subprocess.Popen(
+-                    cmd_argv,
++                proc = _spawn_job_process(
++                    job_id, cmd_argv,
+                     cwd=str(case_dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+-                    text=True, preexec_fn=os.setsid
++                    text=True, preexec_fn=os.setsid,
+                 )
+-                JOBS[job_id]["proc"] = proc
+                 for line in proc.stdout:
+-                    JOBS[job_id]["lines"].append(line.rstrip())
++                    with JOBS_LOCK:
++                        JOBS[job_id]["lines"].append(line.rstrip())
+                 proc.wait()
++            except _JobCancelledError:
++                pass
++            except Exception as ex:
++                with JOBS_LOCK:
++                    JOBS[job_id]["lines"].append(f"[ERROR] {ex}")
++            finally:
++                _join_job_cleanup(job_id, proc)
++                rc = proc.returncode if proc is not None else -1
++                with JOBS_LOCK:
++                    lines = list(JOBS[job_id]["lines"])
+                 if not solve_only:
+-                    quality = _summarize_mesh_run_quality(JOBS[job_id]["lines"], proc.returncode)
+-                    if quality is not None:
+-                        JOBS[job_id].update(quality)
+-                if solve_only:
+-                    quality = _summarize_solve_mesh_quality_rejection(JOBS[job_id]["lines"], proc.returncode)
+-                    if quality is not None:
+-                        JOBS[job_id].update(quality)
+-                JOBS[job_id]["returncode"] = proc.returncode
+-                JOBS[job_id]["done"] = True
+-                if proc.returncode == 0:
++                    quality = _summarize_mesh_run_quality(lines, rc)
++                else:
++                    quality = _summarize_solve_mesh_quality_rejection(lines, rc)
++                if rc == 0:
+                     (Path(case_dir) / "Mesh" / "case.foam").write_text("")
+-            except Exception as ex:
+-                JOBS[job_id]["lines"].append(f"[ERROR] {ex}")
+-                JOBS[job_id]["returncode"] = -1
+-                JOBS[job_id]["done"] = True
++                _finish_job(
++                    job_id, rc, quality=quality,
++                    cancelled_receipt=(Path(case_dir) / "mesh-quality-receipt.json")
++                    if proc is not None and not solve_only else None,
++                )
+ 
+         t = threading.Thread(target=_run, daemon=True)
+         t.start()
+@@ -4510,7 +4605,7 @@ def handle_run_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+     import datetime as _dt
+     _job_started = _dt.datetime.now().strftime("%Y-%m-%d-%H-%M")
+     with JOBS_LOCK:
+-        JOBS[job_id] = {"lines": [st("server.start_command", cmd=cmd_str)], "done": False, "returncode": None, "proc": None, "startedAt": _job_started}
++        JOBS[job_id] = _new_job_state([st("server.start_command", cmd=cmd_str)], startedAt=_job_started)
+     global _LATEST_SOLVE_PREFIX, _LATEST_SOLVE_RUN_DIR, _LATEST_SOLVE_STARTED
+     if not mesh_only:
+         _LATEST_SOLVE_PREFIX = _job_started
+@@ -4520,11 +4615,12 @@ def handle_run_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+     def _run() -> None:
+         proc = None
+         try:
++            _raise_if_job_cancelled(job_id)
+             release = _release_idle_software_browser()
+             with JOBS_LOCK:
+                 JOBS[job_id]["lines"].append(f"[server] automation browser before CFD: {release['status']}")
+-            proc = subprocess.Popen(
+-                cmd,
++            proc = _spawn_job_process(
++                job_id, cmd,
+                 cwd=str(case_dir),
+                 stdout=subprocess.PIPE,
+                 stderr=subprocess.STDOUT,
+@@ -4533,8 +4629,6 @@ def handle_run_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                 env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                 preexec_fn=os.setsid,  # Create process group for killpg
+             )
+-            with JOBS_LOCK:
+-                JOBS[job_id]["proc"] = proc
+             for line in iter(proc.stdout.readline, ""):
+                 stripped = line.rstrip()
+                 if stripped:
+@@ -4543,27 +4637,25 @@ def handle_run_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                     if not mesh_only:
+                         _capture_solve_run_dir(stripped)
+             proc.wait()
++        except _JobCancelledError:
++            pass
+         except Exception as exc:
+             with JOBS_LOCK:
+                 JOBS[job_id]["lines"].append(st("server.start_failed", error=exc))
+                 JOBS[job_id]["lines"].append(st("server.command", cmd=cmd_str))
+                 JOBS[job_id]["lines"].append(st("server.working_dir", dir=case_dir))
+         finally:
++            _join_job_cleanup(job_id, proc)
+             rc = proc.returncode if proc else -1
++            quality = None
+             if not solve_only:
+                 with JOBS_LOCK:
+                     quality_lines = list(JOBS[job_id]["lines"])
+                 quality = _summarize_mesh_run_quality(quality_lines, rc)
+-                if quality is not None:
+-                    with JOBS_LOCK:
+-                        JOBS[job_id].update(quality)
+             if solve_only:
+                 with JOBS_LOCK:
+                     quality_lines = list(JOBS[job_id]["lines"])
+                 quality = _summarize_solve_mesh_quality_rejection(quality_lines, rc)
+-                if quality is not None:
+-                    with JOBS_LOCK:
+-                        JOBS[job_id].update(quality)
+             if rc == 0:
+                 # Write case.foam marker so ParaView can open the Mesh directory
+                 foam_file = case_dir / "Mesh" / "case.foam"
+@@ -4574,9 +4666,11 @@ def handle_run_mesh(handler: http.server.BaseHTTPRequestHandler) -> None:
+                         pass
+                 with JOBS_LOCK:
+                     JOBS[job_id]["lines"].append(f"[server] case.foam written to {foam_file}")
+-            with JOBS_LOCK:
+-                JOBS[job_id]["done"] = True
+-                JOBS[job_id]["returncode"] = rc
++            _finish_job(
++                job_id, rc, quality=quality,
++                cancelled_receipt=(case_dir / "mesh-quality-receipt.json")
++                if proc is not None and not solve_only else None,
++            )
+ 
+     threading.Thread(target=_run, daemon=True).start()
+     _send_json(handler, 200, {"jobId": job_id})
+@@ -4612,20 +4706,62 @@ def handle_screenshot(handler: http.server.BaseHTTPRequestHandler) -> None:
+ def handle_abort_job(handler: http.server.BaseHTTPRequestHandler) -> None:
+     data = _read_body(handler)
+     job_id = data.get("jobId")
+-    if not job_id or job_id not in JOBS:
++    terminate = False
++    with JOBS_LOCK:
++        job = JOBS.get(job_id) if job_id else None
++        if job is None:
++            reply = None
++        elif job["done"]:
++            # A late request cannot turn a natural completion into cancellation.
++            reply = {
++                "status": "aborted" if job.get("cancelled") else "already_done",
++                "jobId": job_id, "done": True,
++                "cancelRequested": bool(job.get("cancelRequested")),
++                "cancelled": bool(job.get("cancelled")),
++            }
++        else:
++            if not job.get("cancelRequested"):
++                job["cancelRequested"] = True
++                job["checkMeshOk"] = False
++                job["lines"].append(st("server.user_aborted"))
++            proc = job.get("proc")
++            if proc is not None and not job.get("_stop_started"):
++                job["_stop_started"] = True
++                # Acquire before releasing JOBS_LOCK so the worker cannot publish
++                # done between accepting cancellation and starting tree cleanup.
++                terminate = job["_stop_lock"].acquire(blocking=False)
++            reply = None
++    if job is None:
+         _send_json(handler, 404, {"error": "job not found"})
+         return
+-    with JOBS_LOCK:
+-        proc = JOBS[job_id].get("proc")
+-    if proc and proc.poll() is None:
+-        _terminate_job_tree(proc)
++    if terminate:
++        stop_error = None
++        try:
++            if _terminate_job_tree(proc) is False:
++                stop_error = "Job process tree has not stopped; cancellation remains pending."
++        except Exception as exc:
++            stop_error = f"Job process tree could not be stopped: {exc}"
++        finally:
++            job["_stop_lock"].release()
++        if stop_error is not None:
++            with JOBS_LOCK:
++                job["_stop_started"] = False
++                job["lines"].append(f"[server] {stop_error}")
++            _send_json(handler, 500, {
++                "error": stop_error, "jobId": job_id, "done": False,
++                "cancelRequested": True, "cancelled": False,
++            })
++            return
++    if reply is None:
+         with JOBS_LOCK:
+-            JOBS[job_id]["lines"].append(st("server.user_aborted"))
+-            JOBS[job_id]["done"] = True
+-            JOBS[job_id]["returncode"] = -15
+-        _send_json(handler, 200, {"status": "aborted", "jobId": job_id})
+-    else:
+-        _send_json(handler, 200, {"status": "already_done", "jobId": job_id})
++            done = job["done"]
++            reply = {
++                "status": "aborted" if done else "aborting",
++                "jobId": job_id, "done": done,
++                "cancelRequested": True,
++                "cancelled": bool(job.get("cancelled")),
++            }
++    _send_json(handler, 200, reply)
+ 
+ 
+ def _descendant_pgids(root_pid: int) -> set[int]:
+@@ -4661,7 +4797,7 @@ def _descendant_pgids(root_pid: int) -> set[int]:
+     return pgids
+ 
+ 
+-def _terminate_job_tree(proc: subprocess.Popen, grace: float = 8.0) -> None:
++def _terminate_job_tree(proc: subprocess.Popen, grace: float = 8.0) -> bool:
+     """SIGTERM every process group of the job, wait, SIGKILL what is left.
+ 
+     SIGTERM first and a real wait, not SIGTERM-then-SIGKILL in the same
+@@ -4671,8 +4807,15 @@ def _terminate_job_tree(proc: subprocess.Popen, grace: float = 8.0) -> None:
+     import signal
+     import time as _time
+ 
+-    pgids = _descendant_pgids(proc.pid)
++    # Retain known sessions if the launcher exits and children are reparented.
++    pgids = set(getattr(proc, "_dcdtuni_job_pgids", ()))
++    pgids.update(_descendant_pgids(proc.pid))
++    proc._dcdtuni_job_pgids = pgids
++    if proc.poll() is not None and not _any_alive(pgids):
++        return True
+     for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 2.0)):
++        if proc.poll() is None:
++            pgids.update(_descendant_pgids(proc.pid))
+         for pgid in pgids:
+             try:
+                 os.killpg(pgid, sig)
+@@ -4685,19 +4828,43 @@ def _terminate_job_tree(proc: subprocess.Popen, grace: float = 8.0) -> None:
+         deadline = _time.monotonic() + wait
+         while _time.monotonic() < deadline:
+             if proc.poll() is not None and not _any_alive(pgids):
+-                return
++                return True
+             _time.sleep(0.1)
++    return proc.poll() is not None and not _any_alive(pgids)
+ 
+ 
+ def _any_alive(pgids: set[int]) -> bool:
++    existing = set()
+     for pgid in pgids:
+         try:
+             os.killpg(pgid, 0)
+-            return True
++            existing.add(pgid)
+         except ProcessLookupError:
+             continue
+         except PermissionError:
+             return True
++    if not existing:
++        return False
++    if not sys.platform.startswith("linux"):
++        return True
++    # killpg(..., 0) also sees zombie ranks. They cannot compute or retain a
++    # stdout pipe/case flock, and waiting for their unrelated reaper must not
++    # permanently freeze a completed cancellation.
++    try:
++        for entry in Path("/proc").iterdir():
++            if not entry.name.isdecimal():
++                continue
++            try:
++                tail = (entry / "stat").read_text().rsplit(")", 1)[1].split()
++                state, group = tail[0], int(tail[2])
++                if group in existing and state not in ("Z", "X"):
++                    return True
++            except FileNotFoundError:
++                continue
++            except (OSError, ValueError, IndexError):
++                return True
++    except OSError:
++        return True
+     return False
+ 
+ 
+@@ -4733,6 +4900,8 @@ def handle_log_stream(handler: http.server.BaseHTTPRequestHandler, query: dict)
+                 check_mesh_ok = JOBS[job_id].get("checkMeshOk")
+                 failed_checks = JOBS[job_id].get("failedChecks")
+                 mesh_warnings = JOBS[job_id].get("meshWarnings")
++                cancel_requested = bool(JOBS[job_id].get("cancelRequested"))
++                cancelled = bool(JOBS[job_id].get("cancelled"))
+ 
+             while sent < len(lines):
+                 msg = f"data: {json.dumps(lines[sent])}\n\n"
+@@ -4741,7 +4910,7 @@ def handle_log_stream(handler: http.server.BaseHTTPRequestHandler, query: dict)
+                 sent += 1
+ 
+             if done and sent >= len(lines):
+-                final_payload = {'done': True, 'returncode': returncode, 'checkMeshOk': check_mesh_ok, 'failedChecks': failed_checks}
++                final_payload = {'done': True, 'returncode': returncode, 'checkMeshOk': check_mesh_ok, 'failedChecks': failed_checks, 'cancelRequested': cancel_requested, 'cancelled': cancelled}
+                 if mesh_warnings is not None:
+                     final_payload['meshWarnings'] = mesh_warnings
+                 final = f"data: {json.dumps(final_payload)}\n\n"
+@@ -4762,18 +4931,21 @@ def handle_job_status(handler: http.server.BaseHTTPRequestHandler, query: dict)
+     job_id = query.get("job_id", [None])[0]
+     with JOBS_LOCK:
+         job = JOBS.get(job_id)
+-    if not job:
++        status = None if job is None else {
++            "jobId": job_id,
++            "done": job["done"],
++            "returncode": job["returncode"],
++            "lineCount": len(job["lines"]),
++            "checkMeshOk": job.get("checkMeshOk"),
++            "failedChecks": job.get("failedChecks"),
++            "meshWarnings": job.get("meshWarnings"),
++            "cancelRequested": bool(job.get("cancelRequested")),
++            "cancelled": bool(job.get("cancelled")),
++        }
++    if status is None:
+         _send_json(handler, 404, {"error": "job not found"})
+         return
+-    _send_json(handler, 200, {
+-        "jobId": job_id,
+-        "done": job["done"],
+-        "returncode": job["returncode"],
+-        "lineCount": len(job["lines"]),
+-        "checkMeshOk": job.get("checkMeshOk"),
+-        "failedChecks": job.get("failedChecks"),
+-        "meshWarnings": job.get("meshWarnings"),
+-    })
++    _send_json(handler, 200, status)
+ 
+ 
+ # ---------------------------------------------------------------------------

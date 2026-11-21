@@ -1,0 +1,25 @@
+--- a/src/frontend/react/src/domain/BaseEntity.ts
++++ b/src/frontend/react/src/domain/BaseEntity.ts
+@@ -1,5 +1,6 @@
+ import { modelPoseKernel } from './modelPoseKernel'
+ import { geometryProductKernel } from './geometryProductKernel'
++import { coldPlatePairKernel, type ColdPlateFluidContext } from './coldPlatePairKernel'
+ 
+ /** Renderer-independent, derived views. The source record remains plain project JSON. */
+ export type EntityRecord = Record<string, unknown>
+@@ -132,7 +133,14 @@
+ export class RaisedFloorEntity extends FloorEntity {}
+ export class FalseCeilingEntity extends SurfaceEntity {}
+ export class RackServerEntity extends ServerEntity {}
+-export class ColdPlatePairEntity extends ChildEntity {}
++export class ColdPlatePairEntity extends ChildEntity {
++  physicalParameters(fluid: ColdPlateFluidContext = {}) {
++    return coldPlatePairKernel.parameters(this.record, fluid)
++  }
++  override physics(fluid: ColdPlateFluidContext = {}) {
++    return { ...super.physics(), edgeType: 'cold_plate' as const, params: this.physicalParameters(fluid) }
++  }
++}
+ export class CoolingPortEntity extends ChildEntity {}
+ export class ValveEntity extends ChildEntity {}
+ export class PipeWaypointEntity extends ChildEntity {}

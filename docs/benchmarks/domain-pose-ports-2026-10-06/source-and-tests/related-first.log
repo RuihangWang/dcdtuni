@@ -1,0 +1,76 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/domainPosePorts.test.ts test/domainProject.test.ts test/domainCodecRegression.test.ts test/rackGeometry.test.ts test/rackFaceLabels.test.ts test/rackExportNaming.test.ts test/liquidEquipmentGraph.test.ts test/dynamicLiquidGraph.test.ts test/liquidEquipmentVisualInteraction.test.ts test/cduAppearanceDisplay.test.ts --minWorkers=1 --maxWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > omits a project extension from the real strict air manifest producer
+[STLExport] rackStlCache: 3.89ms
+[STLExport] groups: 3.396ms
+[STLExport] buckets: 3.519ms
+
+stdout | test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > omits a project extension from the real strict air manifest producer
+[STLExport] rackStlCache: 2.143ms
+[STLExport] groups: 1.5ms
+[STLExport] buckets: 1.398ms
+
+ ✓ test/domainProject.test.ts (39 tests) 332ms
+stdout | test/cduAppearanceDisplay.test.ts > CDU display appearance > releases every private CDU detail material on clear: 'selected'
+CDU_PRIVATE_MATERIAL_DISPOSAL { selected: true, opacity: false, owned: 56, disposed: 56 }
+
+stdout | test/cduAppearanceDisplay.test.ts > CDU display appearance > releases every private CDU detail material on clear: 'opacity-owned'
+CDU_PRIVATE_MATERIAL_DISPOSAL { selected: false, opacity: true, owned: 56, disposed: 56 }
+
+stdout | test/cduAppearanceDisplay.test.ts > CDU display appearance > releases every private CDU detail material on clear: 'opacity-owned then selected'
+CDU_PRIVATE_MATERIAL_DISPOSAL { selected: true, opacity: true, owned: 84, disposed: 84 }
+
+stdout | test/cduAppearanceDisplay.test.ts > CDU display appearance > keeps the real SceneBuilder structural buffers, grouped STL, ports and source JSON exact
+[STLExport] rackStlCache: 0.045ms
+[STLExport] groups: 1.403ms
+[STLExport] buckets: 0.176ms
+[STLExport] rackStlCache: 0.01ms
+[STLExport] groups: 0.271ms
+[STLExport] buckets: 0.016ms
+CDU_STRUCTURAL_EXPORT_SHA256 cc709a57cd2bbdd7e66257709aa5d0a86ed6b6bd1aee5b0032043b22a97fd48d
+CDU_VISUAL_BOUNDS [[6.28893749713898,0.8,4.000972474864126],[6.892537522315982,2.8469999947547917,5.219872522354127]]
+CDU_HMI_GEOMETRY_SHA256 547c0bc2c082393f16b9fc55410d6b868df3c213d4791128b9ad9e2a28c556b3
+
+ ✓ test/cduAppearanceDisplay.test.ts (14 tests) 195ms
+ ✓ test/rackExportNaming.test.ts (7 tests) 20ms
+ ✓ test/liquidEquipmentVisualInteraction.test.ts (10 tests) 127ms
+ ✓ test/dynamicLiquidGraph.test.ts (16 tests) 64ms
+ ❯ test/domainPosePorts.test.ts (13 tests | 1 failed) 80ms
+   × actual domain pose and ports own the legacy numeric geometry > preserves coercion, non-finite arithmetic, missing-carrier and unsupported-kind boundaries 13ms
+     → expected '000000000000f8ff000000000000f8ff00000…' to be '000000000000f87f000000000000f8ff00000…' // Object.is equality
+ ✓ test/rackGeometry.test.ts (14 tests) 32ms
+ ✓ test/rackFaceLabels.test.ts (9 tests) 11ms
+stdout | test/liquidEquipmentGraph.test.ts
+[liquid_pipe_renderer.js] Pipe renderer loaded
+
+ ✓ test/liquidEquipmentGraph.test.ts (1 test) 14ms
+ ✓ test/domainCodecRegression.test.ts (2 tests) 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/domainPosePorts.test.ts > actual domain pose and ports own the legacy numeric geometry > preserves coercion, non-finite arithmetic, missing-carrier and unsupported-kind boundaries
+AssertionError: expected '000000000000f8ff000000000000f8ff00000…' to be '000000000000f87f000000000000f8ff00000…' // Object.is equality
+
+Expected: "000000000000f87f000000000000f8ff000000000000f8ff"
+Received: "000000000000f8ff000000000000f8ff000000000000f8ff"
+
+ ❯ test/domainPosePorts.test.ts:118:88
+    116|     const point = { x: Infinity, y: NaN, z: '3' }
+    117|     const direction = { x: 0, y: 0, z: 0 }
+    118|     expect(bits(Object.values(modelPoseKernel.modelLocalPointToWorld(m…
+       |                                                                                        ^
+    119|     expect(bits(Object.values(modelPoseKernel.modelLocalDirectionToWor…
+    120|     expect(modelPoseKernel.modelLocalPointToWorld(model, null)).toBeNu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 9 passed (10)
+      Tests  1 failed | 124 passed (125)
+   Start at  20:56:58
+   Duration  18.01s (transform 2.06s, setup 0ms, collect 6.35s, tests 882ms, environment 8.24s, prepare 679ms)
+

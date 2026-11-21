@@ -1,0 +1,21 @@
+....F.............                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_ingest_body_is_explicitly_rejected_as_native_s7 _____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/meshgen-native-report-path-repair-20261006/pytest-green/test_ingest_body_is_explicitly0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7faadc60c580>
+
+    def test_ingest_body_is_explicitly_rejected_as_native_s7(tmp_path, monkeypatch):
+        runner, errors = make_runner(tmp_path, monkeypatch)
+        wrong = tmp_path / "dc_report.json"
+        wrong.write_bytes(INGEST)
+        runner._log_meshgen_report(wrong)
+        assert any("not a native S7 report" in line and "dc17-ingest-mapping/v1" in line for line in errors)
+>       assert not any("stage=None" in line or "full report:" in line for line in errors)
+E       assert not True
+E        +  where True = any(<generator object test_ingest_body_is_explicitly_rejected_as_native_s7.<locals>.<genexpr> at 0x7faadb301460>)
+
+src/backend/tests/test_meshgen_report_paths.py:122: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_meshgen_report_paths.py::test_ingest_body_is_explicitly_rejected_as_native_s7
+1 failed, 17 passed, 16 deselected in 2.19s

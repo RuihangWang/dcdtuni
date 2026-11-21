@@ -1,0 +1,234 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ✓ test/ovStreamLease.test.ts > waits for the previous singleton viewer to terminate before reconnecting
+ ✓ test/ovStreamLease.test.ts > never connects or terminates a queued viewport cancelled before ownership
+ ✓ test/ovStreamLease.test.ts > holds the singleton across the SDK connecting cancellation until real idle
+ ✓ test/ovStreamLease.test.ts > waits for a late connect promise as well as a successful termination
+ ✓ test/ovStreamLease.test.ts > blocks queued and future connections when cancellation never confirms idle
+ × test/ovStreamLease.test.ts > does not orphan a controller by terminating before initialization finishes
+   → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ × test/ovStreamLease.test.ts > finishes stale connecting after onStart already succeeded and inProgress arrived late
+   → promise rejected "Error: Omniverse viewer termination did n…" instead of resolving
+ × test/ovStreamLease.test.ts > keeps cancellation through late init then waits for the SDK terminal callback
+   → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ × test/ovStreamLease.test.ts > does not trust none while a terminal start callback is still pending
+   → expected true to be false // Object.is equality
+ × test/ovStreamLease.test.ts > does not overlap a retry with SDK automatic termination after canceled onStart
+   → expected "spy" to be called 2 times, but got 1 times
+ ✓ test/ovStreamLease.test.ts > cleans up a rejected initialization even without an onStart receipt
+ × test/ovStreamLease.test.ts > keeps a hung initialization blocked without later destructive calls
+   → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  6 failed | 6 passed (12)
+     Errors  1 error
+   Start at  22:27:24
+   Duration  12.46s (transform 104ms, setup 0ms, collect 116ms, tests 45ms, environment 11.65s, prepare 371ms)
+
+stderr | test/ovStreamLease.test.ts > does not orphan a controller by terminating before initialization finishes
+Promise returned by `expect(actual).resolves.toBeUndefined()` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in Vitest 3. Please remember to await the assertion.
+    at /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/test/ovStreamLease.test.ts:113:32
+
+(node:471131) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 4)
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | test/ovStreamLease.test.ts > keeps cancellation through late init then waits for the SDK terminal callback
+Promise returned by `expect(actual).resolves.toBeUndefined()` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in Vitest 3. Please remember to await the assertion.
+    at /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/test/ovStreamLease.test.ts:148:32
+
+stderr | test/ovStreamLease.test.ts > does not trust none while a terminal start callback is still pending
+Promise returned by `expect(actual).resolves.toBeUndefined()` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in Vitest 3. Please remember to await the assertion.
+    at /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/test/ovStreamLease.test.ts:166:32
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not orphan a controller by terminating before initialization finishes
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/ovStreamLease.test.ts:115:27
+    113|     const guarded = expect(stop).resolves.toBeUndefined()
+    114|     await vi.advanceTimersByTimeAsync(20)
+    115|     expect(terminate).not.toHaveBeenCalled()
+       |                           ^
+    116|     initialized = true; status = 'connected'; startEvent.settle(); ini…
+    117|     await vi.advanceTimersByTimeAsync(20); await guarded
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/ovStreamLease.test.ts > finishes stale connecting after onStart already succeeded and inProgress arrived late
+AssertionError: promise rejected "Error: Omniverse viewer termination did n…" instead of resolving
+ ❯ test/ovStreamLease.test.ts:132:32
+    130|     })
+    131|     const stop = terminateOvViewer(terminate, () => status === 'none',…
+    132|     const guarded = expect(stop).resolves.toBeUndefined()
+       |                                ^
+    133|     await vi.advanceTimersByTimeAsync(1100); await guarded
+    134|     expect(status).toBe('none'); expect(controller).toBe(false)
+
+Caused by: Error: Omniverse viewer termination did not reach idle; reload the page before reconnecting
+ ❯ src/renderer/ovStreamLease.ts:25:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/ovStreamLease.test.ts > keeps cancellation through late init then waits for the SDK terminal callback
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/ovStreamLease.test.ts:150:27
+    148|     const guarded = expect(stop).resolves.toBeUndefined(); void stop.t…
+    149|     await vi.advanceTimersByTimeAsync(20)
+    150|     expect(terminate).not.toHaveBeenCalled()
+       |                           ^
+    151|     status = 'connecting'; initialization.resolve()
+    152|     await vi.advanceTimersByTimeAsync(20)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not trust none while a terminal start callback is still pending
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/ovStreamLease.test.ts:168:18
+    166|     const guarded = expect(stop).resolves.toBeUndefined(); void stop.t…
+    167|     await vi.advanceTimersByTimeAsync(20)
+    168|     expect(done).toBe(false)
+       |                  ^
+    169|     startEvent.settle(); await vi.advanceTimersByTimeAsync(20); await …
+    170|     expect(done).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/ovStreamLease.test.ts > does not overlap a retry with SDK automatic termination after canceled onStart
+AssertionError: expected "spy" to be called 2 times, but got 1 times
+ ❯ test/ovStreamLease.test.ts:191:23
+    189|     sdkTerminating = false; status = 'none'
+    190|     await vi.advanceTimersByTimeAsync(20); await guarded
+    191|     expect(terminate).toHaveBeenCalledTimes(2)
+       |                       ^
+    192|   } finally { vi.useRealTimers() }
+    193| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/ovStreamLease.test.ts > keeps a hung initialization blocked without later destructive calls
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      undefined,
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/ovStreamLease.test.ts:218:27
+    216|     initialization.resolve(); await first.ready
+    217|     await vi.advanceTimersByTimeAsync(20); await next.close()
+    218|     expect(terminate).not.toHaveBeenCalled(); expect(nextStart).not.to…
+       |                           ^
+    219|   } finally { vi.useRealTimers() }
+    220| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+AssertionError: promise rejected "Error: Omniverse viewer termination did n…" instead of resolving
+ ❯ _Assertion.__VITEST_RESOLVES__ node_modules/@vitest/expect/dist/index.js:1746:21
+ ❯ _Assertion.propertyGetter node_modules/chai/index.js:1557:27
+ ❯ Object.proxyGetter [as get] node_modules/chai/index.js:1645:22
+ ❯ test/ovStreamLease.test.ts:132:32
+    130|     })
+    131|     const stop = terminateOvViewer(terminate, () => status === 'none',…
+    132|     const guarded = expect(stop).resolves.toBeUndefined()
+       |                                ^
+    133|     await vi.advanceTimersByTimeAsync(1100); await guarded
+    134|     expect(status).toBe('none'); expect(controller).toBe(false)
+ ❯ node_modules/@vitest/runner/dist/index.js:146:14
+ ❯ node_modules/@vitest/runner/dist/index.js:533:11
+ ❯ runWithTimeout node_modules/@vitest/runner/dist/index.js:39:7
+ ❯ runTest node_modules/@vitest/runner/dist/index.js:1056:17
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:1205:15
+
+This error originated in "test/ovStreamLease.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "finishes stale connecting after onStart already succeeded and inProgress arrived late". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+Caused by: Error: Omniverse viewer termination did not reach idle; reload the page before reconnecting
+ ❯ src/renderer/ovStreamLease.ts:25:14
+ ❯ callTimer node_modules/vitest/dist/chunks/vi.DgezovHB.js:2300:25
+ ❯ doTickInner node_modules/vitest/dist/chunks/vi.DgezovHB.js:2886:30
+ ❯ Immediate.nextPromiseTick node_modules/vitest/dist/chunks/vi.DgezovHB.js:2947:26
+ ❯ processImmediate node:internal/timers:485:21
+
+

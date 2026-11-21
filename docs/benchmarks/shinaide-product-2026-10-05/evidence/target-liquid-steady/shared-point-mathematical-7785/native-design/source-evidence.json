@@ -1,0 +1,470 @@
+{
+  "schema": "shared-point-native-insertion-readonly-design/v1",
+  "capturedUTC": "2026-10-05T10:06:23.051680+00:00",
+  "refs": {
+    "main": "5f9bd080c367db13a7f4e6a534a4811154eb7487",
+    "integration": "5f9bd080c367db13a7f4e6a534a4811154eb7487",
+    "air": "994fd6ff1113028e8726ad3990ab64fbb510713d"
+  },
+  "sourceFreeze": {
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C": "ead4a057fdfa0107536c3994126caa231317a132268615c231d2ee0f10b5781a",
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H": "4a5ef9614c415ebd3cd4adef2281f883034e22e3ddf7562b947efda5f452f300",
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C": "babd07c8781bc7bb9371782b96137d3b79a6cba29f725c5ebaa46724c18c465b"
+  },
+  "sources": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+      "bytes": 799408,
+      "sha256": "ead4a057fdfa0107536c3994126caa231317a132268615c231d2ee0f10b5781a",
+      "excerpts": [
+        {
+          "firstLine": 14148,
+          "lastLine": 14196,
+          "text": "    if (literalUnions)\n    {\n        // One all-rank, no-write installed oracle before ANY literal union.\n        // The immutable raw checkpoint survives all candidates until the final\n        // writer certificate. Its baseline is never refreshed after mutation.\n        clockTime oracleClock;\n        if (m.writerBaseline)\n        { FatalErrorInFunction<<\"preoperator writer baseline must be captured once\"<<exit(FatalError); }\n        auto baseline=std::make_shared<writerCoupledBaseline>();\n        baseline->cutPayloadBytes=writerCutPayloadBytes(m);\n        auto checkpoint=std::make_shared<cutMesh>(m);\n        checkpoint->writerBaseline.reset();\n        baseline->checkpoint=checkpoint;\n        cutMesh working(*checkpoint);\n        baseline->copySeconds=oracleClock.timeIncrement();\n        writerBindings oracleBindings;\n        label baselineFailures=0;\n        {\n            autoPtr<polyMesh> oracle=toPolyMesh\n            (\n                working,runTime,polyMesh::defaultRegion,patchNames,patchTypes,\n                faceZoneNames,patchNeighbours,patchGroups,true,&oracleBindings\n            );\n            // Demand-driven installed geometry is materialized before the\n            // construct clock stops; no quality checker/remote metric is run.\n            oracle->cellCentres();oracle->cellVolumes();oracle->faceAreas();oracle->faceCentres();\n            baseline->constructSeconds=oracleClock.timeIncrement();\n            baselineFailures=snapshotWriterCoupled(*checkpoint,*oracle,oracleBindings,*baseline);\n        }\n        // Working data and actual oracle must not remain aliases/references\n        // in the stored certificate. Every recorded value is an owned copy.\n        working=cutMesh();oracleBindings=writerBindings();\n        baseline->snapshotSeconds=oracleClock.timeIncrement();\n        if (getenv(\"DCCART_CONE_EVIDENCE\"))\n        {\n            const fileName output=runTime.path()/(\"conforming-writer-baseline-rank\"+std::to_string(Pstream::myProcNo())+\".json\");\n            if (!writeWriterCertificate(*baseline,output,\"earliest-baseline\",baselineFailures,0))\n            { ++baselineFailures; }\n        }\n        const label globalBaselineFailures=returnReduce(baselineFailures,sumOp<label>());\n        if (globalBaselineFailures)\n        {\n            const fileName prefix=runTime.path()/(\"conforming-preoperator-rank\"+std::to_string(Pstream::myProcNo())+\"-\");\n            writeWriterCheckpoint(*checkpoint,prefix);\n            FatalErrorInFunction<<\"preoperator installed writer baseline refused: \"\n                <<globalBaselineFailures<<\"; no mesh authorization\"<<exit(FatalError);\n        }\n        m.writerBaseline=std::move(baseline);\n        Info<<\"Conforming preoperator installed writer oracle: coupled faces \"<<m.writerBaseline->faces.size()"
+        },
+        {
+          "firstLine": 15662,
+          "lastLine": 15691,
+          "text": "Foam::autoPtr<Foam::polyMesh> Foam::dcCartCutCells::toPolyMesh\n(\n    cutMesh& m,\n    const Time& runTime,\n    const word& regionName,\n    const wordList& patchNames,\n    const wordList& patchTypes,\n    const wordList& faceZoneNames,\n    const wordList& patchNeighbours,\n    const wordList& patchGroups,\n    const bool baselineOnly,\n    writerBindings* requestedBindings\n)\n{\n    // The oracle executes this exact normalizer on a separate deep copy.\n    // It is unregistered/NO_WRITE and explicitly bypasses TRACE file output.\n    writerBindings finalBindings;\n    writerBindings* bindings=requestedBindings;\n    if (!baselineOnly && m.writerBaseline && !bindings) { bindings=&finalBindings; }\n    // ---- cells: compact ---------------------------------------------------\n    std::vector<label> newCell(m.nCells, -1);\n    label nC = 0;\n    for (label c = 0; c < m.nCells; ++c)\n    {\n        if (m.cellAlive[c]) { newCell[c] = nC++; }\n    }\n\n    if (bindings) { mergeCoincidentPoints(m,nullptr,&bindings->alias); }\n    else { mergeCoincidentPoints(m); }\n"
+        },
+        {
+          "firstLine": 15763,
+          "lastLine": 15861,
+          "text": "        label o = m.owner[f] >= 0 ? newCell[m.owner[f]] : -1;\n        label n = m.neighbour[f] >= 0 ? newCell[m.neighbour[f]] : -1;\n        if (o < 0 && n < 0) { continue; }\n        if (o < 0)\n        {\n            std::reverse(m.faces[f].begin(), m.faces[f].end());\n            o = n; n = -1;\n        }\n        if (n >= 0 && o > n)\n        {\n            std::reverse(m.faces[f].begin(), m.faces[f].end());\n            std::swap(o, n);\n        }\n        m.owner[f] = o;\n        m.neighbour[f] = n;\n        if (n >= 0) { internalIds.push_back(f); }\n        else { boundaryIds.push_back(f); }\n    }\n    std::sort(internalIds.begin(), internalIds.end(), [&](label a, label b)\n    {\n        if (m.owner[a] != m.owner[b]) { return m.owner[a] < m.owner[b]; }\n        return m.neighbour[a] < m.neighbour[b];\n    });\n    std::stable_sort(boundaryIds.begin(), boundaryIds.end(), [&](label a, label b)\n    {\n        return std::max(label(0), m.patch[a]) < std::max(label(0), m.patch[b]);\n    });\n    // A shared polygon's exact coordinate cycle is a common, total order.\n    // A tolerance comparator on face centres is not transitive and violates\n    // std::sort's contract. Canonical cycles also avoid summation-dependent\n    // centre coordinates and local point labels as a shared tie-break.\n    {\n        using coordinate=std::tuple<scalar,scalar,scalar>;\n        using polygonKey=std::vector<coordinate>;\n        auto keyOf=[&](const std::vector<label>& face)\n        {\n            polygonKey best;\n            for (label direction:{label(1),label(-1)}) for (label start=0;start<label(face.size());++start)\n            {\n                polygonKey candidate;candidate.reserve(face.size());\n                for (label q=0;q<label(face.size());++q)\n                {\n                    const point& x=m.points[face[(start+direction*q+label(face.size())*2)%face.size()]];\n                    if (!std::isfinite(x.x()) || !std::isfinite(x.y()) || !std::isfinite(x.z()))\n                    { FatalErrorInFunction<<\"non-finite coupled polygon coordinate\"<<exit(FatalError); }\n                    candidate.emplace_back(x.x(),x.y(),x.z());\n                }\n                if (best.empty() || candidate<best) { best=std::move(candidate); }\n            }\n            return best;\n        };\n        size_t i=0;\n        while (i<boundaryIds.size())\n        {\n            const label p=std::max(label(0),m.patch[boundaryIds[i]]);\n            size_t j=i;\n            while (j<boundaryIds.size() && std::max(label(0),m.patch[boundaryIds[j]])==p) { ++j; }\n            if (p<patchTypes.size() && (patchTypes[p]==\"processor\" || patchTypes[p]==\"processorCyclic\"\n                || (patchTypes[p]==\"cyclic\" && getenv(\"DCCART_CONFORMING_CONES\"))))\n            {\n                // The optional cone path qualifies coincident coupled twins\n                // before subdivision. No transformed interface is inferred\n                // from a local world-coordinate ordering.\n                std::vector<std::pair<polygonKey,label>> keyed;keyed.reserve(j-i);\n                for (size_t k=i;k<j;++k) { keyed.emplace_back(keyOf(m.faces[boundaryIds[k]]),boundaryIds[k]); }\n                std::sort(keyed.begin(),keyed.end(),[](const std::pair<polygonKey,label>& a,const std::pair<polygonKey,label>& b)\n                { return a.first<b.first; });\n                for (size_t k=i;k<j;++k)\n                {\n                    if (k>i && keyed[k-i].first==keyed[k-i-1].first)\n                    { FatalErrorInFunction<<\"duplicate exact coupled polygon in patch \"<<patchNames[p]<<exit(FatalError); }\n                    boundaryIds[k]=keyed[k-i].second;\n                    auto& face=m.faces[boundaryIds[k]];size_t best=0;\n                    for (size_t q=1;q<face.size();++q)\n                    {\n                        const point& a=m.points[face[q]];const point& b=m.points[face[best]];\n                        if (coordinate(a.x(),a.y(),a.z())<coordinate(b.x(),b.y(),b.z())) { best=q; }\n                    }\n                    if (best) { std::rotate(face.begin(),face.begin()+best,face.end()); }\n                }\n            }\n            i=j;\n        }\n    }\n\n    // ---- points: keep only used ones -------------------------------------\n    std::vector<label> newPoint(m.points.size(), -1);\n    label nP = 0;\n    auto usePoints = [&](label f)\n    {\n        for (label v : m.faces[f]) { if (newPoint[v] < 0) { newPoint[v] = nP++; } }\n    };\n    for (label f : internalIds) { usePoints(f); }\n    for (label f : boundaryIds) { usePoints(f); }\n    pointField pts(nP);\n    for (label p = 0; p < label(m.points.size()); ++p)\n    {\n        if (newPoint[p] >= 0) { pts[newPoint[p]] = m.points[p]; }\n    }"
+        },
+        {
+          "firstLine": 15915,
+          "lastLine": 15921,
+          "text": "    if (bindings)\n    {\n        bindings->cell=newCell;bindings->point=newPoint;\n        bindings->face.assign(m.faces.size(),-1);label q=0;\n        for (label f:internalIds) { bindings->face[f]=q++; }\n        for (label f:boundaryIds) { bindings->face[f]=q++; }\n    }"
+        },
+        {
+          "firstLine": 16121,
+          "lastLine": 16140,
+          "text": "    autoPtr<polyMesh> meshPtr\n    (\n        new polyMesh\n        (\n            IOobject\n            (\n                baselineOnly ? word(\"dcCartPreOperatorWriterOracle\") : regionName,\n                runTime.constant(),\n                runTime,\n                IOobject::NO_READ,\n                baselineOnly ? IOobject::NO_WRITE : IOobject::AUTO_WRITE,\n                !baselineOnly\n            ),\n            std::move(pts),\n            std::move(fcs),\n            std::move(own),\n            std::move(nei)\n        )\n    );\n    polyMesh& mesh = *meshPtr;"
+        },
+        {
+          "firstLine": 16253,
+          "lastLine": 16298,
+          "text": "    mesh.addZones(pz, fz, cz);\n    if (!baselineOnly && m.writerBaseline)\n    {\n        clockTime verifyClock;\n        // This is the REAL final polyMesh after point aliasing, compact\n        // owner/face ordering, patch normalization and zone construction.\n        // Every rank enters the same reduction, including empty/cert-zero ranks.\n        label localFailures=bindings\n            ? verifyWriterCoupled(m,mesh,*bindings,*m.writerBaseline) : 1;\n        writerCoupledBaseline actual;\n        actual.checkpoint=m.writerBaseline->checkpoint;\n        actual.copySeconds=m.writerBaseline->copySeconds;\n        actual.constructSeconds=m.writerBaseline->constructSeconds;\n        actual.snapshotSeconds=m.writerBaseline->snapshotSeconds;\n        actual.cutPayloadBytes=m.writerBaseline->cutPayloadBytes;\n        // Evidence carries the REAL final compact bindings and installed\n        // bytes, not a second serialization of expected baseline values.\n        if (bindings) { localFailures+=snapshotWriterCoupled\n            (*actual.checkpoint,mesh,*bindings,actual); }\n        const scalar verifySeconds=verifyClock.elapsedTime();\n        label ioFailures=0;\n        if (getenv(\"DCCART_CONE_EVIDENCE\") || localFailures)\n        {\n            const fileName output=runTime.path()/(\"conforming-writer-final-rank\"+std::to_string(Pstream::myProcNo())+\".json\");\n            if (!writeWriterCertificate(actual,output,\n                localFailures?\"local-rejected\":\"local-pass-awaiting-global\",localFailures,verifySeconds)) { ++ioFailures; }\n        }\n        const label globalFailures=returnReduce(localFailures+ioFailures,sumOp<label>());\n        if (globalFailures)\n        {\n            // Preserve the raw PREOPERATOR input, never the altered candidate\n            // polyMesh. APP has not called write() and obtains no result.\n            const fileName prefix=runTime.path()/(\"conforming-preoperator-rank\"+std::to_string(Pstream::myProcNo())+\"-\");\n            const bool preserved=writeWriterCheckpoint(*m.writerBaseline->checkpoint,prefix);\n            Pout<<\"Conforming installed writer rejected: local \"<<localFailures\n                <<\", preoperator checkpoint preserved \"<<preserved<<endl;\n            FatalErrorInFunction<<\"coupled postwriter DP/ring/alias/role invariance failed on \"\n                <<globalFailures<<\" face/metadata record(s); no mesh written\"<<exit(FatalError);\n        }\n        Pout<<\"Conforming installed postwriter coupled certificate: rank \"<<Pstream::myProcNo()\n            <<\", faces \"<<m.writerBaseline->faces.size()<<\", failures \"<<localFailures\n            <<\", verify \"<<verifySeconds<<\" s; earliest installed baseline and real final DP bytes; full checkMesh required\"<<endl;\n        m.writerBaseline.reset();\n    }\n    return meshPtr;\n}"
+        },
+        {
+          "firstLine": 7132,
+          "lastLine": 7182,
+          "text": "inline void faceAreaCentreOF\n(\n    const std::vector<Foam::point>& pts,\n    const std::vector<Foam::label>& poly,\n    Foam::vector& A,\n    Foam::point& C\n)\n{\n    using namespace Foam;\n    A = vector::zero;\n    C = point::zero;\n    const label k = label(poly.size());\n    if (k < 3)\n    {\n        for (label v : poly) { C += pts[v]; }\n        if (k) { C /= scalar(k); }\n        return;\n    }\n    if (k == 3)\n    {\n        C = (pts[poly[0]] + pts[poly[1]] + pts[poly[2]]) / 3.0;\n        A = 0.5 * ((pts[poly[1]] - pts[poly[0]]) ^ (pts[poly[2]] - pts[poly[0]]));\n        return;\n    }\n    point fc = point::zero;\n    for (label i = 0; i < k; ++i) { fc += pts[poly[i]]; }\n    fc /= scalar(k);\n    vector sumN = vector::zero;\n    vector sumAc = vector::zero;\n    scalar sumA = 0;\n    for (label i = 0; i < k; ++i)\n    {\n        const point& p = pts[poly[i]];\n        const point& q = pts[poly[(i + 1) % k]];\n        const vector n = (q - p) ^ (fc - p);\n        const scalar a = mag(n);\n        sumN += n;\n        sumA += a;\n        sumAc += a * (p + q + fc);\n    }\n    if (sumA < ROOTVSMALL)\n    {\n        C = fc;\n        return;\n    }\n    // Match primitiveMeshTools operation order, including rounding at the\n    // strict skewness limit. Algebraically equivalent expressions can fall\n    // on opposite sides of checkMesh's boundary threshold.\n    C = (1.0 / 3.0) * sumAc / sumA;\n    A = 0.5 * sumN;\n}"
+        },
+        {
+          "firstLine": 14208,
+          "lastLine": 14215,
+          "text": "        clockTime unionClock;\n        std::vector<std::vector<label>> unionCF;\n        buildCellFaces(m,unionCF);\n        struct unionFace { label owner,neighbour;std::vector<label> polygon;vector area;point centre; };\n        std::vector<vector> unionArea(m.faces.size());\n        std::vector<point> unionCentre(m.faces.size());\n        for (label f=0;f<label(m.faces.size());++f) if (m.faceAlive[f])\n        { faceAreaCentreOF(m.points,m.faces[f],unionArea[f],unionCentre[f]); }"
+        },
+        {
+          "firstLine": 14348,
+          "lastLine": 14377,
+          "text": "        {\n            if (unionCF[c].size()!=4) { return false; }\n            std::set<label> points;\n            for (label f:unionCF[c])\n            {\n                if (!m.faceAlive[f] || m.faces[f].size()!=3) { return false; }\n                for (label p:m.faces[f]) { points.insert(p); }\n            }\n            return points.size()==4;\n        };\n        // Cheap selected-Sf determinant census first. Most healthy tetrahedra\n        // never allocate cell geometry or populate the CC/V cache.\n        auto cheapUnionDet=[&](label c)\n        {\n            scalar total=0;label count=0;\n            for (label f:unionCF[c]) if (m.patch[f]<0 || coupledType(f)) { total+=mag(unionArea[f]);++count; }\n            if (!count || !std::isfinite(total) || total<=VSMALL) { return scalar(0); }\n            const scalar mean=total/count;symmTensor tensor(Zero);\n            for (label f:unionCF[c]) if (m.patch[f]<0 || coupledType(f)) { tensor+=sqr(unionArea[f]/mean); }\n            return mag(det(tensor))/8;\n        };\n        const scalar cacheSeconds=unionClock.elapsedTime();\n        std::vector<std::pair<unionGeometryKey,label>> seeds;\n        for (label c=0;c<m.nCells;++c) if (m.cellAlive[c] && unionParent[c]>=0 && trueUnionTet(c))\n        {\n            const scalar d=cheapUnionDet(c);\n            if (!std::isfinite(d) || d>=.001 || !currentUnionCell(c)) { continue; }\n            seeds.emplace_back(geometryKey(c),c);\n        }\n        std::sort(seeds.begin(),seeds.end());"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H",
+      "resolvedPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H",
+      "bytes": 41723,
+      "sha256": "4a5ef9614c415ebd3cd4adef2281f883034e22e3ddf7562b947efda5f452f300",
+      "excerpts": [
+        {
+          "firstLine": 55,
+          "lastLine": 128,
+          "text": "    struct writerBindings\n    {\n        // Native input slot -> the actual compact polyMesh slot.\n        std::vector<label> cell, face, point, alias;\n    };\n\n    //- The mutable mesh the passes work on\n    struct cutMesh\n    {\n        std::vector<point> points;\n        std::vector<std::vector<label>> faces;\n        std::vector<label> owner;       // always >= 0 for a live face\n        std::vector<label> neighbour;   // -1 on a boundary face\n        std::vector<label> patch;       // boundary patch id, -1 internal\n        std::vector<label> zone;        // faceZone id, -1 none\n        std::vector<bool> faceAlive;\n        label nCells = 0;\n        std::vector<bool> cellAlive;\n        //- Assembled from the ORIGINAL carve (true) or added as a cut\n        //  candidate (false). Only original cells anchor the fluid side.\n        std::vector<bool> cellOrigAlive;\n        //- Hex volume and centre of the cell each mesh cell descends from\n        std::vector<scalar> cellRefVol;\n        std::vector<point> cellRefCentre;\n        //- Refinement level, kept for the merge heuristics\n        std::vector<label> cellLevel;\n        //- Rank that owns the cell; a cell of another rank in this rank's\n        //  halo is cut like any other and dropped at the end. One rank (a\n        //  run without -parallel) owns everything.\n        std::vector<label> cellRank;\n        //- Packed (i,j,k) of the octree leaf the cell descends from; with\n        //  cellLevel it names the leaf identically on every rank\n        std::vector<uint64_t> cellLeaf;\n        //- Which piece of that leaf: a hash of the split history (A half\n        //  and B half of every split). Splits are a pure function of the\n        //  cell and the surfaces, so every rank that holds the piece gives\n        //  it the same value; (level, leaf, piece) is the cell's global id.\n        std::vector<uint64_t> cellPiece;\n        //- Optional cone evidence only: input-stage parent/base labels.\n        //  Empty in the ordinary path; never used by geometry or ownership.\n        std::vector<label> coneEvidenceParent;\n        std::vector<label> coneEvidenceBase;\n        //- Points [0, nGridPoints) are octree grid corners, all further\n        //  apart than the coincident-point tolerance (0: not known)\n        label nGridPoints = 0;\n        // Empty unless the default-OFF literal experiment builds its one\n        // preoperator installed-writer oracle. Normal authorization never\n        // depends on optional TRACE files.\n        std::shared_ptr<writerCoupledBaseline> writerBaseline;\n    };\n\n    struct writerCoupledFace\n    {\n        label nativeFace=-1, nativeOwner=-1, nativeNeighbour=-1;\n        label rawPatch=-1, rawZone=-1, relativeFace=-1, compactFace=-1, compactOwner=-1;\n        std::string patchName, patchType, patchRole;\n        std::vector<label> nativePoints, pointAliases, ringAliases, compactPoints;\n        std::vector<point> coordinates;\n        vector area=vector::zero;\n        point faceCentre=point::zero, cellCentre=point::zero;\n        scalar volume=0;\n        std::vector<std::pair<std::string,bool>> zoneRoles;\n    };\n\n    struct writerCoupledBaseline\n    {\n        // Earliest immutable preoperator inputs; never updated after a union.\n        std::shared_ptr<const cutMesh> checkpoint;\n        std::vector<writerCoupledFace> faces;\n        std::map<std::string,std::string> patchRoles;\n        std::map<std::string,label> patchSizes;\n        scalar copySeconds=0, constructSeconds=0, snapshotSeconds=0;\n        std::size_t cutPayloadBytes=0, writerGeometryBytes=0;\n    };"
+        },
+        {
+          "firstLine": 786,
+          "lastLine": 798,
+          "text": "        static autoPtr<polyMesh> toPolyMesh\n        (\n            cutMesh& m,\n            const Time& runTime,\n            const word& regionName,\n            const wordList& patchNames,\n            const wordList& patchTypes,\n            const wordList& faceZoneNames,\n            const wordList& patchNeighbours = wordList(),\n            const wordList& patchGroups = wordList(),\n            const bool baselineOnly = false,\n            writerBindings* bindings = nullptr\n        );"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C",
+      "bytes": 139465,
+      "sha256": "babd07c8781bc7bb9371782b96137d3b79a6cba29f725c5ebaa46724c18c465b",
+      "excerpts": [
+        {
+          "firstLine": 614,
+          "lastLine": 629,
+          "text": "    // Wall-clock budget. Checked at every stage boundary \u2014 the stages are the\n    // only places where abandoning the run leaves nothing half-written.\n    scalar timeLimit = meshDict.getOrDefault<scalar>(\"timeLimitSeconds\", 0);\n    args.readIfPresent(\"timeLimit\", timeLimit);\n    auto budgetCheck = [&](const char* stage)\n    {\n        if (timeLimit > 0 && timer.elapsedTime() > timeLimit)\n        {\n            FatalErrorInFunction\n                << \"dcCartMesh exceeded its \" << timeLimit << \" s time budget\"\n                << \" (\" << timer.elapsedTime() << \" s elapsed) after '\" << stage\n                << \"'. Aborting rather than running on: fix the mesher or raise\"\n                << \" timeLimitSeconds in dcCartMeshDict.\" << nl\n                << exit(FatalError);\n        }\n    };"
+        },
+        {
+          "firstLine": 2933,
+          "lastLine": 2975,
+          "text": "        meshPtr = dcCartCutCells::toPolyMesh\n        (\n            m, runTime, polyMesh::defaultRegion,\n            patchNames, patchTypes, surfaces.faceZoneNames(),\n            patchNeighbours, patchGroups\n        );\n        if (getenv(\"DCCART_CONE_LITERAL_UNIONS\"))\n        { budgetCheck(\"literal-union-final-installed-writer\"); }\n        const label nCellsAll = sumAll(meshPtr->nCells());\n        Info<< \"Cut mesh: cells \" << nCellsAll << \" over \" << nProcs << \" rank(s); this rank \" << meshPtr->nCells()\n            << \", points \" << meshPtr->nPoints()\n            << \", faces \" << meshPtr->nFaces()\n            << \" (internal \" << meshPtr->nInternalFaces() << \")\"\n            << \"  (\" << timer.timeIncrement() << \" s)\" << nl;\n        forAll(meshPtr->faceZones(), z)\n        {\n            Info<< \"  faceZone \" << meshPtr->faceZones()[z].name() << \": \"\n                << meshPtr->faceZones()[z].size() << \" faces\" << nl;\n        }\n    }\n\n    // OpenFOAM can report Mesh OK for a globally empty polyMesh. Never write\n    // that as a generated fluid mesh. Local empty partitions remain legal.\n    const label finalGlobalCells = returnReduce(meshPtr->nCells(), sumOp<label>());\n    if (finalGlobalCells <= 0)\n    {\n        FatalErrorInFunction\n            << \"No fluid cells remain in the final mesh. Check locationInMesh \"\n            << \"and the input solid/domain geometry; an empty mesh cannot be solved.\"\n            << exit(FatalError);\n    }\n\n    if (!args.found(\"overwrite\"))\n    {\n        ++runTime;\n    }\n    meshPtr->setInstance(runTime.constant());\n    if (!returnReduce(meshPtr->write(), andOp<bool>()))\n    {\n        FatalErrorInFunction\n            << \"Failed to write the generated mesh on every rank\"\n            << exit(FatalError);\n    }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMesh.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMesh.C",
+      "bytes": 37331,
+      "sha256": "23b1a00ecf90a1e552dc3b6e32cef5b5687f688ea5e7c41c809291f436619689",
+      "excerpts": [
+        {
+          "firstLine": 1175,
+          "lastLine": 1300,
+          "text": "void Foam::polyMesh::movePoints(const pointField& newPoints)\n{\n    DebugInFunction\n        << \"Moving points for time \" << time().value()\n        << \" index \" << time().timeIndex() << endl;\n\n    if (newPoints.size() != points_.size())\n    {\n        FatalErrorInFunction\n            << \"Size of newPoints \" << newPoints.size()\n            << \" does not correspond to current mesh points size \"\n            << points_.size()\n            << exit(FatalError);\n    }\n\n\n    moving(true);\n\n    // Pick up old points\n    if (curMotionTimeIndex_ != time().timeIndex())\n    {\n        if (debug)\n        {\n            Info<< \"void polyMesh::movePoints(const pointField&) : \"\n                << \" Storing current points for time \" << time().value()\n                << \" index \" << time().timeIndex() << endl;\n        }\n\n        if (storeOldCellCentres_)\n        {\n            oldCellCentresPtr_.reset(nullptr);\n            oldCellCentresPtr_.reset(new pointField(cellCentres()));\n        }\n\n        // Mesh motion in the new time step\n        oldPointsPtr_.reset(nullptr);\n        oldPointsPtr_.reset(new pointField(points_));\n        curMotionTimeIndex_ = time().timeIndex();\n    }\n\n    points_ = newPoints;\n\n    bool moveError = false;\n    if (debug)\n    {\n        // Check mesh motion\n        if (checkMeshMotion(points_, true))\n        {\n            moveError = true;\n\n            InfoInFunction\n                << \"Moving the mesh with given points will \"\n                << \"invalidate the mesh.\" << nl\n                << \"Mesh motion should not be executed.\" << endl;\n        }\n    }\n\n    points_.writeOpt(IOobject::AUTO_WRITE);\n    points_.instance() = time().timeName();\n    points_.eventNo() = getEvent();\n\n    if (tetBasePtIsPtr_)\n    {\n        tetBasePtIsPtr_->writeOpt(IOobject::AUTO_WRITE);\n        tetBasePtIsPtr_->instance() = time().timeName();\n        tetBasePtIsPtr_->eventNo() = getEvent();\n    }\n\n    // Currently a no-op; earlier versions set meshPhi and call\n    // primitiveMesh::clearGeom\n    (void)primitiveMesh::movePoints(points_, oldPoints());\n\n    // Update the mesh geometry (via fvGeometryScheme)\n    // - updateGeom is virtual -> calls fvMesh::updateGeom (or higher)\n    // - fvMesh::updateGeom defers to surfaceInterpolation::updateGeom(),\n    //   which defers to fvGeometryScheme::movePoints()\n    // - set the mesh flux\n    // - clear out/recalculate stale geometry\n    updateGeom();\n\n    // Adjust parallel shared points\n    if (globalMeshDataPtr_)\n    {\n        globalMeshDataPtr_->movePoints(points_);\n    }\n\n    // Force recalculation of all geometric data with new points\n\n    bounds_ = boundBox(points_);\n    boundary_.movePoints(points_);\n\n    pointZones_.movePoints(points_);\n    faceZones_.movePoints(points_);\n    cellZones_.movePoints(points_);\n\n    // Reset cell tree - it gets built from mesh geometry so might have\n    // wrong boxes. It is correct as long as none of the cells leaves\n    // the boxes it is in which most likely is almost never the case except\n    // for tiny displacements. An alternative is to check the displacements\n    // to see if they are tiny - imagine a big windtunnel with a small rotating\n    // object. In this case the processors without the rotating object wouldn't\n    // have to clear any geometry. However your critical path still stays the\n    // same so no time would be gained (unless the decomposition gets weighted).\n    // Small benefit for lots of scope for problems so not done.\n    cellTreePtr_.reset(nullptr);\n\n    // Reset valid directions (could change with rotation)\n    geometricD_ = Zero;\n    solutionD_ = Zero;\n\n    // Note: tet-base decomposition does not get cleared. Ideally your face\n    // decomposition should not change during mesh motion ...\n\n\n    meshObject::movePoints<polyMesh>(*this);\n    meshObject::movePoints<pointMesh>(*this);\n\n    const_cast<Time&>(time()).functionObjects().movePoints(*this);\n\n\n    if (debug && moveError)\n    {\n        // Write mesh to ease debugging. Note we want to avoid calling\n        // e.g. fvMesh::write since meshPhi not yet complete.\n        polyMesh::write();\n    }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshClear.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMeshClear.C",
+      "bytes": 6084,
+      "sha256": "dbc04cd057e24579ba3ef1e8ec4ca7463c68cdd4a395c4bc0aad6321f7cf6833",
+      "excerpts": [
+        {
+          "firstLine": 51,
+          "lastLine": 69,
+          "text": "void Foam::polyMesh::clearGeom()\n{\n    DebugInFunction << \"Clearing geometric data\" << endl;\n\n    // Clear all geometric mesh objects\n    meshObject::clear<pointMesh, GeometricMeshObject>(*this);\n    meshObject::clear<polyMesh, GeometricMeshObject>(*this);\n\n    primitiveMesh::clearGeom();\n\n    boundary_.clearGeom();\n\n    // Reset valid directions (could change with rotation)\n    geometricD_ = Zero;\n    solutionD_ = Zero;\n\n    // Remove the cell tree\n    cellTreePtr_.reset(nullptr);\n}"
+        },
+        {
+          "firstLine": 72,
+          "lastLine": 147,
+          "text": "void Foam::polyMesh::updateGeomPoints\n(\n    pointIOField&& newPoints,\n    autoPtr<labelIOList>& newTetBasePtIsPtr\n)\n{\n    DebugInFunction\n        << \"Updating geometric data with newPoints:\"\n        << newPoints.size() << \" newTetBasePtIs:\"\n        << bool(newTetBasePtIsPtr) << endl;\n\n    if (points_.size() != 0 && points_.size() != newPoints.size())\n    {\n        FatalErrorInFunction\n            << \"Point motion detected but number of points \"\n            << newPoints.size() << \" in \"\n            << newPoints.objectPath() << \" does not correspond to \"\n            << \" current \" << points_.size()\n            << exit(FatalError);\n    }\n\n    // Clear all geometric mesh objects that are not 'movable'\n    meshObject::clearUpto\n    <\n        pointMesh,\n        TopologicalMeshObject,\n        MoveableMeshObject\n    >\n    (\n        *this\n    );\n    meshObject::clearUpto\n    <\n        polyMesh,\n        TopologicalMeshObject,\n        MoveableMeshObject\n    >\n    (\n        *this\n    );\n\n    primitiveMesh::clearGeom();\n\n    boundary_.clearGeom();\n\n    // Reset valid directions (could change with rotation)\n    geometricD_ = Zero;\n    solutionD_ = Zero;\n\n    // Remove the cell tree\n    cellTreePtr_.reset(nullptr);\n\n    // Update local data\n    points_.instance() = newPoints.instance();\n    points_.transfer(newPoints);\n\n    // Optional new tet base points\n    if (newTetBasePtIsPtr)\n    {\n        tetBasePtIsPtr_ = std::move(newTetBasePtIsPtr);\n    }\n\n    // Calculate the geometry for the patches (transformation tensors etc.)\n    boundary_.calcGeometry();\n\n    // Derived info\n    bounds_ = boundBox(points_);\n\n    // Rotation can cause direction vector to change\n    geometricD_ = Zero;\n    solutionD_ = Zero;\n\n    // Update all 'movable' objects\n    meshObject::movePoints<polyMesh>(*this);\n    meshObject::movePoints<pointMesh>(*this);\n}"
+        },
+        {
+          "firstLine": 227,
+          "lastLine": 233,
+          "text": "void Foam::polyMesh::clearTetBasePtIs()\n{\n    DebugInFunction << \"Clearing tet base points\" << endl;\n\n    tetBasePtIsPtr_.reset(nullptr);\n}\n"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMesh.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMesh.C",
+      "bytes": 8206,
+      "sha256": "913178cc34351c6bb37bb7854ee4ae002e89ac0e80236402d3ce6d51c0d801b1",
+      "excerpts": [
+        {
+          "firstLine": 318,
+          "lastLine": 355,
+          "text": "void Foam::primitiveMesh::movePoints\n(\n    const pointField& newPoints,\n    const pointField& oldPoints\n)\n{\n    // Note: the following clearout is now handled by the fvGeometryScheme\n    // triggered by the call to updateGeom() in polyMesh::movePoints\n\n    // Force recalculation of all geometric data with new points\n    //clearGeom();\n}\n\n\nconst Foam::cellShapeList& Foam::primitiveMesh::cellShapes() const\n{\n    if (!cellShapesPtr_)\n    {\n        calcCellShapes();\n    }\n\n    return *cellShapesPtr_;\n}\n\n\nvoid Foam::primitiveMesh::updateGeom()\n{\n    if (!faceCentresPtr_ || !faceAreasPtr_)\n    {\n        // These are always calculated in tandem, but only once\n        calcFaceCentresAndAreas();\n    }\n\n    if (!cellCentresPtr_ || !cellVolumesPtr_)\n    {\n        // These are always calculated in tandem, but only once\n        calcCellCentresAndVols();\n    }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCells.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshCells.C",
+      "bytes": 3487,
+      "sha256": "ea87bbea21b3458443bd8a8c6de3c8e6be423537c54c6c859023ca59b0c4485b",
+      "excerpts": [
+        {
+          "firstLine": 32,
+          "lastLine": 98,
+          "text": "void Foam::primitiveMesh::calcCells\n(\n    cellList& cellFaceAddr,\n    const labelUList& own,\n    const labelUList& nei,\n    const label inNCells\n)\n{\n    label nCells = inNCells;\n\n    if (nCells == -1)\n    {\n        nCells = -1;\n\n        forAll(own, facei)\n        {\n            nCells = max(nCells, own[facei]);\n        }\n        nCells++;\n    }\n\n    // 1. Count number of faces per cell\n\n    labelList ncf(nCells, Zero);\n\n    forAll(own, facei)\n    {\n        ncf[own[facei]]++;\n    }\n\n    forAll(nei, facei)\n    {\n        if (nei[facei] >= 0)\n        {\n            ncf[nei[facei]]++;\n        }\n    }\n\n    // Create the storage\n    cellFaceAddr.setSize(ncf.size());\n\n\n    // 2. Size and fill cellFaceAddr\n\n    forAll(cellFaceAddr, celli)\n    {\n        cellFaceAddr[celli].setSize(ncf[celli]);\n    }\n    ncf = 0;\n\n    forAll(own, facei)\n    {\n        label celli = own[facei];\n\n        cellFaceAddr[celli][ncf[celli]++] = facei;\n    }\n\n    forAll(nei, facei)\n    {\n        label celli = nei[facei];\n\n        if (celli >= 0)\n        {\n            cellFaceAddr[celli][ncf[celli]++] = facei;\n        }\n    }\n}"
+        },
+        {
+          "firstLine": 138,
+          "lastLine": 145,
+          "text": "const Foam::cellList& Foam::primitiveMesh::cells() const\n{\n    if (!cfPtr_)\n    {\n        calcCells();\n    }\n\n    return *cfPtr_;"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshPointFaces.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshPointFaces.C",
+      "bytes": 1859,
+      "sha256": "de0d8bba55275297c3c46f8715929a4885b1d8891b40dc5fc724cf26100ae55d",
+      "excerpts": [
+        {
+          "firstLine": 33,
+          "lastLine": 47,
+          "text": "const Foam::labelListList& Foam::primitiveMesh::pointFaces() const\n{\n    if (!pfPtr_)\n    {\n        if (debug)\n        {\n            Pout<< \"primitiveMesh::pointFaces() : \"\n                << \"calculating pointFaces\" << endl;\n        }\n        // Invert faces()\n        pfPtr_ = new labelListList(nPoints());\n        invertManyToMany(nPoints(), faces(), *pfPtr_);\n    }\n\n    return *pfPtr_;"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshPointCells.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshPointCells.C",
+      "bytes": 7249,
+      "sha256": "e33534c28172c48820fa76610e7178158f888bfa4a441e8ac7591a197a5e611b",
+      "excerpts": [
+        {
+          "firstLine": 62,
+          "lastLine": 85,
+          "text": "    else if (hasCellPoints())\n    {\n        // Invert cellPoints\n        pcPtr_ = new labelListList(nPoints());\n        invertManyToMany(nPoints(), cellPoints(), *pcPtr_);\n    }\n    else if (hasPointFaces())\n    {\n        // Calculate point-cell from point-face information\n\n        const labelList& own = faceOwner();\n        const labelList& nei = faceNeighbour();\n        const labelListList& pFaces = pointFaces();\n\n        // Tracking (only use each cell id once)\n        bitSet usedCells(nCells());\n\n        // Cell ids for the point currently being processed\n        DynamicList<label> currCells(256);\n\n        const label loopLen = nPoints();\n\n        pcPtr_ = new labelListList(nPoints());\n        auto& pointCellAddr = *pcPtr_;"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshTools.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshTools.C",
+      "bytes": 24759,
+      "sha256": "db2868dc5ccb66f8e3e8c4b919afb8abf8bb3b0fc290c704f9ad4c65b645a712",
+      "excerpts": [
+        {
+          "firstLine": 204,
+          "lastLine": 268,
+          "text": "void Foam::primitiveMeshTools::makeFaceCentresAndAreas\n(\n    const UList<face>& fcs,\n    const pointField& p,\n    vectorField& fCtrs,\n    vectorField& fAreas\n)\n{\n    // Safety first - ensure properly sized\n    fCtrs.resize_nocopy(fcs.size());\n    fAreas.resize_nocopy(fcs.size());\n\n    forAll(fcs, facei)\n    {\n        const face& f = fcs[facei];\n        const label nPoints = f.size();\n\n        // If the face is a triangle, do a direct calculation for efficiency\n        // and to avoid round-off error-related problems\n        if (nPoints == 3)\n        {\n            fCtrs[facei] = triPointRef::centre(p[f[0]], p[f[1]], p[f[2]]);\n            fAreas[facei] = triPointRef::areaNormal(p[f[0]], p[f[1]], p[f[2]]);\n        }\n        else\n        {\n            solveVector sumN = Zero;\n            solveScalar sumA = Zero;\n            solveVector sumAc = Zero;\n\n            solveVector fCentre = p[f[0]];\n            for (label pi = 1; pi < nPoints; ++pi)\n            {\n                fCentre += solveVector(p[f[pi]]);\n            }\n            fCentre /= nPoints;\n\n            for (label pi = 0; pi < nPoints; ++pi)\n            {\n                const solveVector thisPoint(p[f.thisLabel(pi)]);\n                const solveVector nextPoint(p[f.nextLabel(pi)]);\n\n                solveVector c = thisPoint + nextPoint + fCentre;\n                solveVector n = (nextPoint - thisPoint)^(fCentre - thisPoint);\n                solveScalar a = mag(n);\n\n                sumN += n;\n                sumA += a;\n                sumAc += a*c;\n            }\n\n            // This is to deal with zero-area faces. Mark very small faces\n            // to be detected in e.g., processorPolyPatch.\n            if (sumA < ROOTVSMALL)\n            {\n                fCtrs[facei] = fCentre;\n                fAreas[facei] = Zero;\n            }\n            else\n            {\n                fCtrs[facei] = (1.0/3.0)*sumAc/sumA;\n                fAreas[facei] = 0.5*sumN;\n            }\n        }\n    }"
+        },
+        {
+          "firstLine": 291,
+          "lastLine": 377,
+          "text": ")\n{\n    PrecisionAdaptor<solveVector, vector> tcellCtrs(cellCtrs_s, false);\n    PrecisionAdaptor<solveScalar, scalar> tcellVols(cellVols_s, false);\n    Field<solveVector>& cellCtrs = tcellCtrs.ref();\n    Field<solveScalar>& cellVols = tcellVols.ref();\n\n    // Clear the fields for accumulation\n    cellCtrs = Zero;\n    cellVols = Zero;\n\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n\n    // first estimate the approximate cell centre as the average of\n    // face centres\n\n    Field<solveVector> cEst(mesh.nCells(), Zero);\n    labelField nCellFaces(mesh.nCells(), Zero);\n\n    forAll(own, facei)\n    {\n        cEst[own[facei]] += solveVector(fCtrs[facei]);\n        ++nCellFaces[own[facei]];\n    }\n\n    forAll(nei, facei)\n    {\n        cEst[nei[facei]] += solveVector(fCtrs[facei]);\n        ++nCellFaces[nei[facei]];\n    }\n\n    forAll(cEst, celli)\n    {\n        cEst[celli] /= nCellFaces[celli];\n    }\n\n    forAll(own, facei)\n    {\n        const solveVector fc(fCtrs[facei]);\n        const solveVector fA(fAreas[facei]);\n\n        // Calculate 3*face-pyramid volume\n        solveScalar pyr3Vol = fA & (fc - cEst[own[facei]]);\n\n        // Calculate face-pyramid centre\n        solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[own[facei]];\n\n        // Accumulate volume-weighted face-pyramid centre\n        cellCtrs[own[facei]] += pyr3Vol*pc;\n\n        // Accumulate face-pyramid volume\n        cellVols[own[facei]] += pyr3Vol;\n    }\n\n    forAll(nei, facei)\n    {\n        const solveVector fc(fCtrs[facei]);\n        const solveVector fA(fAreas[facei]);\n\n        // Calculate 3*face-pyramid volume\n        solveScalar pyr3Vol = fA & (cEst[nei[facei]] - fc);\n\n        // Calculate face-pyramid centre\n        solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[nei[facei]];\n\n        // Accumulate volume-weighted face-pyramid centre\n        cellCtrs[nei[facei]] += pyr3Vol*pc;\n\n        // Accumulate face-pyramid volume\n        cellVols[nei[facei]] += pyr3Vol;\n    }\n\n    forAll(cellCtrs, celli)\n    {\n        if (mag(cellVols[celli]) > VSMALL)\n        {\n            cellCtrs[celli] /= cellVols[celli];\n        }\n        else\n        {\n            cellCtrs[celli] = cEst[celli];\n        }\n    }\n\n    cellVols *= (1.0/3.0);\n}"
+        },
+        {
+          "firstLine": 380,
+          "lastLine": 451,
+          "text": "Foam::scalar Foam::primitiveMeshTools::faceSkewness\n(\n    const UList<face>& fcs,\n    const pointField& p,\n    const vectorField& fCtrs,\n    const vectorField& fAreas,\n\n    const label facei,\n    const point& ownCc,\n    const point& neiCc\n)\n{\n    const face& f = fcs[facei];\n\n    vector Cpf = fCtrs[facei] - ownCc;\n    vector d = neiCc - ownCc;\n\n    // Skewness vector\n    vector sv =\n        Cpf\n      - ((fAreas[facei] & Cpf)/((fAreas[facei] & d) + ROOTVSMALL))*d;\n    vector svHat = sv/(mag(sv) + ROOTVSMALL);\n\n    // Normalisation distance calculated as the approximate distance\n    // from the face centre to the edge of the face in the direction\n    // of the skewness\n    scalar fd = 0.2*mag(d) + ROOTVSMALL;\n    forAll(f, pi)\n    {\n        fd = max(fd, mag(svHat & (p[f[pi]] - fCtrs[facei])));\n    }\n\n    // Normalised skewness\n    return mag(sv)/fd;\n}\n\n\nFoam::scalar Foam::primitiveMeshTools::boundaryFaceSkewness\n(\n    const UList<face>& fcs,\n    const pointField& p,\n    const vectorField& fCtrs,\n    const vectorField& fAreas,\n\n    const label facei,\n    const point& ownCc\n)\n{\n    const face& f = fcs[facei];\n\n    vector Cpf = fCtrs[facei] - ownCc;\n\n    vector normal = normalised(fAreas[facei]);\n    vector d = normal*(normal & Cpf);\n\n    // Skewness vector\n    vector sv =\n        Cpf\n      - ((fAreas[facei] & Cpf)/((fAreas[facei] & d) + ROOTVSMALL))*d;\n    vector svHat = sv/(mag(sv) + ROOTVSMALL);\n\n    // Normalisation distance calculated as the approximate distance\n    // from the face centre to the edge of the face in the direction\n    // of the skewness\n    scalar fd = 0.4*mag(d) + ROOTVSMALL;\n    forAll(f, pi)\n    {\n        fd = max(fd, mag(svHat & (p[f[pi]] - fCtrs[facei])));\n    }\n\n    // Normalised skewness\n    return mag(sv)/fd;"
+        },
+        {
+          "firstLine": 486,
+          "lastLine": 521,
+          "text": "Foam::scalar Foam::primitiveMeshTools::faceOrthogonality\n(\n    const point& ownCc,\n    const point& neiCc,\n    const vector& s\n)\n{\n    vector d = neiCc - ownCc;\n\n    return (d & s)/(mag(d)*mag(s) + ROOTVSMALL);\n}\n\n\n// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //\n\nFoam::tmp<Foam::scalarField> Foam::primitiveMeshTools::faceOrthogonality\n(\n    const primitiveMesh& mesh,\n    const vectorField& areas,\n    const vectorField& cc\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n\n    auto tortho = tmp<scalarField>::New(mesh.nInternalFaces());\n    auto& ortho = tortho.ref();\n\n    // Internal faces\n    forAll(nei, facei)\n    {\n        ortho[facei] = faceOrthogonality\n        (\n            cc[own[facei]],\n            cc[nei[facei]],\n            areas[facei]"
+        },
+        {
+          "firstLine": 829,
+          "lastLine": 931,
+          "text": "Foam::tmp<Foam::scalarField> Foam::primitiveMeshTools::cellDeterminant\n(\n    const primitiveMesh& mesh,\n    const Vector<label>& meshD,\n    const vectorField& faceAreas,\n    const bitSet& internalOrCoupledFace\n)\n{\n    // Determine number of dimensions and (for 2D) missing dimension\n    label nDims = 0;\n    label twoD = -1;\n    for (direction dir = 0; dir < vector::nComponents; dir++)\n    {\n        if (meshD[dir] == 1)\n        {\n            nDims++;\n        }\n        else\n        {\n            twoD = dir;\n        }\n    }\n\n    auto tcellDeterminant = tmp<scalarField>::New(mesh.nCells());\n    auto& cellDeterminant = tcellDeterminant.ref();\n\n    const cellList& c = mesh.cells();\n\n    if (nDims == 1)\n    {\n        cellDeterminant = 1.0;\n    }\n    else\n    {\n        forAll(c, celli)\n        {\n            const labelList& curFaces = c[celli];\n\n            // Calculate local normalization factor\n            scalar avgArea = 0;\n\n            label nInternalFaces = 0;\n\n            forAll(curFaces, i)\n            {\n                if (internalOrCoupledFace.test(curFaces[i]))\n                {\n                    avgArea += mag(faceAreas[curFaces[i]]);\n\n                    nInternalFaces++;\n                }\n            }\n\n            if (nInternalFaces == 0 || avgArea < ROOTVSMALL)\n            {\n                cellDeterminant[celli] = 0;\n            }\n            else\n            {\n                avgArea /= nInternalFaces;\n\n                symmTensor areaTensor(Zero);\n\n                forAll(curFaces, i)\n                {\n                    if (internalOrCoupledFace.test(curFaces[i]))\n                    {\n                        areaTensor += sqr(faceAreas[curFaces[i]]/avgArea);\n                    }\n                }\n\n                if (nDims == 2)\n                {\n                    // Add the missing eigenvector (such that it does not\n                    // affect the determinant)\n                    if (twoD == 0)\n                    {\n                        areaTensor.xx() = 1;\n                    }\n                    else if (twoD == 1)\n                    {\n                        areaTensor.yy() = 1;\n                    }\n                    else\n                    {\n                        areaTensor.zz() = 1;\n                    }\n                }\n\n                // Note:\n                // - normalise to be 0..1 (since cube has eigenvalues 2 2 2)\n                // - we use the determinant (i.e. 3rd invariant) and not e.g.\n                //   condition number (= max ev / min ev) since we are\n                //   interested in the minimum connectivity and not the\n                //   uniformity. Using the condition number on corner cells\n                //   leads to uniformity 1 i.e. equally bad in all three\n                //   directions which is not what we want.\n                cellDeterminant[celli] = mag(det(areaTensor))/8.0;\n            }\n        }\n    }\n\n    return tcellDeterminant;"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTools.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMeshTools.C",
+      "bytes": 7987,
+      "sha256": "73a36732d9b4ea615fb2c2b16b2faa818caa1dc97f155ea1b45918fd19d0feef",
+      "excerpts": [
+        {
+          "firstLine": 175,
+          "lastLine": 277,
+          "text": "Foam::tmp<Foam::scalarField> Foam::polyMeshTools::faceWeights\n(\n    const polyMesh& mesh,\n    const vectorField& fCtrs,\n    const vectorField& fAreas,\n    const vectorField& cellCtrs\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n    const polyBoundaryMesh& pbm = mesh.boundaryMesh();\n\n    auto tweight = tmp<scalarField>::New(mesh.nFaces(), scalar(1));\n    auto& weight = tweight.ref();\n\n    // Internal faces\n    forAll(nei, facei)\n    {\n        const point& fc = fCtrs[facei];\n        const vector& fa = fAreas[facei];\n\n        scalar dOwn = mag(fa & (fc-cellCtrs[own[facei]]));\n        scalar dNei = mag(fa & (cellCtrs[nei[facei]]-fc));\n\n        weight[facei] = min(dNei,dOwn)/(dNei+dOwn+VSMALL);\n    }\n\n\n    // Coupled faces\n\n    pointField neiCc;\n    syncTools::swapBoundaryCellPositions(mesh, cellCtrs, neiCc);\n\n    for (const polyPatch& pp : pbm)\n    {\n        if (pp.coupled())\n        {\n            forAll(pp, i)\n            {\n                label facei = pp.start() + i;\n                label bFacei = facei - mesh.nInternalFaces();\n\n                const point& fc = fCtrs[facei];\n                const vector& fa = fAreas[facei];\n\n                scalar dOwn = mag(fa & (fc-cellCtrs[own[facei]]));\n                scalar dNei = mag(fa & (neiCc[bFacei]-fc));\n\n                weight[facei] = min(dNei,dOwn)/(dNei+dOwn+VSMALL);\n            }\n        }\n    }\n\n    return tweight;\n}\n\n\nFoam::tmp<Foam::scalarField> Foam::polyMeshTools::volRatio\n(\n    const polyMesh& mesh,\n    const scalarField& vol\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n    const polyBoundaryMesh& pbm = mesh.boundaryMesh();\n\n    auto tratio = tmp<scalarField>::New(mesh.nFaces(), scalar(1));\n    auto& ratio = tratio.ref();\n\n    // Internal faces\n    forAll(nei, facei)\n    {\n        scalar volOwn = vol[own[facei]];\n        scalar volNei = vol[nei[facei]];\n\n        ratio[facei] = min(volOwn,volNei)/(max(volOwn, volNei)+VSMALL);\n    }\n\n\n    // Coupled faces\n\n    scalarField neiVol;\n    syncTools::swapBoundaryCellList(mesh, vol, neiVol);\n\n    for (const polyPatch& pp : pbm)\n    {\n        if (pp.coupled())\n        {\n            forAll(pp, i)\n            {\n                label facei = pp.start() + i;\n                label bFacei = facei - mesh.nInternalFaces();\n\n                scalar volOwn = vol[own[facei]];\n                scalar volNei = neiVol[bFacei];\n\n                ratio[facei] = min(volOwn,volNei)/(max(volOwn, volNei)+VSMALL);\n            }\n        }\n    }\n\n    return tratio;"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+      "bytes": 43895,
+      "sha256": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+      "excerpts": [
+        {
+          "firstLine": 468,
+          "lastLine": 524,
+          "text": "bool Foam::primitiveMesh::checkFacePyramids\n(\n    const pointField& points,\n    const vectorField& ctrs,\n    const bool report,\n    const bool detailedReport,\n    const scalar minPyrVol,\n    labelHashSet* setPtr\n) const\n{\n    DebugInFunction << \"Checking face orientation\" << endl;\n\n    const labelList& own = faceOwner();\n    const labelList& nei = faceNeighbour();\n    const faceList& f = faces();\n\n\n    scalarField ownPyrVol;\n    scalarField neiPyrVol;\n    primitiveMeshTools::facePyramidVolume\n    (\n        *this,\n        points,\n        ctrs,\n        ownPyrVol,\n        neiPyrVol\n    );\n\n\n    label nErrorPyrs = 0;\n\n    forAll(ownPyrVol, facei)\n    {\n        if (ownPyrVol[facei] < minPyrVol)\n        {\n            if (setPtr)\n            {\n                setPtr->insert(facei);\n            }\n            if (detailedReport)\n            {\n                Pout<< \"Negative pyramid volume: \" << ownPyrVol[facei]\n                    << \" for face \" << facei << \" \" << f[facei]\n                    << \"  and owner cell: \" << own[facei] << endl\n                    << \"Owner cell vertex labels: \"\n                    << cells()[own[facei]].labels(faces())\n                    << endl;\n            }\n\n            nErrorPyrs++;\n        }\n\n        if (isInternalFace(facei))\n        {\n            if (neiPyrVol[facei] < minPyrVol)\n            {\n                if (setPtr)"
+        },
+        {
+          "firstLine": 808,
+          "lastLine": 890,
+          "text": "bool Foam::primitiveMesh::checkConcaveCells\n(\n    const vectorField& fAreas,\n    const pointField& fCentres,\n    const bool report,\n    labelHashSet* setPtr\n) const\n{\n    DebugInFunction << \"Checking for concave cells\" << endl;\n\n    const cellList& c = cells();\n    const labelList& fOwner = faceOwner();\n\n    label nConcaveCells = 0;\n\n    forAll(c, celli)\n    {\n        const cell& cFaces = c[celli];\n\n        bool concave = false;\n\n        forAll(cFaces, i)\n        {\n            if (concave)\n            {\n                break;\n            }\n\n            label fI = cFaces[i];\n\n            const point& fC = fCentres[fI];\n\n            vector fN = fAreas[fI];\n\n            fN /= max(mag(fN), VSMALL);\n\n            // Flip normal if required so that it is always pointing out of\n            // the cell\n            if (fOwner[fI] != celli)\n            {\n                fN *= -1;\n            }\n\n            // Is the centre of any other face of the cell on the\n            // wrong side of the plane of this face?\n\n            forAll(cFaces, j)\n            {\n                if (j != i)\n                {\n                    label fJ = cFaces[j];\n\n                    const point& pt = fCentres[fJ];\n\n                    // If the cell is concave, the point will be on the\n                    // positive normal side of the plane of f, defined by\n                    // its centre and normal, and the angle between (pt -\n                    // fC) and fN will be less than 90 degrees, so the dot\n                    // product will be positive.\n\n                    vector pC = (pt - fC);\n\n                    pC /= max(mag(pC), VSMALL);\n\n                    if ((pC & fN) > -planarCosAngle_)\n                    {\n                        // Concave or planar face\n\n                        concave = true;\n\n                        if (setPtr)\n                        {\n                            setPtr->insert(celli);\n                        }\n\n                        nConcaveCells++;\n\n                        break;\n                    }\n                }\n            }\n        }\n    }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C",
+      "bytes": 19910,
+      "sha256": "50b2b67e249951c4ef7343655c44811351209415a4d894abcf6ac4089532180c",
+      "excerpts": [
+        {
+          "firstLine": 36,
+          "lastLine": 38,
+          "text": "const Foam::scalar Foam::polyMeshTetDecomposition::minTetQuality = sqr(SMALL);\n\n"
+        },
+        {
+          "firstLine": 383,
+          "lastLine": 475,
+          "text": "bool Foam::polyMeshTetDecomposition::checkFaceTets\n(\n    const polyMesh& mesh,\n    scalar tol,\n    const bool report,\n    labelHashSet* setPtr\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n    const polyBoundaryMesh& patches = mesh.boundaryMesh();\n\n    const vectorField& cc = mesh.cellCentres();\n    const vectorField& fc = mesh.faceCentres();\n\n    // Calculate coupled cell centre\n    pointField neiCc(mesh.nBoundaryFaces());\n\n    for (label facei = mesh.nInternalFaces(); facei < mesh.nFaces(); ++facei)\n    {\n        neiCc[facei - mesh.nInternalFaces()] = cc[own[facei]];\n    }\n\n    syncTools::swapBoundaryFacePositions(mesh, neiCc);\n\n    const faceList& fcs = mesh.faces();\n\n    const pointField& p = mesh.points();\n\n    label nErrorTets = 0;\n\n    forAll(fcs, facei)\n    {\n        const face& f = fcs[facei];\n\n        forAll(f, fPtI)\n        {\n            scalar tetQual = tetPointRef\n            (\n                p[f[fPtI]],\n                p[f.nextLabel(fPtI)],\n                fc[facei],\n                cc[own[facei]]\n            ).quality();\n\n            if (tetQual > -tol)\n            {\n                if (setPtr)\n                {\n                    setPtr->insert(facei);\n                }\n\n                nErrorTets++;\n                break;              // no need to check other tets\n            }\n        }\n\n        if (mesh.isInternalFace(facei))\n        {\n            // Create the neighbour tet - it will have positive volume\n            const face& f = fcs[facei];\n\n            forAll(f, fPtI)\n            {\n                scalar tetQual = tetPointRef\n                (\n                    p[f[fPtI]],\n                    p[f.nextLabel(fPtI)],\n                    fc[facei],\n                    cc[nei[facei]]\n                ).quality();\n\n                if (tetQual < tol)\n                {\n                    if (setPtr)\n                    {\n                        setPtr->insert(facei);\n                    }\n\n                    nErrorTets++;\n                    break;\n                }\n            }\n\n            if (findSharedBasePoint(mesh, facei, tol, report) == -1)\n            {\n                if (setPtr)\n                {\n                    setPtr->insert(facei);\n                }\n\n                nErrorTets++;\n            }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshIO.C",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/polyMeshIO.C",
+      "bytes": 13102,
+      "sha256": "0d56af7d66a9827e8fe1fc23823c40e569022113e7dd9691e73756e8c195a4d8",
+      "excerpts": [
+        {
+          "firstLine": 35,
+          "lastLine": 72,
+          "text": "void Foam::polyMesh::setInstance\n(\n    const fileName& inst,\n    const IOobjectOption::writeOption wOpt\n)\n{\n    DebugInFunction << \"Resetting file instance to \" << inst << endl;\n\n    points_.writeOpt(wOpt);\n    points_.instance() = inst;\n\n    faces_.writeOpt(wOpt);\n    faces_.instance() = inst;\n\n    owner_.writeOpt(wOpt);\n    owner_.instance() = inst;\n\n    neighbour_.writeOpt(wOpt);\n    neighbour_.instance() = inst;\n\n    boundary_.writeOpt(wOpt);\n    boundary_.instance() = inst;\n\n    pointZones_.writeOpt(wOpt);\n    pointZones_.instance() = inst;\n\n    faceZones_.writeOpt(wOpt);\n    faceZones_.instance() = inst;\n\n    cellZones_.writeOpt(wOpt);\n    cellZones_.instance() = inst;\n\n    if (tetBasePtIsPtr_)\n    {\n        tetBasePtIsPtr_->writeOpt(wOpt);\n        tetBasePtIsPtr_->instance() = inst;\n    }\n}"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/triangleI.H",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/triangleI.H",
+      "bytes": 26353,
+      "sha256": "a592286d0b3fad494a7e005c81af9f0926faf4503830768595869e915d9af359",
+      "excerpts": [
+        {
+          "firstLine": 150,
+          "lastLine": 182,
+          "text": "inline Point Foam::triangle<Point, PointRef>::centre\n(\n    const Point& p0,\n    const Point& p1,\n    const Point& p2\n)\n{\n    return (1.0/3.0)*(p0 + p1 + p2);\n}\n\n\ntemplate<class Point, class PointRef>\ninline Point Foam::triangle<Point, PointRef>::centre() const\n{\n    return (1.0/3.0)*(a_ + b_ + c_);\n}\n\n\ninline Foam::point Foam::triPoints::centre() const\n{\n    return triPointRef::centre(a(), b(), c());\n}\n\n\ntemplate<class Point, class PointRef>\ninline Foam::vector Foam::triangle<Point, PointRef>::areaNormal\n(\n    const Point& p0,\n    const Point& p1,\n    const Point& p2\n)\n{\n    return 0.5*((p1 - p0)^(p2 - p0));"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/VectorSpaceI.H",
+      "resolvedPath": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/include/OpenFOAM-2412/src/OpenFOAM/lnInclude/VectorSpaceI.H",
+      "bytes": 19798,
+      "sha256": "19d865d2533f2c35a0fdd5f9fbecf7a039c05b79ebce8c7d75017675b4d09a8b",
+      "excerpts": [
+        {
+          "firstLine": 780,
+          "lastLine": 789,
+          "text": "template<class Form, class Cmpt, direction Ncmpts>\ninline Form operator/\n(\n    const VectorSpace<Form, Cmpt, Ncmpts>& vs,\n    scalar s\n)\n{\n    Form v;\n    VectorSpaceOps<Ncmpts,0>::opVS(v, vs, s, divideOp3<Cmpt, Cmpt, scalar>());\n    return v;"
+        }
+      ]
+    }
+  ],
+  "actual7785ManifestRows": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank0-manifest.json",
+      "sha256": "de41268531e6e4de9b72dbbc13b9493cc48c032fd3c33c105bfd559a35ec810b",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 0,
+        "cells": 833839,
+        "faces": 2251326,
+        "points": 591824,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank1-manifest.json",
+      "sha256": "a7faf7482c63884ab2f5e3a9f2f16b1523a3ffb87b7f6ea98892b190c9ea33c4",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 1,
+        "cells": 755718,
+        "faces": 2085084,
+        "points": 580442,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank2-manifest.json",
+      "sha256": "22ea5f5693bebf8c7add15ae3ccffb6a61199e306ac19e99adf05fe369b7cd7b",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 2,
+        "cells": 679035,
+        "faces": 1903495,
+        "points": 550213,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank3-manifest.json",
+      "sha256": "9c99302d06b8509931640953de1e01b997738ec619ccdc39e304b03ce6075a43",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 3,
+        "cells": 708477,
+        "faces": 1982757,
+        "points": 570763,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank4-manifest.json",
+      "sha256": "29ed9c1d9083c1b712109ad4be8319ba96c3957dfffe96d56dc0d47c4b1fe43a",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 4,
+        "cells": 699464,
+        "faces": 1945676,
+        "points": 551769,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank5-manifest.json",
+      "sha256": "605e8a0b80efa69c1af46e9679877e129a7ac78dae7d0354d72a0d3bfd7d2d75",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 5,
+        "cells": 694165,
+        "faces": 1942768,
+        "points": 559765,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank6-manifest.json",
+      "sha256": "f042ca19f1a0d63b22dfc6acf90f61d3cd2447f47e5d7907d2014705bf897e06",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 6,
+        "cells": 764651,
+        "faces": 2100106,
+        "points": 577365,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/conforming-written-rank7-manifest.json",
+      "sha256": "9465919b7770999dcdab24296961af45b6dc79915723b5b32afd54aa053ccda8",
+      "manifest": {
+        "format": "conforming-written-stage/v1",
+        "rank": 7,
+        "cells": 771430,
+        "faces": 2098454,
+        "points": 561689,
+        "labelBytes": 4,
+        "mappingScope": "indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side"
+      }
+    }
+  ],
+  "summedLocalCounts": {
+    "cells": 5906779,
+    "faces": 16309666,
+    "points": 4543830
+  },
+  "noteCounts": "Cells unique owned; points/faces sums include rank boundary duplication. No raw mesh was modified.",
+  "format": {
+    "pointsPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/processor3/constant/polyMesh/points",
+    "sha256": "8149c28a5f9619c1280231528cb67ee348cbf2d3e18672012ae1a724b255a3ba",
+    "bytes": 13699235,
+    "header": "/*--------------------------------*- C++ -*----------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nFoamFile\n{\n    version     2.0;\n    format      binary;\n    arch        \"LSB;label=32;scalar=64\";\n    class       vectorField;\n    location    \"constant/polyMesh\";\n    object      points;\n}\n",
+    "controlDictPath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_MeshAbort_CUA/Mesh/system/controlDict",
+    "controlDictSha256": "7e8140cdb875029c707870c53bf3b23f01c009cc490b619cebb264dd57c26fdc",
+    "controlDict": "FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }\napplication     snappyHexMesh;\nstartFrom       startTime;\nstartTime       0;\nstopAt          endTime;\nendTime         0;\ndeltaT          1;\nwriteControl    timeStep;\nwriteInterval   1;\nwriteFormat     binary;\nwritePrecision  6;\nwriteCompression off;\ntimeFormat      general;\ntimePrecision   6;\nrunTimeModifiable true;\n"
+  },
+  "newAirMathDocument": {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/flat-point-quality-7785-20261005/combined-flat-and-internal-components-audit.json",
+    "sha256": "00109e8c8a7fc3a9ec70082f38b807646a7798537015da2c8626fc51c78e820c",
+    "nativeAcceptance": false,
+    "movingPoints": [
+      23651,
+      569594,
+      569592,
+      569596,
+      23237,
+      42335,
+      569586,
+      23239,
+      42338,
+      569589
+    ],
+    "shellCoordinateBitsUnchanged": false,
+    "warningCeilingDegrees": 88.2022,
+    "maximumWarningDegrees": 81.60635726419294,
+    "scope": "Read for design inputs only; independent audit here does not recertify the ten-point math candidate."
+  },
+  "testsRun": false,
+  "nativeRun": false,
+  "productionChanges": false,
+  "sourceFrozenVerifiedAfterReport": true,
+  "triangleCentreRoundingWarning": {
+    "nativeHelper": "C7152 uses vector division by3.0",
+    "installed": "triangleI.H157 uses pre-rounded scalar(1.0/3.0) multiply",
+    "conclusion": "Source arithmetic differs; new local trial must call installed primitives and finally validate actual installed geometry. No native equivalence experiment performed."
+  }
+}

@@ -1,0 +1,12 @@
+--- src/frontend/react/src/renderer/RendererControl.tsx
++++ src/frontend/react/src/renderer/RendererControl.tsx
+@@ -379,7 +379,8 @@
+       </div>
+       {message&&<div role="status" style={{background:'#20252d',padding:8,marginTop:6,pointerEvents:'auto',fontSize:12}}>{message.key?t(message.key,message.vars):''}{message.detail??''}</div>}
+       {mode==='ov'&&ready&&client.current&&<div style={{pointerEvents:'auto',marginTop:6,maxWidth:340,marginLeft:'auto'}}>
+-        <OvPostProcessPanel client={client.current} degraded={degraded.current} projectUid={project?.uid ?? null} initiallyOpen={activeTab==='postprocess'}/>
++        <OvPostProcessPanel client={client.current} degraded={degraded.current} projectUid={project?.uid ?? null} initiallyOpen={activeTab==='postprocess'}
++          maxHeight={`max(140px, calc(100dvh - ${toolbarBottom+24}px - var(--log-dock-height)))`}/>
+       </div>}
+       {mode==='ov'&&airMode&&(activeTab==='mesh'||activeTab==='postprocess')&&!currentResultLayerSet()&&
+         <div role="note" style={{background:'#20252d',padding:8,marginTop:6,pointerEvents:'auto',fontSize:12}}>

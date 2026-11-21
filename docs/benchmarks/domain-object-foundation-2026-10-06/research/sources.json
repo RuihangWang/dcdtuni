@@ -1,0 +1,279 @@
+{
+  "schema": "dcdtuni-primary-doc-catalog/v1",
+  "sources": [
+    {
+      "id": "DSX-ARCH",
+      "title": "NVIDIA Omniverse DSX Blueprint — System Architecture",
+      "url": "https://docs.omniverse.nvidia.com/dsx/latest/system-architecture.html",
+      "version": "latest; page does not expose a fixed numbered release",
+      "sections": [
+        "Architecture Components",
+        "Simulation and Surrogate Model",
+        "AIF-DT"
+      ],
+      "observedFacts": [
+        "官方架构将资产制作、数据管理、仿真服务和数字孪生运行应用分开。",
+        "资产携带电气、热冷却与连接点元数据，求解数据经Simulation Data Delegate进入Kit显示；WebRTC提供浏览器流。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "SIMREADY-FAQ",
+      "title": "NVIDIA SimReady FAQ",
+      "url": "https://docs.omniverse.nvidia.com/simready/latest/simready-faq.html",
+      "version": "latest; inspected 2026-10-06 SGT",
+      "sections": [
+        "What SimReady Specifications Exist Today and What Is Coming?",
+        "How Do I Specify Behavior as Well as Structure with SimReady?",
+        "Do I Need to Implement Every SimReady Requirement?"
+      ],
+      "observedFacts": [
+        "SimReady以命名、类型、语义和验证规则组织仿真资产，不是把求解器私有数组塞进USD便完成互操作。",
+        "符合性指向版本化Profile；不能泛称符合全部SimReady。",
+        "属性描述与运行行为分开。热、电、流体领域的FMI/FMU行为封装仍在原型阶段，FAQ明确说尚非标准SimReady规范。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-PROFILE",
+      "title": "AIF-Entity Profile USD Authoring Guide",
+      "url": "https://nvidia.github.io/simready-foundation/latest/profiles/aif-entity.html",
+      "version": "AIF-Entity0.1.0 and0.2.0 both documented",
+      "sections": [
+        "Profile definition",
+        "Equipment-class differentiation",
+        "Required USD properties and schemas",
+        "Stage composition requirements"
+      ],
+      "observedFacts": [
+        "当前列举CDU、CRAH、UPS和Compute Rack四类设备，按aif:core:assetClass选择要求。",
+        "0.2.0选择FET201_AIF0.2.0端口词汇，0.1.0资产不自动迁移。",
+        "该Profile面向Z-up、metersPerUnit=1。根层组合属性、端口与几何层。"
+      ],
+      "observedDocumentationAmbiguities": [
+        "同页总体端口命名段仍写0.1.0命名规则，版本专节明确0.2.0不继承该规则。",
+        "类名示例同时出现Compute Rack与Rack；实际严格导出需钉住目标验证目录及类名映射。",
+        "defaultPrim段先说每层必须，后面的逐规则说明只强制根与属性层，其他为指南。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-META",
+      "title": "AIF Core Metadata",
+      "url": "https://nvidia.github.io/simready-foundation/latest/capabilities/aif/metadata/capability-metadata.html",
+      "version": "FET200_AIF0.1.0 carried by both profile versions; capability page latest",
+      "sections": [
+        "Common Attributes",
+        "Equipment-Class-Specific Attributes"
+      ],
+      "observedFacts": [
+        "aif:core:*含制造商、型号、资产版本、类、声明的SimReady版本、来源文档和创建日期。",
+        "几何尺寸字段使用毫米，重量为千克。",
+        "CDU表同时出现Kelvin温度、LPM参考流量、m³/s标称流量和升表示的回路容积，不能做统一数值单位假设。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-CP-FEATURE",
+      "title": "Feature FET201_AIF — Connection Points",
+      "url": "https://nvidia.github.io/simready-foundation/latest/features/FET_201-connection_points.html",
+      "version": "Latest feature version0.2.0, separately supports0.1.0",
+      "sections": [
+        "Version0.2.0",
+        "Requirement List"
+      ],
+      "observedFacts": [
+        "0.2.0使用Xform端口和simready:connectionPoint:*属性，按属性查询含义而非解析prim名字。",
+        "CP.010/011/012是端口结构、通用命名空间和领域命名空间规则；词汇仍是namespaced attributes，不要求安装新USD typed或applied schema。",
+        "元数据需有专用ConnectionPoints组合层；原有0.1.0按其自己版本保持有效。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-CP-CAPABILITY",
+      "title": "Connection Points Capability",
+      "url": "https://nvidia.github.io/simready-foundation/latest/capabilities/aif/connection_points/capability-connection_points.html",
+      "version": "0.1.0 and0.2.0 vocabularies coexist",
+      "sections": [
+        "Validation profiles",
+        "Upgrading fromv0.1.0",
+        "Proving the vocabulary at runtime"
+      ],
+      "observedFacts": [
+        "端口报告stub/draft/production完整度，缺失信息应显式显示不完整。",
+        "将一个端口连接到另一个端口的拓扑绑定不属于0.2.0词汇，运行系统另行构造拓扑。",
+        "静态合法不等于求解行为通过；运行应证明真实声明的参数进入了非默认结果。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-CP-BASE",
+      "title": "CP.011 Connection Point Base Namespace",
+      "url": "https://nvidia.github.io/simready-foundation/latest/capabilities/aif/connection_points/requirements/connection-point-base-namespace.html",
+      "version": "CP.011 used by FET201_AIF0.2.0",
+      "sections": [
+        "Description",
+        "Token values are open",
+        "type is a deprecated alias fordomain"
+      ],
+      "observedFacts": [
+        "五个通用属性是domain、direction、system、disconnectType和serviceClearance。",
+        "serviceClearance单位米且非负。示例token不是封闭枚举；未知词汇应提示而不直接判无效。",
+        "旧type属性已改为domain，旧别名应发迁移提示。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "AIF-CP-DOMAIN",
+      "title": "CP.012 Connection Point Domain Namespace",
+      "url": "https://nvidia.github.io/simready-foundation/latest/capabilities/aif/connection_points/requirements/connection-point-domain-namespace.html",
+      "version": "CP.012 used by FET201_AIF0.2.0",
+      "sections": [
+        "Thermal domain",
+        "Airflow domain",
+        "Property completeness"
+      ],
+      "observedFacts": [
+        "液冷端口以thermal领域表示，空气为airflow领域。",
+        "液冷端口包括直径、插入深度、额定流量、设计与极限温度、工作与极限压力、流体与法兰信息。",
+        "液冷流量L/s、温度°C、压力Pa gauge；空气体积流量m³/s、温度°C、自由面积比例与压差有独立含义。",
+        "未知不能伪装为零；缺省信息应保留缺失并报告不完整，显式零表示已声明的零。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-HIERARCHY",
+      "title": "OpenUSD Important Properties of Scene Description",
+      "url": "https://openusd.org/release/api/_usd__page__properties_of_scene_description.html",
+      "version": "release API; release glossary labels26.08",
+      "sections": [
+        "Model Hierarchy: Meaning and Purpose"
+      ],
+      "observedFacts": [
+        "component是模型树叶，不可包含子模型；group可包含模型，assembly为有意义的组。",
+        "subcomponent用于component内部的可识别子树；model层级必须为连续前缀。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-ASSET",
+      "title": "OpenUSD UsdModelAPI",
+      "url": "https://openusd.org/release/api/class_usd_model_a_p_i.html",
+      "version": "release API; SDK version installed on40901 not audited here",
+      "sections": [
+        "GetAssetInfo",
+        "GetAssetIdentifier",
+        "GetAssetVersion",
+        "GetPayloadAssetDependencies"
+      ],
+      "observedFacts": [
+        "assetInfo支持资产标识、名称和版本，并能记录payload依赖。",
+        "资产定义的版本与场景中引用时记录的版本需要明确处理，不能仅依赖当前可变文件路径。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-UNITS",
+      "title": "OpenUSD Encoding Stage Linear Units",
+      "url": "https://openusd.org/release/api/group___usd_geom_linear_units__group.html",
+      "version": "release API; generated2026-07-17 on inspected API pages",
+      "sections": [
+        "Detailed Description"
+      ],
+      "observedFacts": [
+        "metersPerUnit是stage级度量，未声明时缺省0.01。",
+        "混合不同度量的引用资产应由组装工具加修正变换。",
+        "该度量解释变换后的世界空间长度，不自动定义每个自定义物理元数据字段的单位。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-UPAXIS",
+      "title": "OpenUSD Encoding Stage UpAxis",
+      "url": "https://openusd.org/release/api/group___usd_geom_up_axis__group.html",
+      "version": "release API; inspected page generated2026-07-17",
+      "sections": [
+        "Detailed Description",
+        "UsdGeomSetStageUpAxis"
+      ],
+      "observedFacts": [
+        "通用OpenUSD允许Y或Z up，并使用右手坐标系；不是所有OpenUSD场景都强制Z-up。",
+        "需要显式声明stage upAxis，导入不同轴资产时应用修正旋转。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-MEMORY",
+      "title": "OpenUSD UsdStage Class Reference",
+      "url": "https://openusd.org/release/api/class_usd_stage.html",
+      "version": "release API",
+      "sections": [
+        "CreateInMemory"
+      ],
+      "observedFacts": [
+        "CreateInMemory支持内存stage和匿名session layer，显示层无需默认生成持久USD文件。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "USD-PBR",
+      "title": "OpenUSD UsdPreviewSurface Specification",
+      "url": "https://openusd.org/release/spec_usdpreviewsurface.html",
+      "version": "Documentation26.08; page headerversion2.5 and Current Head section2.6 both visible",
+      "sections": [
+        "Preview Surface",
+        "Texture Reader"
+      ],
+      "observedFacts": [
+        "标准预览材质定义diffuseColor/metallic/roughness/opacity/normal等有类型的输入。",
+        "颜色贴图与数据贴图需区分；法线图需要线性/raw解释，不能当sRGB颜色读取。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    },
+    {
+      "id": "SIMREADY-MATERIAL",
+      "title": "NVIDIA Materials Best Practices",
+      "url": "https://docs.omniverse.nvidia.com/simready/latest/simready-asset-creation/material-best-practices.html",
+      "version": "latest best-practice guide, not a universal coreUSD restriction",
+      "sections": [
+        "Creating Materials for Simulation",
+        "Introducing Material Segmentation"
+      ],
+      "observedFacts": [
+        "指南区分视觉外观、非视觉传感属性和物理材质。",
+        "建议按真实基底材料分开几何与绑定；材质、纹理与shader复杂度需受实时性能约束。"
+      ],
+      "directQuoteWords": 0,
+      "retrievedAtUTC": "2026-10-05T19:52:51Z",
+      "status": "Primary official documentation read; no external code/dependency fetched"
+    }
+  ]
+}

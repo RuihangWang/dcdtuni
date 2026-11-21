@@ -1,0 +1,135 @@
+{
+  "schema": "dcdtuni.frontend-unit-selection-sync.v1",
+  "date": "2026-10-05",
+  "base_commit": "2c95b996690d75f2e16827c6a0d3d5a13f070850",
+  "verification_scope": "React component semantics and production build only; no browser/native/API/case runs",
+  "changed_paths": [
+    "src/frontend/react/src/components/ColorbarOverlay.tsx",
+    "src/frontend/react/src/components/FileBrowser.tsx",
+    "src/frontend/react/src/components/PostprocessPanel.tsx",
+    "src/frontend/react/src/components/PpEditDialogs.tsx",
+    "src/frontend/react/src/postprocess/ppUnits.ts",
+    "src/frontend/react/test/FileBrowserInteractions.test.tsx",
+    "src/frontend/react/test/components/PostprocessUnitSync.test.tsx",
+    "src/frontend/react/test/ppUnits.test.ts"
+  ],
+  "defects": [
+    "Global FileBrowser Enter could confirm old directory or old file while new directory listing was busy.",
+    "Colorbars kept private unit state; headers/sidebar/open dialogs could show different temperature units.",
+    "Focused temperature NumberField drafts could survive a global unit change and then commit in the new unit."
+  ],
+  "behavior": [
+    "Enter ignores selection while busy; Escape unchanged.",
+    "Colorbars, parent postprocess panel, and slice editor subscribe to the same global temperature-unit store.",
+    "An open colorbar dialog converts a finite pending draft from its previous explicit unit before paint, preserving its Kelvin meaning.",
+    "All six temperature sidebar range fields and both slice-editor range fields remount on unit changes to discard stale uncommitted drafts.",
+    "Colorbar owns current unit labels; parent passes the field label without a baked-in temperature unit.",
+    "Optional explicit conversion unit defaults preserve one-argument API behavior."
+  ],
+  "results": {
+    "original_two_file_failure": {
+      "failed": 7,
+      "passed": 3,
+      "tests": 10,
+      "raw": "baseline-tests.txt"
+    },
+    "first_fixed_target": {
+      "failed": 1,
+      "passed": 18,
+      "tests": 19,
+      "raw": "first-fixed-target-tests.txt",
+      "reason": "New test incorrectly required full precision in existing one-decimal volume display. Production formatting unchanged; final test uses its existing display precision and verifies Celsius roundtrip after no-edit blur."
+    },
+    "first_build": {
+      "exit_code": 1,
+      "raw": "first-production-build.txt",
+      "reason": "Two new test mock calls required non-null assertion after exactly-one-call expectation under noUncheckedIndexedAccess; no production code change."
+    },
+    "final_target": {
+      "passed": 19,
+      "files": 3,
+      "raw": "fixed-target-tests.txt"
+    },
+    "related_regression": {
+      "passed": 68,
+      "files": 10,
+      "raw": "fixed-regression-tests.txt"
+    },
+    "production_build": {
+      "exit_code": 0,
+      "typecheck": true,
+      "modules": 745,
+      "vite_seconds": 9.45,
+      "raw": "production-build.txt",
+      "warnings": [
+        "projectStore mixed static/dynamic imports",
+        "large chunks"
+      ]
+    }
+  },
+  "unchanged_numberfield": {
+    "path": "src/frontend/react/src/components/NumberField.tsx",
+    "sha256": "2af6ad8fc0a6a25ddf1e8cfea29dfeacbfea644dc65cffc108ac5e1b768f63c6",
+    "equal_to_base_commit": true
+  },
+  "precision_preserved": {
+    "temperature_sidebar_surface_decimals": 2,
+    "temperature_sidebar_slice_decimals": 2,
+    "temperature_sidebar_volume_decimals": 1,
+    "temperature_sidebar_step": 0.1,
+    "non_temperature_colorbar_dialog": "Full string conversion retained; 0.005780115723609924 regression passes"
+  },
+  "runtime": {
+    "node": "v22.20.0",
+    "cpu_affinity": "24-31",
+    "cuda_visible_devices": "",
+    "tmpdir": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/frontend-unit-selection-sync/tmp"
+  },
+  "build_assets": {
+    "src/frontend/react/dist/assets/AuthOverlay-ClZo3SWs.js": {
+      "bytes": 2508,
+      "sha256": "9f4c308cee51dcc62fd1ae77e1649cadb008d4df6f51210b4d6c318a1dc9eb06"
+    },
+    "src/frontend/react/dist/assets/first_person_mode-C4fjIWri.js": {
+      "bytes": 16017,
+      "sha256": "729d24bc48f690463d06684afa30293ff19e3d10ce8ea9ce773a43b122e04ea4"
+    },
+    "src/frontend/react/dist/assets/index-CnYd9t93.js": {
+      "bytes": 2886044,
+      "sha256": "0a203347959afa560ff83ba7547d0808335229144a88013972db551398857ee0"
+    },
+    "src/frontend/react/dist/assets/index-DTa4WFnW.css": {
+      "bytes": 57614,
+      "sha256": "c5ad775f29a9a360f4d10baed97195c7df8452adac733921be2db3513c42582f"
+    },
+    "src/frontend/react/dist/assets/liquid_cooling-DE_dt6JJ.js": {
+      "bytes": 7696,
+      "sha256": "bacac7abdfce2b14131fbab0b4304e8244747f2b66f65c37dd39adbd286e3b13"
+    },
+    "src/frontend/react/dist/assets/liquid_mode-CK2Zpq9f.js": {
+      "bytes": 55080,
+      "sha256": "7f40bc521303216b7c0414d985182e6241fbbb37e81fd876676ec5cd6cd39bbc"
+    },
+    "src/frontend/react/dist/assets/liquid_pipe_renderer-FCxXvhXp.js": {
+      "bytes": 23313,
+      "sha256": "1fabd41a527e7812283ef557ef3021292d5498e2a1f3556ab5718bbdc020481f"
+    },
+    "src/frontend/react/dist/assets/omniverse-webrtc-streaming-library-BCs4dq1V.js": {
+      "bytes": 722601,
+      "sha256": "c683a09cc5e259355ebaa3b819760661723ad03dbc285ffca7ab09cfa84de1ae"
+    },
+    "src/frontend/react/dist/assets/xterm-CuFD7DNg.js": {
+      "bytes": 289441,
+      "sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495"
+    },
+    "src/frontend/react/dist/assets/xterm-DoVbqKPl.css": {
+      "bytes": 5559,
+      "sha256": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6"
+    },
+    "src/frontend/react/dist/index.html": {
+      "bytes": 917,
+      "sha256": "8944f66254d3bd710c8ebfa55de6d627dc94bbd0be36dd5798256d03847e4e6e"
+    }
+  },
+  "raw_log_whitespace": "Original Vitest/Vite stdout whitespace and final blank lines preserved byte-for-byte. Source/tests/README/JSON scoped git diff --check passes."
+}

@@ -1,0 +1,54 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.livestream.app-9.0.0+109.0.0.lx64.r.cp312/docs/Overview.md
+FULL_SHA256 09abfb0ea83997c5c7d433f4017dd5a6bdc38252a18d50689eee6761d4cf7bf2
+LINES 3–26
+3: The `omni.kit.livestream.app` extension enables streaming of the entire application framebuffer in Omniverse Kit applications. It captures rendered frames and streams them to remote clients using the streaming implementations provided by the `omni.kit.livestream.webrtc` extension.
+4: 
+5: ## Purpose
+6: 
+7: This extension bridges the Omniverse Kit rendering pipeline with remote streaming clients by:
+8: 
+9: 1. Capturing the application's framebuffer after rendering
+10: 2. Managing shared frame buffers for efficient streaming
+11: 3. Creating and configuring streaming servers
+12: 4. Supporting both primary and spectator streaming modes
+13: 5. Handling window resizing and frame synchronization
+14: 
+15: ## Architecture
+16: 
+17: The `omni.kit.livestream.app` extension consists of these key components:
+18: 
+19: - **Extension**: Main entry point that initializes streaming and manages event subscriptions
+20: - **SharedFrameBuffer**: Handles the capture and sharing of rendered frames for streaming
+21: - **Settings Management**: Configures streaming parameters through Omniverse Kit's settings system
+22: 
+23: The extension integrates into the Omniverse Kit rendering pipeline by subscribing to key events:
+24: - `PreUpdate`: For input handling and window resizing
+25: - `PostEndRenderPass`: For synchronization with the rendering pipeline
+26: - `PostPresentBuffer`: For capturing frames after they're presented
+LINES 128–153
+128: ## Implementation Details
+129: 
+130: ### Frame Capture Process
+131: 
+132: The frame capture and streaming process follows these steps:
+133: 
+134: 1. During `onPostEndRenderPass`, the extension prepares/cycles shared frame buffers and initiates copying of the framebuffer
+135: 2. During `onPostPresentBuffer`, it waits for the copy of the framebuffer to complete, synchronizing with the GPU to ensure frame integrity
+136: 3. Completed frames are streamed to all active servers
+137: 
+138: ### Stream Server Management
+139: 
+140: The extension manages streaming servers as follows:
+141: 
+142: 1. By default, it creates the primary stream server if configured correctly
+143: 2. It dynamically creates or updates spectator stream servers based on settings
+144: 3. Each server gets its own unique ports to avoid conflicts
+145: 4. All servers receive the same frame data but can have different clients
+146: 
+147: ### Window Resizing
+148: 
+149: Window resizing is handled through the `resizeAppWindow` method, which:
+150: 
+151: 1. Queries the primary stream for the desired stream resolution
+152: 2. Resizes the application window to match the desired stream resolution
+153: 3. Shared frame buffers are recreated internally if needed to accommodate the new size

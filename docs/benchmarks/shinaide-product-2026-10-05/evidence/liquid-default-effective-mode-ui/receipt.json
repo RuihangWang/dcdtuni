@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "base_commit": "5f9bd080c367db13a7f4e6a534a4811154eb7487",
+  "result": "focused_semantic_tests_and_typecheck_passed",
+  "source_change": "one pure analysisMode expression: newton engine uses domainModes even before dae materialization; unmarked legacy uses dae?.analysis.mode",
+  "source_paths": [
+    {
+      "path": "src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "before_sha256": "d1fdc015dbb5932b561093aad704b4197c3e51bbef5de6195100bd8bef080d05",
+      "after_sha256": "3125ad73793142be9d501096449d4cb6b6ed42fe2478e4d5a0a16bb466038164",
+      "before_archive": "before-LiquidExperimentPanel.tsx.gz",
+      "after_archive": "after-LiquidExperimentPanel.tsx.gz"
+    },
+    {
+      "path": "src/frontend/react/test/liquidDefaultNewton.test.tsx",
+      "before_sha256": "3da66e3ec2c0a314b2901987cfed1a051ff1c07d2cd60de21951d3d1617a524c",
+      "after_sha256": "207b2a11651acb7c0466e46c6c6b61bd41948055478b4e933672bea340985ff4",
+      "before_archive": "before-liquidDefaultNewton.test.tsx.gz",
+      "after_archive": "after-liquidDefaultNewton.test.tsx.gz"
+    }
+  ],
+  "test_scope": {
+    "new_cases": 3,
+    "default_missing_and_marker_only": "steady hides duration and disables load step; normal top-bar transient exposes timeline controls without graph compilation or experiment materialization",
+    "explicit_unmarked_legacy_v2": "original duration and enabled load controls unchanged",
+    "suite_files_passed": 9,
+    "tests_passed": 71,
+    "new_test_file_cases": 19
+  },
+  "runs": {
+    "red": {
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "test/liquidDefaultNewton.test.tsx",
+        "--minWorkers=1",
+        "--maxWorkers=2"
+      ],
+      "exit_code": 1,
+      "elapsed_s": 22.077989778015763,
+      "head": "5f9bd080c367db13a7f4e6a534a4811154eb7487",
+      "cpu_affinity": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "CUDA_VISIBLE_DEVICES": "",
+      "source_before_sha256": "d1fdc015dbb5932b561093aad704b4197c3e51bbef5de6195100bd8bef080d05"
+    },
+    "green": {
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "test/liquidDefaultNewton.test.tsx",
+        "test/liquidDAEProject.test.ts",
+        "test/LiquidDAEControls.test.tsx",
+        "test/liquidSavedExperiment.test.ts",
+        "test/LiquidExperimentPanel.test.tsx",
+        "test/liquidPanelTransient.test.tsx",
+        "test/liquidSchedules.test.ts",
+        "test/shinaideHybridCompiler.test.ts",
+        "test/researchLiquidrunCompiler.test.ts",
+        "--maxWorkers=1",
+        "--minWorkers=1"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 35.99352314602584,
+      "cpu_affinity": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "CUDA_VISIBLE_DEVICES": "",
+      "head": "5f9bd080c367db13a7f4e6a534a4811154eb7487"
+    },
+    "typecheck": {
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 28.69540807395242,
+      "cpu_affinity": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "CUDA_VISIBLE_DEVICES": "",
+      "head": "5f9bd080c367db13a7f4e6a534a4811154eb7487"
+    }
+  },
+  "prior_full_suite": "3526 pass / 1 existing optional skip on 5f source before this display-only follow-up; not falsely relabelled as a full run of the new two-file tree",
+  "old_evidence": {
+    "directory": "docs/benchmarks/shinaide-product-2026-10-05/evidence/liquid-canonical-default-newton",
+    "manifest_sha256": "0907a1149728dadf2299f0f444993dbd2ec85260b72d11341fe439111c6e206a",
+    "all_52_members_unchanged": true
+  },
+  "untouched": "canonical/dae_cpu case JSON, source resolver/compiler/schema, backend equations, migration/time writer, physical geometry, ports/routes, production dist",
+  "known_clock_contract": "original missing-experiment v4 file migrates its saved air end time and uniform start into the shared timeline; normal Prepare does not overwrite that existing timeline. Current explicit canonical experiment migrates 180s/steady start. No automatic first-mode reset was introduced.",
+  "no_build_commit_browser_api_backend_or_native": true
+}

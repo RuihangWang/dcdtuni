@@ -1,0 +1,47 @@
+{
+  "scope": "Interpret the archived Shinaide final checkMesh output and propagate its verdict through a mesh job; no new CFD or GPU run",
+  "archive": {
+    "host": "NTU-Litianyu-40901",
+    "log": "/mnt/lv/home/litianyu/benchmarks/dcdtuni_shinaide_air_smoke_20260927/mesh.stdout.log",
+    "sha256": "81d09342399a9a395a56558e2df1c58787d60549c51099d75ef4687d263476be",
+    "lines": 4030,
+    "final_step_line": 3557,
+    "final_verdict_line": 4018
+  },
+  "observed": {
+    "mesh_job_returncode": 0,
+    "final_checkMeshOk": false,
+    "final_failedChecks": 3,
+    "mesh_cells": 285528,
+    "precheck_topology_scan_regions": 3,
+    "checkMesh_reported_regions": 2,
+    "warnings_from_final_report": [
+      {"code": "small_determinant", "level": 1, "count": 6},
+      {"code": "high_skewness", "level": 2, "count": 4, "max_value": 5.1291},
+      {"code": "disconnected_regions", "level": 2, "count": 2},
+      {"code": "concave_cells", "level": 3, "count": 13363}
+    ],
+    "auto_cleanup_before_final_report": false
+  },
+  "behavior_added": [
+    "Mesh jobs interpret the last checkMesh verdict after any orphan/isolated-cell cleanup and expose checkMeshOk, failedChecks and meshWarnings alongside process returncode.",
+    "Missing or incomplete final quality reports are marked unverified/failed rather than green.",
+    "An explicit checkMesh command that fails or exits without a verdict creates a blocking warning, even when its output contains no parseable physical defect.",
+    "React mesh status shows the quality failure and its pre-solve warning gate reads final mesh/checkMesh job state, including late panel mount and SSE-to-poll fallback.",
+    "Job quality state is bound to the owning project, so late results from a previous project cannot populate the current warning gate or status panel.",
+    "The latest mesh attempt overrides an older disk scan when deciding whether solving is available.",
+    "A nonzero mesh process returncode is shown as a run failure before interpreting any missing quality report.",
+    "Serial subset cleanup now rechecks the repaired mesh, matching the existing parallel cleanup path, and cleanup is bounded to eight passes."
+  ],
+  "verification": {
+    "backend_targeted": "66 passed; mesh quality, cleanup, partition status and parsing",
+    "frontend_targeted": "42 passed; session, warnings, solver gate and Shinaide exporter",
+    "frontend_full_suite": "251 files / 2594 tests passed",
+    "frontend_production_build": "passed",
+    "archived_log_reinterpretation": "checkMeshOk=false, failedChecks=3, four structured warnings",
+    "broader_adjacent_backend_run": "101 passed, 2 failed in unchanged meshgen test expectation and room-enclosure test double",
+    "new_mesh_or_solve": "not run",
+    "live_browser_mesh_status": "not run"
+  },
+  "next_physical_validation": "Compare checkMesh immediately after snappyHexMesh and after createBaffles in an isolated scratch case; investigate the floor/baffle interface near (2.076, 0.785-0.792, 4.014) before changing one mesh parameter at a time."
+}

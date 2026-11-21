@@ -1,0 +1,704 @@
+{
+  "version": "3.0",
+  "source": "react-dynamic",
+  "projectName": "MMS_PRODUCT",
+  "gravity": [
+    0,
+    -9.81,
+    0
+  ],
+  "fluid": {
+    "rho_kg_m3": 997,
+    "cp_J_kgK": 4182,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1,
+    "N_t": 61,
+    "bdf_order": 1
+  },
+  "racks": [
+    {
+      "id": "mms_rack",
+      "position_m": [
+        3,
+        0,
+        3.5
+      ],
+      "n_slots": 44,
+      "manifold": {
+        "supply_node": "mms_rack_mf_supply",
+        "return_node": "mms_rack_mf_return",
+        "layout": "split",
+        "D_m": 0.025
+      },
+      "servers": [
+        {
+          "id": "mms_server",
+          "slot_range": [
+            3,
+            7
+          ],
+          "z_m": 0.17785000000000004,
+          "cp_cu_pairs": [
+            {
+              "id": "mms_heat",
+              "edge_id": "mms_rack_mms_server_cp_mms_heat",
+              "Q_W": 100
+            }
+          ],
+          "inlet_node": "mms_rack_mms_server_in",
+          "outlet_node": "mms_rack_mms_server_out"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "mms_cdu_supply",
+      "type": "junction",
+      "position_m": [
+        1.3,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_cdu_return",
+      "type": "pressure_bc",
+      "position_m": [
+        1.3,
+        1.68995,
+        3.2
+      ],
+      "bc": {
+        "P_Pa": 150000
+      }
+    },
+    {
+      "id": "mms_rack_mf_supply",
+      "type": "junction",
+      "position_m": [
+        3.0225,
+        2.002500000000001,
+        3.45
+      ]
+    },
+    {
+      "id": "mms_rack_mf_return",
+      "type": "junction",
+      "position_m": [
+        3.5775,
+        2.002500000000001,
+        3.45
+      ]
+    },
+    {
+      "id": "mms_rack_mms_server_in",
+      "type": "junction",
+      "position_m": [
+        3.0225,
+        0.17785000000000004,
+        3.45
+      ]
+    },
+    {
+      "id": "mms_rack_mms_server_out",
+      "type": "junction",
+      "position_m": [
+        3.5775,
+        0.17785000000000004,
+        3.45
+      ]
+    },
+    {
+      "id": "mms_supply_blind_end",
+      "type": "junction",
+      "position_m": [
+        5,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_supply_tee_mms_energy_valve",
+      "type": "junction",
+      "position_m": [
+        3.3,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_return_blind_end",
+      "type": "junction",
+      "position_m": [
+        5,
+        1.68995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_return_tee_mms_return_tee",
+      "type": "junction",
+      "position_m": [
+        3.3,
+        1.68995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_cdu_pump_discharge",
+      "type": "junction",
+      "position_m": [
+        1.3,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_supply_control_mms_energy_valve_out",
+      "type": "junction",
+      "position_m": [
+        3.3,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_supply_isolation_mms_iso_supply_out",
+      "type": "junction",
+      "position_m": [
+        3.3,
+        1.73995,
+        3.2
+      ]
+    },
+    {
+      "id": "mms_return_isolation_mms_iso_return_out",
+      "type": "junction",
+      "position_m": [
+        3.3,
+        1.68995,
+        3.2
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "mms_cdu_pump",
+      "type": "pump",
+      "from": "mms_cdu_return",
+      "to": "mms_cdu_pump_discharge",
+      "params": {
+        "rpm_ratio": 1
+      },
+      "parameter_ref": "pump-demo"
+    },
+    {
+      "id": "mms_rack_mms_server_branch_in",
+      "type": "pipe",
+      "from": "mms_rack_mf_supply",
+      "to": "mms_rack_mms_server_in",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            3.0225,
+            2.002500000000001,
+            3.45
+          ],
+          [
+            3.0225,
+            0.17785000000000004,
+            3.45
+          ]
+        ],
+        "K_minor_per_bend": 0.3
+      }
+    },
+    {
+      "id": "mms_rack_mms_server_branch_out",
+      "type": "pipe",
+      "from": "mms_rack_mms_server_out",
+      "to": "mms_rack_mf_return",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            3.5775,
+            0.17785000000000004,
+            3.45
+          ],
+          [
+            3.5775,
+            2.002500000000001,
+            3.45
+          ]
+        ],
+        "K_minor_per_bend": 0.3
+      }
+    },
+    {
+      "id": "mms_rack_mms_server_cp_mms_heat",
+      "type": "cold_plate",
+      "from": "mms_rack_mms_server_in",
+      "to": "mms_rack_mms_server_out",
+      "params": {
+        "dp_a": 503013.55420323164,
+        "dp_b": 0,
+        "UA_W_per_K": 100,
+        "C_solid_J_per_K": 1000,
+        "V_fluid_m3": 0.002,
+        "Q_W": 100
+      }
+    },
+    {
+      "id": "mms_supply_spoke_mms_energy_valve",
+      "type": "pipe",
+      "from": "mms_supply_isolation_mms_iso_supply_out",
+      "to": "mms_rack_mf_supply",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            3.3,
+            1.73995,
+            3.2
+          ],
+          [
+            3.0225,
+            2.002500000000001,
+            3.45
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_supply_seg0",
+      "type": "pipe",
+      "from": "mms_cdu_supply",
+      "to": "mms_supply_tee_mms_energy_valve",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 10,
+        "waypoints_m": [
+          [
+            1.3,
+            1.73995,
+            3.2
+          ],
+          [
+            3.3,
+            1.73995,
+            3.2
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_supply_seg1",
+      "type": "pipe",
+      "from": "mms_supply_tee_mms_energy_valve",
+      "to": "mms_supply_blind_end",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 9,
+        "waypoints_m": [
+          [
+            3.3,
+            1.73995,
+            3.2
+          ],
+          [
+            5,
+            1.73995,
+            3.2
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_return_spoke_mms_return_tee",
+      "type": "pipe",
+      "from": "mms_return_isolation_mms_iso_return_out",
+      "to": "mms_rack_mf_return",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 2,
+        "waypoints_m": [
+          [
+            3.3,
+            1.68995,
+            3.2
+          ],
+          [
+            3.5775,
+            2.002500000000001,
+            3.45
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_return_seg0",
+      "type": "pipe",
+      "from": "mms_cdu_return",
+      "to": "mms_return_tee_mms_return_tee",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 10,
+        "waypoints_m": [
+          [
+            1.3,
+            1.68995,
+            3.2
+          ],
+          [
+            3.3,
+            1.68995,
+            3.2
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_return_seg1",
+      "type": "pipe",
+      "from": "mms_return_tee_mms_return_tee",
+      "to": "mms_return_blind_end",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 0.0000015,
+        "n_cells": 9,
+        "waypoints_m": [
+          [
+            3.3,
+            1.68995,
+            3.2
+          ],
+          [
+            5,
+            1.68995,
+            3.2
+          ]
+        ],
+        "K_minor_per_bend": 0.5
+      }
+    },
+    {
+      "id": "mms_cdu_hx",
+      "type": "heat_exchanger",
+      "from": "mms_cdu_pump_discharge",
+      "to": "mms_cdu_supply",
+      "parameter_ref": "hx-demo",
+      "params": {}
+    },
+    {
+      "id": "mms_supply_control_mms_energy_valve",
+      "type": "valve",
+      "from": "mms_supply_tee_mms_energy_valve",
+      "to": "mms_supply_control_mms_energy_valve_out",
+      "parameter_ref": "valve-demo",
+      "params": {
+        "opening": 1
+      }
+    },
+    {
+      "id": "mms_supply_isolation_mms_iso_supply",
+      "type": "valve",
+      "from": "mms_supply_control_mms_energy_valve_out",
+      "to": "mms_supply_isolation_mms_iso_supply_out",
+      "parameter_ref": "valve-demo",
+      "params": {
+        "opening": 1
+      }
+    },
+    {
+      "id": "mms_return_isolation_mms_iso_return",
+      "type": "valve",
+      "from": "mms_return_tee_mms_return_tee",
+      "to": "mms_return_isolation_mms_iso_return_out",
+      "parameter_ref": "valve-demo",
+      "params": {
+        "opening": 1
+      }
+    }
+  ],
+  "events": [],
+  "initial_conditions": {
+    "T_fluid_K": 308.15,
+    "T_solid_K": 340,
+    "P_uniform_Pa": 175000
+  },
+  "parameter_pack": {
+    "schema_version": "1.0",
+    "id": "mms-product-analytic",
+    "revision": "mms-1",
+    "source": "mock",
+    "description": "Synthetic analytic-tractability parameters for the MMS product case. No vendor or site data. See docs/developer/liquid_dae_mms_product_derivation.md.",
+    "profiles": {
+      "water": {
+        "type": "fluid",
+        "params": {
+          "rho_kg_m3": 997,
+          "cp_J_kgK": 4182,
+          "mu_Pa_s": 0.00089,
+          "k_W_mK": 0.606
+        },
+        "units": {
+          "rho_kg_m3": "kg/m3",
+          "cp_J_kgK": "J/(kg*K)",
+          "mu_Pa_s": "Pa*s",
+          "k_W_mK": "W/(m*K)"
+        }
+      },
+      "pipe-25mm": {
+        "type": "pipe",
+        "params": {
+          "D_m": 0.025,
+          "roughness_m": 0.0000015,
+          "K_minor_per_bend": 0.5,
+          "n_cells": 1
+        },
+        "units": {
+          "D_m": "m",
+          "roughness_m": "m",
+          "K_minor_per_bend": "1",
+          "n_cells": "1"
+        }
+      },
+      "pump-demo": {
+        "type": "pump",
+        "params": {
+          "H0_m": 12,
+          "a_coef": 300000000,
+          "rpm_ratio": 1
+        },
+        "units": {
+          "H0_m": "m",
+          "a_coef": "m/(m3/s)^2",
+          "rpm_ratio": "1"
+        }
+      },
+      "valve-demo": {
+        "type": "valve",
+        "params": {
+          "D_m": 0.025,
+          "Kv_max": 12,
+          "opening": 1,
+          "characteristic": "linear"
+        },
+        "units": {
+          "D_m": "m",
+          "Kv_max": "m3/h@1bar",
+          "opening": "1",
+          "characteristic": "enum"
+        }
+      },
+      "rack-equivalent": {
+        "type": "cold_plate",
+        "params": {
+          "dp_a": 2000000,
+          "dp_b": 10000,
+          "UA_W_per_K": 100,
+          "C_solid_J_per_K": 1000,
+          "V_fluid_m3": 0.002
+        },
+        "units": {
+          "dp_a": "Pa/(kg/s)^2",
+          "dp_b": "Pa/(kg/s)",
+          "UA_W_per_K": "W/K",
+          "C_solid_J_per_K": "J/K",
+          "V_fluid_m3": "m3"
+        }
+      },
+      "hx-demo": {
+        "type": "heat_exchanger",
+        "params": {
+          "dp_a": 120,
+          "dp_b": 1000,
+          "UA_W_per_K": 500
+        },
+        "units": {
+          "dp_a": "Pa/(kg/s)^2",
+          "dp_b": "Pa/(kg/s)",
+          "UA_W_per_K": "W/K"
+        }
+      }
+    }
+  },
+  "object_bindings": {
+    "mms_rack": {
+      "label": "MMS rack",
+      "kind": "rack",
+      "node_ids": [
+        "mms_rack_mf_supply",
+        "mms_rack_mf_return",
+        "mms_rack_mms_server_in",
+        "mms_rack_mms_server_out"
+      ],
+      "edge_ids": [
+        "mms_rack_mms_server_branch_in",
+        "mms_rack_mms_server_branch_out",
+        "mms_rack_mms_server_cp_mms_heat"
+      ]
+    },
+    "mms_rack/mms_server": {
+      "label": "MMS equivalent load",
+      "kind": "server",
+      "parent_uid": "mms_rack",
+      "node_ids": [
+        "mms_rack_mms_server_in",
+        "mms_rack_mms_server_out"
+      ],
+      "edge_ids": [
+        "mms_rack_mms_server_branch_in",
+        "mms_rack_mms_server_branch_out",
+        "mms_rack_mms_server_cp_mms_heat"
+      ]
+    },
+    "mms_cdu": {
+      "label": "MMS CDU",
+      "kind": "cdu",
+      "node_ids": [
+        "mms_cdu_supply",
+        "mms_cdu_return",
+        "mms_cdu_pump_discharge"
+      ],
+      "edge_ids": [
+        "mms_cdu_pump",
+        "mms_cdu_hx"
+      ]
+    },
+    "mms_supply": {
+      "label": "MMS supply header",
+      "kind": "pipe_segment",
+      "node_ids": [
+        "mms_supply_blind_end",
+        "mms_supply_tee_mms_energy_valve",
+        "mms_supply_control_mms_energy_valve_out",
+        "mms_supply_isolation_mms_iso_supply_out"
+      ],
+      "edge_ids": [
+        "mms_supply_spoke_mms_energy_valve",
+        "mms_supply_seg0",
+        "mms_supply_seg1",
+        "mms_supply_control_mms_energy_valve",
+        "mms_supply_isolation_mms_iso_supply"
+      ]
+    },
+    "mms_return": {
+      "label": "MMS return header",
+      "kind": "pipe_segment",
+      "node_ids": [
+        "mms_return_blind_end",
+        "mms_return_tee_mms_return_tee",
+        "mms_return_isolation_mms_iso_return_out"
+      ],
+      "edge_ids": [
+        "mms_return_spoke_mms_return_tee",
+        "mms_return_seg0",
+        "mms_return_seg1",
+        "mms_return_isolation_mms_iso_return"
+      ]
+    },
+    "mms_supply/mms_energy_valve": {
+      "label": "MMS supply fitting",
+      "kind": "valve",
+      "parent_uid": "mms_supply",
+      "node_ids": [
+        "mms_supply_control_mms_energy_valve_out"
+      ],
+      "edge_ids": [
+        "mms_supply_control_mms_energy_valve"
+      ]
+    },
+    "mms_supply/mms_iso_supply": {
+      "label": "MMS supply isolation",
+      "kind": "valve",
+      "parent_uid": "mms_supply",
+      "node_ids": [
+        "mms_supply_isolation_mms_iso_supply_out"
+      ],
+      "edge_ids": [
+        "mms_supply_isolation_mms_iso_supply"
+      ]
+    },
+    "mms_return/mms_iso_return": {
+      "label": "MMS return isolation",
+      "kind": "valve",
+      "parent_uid": "mms_return",
+      "node_ids": [
+        "mms_return_isolation_mms_iso_return_out"
+      ],
+      "edge_ids": [
+        "mms_return_isolation_mms_iso_return"
+      ]
+    }
+  },
+  "equation_system": "incompressible_thermal_dae",
+  "analysis": {
+    "mode": "transient",
+    "initialization": "steady"
+  },
+  "newton": {
+    "max_iterations": 40,
+    "atol": 1e-10,
+    "rtol": 1e-10,
+    "max_backtracks": 18
+  },
+  "primary_circuits": [
+    {
+      "edge_id": "mms_cdu_hx",
+      "flow_kg_s": 0.1,
+      "inlet_K": 290,
+      "cp_J_kgK": 4182,
+      "rho_kg_m3": 997,
+      "primary_volume_m3": 0.001,
+      "secondary_volume_m3": 0.002,
+      "source": "mock",
+      "source_reference": "tools/mms_product_project.ts: fixed 0.1 kg/s facility supply at 290 K (the FIXED supply-temperature boundary of the verification scenario); 1 L primary / 2 L secondary mixed volumes. Synthetic, chosen for analytic tractability."
+    }
+  ],
+  "format": "liquidrun",
+  "schemaVersion": 3,
+  "source_project": {
+    "format": "cfdproj",
+    "schema_version": 4,
+    "project_uid": "proj_mms_product_v1",
+    "project_name": "MMS_PRODUCT",
+    "sha256": "c2711de1b2e9a8641f84d35701ef1547853c99fb7ac6b1dac5c42ca13cda7e9c"
+  },
+  "units": {
+    "length": "m",
+    "time": "s",
+    "temperature": "K",
+    "pressure": "Pa",
+    "mass_flow": "kg/s",
+    "power": "W"
+  },
+  "execution": {
+    "backend": "pytorch",
+    "device": "cpu",
+    "dtype": "float64",
+    "max_threads": 1
+  },
+  "controllers": []
+}

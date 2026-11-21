@@ -1,0 +1,70 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v1912                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     buoyantBoussinesqPimpleFoam_new;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         0.02;
+
+deltaT          0.01;
+
+writeControl    adjustableRunTime;
+
+writeInterval   0.01;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  10;
+
+writeCompression off;
+
+// Read by buoyantBoussinesqSimpleFoam_new (third_parties/foam). Stock OpenFOAM
+// writes `type zeroGradient;` for T and `type noSlip;` for U with no numbers at
+// all, so any tool reading the raw result files finds a hole exactly where the
+// wall data should be. This makes every physical patch carry its per-face values.
+//   preserveType  keep the real BC type and append the values — complete data
+//                 AND the case still restarts correctly.
+//   fixedValue    replace the type with fixedValue. Fully explicit, but a
+//                 restart then re-runs a DIFFERENT problem, because e.g. a
+//                 flowRateInletVelocity inlet becomes a frozen velocity.
+// Ignored by solvers that do not implement it.
+explicitBoundaryValues
+{
+    mode        preserveType;
+}
+
+timeFormat      general;
+
+timePrecision   10;
+
+runTimeModifiable true;
+
+adjustTimeStep  yes;
+
+maxCo           1.0;
+
+maxDeltaT       0.01;
+
+
+// ************************************************************************* //

@@ -1,0 +1,451 @@
+--- before/src/frontend/shared/js/box_material_recipe.js
++++ after/src/frontend/shared/js/box_material_recipe.js
+@@ -0,0 +1,102 @@
++/** BOX/CDU material creation intent. Carrier owns texture IO, readiness and caches. */
++(function (root, factory) {
++    var api = Object.freeze(factory());
++    if (typeof module === 'object' && module.exports) module.exports = api;
++    if (root) root.boxMaterialRecipe = api;
++    if (typeof window !== 'undefined') window.boxMaterialRecipe = api;
++})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
++    'use strict';
++    function boxPreset() {
++        return { metalness: 0.2, roughness: 0.7, normalScale: 0.3, envMapIntensity: 0.3, tintColor: null, tileM: 0.4 };
++    }
++    function paintedSteelRole() {
++        return { set: 'painted-steel', roughness: 0.55, metalness: 0.05, normalScale: 0.6, tileM: 0.40, color: 0x8c949b };
++    }
++    function paintedSteelSet() { return { meanRoughness: 0.550, tintable: true }; }
++    function scalarRoughness(wanted, mean) { return Math.max(0, Math.min(1, wanted / (mean || 1))); }
++    function textureRepeat(options, context) {
++        var n = options && options.uvNormalize;
++        if (n && (n.type === 'stretch' || n.type === 'tile-per-u')) return 1;
++        if (context && context.clampToEdge) return 1;
++        var tile = (n && n.tileSize) || (context && context.tileSize) || 0.4;
++        return Math.round(1000 / tile) / 1000;
++    }
++    function overlayDefaults(options) {
++        var overlay = Number.isFinite(options.renderOrder) && options.renderOrder > 0;
++        return {
++            polygonOffsetFactor: overlay && options.polygonOffsetFactor === undefined ? 0 : options.polygonOffsetFactor,
++            keepUserColor: overlay && options.keepUserColor === undefined ? true : options.keepUserColor
++        };
++    }
++    function imageSource(value) {
++        if (!value) return null;
++        var src = value.textureDataUrl || value.textureUrl;
++        return (typeof src === 'string' && src) ? src : null;
++    }
++    function materialPolicy(typeKey, options, context) {
++        options = options || {}; context = context || {};
++        var photo = typeKey.indexOf('face-image:') === 0;
++        if (!photo && typeKey !== 'box' && typeKey !== 'cdu-body') throw new Error('Unsupported material recipe kind: ' + typeKey);
++        var opacity = options.opacity ?? 1;
++        var transparent = typeof options.transparent === 'boolean' ? options.transparent : opacity < 0.999;
++        var parameters = {
++            color: photo ? 0xffffff : options.color,
++            side: options.doubleSide ? 'double' : 'front', polygonOffset: true,
++            polygonOffsetFactor: options.polygonOffsetFactor ?? 1,
++            transparent: transparent, opacity: opacity, depthWrite: options.depthWrite ?? !transparent
++        };
++        var role = context.paintedSteelRole || paintedSteelRole();
++        var preset = context.boxPreset || boxPreset();
++        var library = !photo && typeKey === 'cdu-body' && !!context.libraryAvailable;
++        if (photo) { parameters.shininess = 18; parameters.specular = 0x222222; }
++        else if (!library) { parameters.shininess = Math.round((1 - preset.roughness) * 80) + 10; parameters.specular = 0x111111; }
++        var roughness = photo ? 0.6 : library ? role.roughness : preset.roughness;
++        var metalness = photo ? 0.0 : library ? role.metalness : preset.metalness;
++        var uv = options.uvNormalize ? {
++            type: options.uvNormalize.type,
++            ...(options.uvNormalize.tileSize !== undefined ? { tileSize: options.uvNormalize.tileSize } : {}),
++            ...(options.uvNormalize.uCount !== undefined ? { uCount: options.uvNormalize.uCount } : {})
++        } : null;
++        return {
++            model: library ? 'library' : 'phong', objectKind: typeKey,
++            parameters: parameters,
++            pbr: { roughness: roughness, metalness: metalness,
++                normalScale: photo ? 0 : library ? role.normalScale : preset.normalScale,
++                ...(library ? { role: 'painted-steel', set: role.set,
++                    defaultColor: role.color, tileM: role.tileM,
++                    boundRoughness: scalarRoughness(roughness, context.meanRoughness ?? paintedSteelSet().meanRoughness) } : {}) },
++            texture: { source: photo ? typeKey.slice('face-image:'.length) : null, repeat: textureRepeat(options, context) },
++            uv: { normalize: uv, physicalScale: library && !uv && !options.pbrUvReady ? 1 / (role.tileM || 0.4) : null },
++            renderOrder: Number.isFinite(options.renderOrder) ? options.renderOrder : 0
++        };
++    }
++    function createRecipe(source, resolvedKind, part, context) {
++        if (resolvedKind !== 'box' && resolvedKind !== 'cdu') throw new Error('Unsupported material recipe kind: ' + resolvedKind);
++        if (!part || !part.materialRecipe) throw new Error('material recipe requires a structural part');
++        context = context || {};
++        var face = source.geometry && source.geometry.faces && source.geometry.faces[part.faceId];
++        var image;
++        if (part.isBaseWall) image = imageSource(face);
++        else if (Object.prototype.hasOwnProperty.call(context, 'patchImageSource')) image = context.patchImageSource;
++        else {
++            var patch = face && (face.patches || []).find(function (p) { return p && p.id === (part.refIds || [])[0]; });
++            image = imageSource(patch);
++        }
++        var options = {
++            color: image ? '#ffffff' : part.materialRecipe.color,
++            opacity: part.materialRecipe.opacity,
++            ...(image ? { uvNormalize: { type: 'stretch' } } : {}),
++            ...(!part.isBaseWall ? { renderOrder: 3, polygonOffsetFactor: 0, keepUserColor: true } : {})
++        };
++        var typeKey = image ? 'face-image:' + image : part.isBaseWall && resolvedKind === 'cdu' ? 'cdu-body' : 'box';
++        var policy = materialPolicy(typeKey, options, context);
++        return {
++            schema: 'dcdtuni.material-recipe/v1', kind: resolvedKind,
++            source: { ownerUid: source.uid, partId: part.partId, faceId: part.faceId, patchIds: (part.refIds || []).slice() },
++            options: { ...options, objectKind: typeKey }, policy: policy
++        };
++    }
++    return { boxPreset: boxPreset, paintedSteelRole: paintedSteelRole, paintedSteelSet: paintedSteelSet,
++        scalarRoughness: scalarRoughness, textureRepeat: textureRepeat, overlayDefaults: overlayDefaults,
++        imageSource: imageSource, materialPolicy: materialPolicy, createRecipe: createRecipe };
++});
+--- before/src/frontend/shared/js/box_material_recipe.d.ts
++++ after/src/frontend/shared/js/box_material_recipe.d.ts
+@@ -0,0 +1,39 @@
++import type { StructuralPart } from './box_geometry_product.js'
++export interface MaterialRole { set: string; roughness: number; metalness: number; normalScale: number; tileM: number; color: number }
++export interface MaterialContext {
++  libraryAvailable?: boolean
++  paintedSteelRole?: MaterialRole
++  boxPreset?: { roughness: number; metalness: number; normalScale: number }
++  meanRoughness?: number
++  tileSize?: number
++  clampToEdge?: boolean
++  patchImageSource?: string | null
++}
++export interface MaterialPolicy {
++  model: 'library' | 'phong'
++  objectKind: string
++  parameters: { color?: string | number; side: 'double' | 'front'; polygonOffset: boolean; polygonOffsetFactor: number;
++    transparent: boolean; opacity: number; depthWrite: boolean; shininess?: number; specular?: number }
++  pbr: { roughness: number; metalness: number; normalScale: number; role?: string; set?: string;
++    defaultColor?: number; tileM?: number; boundRoughness?: number }
++  texture: { source: string | null; repeat: number }
++  uv: { normalize: { type: string; tileSize?: number; uCount?: number } | null; physicalScale: number | null }
++  renderOrder: number
++}
++export interface MaterialRecipe {
++  schema: 'dcdtuni.material-recipe/v1'; kind: 'box' | 'cdu'
++  source: { ownerUid: string; partId: string; faceId: string; patchIds: string[] }
++  options: Record<string, unknown>
++  policy: MaterialPolicy
++}
++export interface BoxMaterialRecipeKernel {
++  boxPreset(): { metalness: number; roughness: number; normalScale: number; envMapIntensity: number; tintColor: null; tileM: number }
++  paintedSteelRole(): MaterialRole
++  paintedSteelSet(): { meanRoughness: number; tintable: boolean }
++  scalarRoughness(wanted: number, mean: number): number
++  textureRepeat(options: Record<string, any>, context?: MaterialContext): number
++  overlayDefaults(options: Record<string, any>): { polygonOffsetFactor?: number; keepUserColor?: boolean }
++  imageSource(value: Record<string, any> | null | undefined): string | null
++  materialPolicy(typeKey: string, options?: Record<string, any>, context?: MaterialContext): MaterialPolicy
++  createRecipe(source: Record<string, unknown>, resolvedKind: string, part: StructuralPart, context?: MaterialContext): MaterialRecipe
++}
+--- before/src/frontend/react/src/domain/materialRecipeKernel.ts
++++ after/src/frontend/react/src/domain/materialRecipeKernel.ts
+@@ -0,0 +1,7 @@
++import '../../../shared/js/box_material_recipe.js'
++import type { BoxMaterialRecipeKernel } from '../../../shared/js/box_material_recipe.js'
++type KernelGlobal = typeof globalThis & { boxMaterialRecipe?: Readonly<BoxMaterialRecipeKernel> }
++const kernel = (globalThis as KernelGlobal).boxMaterialRecipe
++if (!kernel) throw new Error('box_material_recipe.js is not loaded')
++export const materialRecipeKernel: Readonly<BoxMaterialRecipeKernel> = kernel
++export type { MaterialRecipe, MaterialContext, MaterialPolicy } from '../../../shared/js/box_material_recipe.js'
+--- before/src/frontend/react/src/domain/BaseEntity.ts
++++ after/src/frontend/react/src/domain/BaseEntity.ts
+@@ -1,5 +1,6 @@
+ import { modelPoseKernel } from './modelPoseKernel'
+-import { geometryProductKernel } from './geometryProductKernel'
++import { geometryProductKernel, type StructuralPart } from './geometryProductKernel'
++import { materialRecipeKernel, type MaterialContext } from './materialRecipeKernel'
+ import { coldPlatePairKernel, type ColdPlateFluidContext } from './coldPlatePairKernel'
+ 
+ /** Renderer-independent, derived views. The source record remains plain project JSON. */
+@@ -47,6 +48,11 @@
+   geometryProduct() {
+     this.requireSupported('geometry product')
+     return geometryProductKernel.createProduct({ ...this.record, uid: this.uid }, this.definition.kind)
++  }
++  /** Pure creation intent; texture readiness and cached carrier state are explicit context. */
++  materialRecipe(part: StructuralPart, context?: MaterialContext) {
++    this.requireSupported('material recipe')
++    return materialRecipeKernel.createRecipe({ ...this.record, uid: this.uid }, this.definition.kind, part, context)
+   }
+   render() {
+     const meta = objectRecord(this.record.meta)
+--- before/src/frontend/shared/js/geometry_scene.js
++++ after/src/frontend/shared/js/geometry_scene.js
+@@ -173,7 +173,7 @@
+             // METRES, so the repeat that shows one tile per `tileSize` metres
+             // is 1 / tileSize — the same for every mesh of the kind.
+             const TEXTURE_TILE_SIZES = { 'rack-side': 0.3, 'rack-front': 0.3, 'rack-top': 0.3, 'rack-bottom': 0.3,
+-                'server-front': 0.15, 'blank-panel': 0.3, 'floor': 0.6, 'floor-vent': 0.3, 'wall': 0.5, 'baffle': 0.25, 'box': 0.4, 'acu-supply': 0.25, 'acu-return': 0.3,
++                'server-front': 0.15, 'blank-panel': 0.3, 'floor': 0.6, 'floor-vent': 0.3, 'wall': 0.5, 'baffle': 0.25, 'box': _boxMaterialRecipes().boxPreset().tileM, 'acu-supply': 0.25, 'acu-return': 0.3,
+                 'server-outlet-mesh': 0.1, 'baffle-grille': 0.3 };
+ 
+             // Textures at a given repeat, keyed by (base texture, repeat).
+@@ -195,7 +195,7 @@
+             'floor':       { metalness: 0.05, roughness: 0.85, normalScale: 0.3, envMapIntensity: 0.15, tintColor: 0xb8bcc2 },  // light concrete gray
+             'wall':        { metalness: 0.0,  roughness: 0.9,  normalScale: 0.35, envMapIntensity: 0.1, tintColor: 0xd0d2d5 },  // pale concrete
+             'baffle':      { metalness: 0.15, roughness: 0.75, normalScale: 0.4, envMapIntensity: 0.2,  tintColor: 0x8a9098 },  // galvanized silver
+-            'box':         { metalness: 0.2,  roughness: 0.7,  normalScale: 0.3, envMapIntensity: 0.3,  tintColor: null },       // use model color
++            'box':         _boxMaterialRecipes().boxPreset(),       // use model color
+             'floor-vent':  { metalness: 0.4,  roughness: 0.5,  normalScale: 0.7, envMapIntensity: 0.4,  tintColor: 0x607868 },  // greenish aluminum (anti-static)
+             'acu-supply':  { metalness: 0.35, roughness: 0.55, normalScale: 0.6, envMapIntensity: 0.35, tintColor: 0x5090cc },  // cool blue — cold air
+             'acu-return':  { metalness: 0.4,  roughness: 0.5,  normalScale: 0.7, envMapIntensity: 0.4,  tintColor: 0xc06848 },  // warm coral — hot air
+@@ -1475,6 +1475,22 @@
+             });
+         }
+ 
++        function _boxMaterialRecipes() {
++            var kernel = (typeof window !== 'undefined' && window.boxMaterialRecipe) ||
++                (typeof globalThis !== 'undefined' && globalThis.boxMaterialRecipe);
++            if (!kernel) throw new Error('geometry_scene.js needs box_material_recipe.js loaded first');
++            return kernel;
++        }
++        function _boxMaterialContext(typeKey) {
++            const lib = _pbrLibrary();
++            const ext = externalTextureRegistry[typeKey];
++            const base = ext && (ext.diffuse || ext.normal);
++            const role = lib && lib.ROLES && lib.ROLES['painted-steel'];
++            return { libraryAvailable: !!lib,
++                ...(role ? { paintedSteelRole: role, meanRoughness: (lib.SETS && lib.SETS[role.set] || {}).meanRoughness || 1 } : {}),
++                tileSize: TEXTURE_TILE_SIZES[typeKey], clampToEdge: !!(base && base.wrapS === THREE.ClampToEdgeWrapping) };
++        }
++
+         function renderBoxModel(model, modelGroup, faceLayouts, facesIslands) {
+             if (model.kind !== 'box' && model.kind !== 'cdu') {
+                 // Existing ACU/cold-plate/custom fallback callers retain their
+@@ -1494,28 +1510,18 @@
+                 geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(part.normals), 3));
+                 geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(part.uvs), 2));
+                 geom.setIndex(new THREE.BufferAttribute(new part.indices.constructor(part.indices), 1));
+-                const recipe = part.materialRecipe;
+-                if (part.isBaseWall) {
+-                    if (model.kind === 'cdu') faceLayouts[part.faceId].color = recipe.color;
+-                    const image = faceImageSource(face);
+-                    spawnRenderable(modelGroup, geom, {
+-                        color: image ? '#ffffff' : recipe.color, opacity: recipe.opacity,
+-                        objectKind: image ? FACE_IMAGE_KIND + image : model.kind === 'cdu' ? 'cdu-body' : 'box',
+-                        ...(image ? { uvNormalize: { type: 'stretch' } } : {}),
+-                        userData: { modelId: model.uid, faceId: part.faceId, refIds: null, wallIndex: part.wallIndex,
+-                            exportName: part.exportName, isBaseWall: true, geometryPartId: part.partId }
+-                    });
+-                } else {
+-                    const island = facesIslands[part.faceId][part.islandIndex];
+-                    const image = patchImageSource(face, island);
+-                    spawnRenderable(modelGroup, geom, {
+-                        color: image ? '#ffffff' : recipe.color, opacity: recipe.opacity,
+-                        objectKind: image ? FACE_IMAGE_KIND + image : 'box', renderOrder: 3,
+-                        ...(image ? { uvNormalize: { type: 'stretch' } } : {}),
+-                        userData: { modelId: model.uid, faceId: part.faceId, refIds: part.refIds,
+-                            exportName: part.exportName, isBaseWall: false, geometryPartId: part.partId }
+-                    });
+-                }
++                if (part.isBaseWall && model.kind === 'cdu') faceLayouts[part.faceId].color = part.materialRecipe.color;
++                // The kernel reads plain source refs; preset lookup and current library
++                // capabilities are explicit carrier context, never renderer references.
++                const context = _boxMaterialContext(model.kind === 'cdu' ? 'cdu-body' : 'box');
++                if (!part.isBaseWall) context.patchImageSource = patchImageSource(face, facesIslands[part.faceId][part.islandIndex]);
++                const appearance = _boxMaterialRecipes().createRecipe(model, model.kind, part, context);
++                spawnRenderable(modelGroup, geom, Object.assign({}, appearance.options, {
++                    userData: { modelId: model.uid, faceId: part.faceId,
++                        refIds: part.isBaseWall ? null : part.refIds,
++                        ...(part.isBaseWall ? { wallIndex: part.wallIndex } : {}),
++                        exportName: part.exportName, isBaseWall: part.isBaseWall, geometryPartId: part.partId }
++                }));
+             });
+         }
+ 
+@@ -2417,6 +2423,9 @@
+          * metre-valued UVs (`tile-physical` carries its own tileSize).
+          */
+         function _textureRepeatFor(typeKey, options) {
++            if (typeKey === 'box' || typeKey === 'cdu-body' || typeKey.indexOf(FACE_IMAGE_KIND) === 0) {
++                return _boxMaterialRecipes().textureRepeat(options, _boxMaterialContext(typeKey));
++            }
+             const n = options && options.uvNormalize;
+             if (n && (n.type === 'stretch' || n.type === 'tile-per-u')) return 1;
+             const ext = externalTextureRegistry[typeKey];
+@@ -2445,25 +2454,22 @@
+                 // no procedural map; the UVs are stretched over the face by
+                 // spawnRenderable's uvNormalize.
+                 const src = typeKey.slice(FACE_IMAGE_KIND.length);
+-                const baseOpacity = options.opacity ?? 1;
+-                const isTransparent = typeof options.transparent === 'boolean'
+-                    ? options.transparent : baseOpacity < 0.999;
+-                return _withPbrHint(new THREE.MeshPhongMaterial({
+-                    map: _faceImageTexture(src),
+-                    color: 0xffffff,
+-                    shininess: 18,
+-                    specular: 0x222222,
+-                    side: options.doubleSide ? THREE.DoubleSide : THREE.FrontSide,
+-                    polygonOffset: true,
+-                    polygonOffsetFactor: options.polygonOffsetFactor ?? 1,
+-                    transparent: isTransparent,
+-                    opacity: baseOpacity,
+-                    depthWrite: options.depthWrite ?? !isTransparent,
+-                }), 0.6, 0.0);
++                const policy = _boxMaterialRecipes().materialPolicy(typeKey, options, _boxMaterialContext(typeKey));
++                const props = Object.assign({}, policy.parameters, {
++                    map: _faceImageTexture(src), side: policy.parameters.side === 'double' ? THREE.DoubleSide : THREE.FrontSide
++                });
++                return _withPbrHint(new THREE.MeshPhongMaterial(props), policy.pbr.roughness, policy.pbr.metalness);
+             }
+ 
+             const libKind = LIBRARY_KINDS[typeKey];
+             if (libKind && _pbrLibrary()) {
++                if (typeKey === 'cdu-body') {
++                    const policy = _boxMaterialRecipes().materialPolicy(typeKey, options, _boxMaterialContext(typeKey));
++                    const params = Object.assign({}, policy.parameters, {
++                        side: policy.parameters.side === 'double' ? THREE.DoubleSide : THREE.FrontSide
++                    });
++                    return _pbrLibrary().material(policy.pbr.role, params);
++                }
+                 const libOpacity = options.opacity ?? 1;
+                 const libTransparent = typeof options.transparent === 'boolean'
+                     ? options.transparent : libOpacity < 0.999;
+@@ -2479,9 +2485,11 @@
+                 return _pbrLibrary().material(libKind.role, params);
+             }
+             const preset = _materialPresets[typeKey] || _materialPresets['box'];
+-            const baseOpacity = options.opacity ?? 1;
+-            const isTransparent = typeof options.transparent === 'boolean'
+-                ? options.transparent : baseOpacity < 0.999;
++            const scopedPolicy = typeKey === 'box' || typeKey === 'cdu-body'
++                ? _boxMaterialRecipes().materialPolicy(typeKey, options, _boxMaterialContext(typeKey)) : null;
++            const baseOpacity = scopedPolicy ? scopedPolicy.parameters.opacity : options.opacity ?? 1;
++            const isTransparent = scopedPolicy ? scopedPolicy.parameters.transparent
++                : typeof options.transparent === 'boolean' ? options.transparent : baseOpacity < 0.999;
+         
+             const ext = externalTextureRegistry[typeKey];
+             const proc = (typeKey !== 'custom') ? _getOrCreateTexture(typeKey) : null;
+@@ -2489,7 +2497,9 @@
+             // Thin surfaces (blind panels, baffles) must render both sides
+             // so they remain visible when the opposite panel is removed
+             const _thinSurface = (typeKey === 'blank-panel' || typeKey === 'baffle');
+-            const matProps = {
++            const matProps = scopedPolicy ? Object.assign({}, scopedPolicy.parameters, {
++                side: scopedPolicy.parameters.side === 'double' ? THREE.DoubleSide : THREE.FrontSide
++            }) : {
+                 color: options.color,
+                 shininess: Math.round((1 - preset.roughness) * 80) + 10,
+                 specular: 0x111111,
+@@ -2515,16 +2525,17 @@
+                         // tintColor === null → keep options.color (model-defined)
+                     }
+                 }
+-                if (preset.normalScale > 0) {
++                const normalScale = scopedPolicy ? scopedPolicy.pbr.normalScale : preset.normalScale;
++                if (normalScale > 0) {
+                     const normTex = _textureAtRepeat(ext?.normal || proc?.normal || null, repeat);
+                     if (normTex) {
+                         matProps.normalMap = normTex;
+-                        matProps.normalScale = new THREE.Vector2(preset.normalScale, preset.normalScale);
++                        matProps.normalScale = new THREE.Vector2(normalScale, normalScale);
+                     }
+                 }
+             }
+         
+-            return _withPbrHint(new THREE.MeshPhongMaterial(matProps), preset.roughness, preset.metalness);
++            return _withPbrHint(new THREE.MeshPhongMaterial(matProps), scopedPolicy ? scopedPolicy.pbr.roughness : preset.roughness, scopedPolicy ? scopedPolicy.pbr.metalness : preset.metalness);
+         }
+ 
+         /**
+@@ -2572,8 +2583,14 @@
+             // user-defined patch color isn't overridden by the material preset tint.
+             const isPatchOverlay = Number.isFinite(options.renderOrder) && options.renderOrder > 0;
+             if (isPatchOverlay) {
+-                if (options.polygonOffsetFactor === undefined) options.polygonOffsetFactor = 0;
+-                if (options.keepUserColor === undefined) options.keepUserColor = true;
++                if (options.objectKind === 'box' || options.objectKind === 'cdu-body' || (options.objectKind && options.objectKind.indexOf(FACE_IMAGE_KIND) === 0)) {
++                    const defaults = _boxMaterialRecipes().overlayDefaults(options);
++                    if (options.polygonOffsetFactor === undefined) options.polygonOffsetFactor = defaults.polygonOffsetFactor;
++                    if (options.keepUserColor === undefined) options.keepUserColor = defaults.keepUserColor;
++                } else {
++                    if (options.polygonOffsetFactor === undefined) options.polygonOffsetFactor = 0;
++                    if (options.keepUserColor === undefined) options.keepUserColor = true;
++                }
+             }
+             let material;
+             if (ctx.webglAvailable) {
+@@ -2623,7 +2640,10 @@
+             const _pbrRole = material.userData && material.userData.pbrRole;
+             if (_pbrRole && geom.attributes && geom.attributes.uv && !options.uvNormalize && !options.pbrUvReady && _pbrLibrary()) {
+                 const _tile = (_pbrLibrary().ROLES[_pbrRole] || {}).tileM || 0.4;
+-                _pbrLibrary().scaleUv(geom, 1 / _tile, 1 / _tile);
++                const scale = options.objectKind === 'cdu-body'
++                    ? _boxMaterialRecipes().materialPolicy(options.objectKind, options, _boxMaterialContext(options.objectKind)).uv.physicalScale
++                    : 1 / _tile;
++                _pbrLibrary().scaleUv(geom, scale, scale);
+             }
+             // Texture tiling for the preset kinds is decided when the material
+             // is made (createMaterialForType -> _textureRepeatFor), never by
+--- before/src/frontend/shared/js/pbr_materials.js
++++ after/src/frontend/shared/js/pbr_materials.js
+@@ -40,10 +40,12 @@
+  * `THREE` is read off the global at call time; both apps install r184 globally.
+  */
+ (function (root, factory) {
+-    var api = factory();
++    var recipe = (root && root.boxMaterialRecipe) || (typeof require === 'function' ? require('./box_material_recipe.js') : null);
++    if (!recipe) throw new Error('pbr_materials.js needs box_material_recipe.js loaded first');
++    var api = factory(recipe);
+     if (typeof module === 'object' && module.exports) module.exports = api;
+     if (root) root.pbrMaterials = api;
+-})(typeof window !== 'undefined' ? window : null, function () {
++})(typeof window !== 'undefined' ? window : null, function (recipe) {
+     'use strict';
+ 
+     function T() {
+@@ -60,7 +62,7 @@
+     var SETS = {
+         'brushed-stainless': { meanRoughness: 0.340, tintable: true },
+         'copper':            { meanRoughness: 0.302, tintable: false },
+-        'painted-steel':     { meanRoughness: 0.550, tintable: true },
++        'painted-steel':     recipe.paintedSteelSet(),
+         'pipe-insulation':   { meanRoughness: 0.821, tintable: true },
+         'galvanized-steel':  { meanRoughness: 0.422, tintable: true },
+         'brass':             { meanRoughness: 0.363, tintable: false },
+@@ -74,7 +76,7 @@
+         'pipe-insulation': { set: 'pipe-insulation',   roughness: 0.82, metalness: 0.0,  normalScale: 1.0, tileM: 0.25, color: 0x2a2d31 },
+         'stainless':       { set: 'brushed-stainless', roughness: 0.34, metalness: 0.8,  normalScale: 0.8, tileM: 0.20, color: 0xc4c9ce },
+         'galvanized':      { set: 'galvanized-steel',  roughness: 0.42, metalness: 0.75, normalScale: 0.8, tileM: 0.50, color: 0xb9bfc5 },
+-        'painted-steel':   { set: 'painted-steel',     roughness: 0.55, metalness: 0.05, normalScale: 0.6, tileM: 0.40, color: 0x8c949b },
++        'painted-steel':   recipe.paintedSteelRole(),
+         // Copper and brass carry their hue in the colour map, so their bound
+         // colour is white; until the map lands they show `unboundColor`.
+         'copper':          { set: 'copper',            roughness: 0.30, metalness: 0.9,  normalScale: 0.7, tileM: 0.15, color: 0xffffff, unboundColor: 0xb87333 },
+@@ -95,7 +97,7 @@
+ 
+     function _scalarRoughness(set, wanted) {
+         var mean = (SETS[set] && SETS[set].meanRoughness) || 1;
+-        return Math.max(0, Math.min(1, wanted / mean));
++        return set === 'painted-steel' ? recipe.scalarRoughness(wanted, mean) : Math.max(0, Math.min(1, wanted / mean));
+     }
+ 
+     function _bind(material) {
+--- before/src/frontend/react/src/legacy/geometryBuilder.ts
++++ after/src/frontend/react/src/legacy/geometryBuilder.ts
+@@ -134,6 +134,7 @@
+ // eslint-disable-next-line import/first
+ import '../../../shared/js/transform_tools.js'
+ // eslint-disable-next-line import/first
++import '../../../shared/js/box_material_recipe.js'
+ import '../../../shared/js/pbr_materials.js'
+ // eslint-disable-next-line import/first
+ import '../../../shared/js/geometry_pure.js'
+--- before/src/frontend/web/STL_generate.html
++++ after/src/frontend/web/STL_generate.html
+@@ -1225,6 +1225,7 @@
+ 
+ <script src="theme/theme-loader.js"></script>
+ <script src="room_2d_editor.js"></script>
++<script src="js/box_material_recipe.js"></script>
+ <script src="js/pbr_materials.js"></script>
+ <script src="js/liquid_cooling.js"></script>
+ <script src="js/cold_plate_pair_parameters.js"></script>

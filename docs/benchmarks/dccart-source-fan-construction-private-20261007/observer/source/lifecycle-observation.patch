@@ -1,0 +1,336 @@
+--- a/dcCartPhysicalPointLifecycle.H
++++ b/dcCartPhysicalPointLifecycle.H
+@@ -5,6 +5,9 @@
+ #include "dcCartWriterNumericContext.H"
+ #include "polyPatch.H"
+ #include <memory>
++#include <sstream>
++#include <cstdio>
++#include <cstring>
+ namespace Foam { namespace dcCartPhysicalPointLifecycle
+ {
+ namespace O=dcCartCompleteCavityLocalOracle;
+@@ -355,6 +358,205 @@
+     std::vector<std::vector<label>> cellFaces;
+     std::shared_ptr<const O::PhysicalPointJournal> physicalJournal;
+ };
++
++// PRIVATE observation only: consumes already-produced lookup/witness/results.
++// No authority, budget, geometry evaluator or installed getter is called here.
++class CaptureObservation
++{
++    static constexpr std::size_t byteLimit=1024*1024,coordinateLimit=4096;
++    std::string events_;
++    std::array<label,64> seenSources_{};
++    std::size_t used_=0,records_=0,coordinates_=0,seen_=0;
++    label compact_=-1,refusal_=-1;
++    bool active_=false,complete_=true;
++    static void coordinate(std::ostream& o,const point& p)
++    {
++        o<<'[';
++        for(unsigned k=0;k<3;++k)
++        {
++            if(k)o<<',';
++            std::uint64_t bits=0;std::memcpy(&bits,&p[k],sizeof(bits));
++            char text[17];std::snprintf(text,sizeof(text),"%016llx",static_cast<unsigned long long>(bits));
++            o<<'"'<<text<<'"';
++        }
++        o<<']';
++    }
++    static void outline(std::ostream& o,const std::vector<point>& p)
++    {o<<'[';for(std::size_t k=0;k<p.size();++k){if(k)o<<',';coordinate(o,p[k]);}o<<']';}
++    void event(const std::string& text) noexcept
++    {
++        if(!active_||!complete_)return;
++        try
++        {
++            const std::size_t extra=text.size()+std::size_t(!events_.empty());
++            if(used_>byteLimit-1024||events_.size()>byteLimit-1024-used_
++              ||extra>byteLimit-1024-used_-events_.size()){complete_=false;return;}
++            if(!events_.empty())events_+=',';events_+=text;
++        }
++        catch(...){complete_=false;}
++    }
++    bool room(std::size_t count) noexcept
++    {
++        if(!active_||!complete_)return false;
++        if(count>coordinateLimit-coordinates_){complete_=false;return false;}
++        coordinates_+=count;return true;
++    }
++public:
++    void start(label p) noexcept
++    {
++        active_=records_<16;complete_=true;coordinates_=0;seen_=0;compact_=p;refusal_=-1;events_.clear();
++        if(active_)++records_;
++    }
++    void refused(Refusal r) noexcept {if(active_)refusal_=label(r);}
++    void finish() noexcept
++    {
++        if(!active_)return;
++        try
++        {
++            std::ostringstream o;
++            o<<"PRIVATE physical-point geometry observation: {\"compactPoint\":"<<compact_
++             <<",\"observationComplete\":"<<(complete_?"true":"false")
++             <<",\"existingRefusal\":"<<refusal_<<",\"coordinateCount\":"<<coordinates_
++             <<",\"events\":["<<events_<<"]}\n";
++            const std::string text=o.str();
++            if(text.size()<=byteLimit-used_){Pout<<text;used_+=text.size();}
++            else
++            {
++                const std::string marker="PRIVATE physical-point geometry observation: {\"observationComplete\":false,\"reason\":\"output-cap\"}\n";
++                if(marker.size()<=byteLimit-used_){Pout<<marker;used_+=marker.size();}
++            }
++        }
++        catch(...){}
++        active_=false;events_.clear();
++    }
++    struct Scope
++    {
++        CaptureObservation& owner;
++        Scope(CaptureObservation& x,label p):owner(x){owner.start(p);}
++        ~Scope() noexcept {owner.finish();}
++    };
++    void representative(const Cut& raw,const Bindings& map,label rep,std::size_t members) noexcept
++    {
++        if(!room(1))return;
++        try
++        {
++            std::ostringstream o;o<<"{\"kind\":\"representative\",\"native\":"<<rep
++             <<",\"alias\":"<<map.alias[rep]<<",\"compact\":"<<map.point[rep]
++             <<",\"memberCount\":"<<members<<",\"rawBits\":";
++            coordinate(o,raw.points[rep]);o<<'}';event(o.str());
++        }
++        catch(...){complete_=false;}
++    }
++    void incident(const Cut& raw,const Bindings& map,label face,label compactFace,
++                  label owner,label neighbour,bool internal) noexcept
++    {
++        if(!active_||!complete_)return;
++        if(face<0||face>=label(raw.faces.size())){complete_=false;return;}
++        const auto& ring=raw.faces[face];if(!room(ring.size()))return;
++        try
++        {
++            std::ostringstream o;o<<"{\"kind\":\"incident\",\"nativeFace\":"<<face
++             <<",\"compactFace\":"<<compactFace<<",\"nativeOwner\":"<<owner
++             <<",\"nativeNeighbour\":"<<neighbour<<",\"internal\":"<<(internal?"true":"false")
++             <<",\"rawOwner\":"<<raw.owner[face]<<",\"rawNeighbour\":"<<raw.neighbour[face]
++             <<",\"patch\":"<<raw.patch[face]<<",\"zone\":"<<raw.zone[face]
++             <<",\"alive\":"<<(raw.faceAlive[face]?"true":"false")<<",\"ring\":[";
++            for(std::size_t k=0;k<ring.size();++k)
++            {
++                const label p=ring[k];
++                if(p<0||p>=label(raw.points.size())||p>=label(map.alias.size())){complete_=false;return;}
++                if(k)o<<',';o<<"{\"native\":"<<p<<",\"alias\":"<<map.alias[p]<<",\"bits\":";
++                coordinate(o,raw.points[p]);o<<'}';
++            }
++            o<<"]}";event(o.str());
++        }
++        catch(...){complete_=false;}
++    }
++    void witness(const S::Witness& w,const Cut& raw,const Bindings& map,label rep) noexcept
++    {
++        if(!active_||!complete_)return;
++        try
++        {
++            bool pointBound=false;
++            for(label p:raw.faces[w.nativeFace])
++                if(map.alias[p]==rep&&map.point[rep]==compact_)pointBound=true;
++            std::ostringstream binding;
++            binding<<"{\"kind\":\"source-binding\",\"nativeFace\":"<<w.nativeFace
++                <<",\"sourceFacet\":"<<w.sourceFacet
++                <<",\"selectedPointCoveredByExistingBind\":"<<(pointBound?"true":"false")<<'}';
++            event(binding.str());
++            for(std::size_t k=0;k<seen_;++k)if(seenSources_[k]==w.sourceFacet)return;
++            if(seen_==seenSources_.size()||!room(w.sourceWorld.size())){complete_=false;return;}
++            seenSources_[seen_++]=w.sourceFacet;
++            std::ostringstream o;o<<"{\"kind\":\"source\",\"sourceFacet\":"<<w.sourceFacet
++             <<",\"nativeOwner\":"<<w.nativeOwner<<",\"patch\":"<<w.constructionPatch<<",\"zone\":"<<w.zone
++             <<",\"sourceRing\":[";
++            for(std::size_t k=0;k<w.sourceRing.size();++k){if(k)o<<',';o<<w.sourceRing[k];}
++            o<<"],\"worldBits\":";outline(o,w.sourceWorld);o<<",\"origins\":[";
++            for(std::size_t k=0;k<w.origins.size();++k)
++            {
++                const auto& r=w.origins[k];if(k)o<<',';
++                o<<"{\"parent\":"<<r.nativeParent<<",\"rank\":"<<r.rank<<",\"level\":"<<r.level
++                 <<",\"leaf\":"<<r.leaf<<",\"piece\":"<<r.piece<<'}';
++            }
++            o<<"]}";event(o.str());
++        }
++        catch(...){complete_=false;}
++    }
++    void cardinality(const std::set<label>& core,const std::set<label>& bases) noexcept
++    {
++        if(!active_||!complete_)return;
++        try
++        {
++            std::ostringstream o;o<<"{\"kind\":\"cardinality\",\"baseCount\":"<<bases.size()<<",\"bases\":[";
++            bool first=true;for(label p:bases){if(!first)o<<',';first=false;o<<p;}
++            o<<"],\"core\":[";first=true;for(label p:core){if(!first)o<<',';first=false;o<<p;}
++            o<<"]}";event(o.str());
++        }
++        catch(...){complete_=false;}
++    }
++    void group(const Group& g,const Cut& raw) noexcept
++    {
++        if(!room(g.outline.size()))return;
++        try
++        {
++            std::ostringstream o;o<<"{\"kind\":\"group\",\"sourceFacet\":"<<g.source
++             <<",\"axis\":"<<label(g.axis)<<",\"patch\":"<<g.patch<<",\"zone\":"<<g.zone<<",\"outlineBits\":";
++            outline(o,g.outline);o<<",\"facets\":[";
++            for(std::size_t j=0;j<g.facets.size();++j)
++            {
++                const label f=g.facets[j];const auto& ring=raw.faces[f];if(!room(ring.size()))return;
++                if(j)o<<',';o<<"{\"nativeFace\":"<<f<<",\"rawOwner\":"<<raw.owner[f]
++                 <<",\"rawNeighbour\":"<<raw.neighbour[f]<<",\"patch\":"<<raw.patch[f]
++                 <<",\"zone\":"<<raw.zone[f]<<",\"alive\":"<<(raw.faceAlive[f]?"true":"false")<<",\"worldBits\":[";
++                for(std::size_t k=0;k<ring.size();++k){if(k)o<<',';coordinate(o,raw.points[ring[k]]);}
++                o<<"]}";
++            }
++            o<<"]}";event(o.str());
++        }
++        catch(...){complete_=false;}
++    }
++    bool rejected(const char* site,label source=-1,label face=-1,label i=-1,label j=-1) noexcept
++    {
++        if(active_&&complete_)
++        {
++            try
++            {
++                std::ostringstream o;o<<"{\"kind\":\"footprint-failure\",\"site\":\""<<site
++                    <<"\",\"sourceFacet\":"<<source<<",\"nativeFace\":"<<face<<",\"i\":"<<i<<",\"j\":"<<j<<'}';
++                event(o.str());
++            }
++            catch(...){complete_=false;}
++        }
++        return false;
++    }
++    void tail(const char* outcome) noexcept
++    {
++        try{event(std::string("{\"kind\":\"coverage-tail\",\"result\":\"")+outcome+"\"}");}
++        catch(...){complete_=false;}
++    }
++};
++
+ class Transaction
+ {
+     const Cut* owner_=nullptr;
+@@ -377,43 +579,48 @@
+     point proposed_=point::zero;
+     bool ready_=false,started_=false,published_=false;
+     Refusal refusal_=Refusal::stale;
++    CaptureObservation observation_;
+     bool awake()const{return deadline_.available()&&O::available(bounded_);}
+-    bool fail(Refusal why){ready_=false;prepared_.reset();refusal_=why;return false;}
++    bool fail(Refusal why){observation_.refused(why);ready_=false;prepared_.reset();refusal_=why;return false;}
+     bool footprint(const Cut& raw,const point& q,E::Context& ec)
+     {
+         for(const Group& g:groups_)
+         {
+             SurfaceMoments target,old,next;std::vector<E::Face> tiles;
+-            if(!addSurface(g.outline,target,ec))return false;
++            if(!addSurface(g.outline,target,ec))return observation_.rejected("target-surface",g.source);
+             for(label id:g.facets)
+             {
+                 if(id<0||id>=label(raw.faces.size())||!raw.faceAlive[id]
+-                  ||raw.patch[id]!=g.patch||raw.zone[id]!=g.zone||raw.neighbour[id]>=0)return false;
++                  ||raw.patch[id]!=g.patch||raw.zone[id]!=g.zone||raw.neighbour[id]>=0)return observation_.rejected("facet-role-or-handle",g.source,id);
+                 std::vector<point> a,b;
+                 for(label p:raw.faces[id])
+                 {
+-                    if(p<0||p>=label(raw.points.size()))return false;
++                    if(p<0||p>=label(raw.points.size()))return observation_.rejected("point-handle",g.source,id);
+                     a.push_back(raw.points[p]);b.push_back(grant_.point_==p?q:raw.points[p]);
+                 }
+                 E::Face ef;
+                 for(const point& x:b)
+                 {
+-                    if(x[g.axis]!=g.outline[0][g.axis]||!inside(x,g.outline,g.axis,ec))return false;
++                    if(x[g.axis]!=g.outline[0][g.axis])return observation_.rejected("exact-axis-plane",g.source,id);
++                    if(!inside(x,g.outline,g.axis,ec))return observation_.rejected("inside-outline",g.source,id);
+                     ef.push_back(ep(x));
+                 }
+                 const auto convex=E::planarConvex(ef,ec);
+-                if(!convex.known||!convex.value)return false;
++                if(!convex.known||!convex.value)return observation_.rejected(convex.known?"convex-false":"convex-unknown",g.source,id);
+                 for(std::size_t i=0;i<b.size();++i)for(std::size_t j=0;j<g.outline.size();++j)
+                     if(segmentCross(b[i],b[(i+1)%b.size()],g.outline[j],
+-                                    g.outline[(j+1)%g.outline.size()],g.axis,ec))return false;
+-                if(!addSurface(a,old,ec)||!addSurface(b,next,ec))return false;
++                                    g.outline[(j+1)%g.outline.size()],g.axis,ec))return observation_.rejected("outline-segment-cross",g.source,id,label(i),label(j));
++                if(!addSurface(a,old,ec))return observation_.rejected("old-surface",g.source,id);
++                if(!addSurface(b,next,ec))return observation_.rejected("next-surface",g.source,id);
+                 tiles.push_back(std::move(ef));
+             }
+-            if(!equalSurface(old,target,ec)||!equalSurface(next,target,ec))return false;
++            if(!equalSurface(old,target,ec))return observation_.rejected("old-vs-source-moments",g.source);
++            if(!equalSurface(next,target,ec))return observation_.rejected("next-vs-source-moments",g.source);
+             for(std::size_t i=0;i<tiles.size();++i)for(std::size_t j=i+1;j<tiles.size();++j)
+-                if(!planarDisjoint(tiles[i],tiles[j],g.axis,ec))return false;
+-        }
+-        return ec.good();
++                if(!planarDisjoint(tiles[i],tiles[j],g.axis,ec))return observation_.rejected("tile-overlap-or-unknown",g.source,-1,label(i),label(j));
++        }
++        const bool good=ec.good();
++        return good?true:observation_.rejected("exact-context");
+     }
+     bool exactCore(const point& q,E::Context& ec)
+     {
+@@ -495,6 +702,7 @@
+                  const O::Catalogue& cat,const labelList& patchMap,label compactPoint)
+     {
+         if(published_)return false;
++        CaptureObservation::Scope observationScope(observation_,compactPoint);
+         ready_=false;prepared_.reset();groups_.clear();grant_=O::PhysicalMotionGrant();rep_=-1;
+         owner_=nullptr;installed_=nullptr;before_=O::View();old_.clear(O::Refusal::shape);next_.clear(O::Refusal::shape);
+         if(!awake())return fail(Refusal::clock);
+@@ -512,6 +720,7 @@
+         std::size_t members=0;
+         for(std::size_t p=0;p<map.alias.size();++p)
+         {if((p&255)==0&&!awake())return fail(Refusal::clock);if(map.alias[p]==rep_)++members;}
++        observation_.representative(raw,map,rep_,members);
+         if(members!=1)return fail(Refusal::alias);
+         const auto& pf=actual.pointFaces()[compactPoint];
+         if(pf.empty()||pf.size()>512||W::zonedPoint(actual,compactPoint))return fail(Refusal::capacity);
+@@ -520,16 +729,22 @@
+         for(label f:pf)
+         {
+             if(!awake())return fail(Refusal::clock);
+-            core.insert(ix.nativeCell[actual.faceOwner()[f]]);
+-            if(f<actual.nInternalFaces())core.insert(ix.nativeCell[actual.faceNeighbour()[f]]);
+-            else
++            const label nativeOwner=ix.nativeCell[actual.faceOwner()[f]];
++            core.insert(nativeOwner);
++            const bool internal=f<actual.nInternalFaces();
++            label nativeNeighbour=-1;
++            if(internal){nativeNeighbour=ix.nativeCell[actual.faceNeighbour()[f]];core.insert(nativeNeighbour);}
++            observation_.incident(raw,map,ix.nativeFace[f],f,nativeOwner,nativeNeighbour,internal);
++            if(!internal)
+             {
+                 S::Witness w;
+                 if(!S::bind(raw,actual,map,ix,bounded_,cat,patchMap,ix.nativeFace[f],w))return fail(Refusal::source);
++                observation_.witness(w,raw,map,rep_);
+                 sources.emplace(w.sourceFacet,w);bases.insert(w.sourceFacet);
+             }
+             if(core.size()>O::Caps::core)return fail(Refusal::capacity);
+         }
++        observation_.cardinality(core,bases);
+         if(bases.size()!=2)return fail(Refusal::shape);
+         std::vector<std::vector<label>> cf(raw.nCells);
+         for(label f=0;f<label(raw.faces.size());++f)
+@@ -576,7 +791,13 @@
+         grant_.point_=rep_;grant_.epoch_=before_.epoch;grant_.source_=before_.source;
+         for(const auto& f:before_.faces)if(!f.internal&&std::find(f.ring.begin(),f.ring.end(),rep_)!=f.ring.end())
+             grant_.physicalFaces_.insert(f.native);
+-        if(!footprint(raw,raw.points[rep_],ec)||!awake())return fail(Refusal::coverage);
++        for(const Group& group:groups_)observation_.group(group,raw);
++        const bool footprintPassed=footprint(raw,raw.points[rep_],ec);
++        if(!footprintPassed)
++        {observation_.tail("awake-not-evaluated");return fail(Refusal::coverage);}
++        const bool awakePassed=awake();
++        observation_.tail(awakePassed?"awake-true":"awake-false");
++        if(!awakePassed)return fail(Refusal::coverage);
+         inputCheckpoint_.reset(new Cut(raw));
+         // Equality is proved, never inferred from insertion order or source IDs.
+         // Allowed pointer differences: baseline self-reference, W/D state,

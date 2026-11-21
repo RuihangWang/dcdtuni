@@ -1,0 +1,195 @@
+--- a/src/frontend/omniverse/cfd_demo/web/vite.config.ts
++++ b/src/frontend/omniverse/cfd_demo/web/vite.config.ts
+@@ -11,7 +11,7 @@
+   if (!path.isAbsolute(value)) throw new Error(key + " must be absolute inside this checkout");
+   const resolved = path.resolve(value);
+   const relative = path.relative(CHECKOUT_ROOT, resolved);
+-  if (!relative || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
++  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+     throw new Error(key + " must stay inside this checkout");
+   }
+   let current = CHECKOUT_ROOT;
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
+@@ -276,48 +276,156 @@
+ _VOLUME_HIDE_GROUPS = ["Room"]
+ 
+ 
++def _visibility_snapshot(stage, path):
++    """Own the exact RootLayer property, independently of composed opinions."""
++    from pxr import Sdf
++    root = stage.GetRootLayer()
++    property_path = Sdf.Path(path).AppendProperty("visibility")
++    backup = Sdf.Layer.CreateAnonymous("volume-visibility")
++    authored = root.GetAttributeAtPath(property_path) is not None
++    if authored:
++        Sdf.CreatePrimInLayer(backup, property_path.GetPrimPath())
++        if not Sdf.CopySpec(root, property_path, backup, property_path):
++            raise RuntimeError("cannot save root visibility: " + path)
++    # Root authoring can create over ancestors for a prim defined only in a
++    # sublayer. Off removes only those originally absent, still-empty overs.
++    missing = []
++    parent = property_path.GetPrimPath()
++    while parent != Sdf.Path.absoluteRootPath:
++        if root.GetPrimAtPath(parent) is None:
++            missing.append(parent)
++        parent = parent.GetParentPath()
++    return root, backup, property_path, authored, tuple(missing)
++
++
++def _restore_visibility(stage, snapshot):
++    from pxr import Sdf
++    root, backup, property_path, authored, missing = snapshot
++    if stage.GetRootLayer() != root:
++        raise RuntimeError("volume mask belongs to a different RootLayer")
++    # A removed model is retired, never resurrected by display cleanup.
++    if stage.GetPrimAtPath(property_path.GetPrimPath()).IsValid():
++        current = root.GetAttributeAtPath(property_path)
++        if current is not None:
++            current.owner.RemoveProperty(current)
++        if authored:
++            Sdf.CreatePrimInLayer(root, property_path.GetPrimPath())
++            if not Sdf.CopySpec(backup, property_path, root, property_path):
++                raise RuntimeError("cannot restore root visibility: " + str(property_path))
++    for path in missing:  # deepest first; do not remove later unrelated edits
++        spec = root.GetPrimAtPath(path)
++        if (spec is not None and spec.specifier == Sdf.SpecifierOver
++                and not spec.properties and not spec.nameChildren
++                and set(spec.ListInfoKeys()) <= {"specifier"}):
++            stage.RemovePrim(path)
++
++
+ def install_render_room_shell_paths(scene, stage, paths):
+-    """Replace derived paths after successful authoring; old USD opinions are retired."""
++    """Register a successful RootLayer reauthor, retiring its old mask specs."""
++    was_hidden = getattr(scene, "_volume_geometry_hidden", False)
++    bound = getattr(scene, "_volume_geometry_stage", None)
++    if bound is not None and bound.GetRootLayer() != stage.GetRootLayer():
++        _set_geometry_hidden(scene, bound, False)
+     saved = getattr(scene, "_volume_geometry_saved", {})
+     for path in list(saved):
+         if path.startswith("/World/RenderScene/"):
++            # author_scene replaced this entire RootLayer subtree. Session
++            # opinions were not replaced and are never stored as originals.
+             del saved[path]
++    # The replaced Root subtree no longer contains our old mask. A refused
++    # re-mask must report the actual remaining owned masks, not stale intent.
++    scene._volume_geometry_hidden = bool(saved)
++    if not saved:
++        scene._volume_geometry_stage = None
+     scene._render_room_shell_paths = tuple(paths)
+-    if getattr(scene, "_volume_geometry_hidden", False):
++    if was_hidden:
+         _set_geometry_hidden(scene, stage, True)
+ 
+ 
+ def _set_geometry_hidden(scene, stage, hidden, groups=None):
+-    """Temporarily mask the enclosure and restore each prior visibility opinion."""
++    """Mask RootLayer only; stronger visible opinions fail and roll back."""
++    from pxr import Usd, UsdGeom
+     names = groups if groups is not None else _VOLUME_HIDE_GROUPS
++    bound = getattr(scene, "_volume_geometry_stage", None)
++    if bound is not None and bound.GetRootLayer() != stage.GetRootLayer():
++        _set_geometry_hidden(scene, bound, False)
+     saved = getattr(scene, "_volume_geometry_saved", {})
+     scene._volume_geometry_saved = saved
+     paths = [p for name in names for p in scene.geo_groups.get(name, [])]
+     if groups is None:
+         paths.extend(getattr(scene, "_render_room_shell_paths", ()))
++    previous_target = stage.GetEditTarget()
++    was_hidden = getattr(scene, "_volume_geometry_hidden", False)
+     n = 0
+-    if hidden:
+-        for p in dict.fromkeys(paths):
+-            img = _imageable(stage, p)
+-            if not img:
+-                continue
+-            attr = img.GetVisibilityAttr()
+-            if p not in saved:
+-                saved[p] = (attr.HasAuthoredValueOpinion(), attr.Get())
+-            img.MakeInvisible()
+-            n += 1
+-    else:
+-        for p, (authored, value) in list(saved.items()):
+-            img = _imageable(stage, p)
+-            if img:
+-                attr = img.GetVisibilityAttr()
+-                if authored:
+-                    attr.Set(value)
+-                else:
+-                    attr.Clear()
+-                n += 1
+-        saved.clear()
+-    scene._volume_geometry_hidden = bool(hidden)
++    try:
++        stage.SetEditTarget(stage.GetRootLayer())
++        if hidden:
++            previous_saved = dict(saved)
++            touched = []
++            try:
++                for path in dict.fromkeys(paths):
++                    img = _imageable(stage, path)
++                    if not img:
++                        continue
++                    before = _visibility_snapshot(stage, path)
++                    touched.append((path, before))
++                    if path not in saved:
++                        saved[path] = before
++                    attr = img.GetVisibilityAttr()
++                    # Clear RootLayer defaults AND timeSamples; Set default alone
++                    # leaves animated inherited samples visible at nondefault time.
++                    if not attr.Clear() or not attr.Set(UsdGeom.Tokens.invisible):
++                        raise RuntimeError("cannot author root volume mask: " + path)
++                    times = [Usd.TimeCode.Default()]
++                    times.extend(Usd.TimeCode(t) for t in attr.GetTimeSamples())
++                    if any(img.ComputeVisibility(t) != UsdGeom.Tokens.invisible for t in times):
++                        raise RuntimeError("stronger visibility opinion prevents volume mask: " + path)
++                    n += 1
++            except Exception as error:
++                failed = {}
++                for path, before in reversed(touched):
++                    try:
++                        _restore_visibility(stage, before)
++                    except Exception as restore_error:
++                        failed[path] = restore_error
++                saved.clear()
++                saved.update(previous_saved)
++                missing = {p for _, before in touched for p in before[4]}
++                missing.update(p for original in previous_saved.values() for p in original[4])
++                for path, before in touched:
++                    if path in failed:
++                        original = saved.get(path, before)
++                        ancestors = tuple(sorted(missing | set(original[4]), key=lambda p: (-str(p).count("/"), str(p))))
++                        saved[path] = original[:4] + (ancestors,)
++                scene._volume_geometry_hidden = was_hidden or bool(failed)
++                if failed:
++                    scene._volume_geometry_stage = stage
++                    raise RuntimeError("volume mask rollback failed: " + ", ".join(failed)) from error
++                raise
++            scene._volume_geometry_stage = stage
++        else:
++            errors = []
++            missing = {p for original in saved.values() for p in original[4]}
++            # Last-created leaf first, then the first creator of shared overs.
++            for path, snapshot in reversed(list(saved.items())):
++                try:
++                    _restore_visibility(stage, snapshot)
++                    del saved[path]
++                    n += 1
++                except Exception as error:
++                    errors.append((path, error))
++            if errors:
++                # Successful siblings may have owned the shared missing-parent
++                # record. Retain that cleanup ownership with every retry entry.
++                for path, snapshot in list(saved.items()):
++                    ancestors = tuple(sorted(missing | set(snapshot[4]), key=lambda p: (-str(p).count("/"), str(p))))
++                    saved[path] = snapshot[:4] + (ancestors,)
++                scene._volume_geometry_hidden = True
++                raise RuntimeError("volume mask restore failed: " + ", ".join(p for p, _ in errors)) from errors[0][1]
++            scene._volume_geometry_stage = None
++        scene._volume_geometry_hidden = bool(hidden)
++    finally:
++        stage.SetEditTarget(previous_target)
+     print(f"[dc.cfd_bridge] geometry {'hidden' if hidden else 'restored'} for volume "
+           f"(groups={names}, {n} prims)")
+ 

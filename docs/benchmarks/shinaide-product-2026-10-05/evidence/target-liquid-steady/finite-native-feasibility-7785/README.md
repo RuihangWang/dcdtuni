@@ -1,0 +1,7 @@
+# Finite low-dimensional native proposal feasibility — not native acceptance
+
+From the actual rejected job7785 original geometry, a direct finite-difference/halfspace-projection/backtrack mechanism derives its3/4-parameter modes from topology. No SQP/SLSQP or stored successful coordinates are used. The two independent proposals take168/8 requests; the guarded .95 backtracks clear the two R failures in their combined96-core/83-outside scope while D14/W18 remain unchanged. The unbacktracked long endpoint creates one D failure and stays rejected. Original source identities are the historical ead4/4a5e/babd baseline, before the subsequent default-OFF C++ prototype.
+
+The raw archive contains every declared payload and original manifest, including binary64 format copies and rejected endpoint evidence. Every source and decompressed archive member was hash-verified. The original proposal invokes the compact field calculator twice per request; one request count is not one field evaluation.
+
+The independent replay in independent-audit/ re-derives the mode from original topology, checks point-label renumbering/order invariance, reproduces request/parameter/history bytes, rechecks full core/outside geometry and binary point copies, and confirms no optimizer call. These are offline mathematical/format checks. They do not establish C++ installed-cache or MPI correctness, full checkMesh or300s acceptance. The full product mesh still has D909/W100/R2 and remains rejected.

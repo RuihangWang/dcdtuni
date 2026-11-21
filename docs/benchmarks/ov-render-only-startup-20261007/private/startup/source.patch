@@ -1,0 +1,23 @@
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -163,6 +163,20 @@
+         try:
+             import carb.settings
+             s = carb.settings.get_settings()
++            # OV displays the common React selection; modelling remains in Three.
++            # Keep native selection/outline and camera/seed/slice interactions,
++            # while the public select operation disables transform manipulators.
++            # Both reviewed RTX modes must honour fractional PreviewSurface
++            # opacity. Do not force a renderer mode or rewrite scene materials.
++            for path, value in (
++                ("/app/transform/operation", "select"),
++                ("/rtx/raytracing/fractionalCutoutOpacity", True),
++                ("/rtx/pathtracing/fractionalCutoutOpacity", True),
++            ):
++                try:
++                    s.set(path, value)
++                except Exception:
++                    print(f"[dc.cfd_bridge] display setting unavailable: {path}")
+             s.set("/persistent/app/viewport/Viewport/Viewport0/hud/visible", False)
+             s.set("/app/viewport/forceHideFps", True)
+             # Hide the legacy_gizmos editor overlay ICONS (the yellow "sun"

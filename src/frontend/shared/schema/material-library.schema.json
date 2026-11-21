@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schema/material-library/v1",
+  "title": "The material and texture pool manifest (src/frontend/shared/textures/materials.json)",
+  "description": "The single source of the scene's surfaces. Both editors, the React -> Omniverse display bridge and the Kit-native .cfdproj path read it; tools/gen_pbr_textures.py writes only the measured fields (size, bytes, sha256, stats) and regenerates the generated sets from their recipe and seed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "about", "generator", "normalConvention", "roughnessEncoding", "colorRules", "sets", "photos", "patchPresets", "materials", "lighting"],
+  "properties": {
+    "schema": { "const": "dcdtuni.material-library/v1" },
+    "about": { "type": "string" },
+    "generator": { "const": "tools/gen_pbr_textures.py" },
+    "normalConvention": { "const": "opengl" },
+    "roughnessEncoding": { "const": "absolute" },
+    "colorRules": { "type": "array", "items": { "type": "string" } },
+    "sets": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/set" }
+    },
+    "photos": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/photo" }
+    },
+    "patchPresets": { "type": "array", "items": { "$ref": "#/$defs/patchPreset" } },
+    "materials": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/material" }
+    },
+    "lighting": { "$ref": "#/$defs/lighting" }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "hex": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "relPath": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9_.-]*\\.(jpg|png)$" },
+    "size": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 1024 }, "minItems": 2, "maxItems": 2 },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "format", "size", "bytes", "sha256"],
+      "properties": {
+        "file": { "$ref": "#/$defs/relPath" },
+        "format": { "enum": ["jpeg", "png"] },
+        "size": { "$ref": "#/$defs/size" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "recipe", "seed", "size", "license"],
+          "properties": {
+            "kind": { "const": "generated" },
+            "recipe": { "type": "string", "pattern": "^[a-z_]+$" },
+            "seed": { "type": "integer", "minimum": 0 },
+            "size": { "$ref": "#/$defs/size" },
+            "license": { "const": "CC0-1.0" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "origin", "url", "license"],
+          "properties": {
+            "kind": { "const": "photo" },
+            "origin": { "type": "string" },
+            "url": { "type": "string" },
+            "license": { "const": "CC0-1.0" },
+            "notes": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "origin", "license"],
+          "properties": {
+            "kind": { "const": "project" },
+            "origin": { "type": "string" },
+            "license": { "type": "string" },
+            "notes": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "source", "tintable", "maps", "stats"],
+      "properties": {
+        "label": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "tintable": { "type": "boolean" },
+        "alphaInColor": { "type": "boolean" },
+        "maps": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["color", "normal", "roughness"],
+          "properties": {
+            "color": { "$ref": "#/$defs/file" },
+            "normal": { "$ref": "#/$defs/file" },
+            "roughness": { "$ref": "#/$defs/file" }
+          }
+        },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["meanLuminance", "medianLuminance", "minLuminance", "meanRoughness"],
+          "properties": {
+            "meanLuminance": { "$ref": "#/$defs/unit" },
+            "medianLuminance": { "$ref": "#/$defs/unit" },
+            "minLuminance": { "$ref": "#/$defs/unit" },
+            "meanRoughness": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "meanAlpha": { "$ref": "#/$defs/unit" }
+          }
+        }
+      }
+    },
+    "photo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "source", "image"],
+      "properties": {
+        "label": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "image": { "$ref": "#/$defs/file" }
+      }
+    },
+    "patchPreset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "roles", "labelKey", "source", "image"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "roles": { "type": "array", "items": { "enum": ["return", "supply"] }, "minItems": 1 },
+        "labelKey": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "image": { "$ref": "#/$defs/file" }
+      }
+    },
+    "material": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label", "role"],
+          "properties": {
+            "label": { "type": "string" },
+            "role": { "$ref": "#/$defs/name" },
+            "hueInMap": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label", "set", "baseColor", "colorSource", "tintable", "roughness", "metallic", "normalScale", "tileM", "uv", "wrap", "doubleSide", "opacity"],
+          "properties": {
+            "label": { "type": "string" },
+            "library": { "type": "boolean" },
+            "set": { "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
+            "baseColor": { "$ref": "#/$defs/hex" },
+            "unboundColor": { "$ref": "#/$defs/hex" },
+            "colorSource": { "enum": ["preset", "model"] },
+            "factoryColors": { "type": "array", "items": { "$ref": "#/$defs/hex" } },
+            "tintable": { "type": "boolean" },
+            "roughness": { "$ref": "#/$defs/unit" },
+            "metallic": { "$ref": "#/$defs/unit" },
+            "normalScale": { "type": "number", "minimum": 0, "maximum": 2 },
+            "tileM": { "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "type": "null" }] },
+            "uv": { "enum": ["physical", "stretch", "tile-per-u"] },
+            "wrap": { "enum": ["repeat", "clamp"] },
+            "doubleSide": { "type": "boolean" },
+            "opacity": { "$ref": "#/$defs/unit" }
+          }
+        }
+      ]
+    },
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "color", "intensity", "direction"],
+      "properties": {
+        "role": { "type": "string" },
+        "color": { "$ref": "#/$defs/hex" },
+        "intensity": { "type": "number", "minimum": 0 },
+        "direction": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+      }
+    },
+    "lightingPreset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exposure", "environment", "key", "fill", "rim", "ambient", "kitDome", "kitKey", "kitFill", "kitExposureStops"],
+      "properties": {
+        "exposure": { "type": "number", "minimum": 0, "maximum": 5 },
+        "environment": { "type": "number", "minimum": 0, "maximum": 5 },
+        "key": { "type": "number", "minimum": 0, "maximum": 5 },
+        "fill": { "type": "number", "minimum": 0, "maximum": 5 },
+        "rim": { "type": "number", "minimum": 0, "maximum": 5 },
+        "ambient": { "type": "number", "minimum": 0, "maximum": 5 },
+        "kitDome": { "type": "number", "minimum": 0, "maximum": 5 },
+        "kitKey": { "type": "number", "minimum": 0, "maximum": 5 },
+        "kitFill": { "type": "number", "minimum": 0, "maximum": 5 },
+        "kitExposureStops": { "type": "number", "minimum": -4, "maximum": 4 }
+      }
+    },
+    "lighting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toneMapping", "outputColorSpace", "exposure", "intensityUnit", "environment", "cameraLights", "ambient", "kit", "presets", "shadow"],
+      "properties": {
+        "toneMapping": { "enum": ["aces-filmic", "agx", "neutral", "none"] },
+        "outputColorSpace": { "const": "srgb" },
+        "exposure": { "type": "number", "exclusiveMinimum": 0 },
+        "intensityUnit": { "type": "string" },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "intensity", "blurSigma", "cabinetShare"],
+          "properties": {
+            "type": { "const": "room" },
+            "intensity": { "type": "number", "minimum": 0 },
+            "blurSigma": { "type": "number", "minimum": 0 },
+            "cabinetShare": { "type": "object", "additionalProperties": false, "required": ["lining", "opening"], "description": "Three.js only: the share of the environment light that reaches a surface inside a rack cabinet. RTX blocks its dome light there by itself; a Three.js environment map is not occluded, so those materials take an aoMap leaving this share. `lining`: the frame's cavity walls, floor and ceiling and the servers' chassis sides; `opening`: the faces looking out of the cabinet's opening when set back from it (server inlets/outlets, blanking panels). Calibrated per kind against OV in the same view (Shinaide_Liquid, default iso, 2026-10-23): cavity walls 0.34-0.36, cavity floor 0.29, set-back server fronts ~0.8.", "properties": { "lining": { "type": "number", "minimum": 0, "maximum": 1 }, "opening": { "type": "number", "minimum": 0, "maximum": 1 } } }
+          }
+        },
+        "cameraLights": { "type": "array", "items": { "$ref": "#/$defs/light" }, "minItems": 1 },
+        "ambient": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["color", "intensity", "lightsOffIntensity"],
+          "properties": {
+            "color": { "$ref": "#/$defs/hex" },
+            "intensity": { "type": "number", "minimum": 0 },
+            "lightsOffIntensity": { "type": "number", "minimum": 0 }
+          }
+        },
+        "kit": {
+          "description": "The rig both Kit paths author (a dome and two DistantLights) and the RTX exposure they set. Colours are sRGB hex, decoded to linear as Three does; rotations are UsdGeom rotateXYZ degrees. With autoExposure false the frame is exposed by the fixed RTX camera fixedExposure (ISO, exposure time in seconds, f-number), as the editors use one fixed toneMappingExposure.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["domeIntensity", "domeColor", "domeSpecular", "keyIntensity", "keyColor", "keyRotateXYZ", "keyAngle", "fillIntensity", "fillColor", "fillRotateXYZ", "fillAngle", "shadows", "autoExposure", "exposureCompensation", "fixedExposure", "background"],
+          "properties": {
+            "domeIntensity": { "type": "number", "minimum": 0 },
+            "domeSpecular": { "type": "number", "minimum": 0, "description": "The dome's specular multiplier (UsdLux inputs:specular): Three's room environment lights the reflections of dark painted and metal surfaces more than a uniform dome; 1.75 brought Shinaide's dark rack faces to the editor's without changing its diffuse light." },
+            "domeColor": { "$ref": "#/$defs/hex" },
+            "keyIntensity": { "type": "number", "minimum": 0 },
+            "keyColor": { "$ref": "#/$defs/hex" },
+            "keyRotateXYZ": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+            "keyAngle": { "type": "number", "minimum": 0 },
+            "fillIntensity": { "type": "number", "minimum": 0 },
+            "fillColor": { "$ref": "#/$defs/hex" },
+            "fillRotateXYZ": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+            "fillAngle": { "type": "number", "minimum": 0 },
+            "shadows": { "type": "boolean" },
+            "autoExposure": { "type": "boolean" },
+            "exposureCompensation": { "type": "number" },
+            "background": { "description": "The constant RTX backdrop (sRGB hex), the editors' viewport colour.", "$ref": "#/$defs/hex" },
+            "rtxSettings": {
+              "description": "Further RTX render settings (carb path -> value) both Kit paths set for an editor scene.",
+              "type": "object",
+              "propertyNames": { "pattern": "^/rtx/" },
+              "additionalProperties": { "anyOf": [{ "type": "number" }, { "type": "boolean" }] }
+            },
+            "fixedExposure": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["filmIso", "exposureTime", "fNumber"],
+              "properties": {
+                "filmIso": { "type": "number", "exclusiveMinimum": 0 },
+                "exposureTime": { "type": "number", "exclusiveMinimum": 0 },
+                "fNumber": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        },
+        "presets": {
+          "description": "Named looks the lighting control offers. Each scales the base rig (Three: exposure, environment, the camera lights by role (key; fill and head; the back pair as rim) and ambient; Kit: dome, key, fill, and exposure compensation in stops), so both renderers move the same way. 'standard' is the base rig unscaled.",
+          "type": "object",
+          "required": ["standard"],
+          "properties": { "standard": { "$ref": "#/$defs/lightingPreset" } },
+          "additionalProperties": { "$ref": "#/$defs/lightingPreset" }
+        },
+        "shadow": {
+          "description": "The one light that casts shadows when shadows are on, in both renderers: a world-fixed oblique light at rotateXYZ (degrees, a Kit DistantLight's xformOp:rotateXYZ; Three derives the same direction). It comes from the upper left of the default view so the shadows fall where they can be seen, and takes over share of the key light while it is on; every other light casts none. In Three the floor took most of its light from the environment and the camera lights, so a shadow there only darkened it to 0.83 against Kit's 0.60; while shadows are on Three lights the shadow light at gain times its share and scales the environment by environment, which gave 0.60 with the lit floor unchanged (Shinaide, default view, 2026-10-23). type is the Three.js shadow-map filter, the map drawn when shadows come on and when the scene is rebuilt, not every frame; kitAngle is the Kit light's angular size in degrees (small: crisp, cheap shadows).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "rotateXYZ", "kitAngle", "share", "gain", "environment", "mapSize", "bias", "normalBias"],
+          "properties": {
+            "type": { "enum": ["basic", "pcf", "pcf-soft"] },
+            "rotateXYZ": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+            "kitAngle": { "type": "number", "minimum": 0 },
+            "share": { "type": "number", "minimum": 0, "maximum": 1 },
+            "gain": { "type": "number", "minimum": 0 },
+            "environment": { "type": "number", "minimum": 0, "maximum": 1 },
+            "mapSize": { "type": "integer", "minimum": 256, "maximum": 8192 },
+            "bias": { "type": "number" },
+            "normalBias": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

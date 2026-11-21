@@ -1,0 +1,26 @@
+for (label c=0;c<oldCells;++c)
+    {
+        if (!m.cellAlive[c] || m.cellRank[c]!=myRank || cf[c].empty()) { continue; }
+        point estimate(point::zero);for (label f:cf[c]) { estimate+=centres[f]; }estimate/=cf[c].size();
+        scalar volume3=0;point moment(point::zero);
+        for (label f:cf[c])
+        {
+            const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+            const scalar v=a&(centres[f]-estimate);volume3+=v;moment+=v*(.75*centres[f]+.25*estimate);
+        }
+        parentVolume[c]=volume3/3;apex[c]=moment/max(volume3,VSMALL);
+        bool flag=false;
+        for (label f:cf[c])
+        {
+            if (splitFace[f] || badFace[f]) { flag=true;break; }
+            vector normal=areas[f]/max(mag(areas[f]),VSMALL);if (m.owner[f]!=c) { normal=-normal; }
+            for (label other:cf[c]) if (other!=f)
+            {
+                const vector d=centres[other]-centres[f];
+                if ((d&normal)/max(mag(d),VSMALL)>-1e-6) { flag=true;break; }
+            }
+            if (flag) { break; }
+        }
+        if (flag) { marked[c]=true;++seeded; }
+    }
+    

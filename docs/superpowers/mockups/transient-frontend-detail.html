@@ -1,0 +1,232 @@
+<h2>瞬态模拟设计 — 前端 UI 详细设计</h2>
+<p class="subtitle">第二节：瞬态场景 Tab + 属性面板 ⏱ 编辑器</p>
+
+<div class="section">
+  <h3>1. 瞬态场景 Tab（左侧面板）</h3>
+  <div class="mockup">
+    <div class="mockup-header">⏱ 瞬态场景 Tab — 完整布局</div>
+    <div class="mockup-body" style="font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;background:#12141a;color:#ccc;padding:16px;max-width:320px;">
+
+      <!-- Tab bar -->
+      <div style="display:flex;gap:2px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="background:#1e2030;padding:4px 8px;border-radius:3px;color:#666;font-size:10px;">🏗 建模</span>
+        <span style="background:#1e2030;padding:4px 8px;border-radius:3px;color:#666;font-size:10px;">◈ 网格</span>
+        <span style="background:#1e2030;padding:4px 8px;border-radius:3px;color:#666;font-size:10px;">🔬 求解</span>
+        <span style="background:#2a3a4a;padding:4px 8px;border-radius:3px;color:#8be9fd;font-size:10px;border:1px solid #4a6a8a;">⏱ 瞬态</span>
+        <span style="background:#1e2030;padding:4px 8px;border-radius:3px;color:#666;font-size:10px;">📊 后处理</span>
+      </div>
+
+      <!-- Scenario header -->
+      <div style="background:#1a1e2a;border:1px solid #2a3a4a;border-radius:6px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="color:#ff9f43;font-size:11px;font-weight:600;">📋 瞬态事件</span>
+          <span style="font-size:9px;color:#888;">总时长: 600s</span>
+        </div>
+
+        <!-- Event list -->
+        <div style="background:#12141a;border-radius:4px;padding:6px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;padding:4px 6px;margin:2px 0;background:#1e2030;border-radius:3px;border-left:3px solid #54d6a0;">
+            <span style="color:#666;font-size:10px;width:45px;">t=0s</span>
+            <span style="flex:1;font-size:10px;">🔄 从定常结果初始化</span>
+            <span style="color:#555;font-size:9px;cursor:pointer;">⋯</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 6px;margin:2px 0;background:#252540;border-radius:3px;border-left:3px solid #ff6b6b;cursor:pointer;" title="点击选中编辑">
+            <span style="color:#666;font-size:10px;width:45px;">t=60s</span>
+            <span style="flex:1;font-size:10px;"><span style="color:#8be9fd;">ACU-1</span> 关机</span>
+            <span style="color:#555;font-size:9px;cursor:pointer;">⋯</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 6px;margin:2px 0;background:#1e2030;border-radius:3px;border-left:3px solid #ff9f43;">
+            <span style="color:#666;font-size:10px;width:45px;">t=120s</span>
+            <span style="flex:1;font-size:10px;"><span style="color:#8be9fd;">R3</span> 功耗 → 10kW</span>
+            <span style="color:#555;font-size:9px;cursor:pointer;">⋯</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 6px;margin:2px 0;background:#1e2030;border-radius:3px;border-left:3px solid #ff6b6b;">
+            <span style="color:#666;font-size:10px;width:45px;">t=300s</span>
+            <span style="flex:1;font-size:10px;"><span style="color:#8be9fd;">ACU-2</span> 关机</span>
+            <span style="color:#555;font-size:9px;cursor:pointer;">⋯</span>
+          </div>
+        </div>
+
+        <!-- Add event button -->
+        <div style="text-align:center;">
+          <span style="background:#2a3a4a;padding:4px 16px;border-radius:4px;color:#8be9fd;cursor:pointer;font-size:10px;border:1px solid #3a5a6a;">+ 添加事件</span>
+        </div>
+      </div>
+
+      <!-- Timeline visualization -->
+      <div style="background:#1a1e2a;border:1px solid #2a3a4a;border-radius:6px;padding:10px;margin-bottom:10px;">
+        <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;font-weight:600;">📈 时间线预览</div>
+
+        <!-- Timeline bars -->
+        <div style="margin-bottom:4px;">
+          <div style="display:flex;align-items:center;margin:3px 0;">
+            <span style="width:50px;font-size:9px;color:#888;text-align:right;padding-right:6px;">ACU-1</span>
+            <div style="flex:1;height:14px;background:#1e2030;border-radius:2px;position:relative;overflow:hidden;">
+              <div style="position:absolute;left:0;top:0;width:10%;height:100%;background:#54d6a0;"></div>
+              <div style="position:absolute;left:10%;top:0;width:90%;height:100%;background:rgba(255,107,107,0.3);"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;margin:3px 0;">
+            <span style="width:50px;font-size:9px;color:#888;text-align:right;padding-right:6px;">ACU-2</span>
+            <div style="flex:1;height:14px;background:#1e2030;border-radius:2px;position:relative;overflow:hidden;">
+              <div style="position:absolute;left:0;top:0;width:50%;height:100%;background:#54d6a0;"></div>
+              <div style="position:absolute;left:50%;top:0;width:50%;height:100%;background:rgba(255,107,107,0.3);"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;margin:3px 0;">
+            <span style="width:50px;font-size:9px;color:#888;text-align:right;padding-right:6px;">R3</span>
+            <div style="flex:1;height:14px;background:#1e2030;border-radius:2px;position:relative;overflow:hidden;">
+              <div style="position:absolute;left:0;top:0;width:20%;height:100%;background:#4a9eff;"></div>
+              <div style="position:absolute;left:20%;top:0;width:5%;height:100%;background:linear-gradient(90deg,#4a9eff,#ff9f43);"></div>
+              <div style="position:absolute;left:25%;top:0;width:75%;height:100%;background:#ff9f43;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time axis -->
+        <div style="display:flex;margin-left:50px;">
+          <div style="flex:1;display:flex;justify-content:space-between;font-size:8px;color:#555;border-top:1px solid #333;padding-top:2px;">
+            <span>0s</span><span>120s</span><span>300s</span><span>600s</span>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div style="display:flex;gap:12px;margin-top:6px;justify-content:center;">
+          <span style="font-size:8px;color:#888;"><span style="display:inline-block;width:8px;height:8px;background:#54d6a0;border-radius:1px;vertical-align:middle;"></span> 正常</span>
+          <span style="font-size:8px;color:#888;"><span style="display:inline-block;width:8px;height:8px;background:rgba(255,107,107,0.5);border-radius:1px;vertical-align:middle;"></span> 停机</span>
+          <span style="font-size:8px;color:#888;"><span style="display:inline-block;width:8px;height:8px;background:#ff9f43;border-radius:1px;vertical-align:middle;"></span> 变化</span>
+        </div>
+      </div>
+
+      <!-- Execute button -->
+      <div style="background:#1a1e2a;border:1px solid #2a3a4a;border-radius:6px;padding:10px;">
+        <div style="text-align:center;">
+          <button style="width:100%;padding:10px;background:rgba(139,233,253,0.08);border:1px solid rgba(139,233,253,0.4);color:#8be9fd;border-radius:4px;cursor:pointer;font-size:12px;">▶ 执行瞬态求解</button>
+        </div>
+        <div style="font-size:9px;color:#666;text-align:center;margin-top:4px;">将自动检测定常结果作为初始场</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2. 添加事件弹窗</h3>
+  <div class="mockup">
+    <div class="mockup-header">添加瞬态事件 — 弹窗</div>
+    <div class="mockup-body" style="font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;background:#12141a;color:#ccc;padding:20px;">
+      <div style="background:#1a1e2a;border:1px solid #4a6a8a;border-radius:8px;padding:16px;max-width:360px;margin:0 auto;">
+        <div style="color:#8be9fd;font-size:13px;margin-bottom:12px;text-align:center;font-weight:600;">添加瞬态事件</div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:#888;margin-bottom:3px;">目标设备</div>
+          <select style="width:100%;background:#252540;border:1px solid #444;color:#ccc;padding:6px;border-radius:4px;font-size:11px;">
+            <option>ACU-1 (PCU_1)</option>
+            <option>ACU-2 (PCU_2)</option>
+            <option>R1 (机柜)</option>
+            <option>R3 (机柜)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:#888;margin-bottom:3px;">事件类型</div>
+          <select style="width:100%;background:#252540;border:1px solid #444;color:#ccc;padding:6px;border-radius:4px;font-size:11px;">
+            <option>关机 (所有参数→0)</option>
+            <option>风量变化</option>
+            <option>供冷温度变化</option>
+            <option>功耗变化</option>
+          </select>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <div style="flex:1;">
+            <div style="font-size:10px;color:#888;margin-bottom:3px;">触发时间 (s)</div>
+            <input style="width:100%;background:#252540;border:1px solid #444;color:#ccc;padding:6px;border-radius:4px;font-size:11px;box-sizing:border-box;" value="60" type="number">
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:10px;color:#888;margin-bottom:3px;">目标值</div>
+            <input style="width:100%;background:#252540;border:1px solid #444;color:#ccc;padding:6px;border-radius:4px;font-size:11px;box-sizing:border-box;" value="0" type="number">
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:10px;color:#888;margin-bottom:3px;">过渡方式</div>
+          <div style="display:flex;gap:6px;">
+            <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;"><input type="radio" name="transition" checked> 阶跃 (瞬时)</label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;"><input type="radio" name="transition"> 爬坡</label>
+          </div>
+        </div>
+
+        <div id="ramp-duration" style="margin-bottom:12px;padding:6px;background:#1e2a3a;border-radius:4px;">
+          <div style="font-size:10px;color:#888;margin-bottom:3px;">爬坡持续时间 (s)</div>
+          <input style="width:100%;background:#252540;border:1px solid #444;color:#ccc;padding:6px;border-radius:4px;font-size:11px;box-sizing:border-box;" value="30" type="number">
+          <div style="font-size:8px;color:#666;margin-top:3px;">值将在 [触发时间, 触发时间+持续时间] 内线性变化</div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button style="padding:6px 20px;background:#252540;border:1px solid #444;color:#888;border-radius:4px;cursor:pointer;font-size:11px;">取消</button>
+          <button style="padding:6px 20px;background:#2a3a4a;border:1px solid #4a6a8a;color:#8be9fd;border-radius:4px;cursor:pointer;font-size:11px;">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3. 属性面板 ⏱ 内联编辑器</h3>
+  <div class="mockup">
+    <div class="mockup-header">右侧属性面板 — 时变编辑展开态</div>
+    <div class="mockup-body" style="font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;background:#12141a;color:#ccc;padding:16px;max-width:280px;">
+      <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">🖥 ACU-1 (PCU_1)</div>
+
+      <div style="display:flex;align-items:center;margin:4px 0;">
+        <span style="flex:1;font-size:11px;">供冷温度 (°C)</span>
+        <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;text-align:right;" value="15" readonly>
+        <span style="margin-left:4px;cursor:pointer;background:#252540;padding:2px 6px;border-radius:3px;font-size:10px;color:#666;border:1px solid #333;">⏱</span>
+      </div>
+
+      <div style="display:flex;align-items:center;margin:4px 0;">
+        <span style="flex:1;font-size:11px;">风量 (m³/s)</span>
+        <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;text-align:right;" value="1.4" readonly>
+        <span style="margin-left:4px;cursor:pointer;background:#2a3a4a;padding:2px 6px;border-radius:3px;font-size:10px;color:#8be9fd;border:1px solid #4a6a8a;">⏱✓</span>
+      </div>
+
+      <!-- Expanded time-varying editor -->
+      <div style="background:#1e2a3a;border:1px solid #4a6a8a;padding:8px;margin:4px 0 8px;border-radius:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="color:#8be9fd;font-size:10px;">⏱ 风量时变设置</span>
+          <span style="color:#ff6b6b;font-size:9px;cursor:pointer;">清除</span>
+        </div>
+        <table style="width:100%;font-size:10px;border-collapse:collapse;">
+          <tr style="color:#666;border-bottom:1px solid #333;"><td style="padding:2px 4px;">时间(s)</td><td style="padding:2px 4px;">值(m³/s)</td><td style="width:16px;"></td></tr>
+          <tr><td style="padding:2px 4px;"><input style="width:40px;background:#252540;border:1px solid #444;color:#ccc;padding:1px 3px;font-size:10px;" value="0"></td><td style="padding:2px 4px;"><input style="width:50px;background:#252540;border:1px solid #444;color:#54d6a0;padding:1px 3px;font-size:10px;" value="1.4"></td><td style="color:#555;cursor:pointer;">×</td></tr>
+          <tr><td style="padding:2px 4px;"><input style="width:40px;background:#252540;border:1px solid #444;color:#ccc;padding:1px 3px;font-size:10px;" value="60"></td><td style="padding:2px 4px;"><input style="width:50px;background:#252540;border:1px solid #444;color:#54d6a0;padding:1px 3px;font-size:10px;" value="1.4"></td><td style="color:#555;cursor:pointer;">×</td></tr>
+          <tr><td style="padding:2px 4px;"><input style="width:40px;background:#252540;border:1px solid #444;color:#ccc;padding:1px 3px;font-size:10px;" value="61"></td><td style="padding:2px 4px;"><input style="width:50px;background:#252540;border:1px solid #444;color:#ff6b6b;padding:1px 3px;font-size:10px;" value="0"></td><td style="color:#555;cursor:pointer;">×</td></tr>
+        </table>
+        <div style="margin-top:4px;">
+          <span style="font-size:9px;color:#4a9eff;cursor:pointer;">+ 添加行</span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #333;margin:8px 0;"></div>
+      <div style="color:#ff9f43;font-size:11px;margin-bottom:8px;">📦 R3 (机柜)</div>
+      <div style="display:flex;align-items:center;margin:4px 0;">
+        <span style="flex:1;font-size:11px;">总功耗 (W)</span>
+        <input style="width:50px;background:#252540;border:1px solid #444;color:#ccc;padding:2px 4px;font-size:11px;text-align:right;" value="5000" readonly>
+        <span style="margin-left:4px;cursor:pointer;background:#2a3a4a;padding:2px 6px;border-radius:3px;font-size:10px;color:#8be9fd;border:1px solid #4a6a8a;">⏱✓</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px;">
+  <h3>关键交互说明</h3>
+  <div style="font-size:13px;line-height:1.8;color:#bbb;">
+    <p><strong>事件列表 ↔ 属性面板双向同步：</strong></p>
+    <ul>
+      <li>在"添加事件"弹窗创建事件 → 自动写入 model.timeVarying → 属性面板 ⏱ 按钮变 ⏱✓</li>
+      <li>在属性面板 ⏱ 编辑器修改数据 → 事件列表自动更新</li>
+      <li>事件列表是 <strong>只读聚合视图</strong>，数据源始终是 model.timeVarying</li>
+    </ul>
+    <p><strong>"添加事件"弹窗是快捷入口：</strong>自动生成 time-value table（阶跃=两行相同值+一行目标值，爬坡=线性插值），写入 model.timeVarying。高级用户可在属性面板 ⏱ 编辑器里精细调整。</p>
+  </div>
+</div>

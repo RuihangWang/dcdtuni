@@ -1,0 +1,167 @@
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -275,6 +275,9 @@
+ 
+         
+         let activeSourceEmission = null;
++        // Only the canonical floor renderer can certify a sheet's saved face.
++        // UserData/name proximity alone cannot establish physical face ownership.
++        const floorSheetSources = new WeakMap();
+         function recordSourceEmission(model, text, operation) {
+             if (!activeSourceEmission || !text) return text;
+             const uid = model && model.uid;
+@@ -287,8 +290,25 @@
+                 const facetCount = (match[2].match(/\bfacet[ \t]+normal\b/g) || []).length;
+                 if (!facetCount) continue;
+                 const key = uid + ':' + solid;
++                const snapshot = JSON.stringify(model);
++                let sourceSurface;
++                if (model.kind === 'floor' && model.cooling?.defaultBoundaryType === 'wallBaffle') {
++                    const meshes = ctx.renderMeshes.filter(mesh => mesh.userData?.modelId === uid &&
++                        mesh.userData?.exportName === solid && !mesh.userData?.isDoor);
++                    if (!meshes.length || ctx.state.constructions?.floors?.[uid] !== model)
++                        throw new Error('Floor source sheet has no current canonical producer');
++                    for (const mesh of meshes) {
++                        const proof = floorSheetSources.get(mesh);
++                        if (!proof || proof.model !== model || proof.faceId !== 'top' ||
++                            model.geometry?.faces?.[proof.faceId] !== proof.face || proof.face.id !== proof.faceId ||
++                            proof.snapshot !== snapshot || mesh.userData.faceId !== proof.faceId)
++                            throw new Error('Floor source sheet has absent or stale canonical face ancestry');
++                    }
++                    sourceSurface = Object.freeze({sourceFaceId:'top', representation:'zeroThicknessSheet'});
++                }
+                 activeSourceEmission.set(key, Object.freeze({sourceEntityUid:uid,
+-                    solidName:solid, operation, facetCount, block:match[0], sourceEntitySnapshot:JSON.stringify(model)}));
++                    solidName:solid, operation, facetCount, block:match[0], sourceEntitySnapshot:snapshot,
++                    ...(sourceSurface ? {sourceSurface} : {})}));
+             }
+             return text;
+         }
+@@ -2526,6 +2546,7 @@
+             const facesIslands = buildFaceIslands(model);
+             const islands = facesIslands[primaryFaceId] || [];
+             const face = model.geometry.faces[primaryFaceId];
++            const sheetMeshes = [];
+             const faceOpacity = (face.opacity ?? (model.meta.display.opacity ?? 1)) * _dimMult;
+         
+             // Polygon floor/ceiling: use polygon vertices as base shape instead of rectangle
+@@ -2565,7 +2586,7 @@
+                     var _pImgSrc = patchImageSource(face, island);
+                     if (_pImgSrc) _pOK = FACE_IMAGE_KIND + _pImgSrc;
+                     var _pIsImg = (_pOK === 'baffle-grille') || !!_pImgSrc;
+-                    spawnRenderable(modelGroup, geom, {
++                    sheetMeshes.push(spawnRenderable(modelGroup, geom, {
+                         color: _pIsImg ? '#ffffff' : island.color,
+                         opacity: faceOpacity,
+                         doubleSide: true,
+@@ -2573,7 +2594,7 @@
+                         renderOrder: 3,
+                         uvNormalize: _pImgSrc ? { type: 'stretch' } : undefined,
+                         userData: { modelId: model.uid, faceId: primaryFaceId, refIds: island.refIds, exportName: composeModelScopedExportName(model, primaryFaceId, face, { isPatch: true, patchIndex: islandIndex, patchCount: islands.length }), isBaseWall: false }
+-                    });
++                    }));
+                 });
+             });
+         
+@@ -2589,15 +2610,19 @@
+                 const geom = new THREE.ShapeGeometry(shape, 32);
+                 geom.applyMatrix4(layout.mat);
+                 const _sheetImg = faceImageSource(face);
+-                spawnRenderable(modelGroup, geom, {
++                sheetMeshes.push(spawnRenderable(modelGroup, geom, {
+                     color: _sheetImg ? '#ffffff' : baseColor,
+                     opacity: wallOpacity,
+                     doubleSide: true,
+                     objectKind: _sheetImg ? (FACE_IMAGE_KIND + _sheetImg) : objectKind,
+                     ...(_sheetImg ? { uvNormalize: { type: 'stretch' } } : {}),
+                     userData: { modelId: model.uid, faceId: primaryFaceId, refIds: null, wallIndex, exportName: composeModelScopedExportName(model, primaryFaceId, face, { isWallPart: true, partIndex: wallIndex, partCount: wallPoly.length }), isBaseWall: true }
+-                });
+-            });
++                }));
++            });
++            if (model.kind === 'floor' && primaryFaceId === 'top' && face.id === primaryFaceId) {
++                const proof = Object.freeze({model, face, faceId:primaryFaceId, snapshot:JSON.stringify(model)});
++                sheetMeshes.forEach(mesh => floorSheetSources.set(mesh, proof));
++            }
+         
+         }
+ 
+--- a/src/frontend/react/src/legacy/cfdrunBuild.ts
++++ b/src/frontend/react/src/legacy/cfdrunBuild.ts
+@@ -110,10 +110,15 @@
+   }
+   manifest.geometryExport.stlFiles=indexed
+   if(!project)return
++  type SourceRow={stlFileId:string;solidName:string;sourceObjectUid:string;
++    sourceFaceUid:string;representation:'zeroThicknessSheet'|'surfaceFace'}
++  const sources:Record<string,SourceRow>={}
++  const matchedFloorUids=new Set<string>()
+   const emitter=(window as unknown as {geometryScene?:{getGroupedStlSourceCatalogue?(files:Record<string,string>):{
+     schema:string;projectUid:string;files:Record<string,string>;regions:ReadonlyArray<{filename:string;solidName:string;
+       sourceEntityUid:string;facetCount:number;block:string;operation:string;sourceEntitySnapshot:string;
+-      carrierUid?:string;carrierContributorUids?:readonly string[]}>;liquidTransport?:{filename:string;carrierUid:string;contributors:readonly string[];dependencies:readonly{uid:string;snapshot:string}[]}
++      carrierUid?:string;carrierContributorUids?:readonly string[];
++      sourceSurface?:{sourceFaceId:string;representation:string}}>;liquidTransport?:{filename:string;carrierUid:string;contributors:readonly string[];dependencies:readonly{uid:string;snapshot:string}[]}
+   }|null}}).geometryScene?.getGroupedStlSourceCatalogue?.(files)
+   if(emitter){
+     if(emitter.schema!=='dcdtuni.stl-source-emission/v1'||emitter.projectUid!==project.uid||
+@@ -133,6 +138,20 @@
+       const index=names.indexOf(row.filename),fileId=`stl_${String(index).padStart(3,'0')}`,key=`${fileId}:${row.solidName}`
+       if(index<0||entities.get(row.sourceEntityUid)!==row.sourceEntitySnapshot||!Number.isSafeInteger(row.facetCount)||row.facetCount<1||regions[key])
+         throw new Error('STL source region has absent, ambiguous or stale OO entity ancestry')
++      const floor=project.constructions?.floors?.[row.sourceEntityUid] as unknown as {
++        uid:string;cooling?:{defaultBoundaryType?:string};geometry?:{faces?:Record<string,{id?:string}>}
++      }|undefined
++      if(floor?.cooling?.defaultBoundaryType==='wallBaffle'||row.sourceSurface){
++        const faceId=row.sourceSurface?.sourceFaceId
++        if(!floor||floor.uid!==row.sourceEntityUid||floor.cooling?.defaultBoundaryType!=='wallBaffle'||
++          row.operation!=='modelBoundary'||!['merged_floor_ceiling.stl','merged_perforated.stl'].includes(row.filename)||
++          faceId!=='top'||floor.geometry?.faces?.[faceId]?.id!==faceId||
++          row.sourceSurface?.representation!=='zeroThicknessSheet')
++          throw new Error('Floor source sheet has absent or invalid canonical face ancestry')
++        sources[key]={stlFileId:fileId,solidName:row.solidName,sourceObjectUid:floor.uid,
++          sourceFaceUid:`${project.uid}/${floor.uid}/${faceId}`,representation:'zeroThicknessSheet'}
++        matchedFloorUids.add(floor.uid)
++      }
+       regions[key]={stlFileId:fileId,solidName:row.solidName,sourceEntityUid:row.sourceEntityUid,
+         sourceRegionUid:`${project.uid}/${row.sourceEntityUid}/stl-region/${row.solidName}`,
+         sourceFacetCount:row.facetCount,sourceRegionSha256:cfdrunExport().sha256TextSync(row.block),operation:row.operation,
+@@ -143,9 +162,6 @@
+     }
+     manifest.geometryExport.sourceRegions=regions
+   }
+-  type SourceRow={stlFileId:string;solidName:string;sourceObjectUid:string;
+-    sourceFaceUid:string;representation:'zeroThicknessSheet'|'surfaceFace'}
+-  const sources:Record<string,SourceRow>={}
+   const modelNames=new Map<string,{uid:string;bucket:'baffle'|'floor'}>()
+   const matchedModelNames=new Set<string>()
+   const rackSheets=new Map<string,{uid:string;sourceFaceUid:string}>()
+@@ -191,6 +207,7 @@
+     if(serverBindings.has(binding.solidName))throw new Error(`duplicate server source solid ${binding.solidName}`)
+     serverBindings.set(binding.solidName,{uid,face:binding.surfaceUid})
+   }
++  const seenSolids=new Set<string>()
+   for(const [index,filename] of names.entries()) {
+     const fileId=`stl_${String(index).padStart(3,'0')}`
+     const body=files[filename]
+@@ -198,7 +215,9 @@
+     const solidNames=[...body.matchAll(/^solid\s+(\S+)\s*$/gm)].map(match=>match[1]!).filter(Boolean)
+     for(const solidName of solidNames) {
+       const key=`${fileId}:${solidName}`
+-      if(sources[key])throw new Error(`duplicate source STL solid ${key}`)
++      if(seenSolids.has(key))throw new Error(`duplicate source STL solid ${key}`)
++      seenSolids.add(key)
++      if(sources[key])continue
+       const model=modelNames.get(solidName)
+       if(model&&((model.bucket==='baffle'&&filename.toLowerCase().includes('baffle'))||
+         (model.bucket==='floor'&&filename.toLowerCase().includes('floor')))) {
+@@ -220,7 +239,8 @@
+     }
+   }
+   if(project.runDefaults?.hybridHeatBudget) {
+-    for(const [name,model] of modelNames)if(!matchedModelNames.has(name))
++    for(const [name,model] of modelNames)if(!matchedModelNames.has(name)&&
++      !(model.bucket==='floor'&&matchedFloorUids.has(model.uid)))
+       throw new Error(`hybrid source ${model.bucket} ${name} (${model.uid}) is missing its STL solid`)
+     for(const key of rackSheets.keys())if(!matchedRackSheets.has(key))
+       throw new Error(`hybrid rack blanking source ${key} is missing its STL solid`)

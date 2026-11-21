@@ -1,0 +1,31 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_exact_fixture_two_rank_full_checker_diagnostic ______________
+
+original_air = <module 'air_roof_original' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/tools/air_transition_roof_probe.py'>
+
+    @pytest.mark.skipif(os.environ.get("DCDTUNI_ROOF_CHECKER_DIAGNOSTIC")!="1",reason="isolated checker diagnostic not enabled")
+    def test_exact_fixture_two_rank_full_checker_diagnostic(original_air):
+        case=Path(os.environ["DCDTUNI_ROOF_DIAG_CASE"]).resolve()
+        assert "/dcdtuni/" in str(case) and ".codex-tmp" in str(case)
+        before={p.name:module.sha(p) for p in (case/"constant/polyMesh").iterdir() if p.is_file()}
+        env=dict(os.environ,OMP_NUM_THREADS="1",OPENBLAS_NUM_THREADS="1",CUDA_VISIBLE_DEVICES="")
+        completed=subprocess.run(["decomposePar","-force","-noFields","-case",str(case)],env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=60)
+        (case/"log.decomposePar").write_text(completed.stdout)
+>       assert completed.returncode==0,completed.stdout
+E       AssertionError: Using: OpenFOAM-v2412 (2412) - visit www.openfoam.com
+E         Build: v2412
+E         
+E         Invalid option: -noFields
+E         
+E         See 'decomposePar -help' for usage
+E          or 'decomposePar -help-full' for extended usage
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['decomposePar', '-force', '-noFields', '-case', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tm...Invalid option: -noFields\n\nSee 'decomposePar -help' for usage\n or 'decomposePar -help-full' for extended usage\n\n").returncode
+
+src/backend/tests/test_air_transition_roof_audit.py:47: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_air_transition_roof_audit.py::test_exact_fixture_two_rank_full_checker_diagnostic
+1 failed, 3 passed in 1.06s

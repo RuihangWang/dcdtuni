@@ -1,0 +1,35 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/airCancellationLifecycle.test.tsx (15 tests | 1 failed) 4962ms
+   ✓ air job cancellation waits for backend completion > recovers a silent healthy SSE via status polling, refreshes disk state, thaws, and allows a fresh run 2135ms
+   × the actual MeshPanel interrupt button unlocks its run button only after confirmed cancellation 863ms
+     → expected false to be true // Object.is equality
+   ✓ MeshPanel shows stop HTTP rejection without hiding the live retry button 318ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  04:17:40
+   Duration  6.30s (transform 1.28s, setup 0ms, collect 228ms, tests 4.96s, environment 820ms, prepare 73ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/airCancellationLifecycle.test.tsx > the actual MeshPanel interrupt button unlocks its run button only after confirmed cancellation
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/airCancellationLifecycle.test.tsx:264:34
+    262|   expect(document.body.classList.contains('ui-frozen')).toBe(true)
+    263|   const waitingButton = panel.querySelector<HTMLButtonElement>('#mesh-…
+    264|   expect(waitingButton.disabled).toBe(true)
+       |                                  ^
+    265|   expect(waitingButton.textContent).toBe((await import('../src/i18n'))…
+    266|   flushSync(() => waitingButton.click())
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

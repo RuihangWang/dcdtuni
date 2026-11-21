@@ -1,0 +1,58 @@
+{
+  "status": "source-and-controlled-worker-tests-passed; real-browser-interrupt-restart-pending",
+  "scope": "normal CFD mesh/solve launch, check-only worker and browser-export-and-run job cancellation",
+  "sourceBeforeSha256": "00f6a3b7c4fa9e44f3b1572ab475ff25c45e625e0c0c1ab99c707929395bceb8",
+  "sourceAfterSha256": "60d46e470f549129f51a40c07b64ccbc9f8627b9db0188b011433421346c9b4f",
+  "testSha256": "7d181703fbd3e357be5a0d51f2fd0a15b09219623de46e8796a823f73e404190",
+  "patchSha256": "c91c2dfa98a2c470253d8eb365ee6f0a3aaaa1fba9a05a3eb5aa68de3eb10d4c",
+  "tests": {
+    "initialSevenCases": {
+      "failed": 6,
+      "passed": 1,
+      "scope": "before.log first seven lifecycle regressions; additional tests added after this initial failure recording"
+    },
+    "finalControlledCancellationCases": 16,
+    "combinedTargetedPassed": 75,
+    "seconds": 1.76,
+    "includes": [
+      "test_job_cancellation.py",
+      "test_check_mesh_quality.py",
+      "test_browser_lifecycle.py",
+      "test_browser_frame_budget.py",
+      "test_browser_command_budget.py",
+      "test_browser_load_project_route.py"
+    ]
+  },
+  "contract": {
+    "abortPending": {
+      "status": "aborting",
+      "done": false,
+      "cancelRequested": true,
+      "cancelled": false
+    },
+    "workerTerminal": {
+      "status": "aborted",
+      "done": true,
+      "returncode": -15,
+      "cancelRequested": true,
+      "cancelled": true,
+      "checkMeshOk": false
+    },
+    "naturalTerminal": {
+      "status": "already_done",
+      "done": true,
+      "cancelRequested": false,
+      "cancelled": false
+    },
+    "publication": "cancel check plus Popen/proc publication atomic under JOBS_LOCK",
+    "cleanup": "only worker finalizer publishes done after stdout/process/tree cleanup and check-only case context exit",
+    "tree": "refresh descendant session list before escalation; preserve known sessions after reparent; zombie-only groups do not hold cancellation open",
+    "failure": "tree termination failure stays nonterminal and returns HTTP500; repeat retry remains possible",
+    "quality": "cancelled job cannot publish successful Mesh OK authorization; a started mesh/check worker invalidates its pending quality receipt",
+    "isolation": "other job registry entries and browser/controller locks are not cleared by the abort handler"
+  },
+  "limitations": [
+    "Controlled processes and repository-local temporary directories only; no actual CFD/browser interrupt validation in this receipt.",
+    "No server launch, service restart, native mesh job, git index mutation or experimental C++ source change was performed."
+  ]
+}

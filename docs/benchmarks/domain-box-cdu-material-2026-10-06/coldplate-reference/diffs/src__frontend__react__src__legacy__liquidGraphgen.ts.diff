@@ -1,0 +1,30 @@
+--- a/src/frontend/react/src/legacy/liquidGraphgen.ts
++++ b/src/frontend/react/src/legacy/liquidGraphgen.ts
+@@ -13,17 +13,22 @@
+  * one branch to the wrong junction still solves, just with the wrong answer.
+  * The React rewrite is of the UI. The solver's input format is not the UI.
+  *
+- * The file is a plain IIFE with exactly two touch points — it reads
+- * `window.state` and it assigns `window.buildLiquidrunJson` — so importing it
+- * for its side effect is enough, provided `window.state` is pointed at the
+- * project first. `withProjectGlobal` does that and puts back whatever was
+- * there, so nothing else that reads `window.state` observes the swap.
++ * The compiler reads the project through window.state and installs its
++ * buildLiquidrunJson function. The pure cold-plate kernel is bound below
++ * before any compile call. withProjectGlobal swaps the project and restores
++ * it afterwards so other callers do not observe a different project.
+  */
+ 
+ // Installs geometryPure before the compiler is called. The compiler consumes
+ // its canonical model-local -> world transform for liquid equipment ports.
+ import './geometryBuilder'
++import { coldPlatePairKernel } from '../domain/coldPlatePairKernel'
+ import '../../../shared/js/liquid_graphgen.js'
++
++// CommonJS exports the same kernel instead of installing a browser global.
++// Bind it for the existing classic compiler, including the research entry.
++const compilerGlobals = window as unknown as { coldPlatePairParameters: typeof coldPlatePairKernel }
++compilerGlobals.coldPlatePairParameters = coldPlatePairKernel
+ 
+ import type { CfdProject, Construction } from '../schema/cfdproj'
+ import { stateV4 } from './cfdprojModules'

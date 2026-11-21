@@ -1,0 +1,127 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/ovDataset.test.ts test/ovPostProcessPanel.test.tsx --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/ovPostProcessPanel.test.tsx (13 tests | 3 failed) 721ms
+   ✓ remembers acknowledged air choices and restores them once after fresh scene and dataset ACKs 335ms
+   × keeps a manual exact air frame across a fresh client and re-applies the real display 27ms
+     → Cannot set properties of null (setting 'value')
+   × rejects an air ACK for the right run but wrong physical time 15ms
+     → Cannot set properties of null (setting 'value')
+   × queues only the final requested frame behind an in-flight dataset import 17ms
+     → Cannot set properties of null (setting 'value')
+ ❯ test/ovDataset.test.ts (5 tests | 2 failed) 26ms
+   × preserves actual complete positive times and the transient marker from the server 11ms
+     → expected [ { name: 'r', …(1) } ] to deeply equal [ { name: 'r', …(3) } ]
+   × sends an explicit numeric frame without changing the legacy request shape 2ms
+     → expected { Object (runId) } to deeply equal { …(2) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovDataset.test.ts > preserves actual complete positive times and the transient marker from the server
+AssertionError: expected [ { name: 'r', …(1) } ] to deeply equal [ { name: 'r', …(3) } ]
+
+- Expected
++ Received
+
+  Array [
+    Object {
+      "name": "r",
+      "runId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-     "timesteps": Array [
+-       0.01,
+-       0.02,
+-     ],
+-     "transient": true,
+    },
+  ]
+
+ ❯ test/ovDataset.test.ts:32:31
+     30| it('preserves actual complete positive times and the transient marker …
+     31|   const f = vi.fn(async () => json({ runs: [{ name: 'r', runId: RID, t…
+     32|   expect(await listOvRuns(f)).toEqual([{ name: 'r', runId: RID, timest…
+       |                               ^
+     33| })
+     34| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/ovDataset.test.ts > sends an explicit numeric frame without changing the legacy request shape
+AssertionError: expected { Object (runId) } to deeply equal { …(2) }
+
+- Expected
++ Received
+
+  Object {
+    "runId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   "time": 0.01,
+  }
+
+ ❯ test/ovDataset.test.ts:39:57
+     37|   const f = vi.fn(async (_u: string, _i?: RequestInit) => json({ grant…
+     38|   await requestOvDatasetGrant(RID, f, .01)
+     39|   expect(JSON.parse(String(f.mock.calls[0]![1]!.body))).toEqual({ runI…
+       |                                                         ^
+     40| })
+     41| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/ovPostProcessPanel.test.tsx > keeps a manual exact air frame across a fresh client and re-applies the real display
+TypeError: Cannot set properties of null (setting 'value')
+ ❯ test/ovPostProcessPanel.test.tsx:261:32
+    259| async function pickFrame(value: string) {
+    260|   const node = frameSelect()
+    261|   await act(async () => { node.value = value; node.dispatchEvent(new E…
+       |                                ^
+    262|   await flush()
+    263| }
+ ❯ Proxy.act node_modules/react/cjs/react.development.js:2512:16
+ ❯ pickFrame test/ovPostProcessPanel.test.tsx:261:9
+ ❯ test/ovPostProcessPanel.test.tsx:271:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/ovPostProcessPanel.test.tsx > rejects an air ACK for the right run but wrong physical time
+TypeError: Cannot set properties of null (setting 'value')
+ ❯ test/ovPostProcessPanel.test.tsx:261:32
+    259| async function pickFrame(value: string) {
+    260|   const node = frameSelect()
+    261|   await act(async () => { node.value = value; node.dispatchEvent(new E…
+       |                                ^
+    262|   await flush()
+    263| }
+ ❯ Proxy.act node_modules/react/cjs/react.development.js:2512:16
+ ❯ pickFrame test/ovPostProcessPanel.test.tsx:261:9
+ ❯ test/ovPostProcessPanel.test.tsx:284:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/ovPostProcessPanel.test.tsx > queues only the final requested frame behind an in-flight dataset import
+TypeError: Cannot set properties of null (setting 'value')
+ ❯ test/ovPostProcessPanel.test.tsx:261:32
+    259| async function pickFrame(value: string) {
+    260|   const node = frameSelect()
+    261|   await act(async () => { node.value = value; node.dispatchEvent(new E…
+       |                                ^
+    262|   await flush()
+    263| }
+ ❯ Proxy.act node_modules/react/cjs/react.development.js:2512:16
+ ❯ pickFrame test/ovPostProcessPanel.test.tsx:261:9
+ ❯ test/ovPostProcessPanel.test.tsx:299:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 13 passed (18)
+   Start at  02:09:30
+   Duration  17.33s (transform 2.48s, setup 0ms, collect 4.51s, tests 747ms, environment 10.96s, prepare 527ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

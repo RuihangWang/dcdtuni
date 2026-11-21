@@ -1,0 +1,15 @@
+# Finite higher-dimensional D/W subsets — mathematical diagnostics
+
+No C++, case arrays, service, native build/job or index was changed. The previous R-only feasibility proof remains immutable. This new copy of its finite-difference/halfspace-projection/backtrack algorithm adds the same count objective used by the earlier scientific proposal, with no scipy.optimize call and no imported optimizer coordinates.
+
+The actual two9-coordinate interior components each improve D7→5 at fraction.95. Their fraction1 endpoints slightly worsen an existing D severity and are refused. The11-coordinate interior plus same-BC-flat component improves D19→14/W12→3 at fraction1; its.95 and smaller fractions are refused for existing W severity deterioration or new R. Backtracking is not automatically safe for nonlinear metrics: every final candidate is audited.
+
+Each proposal stops exactly at256 requests; proposal Python seconds are.365/.259/.574. Total input, full mathematical audits and output processing are6.61/5.49/10.12 seconds. Those timings do not represent C++ stage or the complete API. Full moving stars/current outside neighbours, hard passing roles and stock-formula geometry are audited; N labels may exchange under the measured global ceiling.
+
+The freshly rebound combined14-point candidate is separately reconstructed from the original two-rank documents, rerun through actual binary scalar64 point-format copies, global point-clearance checks and complete combined neighbours. It recomputes373 core/271 outside cells: D47→38/W32→23/R2→0/S0/N54→50, maximum86.82895 degrees. Fraction cavity V/M1 is exact, outside CC/V are DP equal, and all original passing hard roles pass. The minimum new passing D margin is6.1151e−7. The actual native case remains D909/W100/R2 and Failed3; no installed native update/fullcheck is performed here.
+
+This finite replacement reproduces part of the earlier SLSQP benefit, not its full25D/14W improvement. Production selectors for these9/11-dimensional components are not implemented or independently established: the math uses previously frozen topology-selected fixture moving lists. Initial C++ implementation is therefore restricted to the independently proved automatic3/4-parameter R selectors. Higher-dimensional enabled modes require a separate topology-derived selector and installed/native validation.
+
+The flat node's physical star has3 triangles plus1 quad. All physical-face coordinate bytes are not unchanged; its exact support plane, fixed outer ring, patch/zone, positive pieces and Fraction footprint area/M1 are the contract. The existing1.6203125mm raw-STL normal deviation is retained and is not presented as corrected or acceptable. All coupled points are fixed; these local stencils contain no coupled faces and do not establish a changed cross-rank positive.
+
+The old14-point proof, R-only finite manifest, current C ead4/H4a5/app babd and all original mesh arrays remain unchanged. Only explicitly listed new scratch payloads are included by manifest.json; caches/transients are excluded.

@@ -1,0 +1,473 @@
+.........................F...FFF.FFF                                     [100%]
+=================================== FAILURES ===================================
+_______ test_late_verified_writer_cannot_commit_after_retirement[scene] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441b670df0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_late_verified_writer_cann1')
+retire = 'scene'
+
+    @pytest.mark.parametrize("retire", ["clear", "scene", "newer-signed"])
+    def test_late_verified_writer_cannot_commit_after_retirement(monkeypatch, tmp_path, retire):
+        import asyncio
+        import json
+        from test_dataset_scene_race import _drain_until
+        async def scenario():
+            ext, stage, _, _, grant, writes, tickets, entered, release = _signed_route_harness(monkeypatch, tmp_path, blocked=True)
+            ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "old", "grant": grant()}))
+            await _drain_until(entered.is_set)
+            if retire == "clear":
+                ext._route_render_command("clearRenderResultLayers", json.dumps({"requestId": "clear", "displayGeneration": 1}))
+                assert ext._trusted_result_context is None
+            elif retire == "scene":
+                ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+                assert ext._trusted_result_context is None
+            else:
+                ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "new", "grant": grant(frame=0.04, common_generation=1)}))
+                assert ext._trusted_result_context["timeSeconds"] == 0.04
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old")
+            assert old["ok"] is False and "context changed" in old["error"]
+            newer = next(a for a in ext.acks if a["requestId"] != "old")
+            assert newer["ok"] is True
+            if retire == "newer-signed":
+                assert [frame for _, frame in writes] == [0.04] and len(tickets) == 2
+            else:
+                assert writes == []
+                assert ext._trusted_result_context is None
+                if retire == "scene": assert stage.project == "new-project"
+            # No production assignment count is assumed: lifecycle protection is actual.
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, stage, _, _, grant, writes, tickets, entered, release = _signed_route_harness(monkeypatch, tmp_path, blocked=True)
+        ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "old", "grant": grant()}))
+        await _drain_until(entered.is_set)
+        if retire == "clear":
+            ext._route_render_command("clearRenderResultLayers", json.dumps({"requestId": "clear", "displayGeneration": 1}))
+            assert ext._trusted_result_context is None
+        elif retire == "scene":
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
+            assert ext._trusted_result_context is None
+        else:
+            ext._route_render_command("loadVerifiedRenderResultLayers", json.dumps({"requestId": "new", "grant": grant(frame=0.04, common_generation=1)}))
+            assert ext._trusted_result_context["timeSeconds"] == 0.04
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old")
+        assert old["ok"] is False and "context changed" in old["error"]
+        newer = next(a for a in ext.acks if a["requestId"] != "old")
+>       assert newer["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py:216: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+[dc.cfd_bridge] render command loadVerifiedRenderResultLayers failed: signed result context changed while loading/authoring
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[convert] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441c433eb0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno0')
+block = 'convert'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+        assert old["ok"] is False, (block, stage.events, ext.acks)
+        assert "scene changed" in old["error"].lower()
+>       assert new["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:250: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno0/old.vtu
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] result display cleared
+[dc.cfd_bridge] render command loadResultDataset failed: dataset load refused: scene changed while loading
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[import] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441c5ab8b0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno1')
+block = 'import'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+        assert old["ok"] is False, (block, stage.events, ext.acks)
+        assert "scene changed" in old["error"].lower()
+>       assert new["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:250: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno1/old.vtu
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] result display cleared
+[dc.cfd_bridge] render command loadResultDataset failed: dataset load refused: scene changed while loading
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[bounds] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441cf8fa60>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno2')
+block = 'bounds'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+        assert old["ok"] is False, (block, stage.events, ext.acks)
+        assert "scene changed" in old["error"].lower()
+>       assert new["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:250: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_blocked_old_dataset_canno2/old.vtu
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] result display cleared
+[dc.cfd_bridge] render command loadResultDataset failed: dataset load refused: scene changed while loading
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+______ test_queued_old_load_refuses_without_clearing_the_new_scene_result ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441c57dc30>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_queued_old_load_refuses_w0')
+
+    def test_queued_old_load_refuses_without_clearing_the_new_scene_result(monkeypatch, tmp_path):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
+            # All three commands are routed before their coroutine tasks begin.
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-queued", "grant": granted}))
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            new_grant = dict(granted, runId="new-run-id", time=0.01)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "new-load", "grant": new_grant}))
+            await _drain_until(lambda: len(ext.acks) == 3)
+            acks = {a["requestId"]: a for a in ext.acks}
+            assert acks["old-queued"]["ok"] is False
+            assert acks["new-scene"]["ok"] is True
+            assert acks["new-load"]["ok"] is True
+            assert acks["new-load"]["dataset"]["runId"] == "new-run-id"
+            assert acks["new-load"]["dataset"]["time"] == 0.01
+            assert ext._display_project_uid == "new-project"
+            assert scene.dataset_path == "/World/internal"
+            assert stage.GetPrimAtPath("/World/internal")
+            assert len([e for e in stage.events if e[0] == "import"]) == 1
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
+        # All three commands are routed before their coroutine tasks begin.
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-queued", "grant": granted}))
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        new_grant = dict(granted, runId="new-run-id", time=0.01)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "new-load", "grant": new_grant}))
+        await _drain_until(lambda: len(ext.acks) == 3)
+        acks = {a["requestId"]: a for a in ext.acks}
+        assert acks["old-queued"]["ok"] is False
+>       assert acks["new-scene"]["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:292: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] render command loadResultDataset failed: dataset load refused: scene changed while loading
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_queued_old_load_refuses_w0/old.vtu
+____________ test_only_latest_scene_commits_after_a_blocked_import _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441b6c40a0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_only_latest_scene_commits0')
+
+    def test_only_latest_scene_commits_after_a_blocked_import(monkeypatch, tmp_path):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, "import")
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._render_transfer.finish = lambda request_id: {
+                "project": {"uid": "middle-project" if request_id == "middle" else "new-project"},
+                "primitives": [], "view": {"camera": None, "selectedUids": []}}
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "middle"}))
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "latest"}))
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 3)
+            acks = {a["requestId"]: a for a in ext.acks}
+            assert acks["old-load"]["ok"] is False
+            assert acks["middle"]["ok"] is False
+            assert "superseded" in acks["middle"]["error"]
+            assert acks["latest"]["ok"] is True
+            assert [e for e in stage.events if e[0] == "scene"] == [("scene", "new-project")]
+            assert ext._last_scene_request_id == "latest"
+            assert ext._scene_revision == 2
+            assert scene.dataset_path is None
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:325: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, "import")
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._render_transfer.finish = lambda request_id: {
+            "project": {"uid": "middle-project" if request_id == "middle" else "new-project"},
+            "primitives": [], "view": {"camera": None, "selectedUids": []}}
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "middle"}))
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "latest"}))
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 3)
+        acks = {a["requestId"]: a for a in ext.acks}
+        assert acks["old-load"]["ok"] is False
+        assert acks["middle"]["ok"] is False
+        assert "superseded" in acks["middle"]["error"]
+>       assert acks["latest"]["ok"] is True
+E       assert False is True
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:320: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_only_latest_scene_commits0/old.vtu
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] result display cleared
+[dc.cfd_bridge] render command loadResultDataset failed: dataset load refused: scene changed while loading
+[dc.cfd_bridge] render command loadRenderScene failed: scene load refused: a newer scene request superseded it
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+__________ test_completed_result_survives_same_project_scene_reauthor __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f441c13fe20>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout...on-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_completed_result_survives0')
+
+    def test_completed_result_survives_same_project_scene_reauthor(monkeypatch, tmp_path):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "load", "grant": granted}))
+            await _drain_until(lambda: len(ext.acks) == 1)
+            old_source, old_grid = scene.source_vtu_path, scene._slice_grid
+            ext._render_transfer.finish = lambda request_id: {
+                "project": {"uid": "old-project"}, "primitives": [],
+                "view": {"camera": None, "selectedUids": []}}
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "same-project"}))
+            await _drain_until(lambda: len(ext.acks) == 2)
+            assert all(a["ok"] for a in ext.acks)
+            assert scene.dataset_path == "/World/internal"
+            assert scene.source_vtu_path == old_source and scene._slice_grid is old_grid
+            assert ext._display_project_uid == "old-project"
+            assert ext._scene_revision == 2
+            assert not any(e[0] == "remove" and e[1] == "/World/internal" for e in stage.events)
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:346: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "load", "grant": granted}))
+        await _drain_until(lambda: len(ext.acks) == 1)
+        old_source, old_grid = scene.source_vtu_path, scene._slice_grid
+        ext._render_transfer.finish = lambda request_id: {
+            "project": {"uid": "old-project"}, "primitives": [],
+            "view": {"camera": None, "selectedUids": []}}
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "same-project"}))
+        await _drain_until(lambda: len(ext.acks) == 2)
+>       assert all(a["ok"] for a in ext.acks)
+E       assert False
+E        +  where False = all(<generator object test_completed_result_survives_same_project_scene_reauthor.<locals>.scenario.<locals>.<genexpr> at 0x7f441afc9540>)
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:340: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 0 prims)
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-layout-normal-test-correction-private-shared-20261007/candidate/.codex-tmp/candidate-fixed-lifecycle/pytest-temp/test_completed_result_survives0/old.vtu
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] render command loadRenderScene failed: $: missing timeSeconds
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py::test_late_verified_writer_cannot_commit_after_retirement[scene]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[convert]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[import]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[bounds]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_queued_old_load_refuses_without_clearing_the_new_scene_result
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_only_latest_scene_commits_after_a_blocked_import
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_completed_result_survives_same_project_scene_reauthor
+7 failed, 29 passed in 2.86s

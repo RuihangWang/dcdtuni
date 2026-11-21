@@ -1,0 +1,166 @@
+586:                     {
+587:                         if (fixed<0) fixed=p;
+588:                         else level=level && same(points[fixed][a],points[p][a]);
+589:                     }
+590:                     if (fixed>=0 && level
+591:                      && !same(points[fixed][a],points[pair[0]][a])) allowed=true;
+592:                 }
+593:             }
+594:             if (!allowed || !valid) { valid=false; break; }
+595:         }
+596:         if (valid && polygon)
+597:         {
+598:             out.axis=axis; out.pairA=pair[0]; out.pairB=pair[1];
+599:             out.dimension=4; return out;
+600:         }
+601:     }
+602:     return out;
+603: }
+604: } // namespace dcCartFiniteRepairKernel
+605: 
+606: #ifndef DCCART_FINITE_REPAIR_KERNEL_ONLY
+607: // The production adapter below deliberately has no optimizer/library dependency.
+608: #include "polyMesh.H"
+609: #include "pointIOField.H"
+610: #include "primitiveMeshTools.H"
+611: #include "polyMeshTools.H"
+612: #include "mathematicalConstants.H"
+613: #include "tetPointRef.H"
+614: #include "polyMeshTetDecomposition.H"
+615: #include "PstreamReduceOps.H"
+616: #include "symmTensor.H"
+617: #include "faceZoneMesh.H"
+618: #include "pointZoneMesh.H"
+619: #include "cellZoneMesh.H"
+620: 
+621: namespace Foam
+622: {
+623: namespace dcCartFinitePointRepair
+624: {
+625: struct Result
+626: {
+627:     label proposed=0, committed=0, refused=0, requests=0;
+628:     label budgetStopped=0, requestCapStopped=0, unsupported=0, finalRolledBack=0;
+629:     label dwProposed=0, dwCommitted=0, dwRefused=0;
+630:     label singletonContractRefused=0;
+631:     scalar setupSeconds=0, proposalSeconds=0, installedSeconds=0;
+632:     scalar guardSeconds=0, rollbackSeconds=0, elapsedSeconds=0;
+633: };
+634: 
+635: inline bool finiteScalar(scalar x) { return std::isfinite(double(x)); }
+636: inline bool finiteVector(const vector& x)
+637: {
+638:     return finiteScalar(x.x()) && finiteScalar(x.y()) && finiteScalar(x.z());
+639: }
+640: inline bool sameScalar(scalar a,scalar b)
+641: {
+642:     return std::memcmp(&a,&b,sizeof(scalar))==0;
+643: }
+644: inline bool sameVector(const vector& a,const vector& b)
+645: {
+646:     for (direction k=0;k<3;++k) if (!sameScalar(a[k],b[k])) return false;
+647:     return true;
+648: }
+649: struct FaceData
+650: {
+651:     label id=-1, owner=-1, neighbour=-1;
+652:     face vertices; // compact point indices, original ring order
+653:     bool coupled=false;
+654: };
+655: struct CellData
+656: {
+657:     label id=-1;
+658:     std::vector<label> faces; // original owner faces, then neighbour faces
+659: };
+660: struct State
+661: {
+662:     std::vector<vector> sf,fc,cc;
+663:     std::vector<scalar> volume,determinant;
+664:     std::vector<std::array<scalar,4>> faceQuality; // W,R,S,N
+665:     bool valid=true;
+666: };
+667: struct Stencil
+668: {
+669:     const polyMesh& mesh;
+670:     std::vector<label> pointIDs,faceIDs,cellIDs;
+671:     std::map<label,label> pointIndex,faceIndex,cellIndex;
+672:     std::vector<FaceData> faces;
+673:     faceList compactFaces;
+674:     std::vector<CellData> cells;
+675:     std::vector<label> core,outside;
+676:     std::map<label,std::pair<vector,scalar>> halo;
+677:     pointField original;
+678:     scalar scale=0;
+679:     bool eligible=true;
+680: 
+681:     Stencil
+682:     (
+683:         const polyMesh& input, const pointField& points,
+684:         const std::vector<label>& moving,
+685:         const std::map<label,std::pair<vector,scalar>>& currentCells={},
+686:         const bool jointPrefix=false
+687:     ) : mesh(input)
+688:     {
+689:         const auto& pf=mesh.pointFaces();
+690:         const auto& cf=mesh.cells();
+691:         const auto& own=mesh.faceOwner();
+692:         const auto& nei=mesh.faceNeighbour();
+693:         std::set<label> coreSet,outsideSet,faceSet,pointSet;
+694:         for (label p:moving)
+695:         {
+696:             if (p<0 || p>=points.size()) { eligible=false; return; }
+697:             for (label f:pf[p])
+698:             {
+699:                 coreSet.insert(own[f]);
+700:                 if (f<nei.size()) coreSet.insert(nei[f]);
+701:                 if (coreSet.size()>(jointPrefix ? 512u : 128u)) { eligible=false;return; }
+702:             }
+703:         }
+704:         for (label c:coreSet) for (label f:cf[c])
+705:         {
+706:             faceSet.insert(f);
+707:             if (faceSet.size()>(jointPrefix ? 4096u : 2048u)) { eligible=false;return; }
+708:             if (f<nei.size())
+709:             {
+710:                 const label other=(own[f]==c ? nei[f] : own[f]);
+711:                 if (!coreSet.count(other)) outsideSet.insert(other);
+712:             }
+713:             else if (mesh.boundaryMesh()[mesh.boundaryMesh().patchID(f)].coupled())
+714:             { eligible=false; return; }
+715:         }
+716:         if (outsideSet.size()>(jointPrefix ? 512u : 256u)) { eligible=false;return; }
+717:         std::set<label> allCells=coreSet;
+718:         allCells.insert(outsideSet.begin(),outsideSet.end());
+719:         if (dcCartFiniteRepairKernel::intersectsCellZones(allCells,mesh.cellZones()))
+720:         { eligible=false;return; }
+721:         for (label c:outsideSet) for (label f:cf[c])
+722:         {
+723:             faceSet.insert(f);
+724:             if (faceSet.size()>(jointPrefix ? 4096u : 2048u)) { eligible=false;return; }
+725:         }
+726:         for (label f:faceSet) for (label p:mesh.faces()[f])
+727:         {
+728:             pointSet.insert(p);
+729:             if (pointSet.size()>8192) { eligible=false;return; }
+730:         }
+731:         pointIDs.assign(pointSet.begin(),pointSet.end());
+732:         faceIDs.assign(faceSet.begin(),faceSet.end());
+733:         cellIDs.assign(allCells.begin(),allCells.end());
+734:         original.setSize(pointIDs.size());
+735:         vector lo(GREAT,GREAT,GREAT),hi(-GREAT,-GREAT,-GREAT);
+736:         for (label i=0;i<label(pointIDs.size());++i)
+737:         {
+738:             pointIndex[pointIDs[i]]=i; original[i]=points[pointIDs[i]];
+739:             if (!finiteVector(original[i])) { eligible=false; return; }
+740:             for (direction k=0;k<3;++k)
+741:             { lo[k]=min(lo[k],original[i][k]); hi[k]=max(hi[k],original[i][k]); }
+742:         }
+743:         scale=max(hi.x()-lo.x(),max(hi.y()-lo.y(),hi.z()-lo.z()));
+744:         if (!finiteScalar(scale) || scale<=3e-6) { eligible=false; return; }
+745:         for (label i=0;i<label(cellIDs.size());++i) cellIndex[cellIDs[i]]=i;
+746:         for (label i=0;i<label(faceIDs.size());++i)
+747:         {
+748:             label f=faceIDs[i]; faceIndex[f]=i;
+749:             FaceData data; data.id=f; data.owner=own[f];
+750:             data.neighbour=(f<nei.size() ? nei[f] : -1);
+751:             if (f>=nei.size())

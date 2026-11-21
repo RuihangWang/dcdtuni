@@ -1,0 +1,1447 @@
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 711-792 =====
+711: // checkMesh 的 face-pyramid 检查按 mesh.cellCentres() 判『胞心在每面平面负侧』，
+712: // 而 cellCentres()/faceCentres()/faceAreas() 的算法与散度质心/顶点均值在【非凸胞】
+713: // 上存在系统性差异。此处逐步复刻：
+714: //  · 面：face::areaAndCentre（Ref_code/OpenFOAM-dev .../face/faceTemplates.C:79）：
+715: //    三角形直算；否则顶点均值 pAvg 扇形分解，面积按面法向投影加权（与初值无关）。
+716: //  · 胞：makeCellCentresAndVols（.../primitiveMesh/primitiveMeshCellCentresAndVols.C）：
+717: //    cEst = 本胞全部面中心均值；面锥（apex=cEst）体积加权重心。
+718: // 所有面按外法向绕向相对本胞时，结果即 OpenFOAM 对该胞的 cellCentre。
+719: 
+720: // 面面积矢 + 面中心（v2412 face::areaAndCentre；环为外法向绕向的 Vec3 序列）
+721: void foamFaceAreaCentre(const std::vector<Vec3>& ring, Vec3& Sf, Vec3& fc) {
+722:     const size_t n = ring.size();
+723:     if (n == 3) {
+724:         Sf = (ring[1] - ring[0]).cross(ring[2] - ring[0]) * 0.5;
+725:         fc = (ring[0] + ring[1] + ring[2]) / 3.0;
+726:         return;
+727:     }
+728:     Vec3 pAvg{0, 0, 0};
+729:     for (const auto& p : ring) pAvg = pAvg + p;
+730:     pAvg = pAvg / (double)n;
+731:     Vec3 sumA{0, 0, 0};
+732:     for (size_t i = 0; i < n; ++i) {
+733:         const Vec3 a = (ring[(i + 1) % n] - ring[i]).cross(pAvg - ring[i]);
+734:         sumA = sumA + a;
+735:     }
+736:     Sf = sumA * 0.5;
+737:     const double sn = sumA.norm();
+738:     if (sn < 1e-300) {  // 退化面：中心取顶点均值（同 v2412 小面分支）
+739:         fc = pAvg;
+740:         return;
+741:     }
+742:     const Vec3 sumAHat = sumA / sn;
+743:     double sumAn = 0;
+744:     Vec3 sumAnc{0, 0, 0};
+745:     for (size_t i = 0; i < n; ++i) {
+746:         const Vec3 a = (ring[(i + 1) % n] - ring[i]).cross(pAvg - ring[i]);
+747:         const double an = a.dot(sumAHat);  // 投影面积权重（非三角形面积模长）
+748:         sumAn += an;
+749:         sumAnc = sumAnc + (ring[i] + ring[(i + 1) % n] + pAvg) * an;
+750:     }
+751:     fc = (sumAn > 1e-300) ? sumAnc * (1.0 / (3.0 * sumAn)) : pAvg;
+752: }
+753: 
+754: // OpenFOAM 风格胞中心：面锥分解，apex = 本胞面中心均值（外法向面族）
+755: Vec3 foamCellCentreOfRings(const std::vector<std::vector<Vec3>>& rings) {
+756:     const size_t nf = rings.size();
+757:     if (nf == 0) return Vec3{0, 0, 0};
+758:     std::vector<Vec3> sfs(nf), fcs(nf);
+759:     Vec3 cEst{0, 0, 0};
+760:     for (size_t i = 0; i < nf; ++i) {
+761:         foamFaceAreaCentre(rings[i], sfs[i], fcs[i]);
+762:         cEst = cEst + fcs[i];
+763:     }
+764:     cEst = cEst / (double)nf;
+765:     double V3 = 0;
+766:     Vec3 M{0, 0, 0};
+767:     for (size_t i = 0; i < nf; ++i) {
+768:         const double pyr3Vol = sfs[i].dot(fcs[i] - cEst);
+769:         const Vec3 pc = fcs[i] * 0.75 + cEst * 0.25;
+770:         V3 += pyr3Vol;
+771:         M = M + pc * pyr3Vol;
+772:     }
+773:     return (std::abs(V3) > 1e-300) ? M / V3 : cEst;
+774: }
+775: 
+776: // 面平面最大越界（OpenFOAM 胞心口径）：max_f n̂_f·(C_foam − fc_f)。
+777: // 凸胞恒为负（胞心在所有面平面内侧）；非凸胞可为正——正是 checkMesh
+778: // wrongOrientedFaces 的几何条件。返回越界值（<0 = 全部在负侧）。
+779: double foamCentroidMaxOut(const std::vector<std::vector<Vec3>>& rings, Vec3* outC = nullptr) {
+780:     const Vec3 C = foamCellCentreOfRings(rings);
+781:     if (outC) *outC = C;
+782:     double maxOut = -1e300;
+783:     for (const auto& r : rings) {
+784:         Vec3 Sf, fc;
+785:         foamFaceAreaCentre(r, Sf, fc);
+786:         const double an = Sf.norm();
+787:         if (an < 1e-300) continue;
+788:         maxOut = std::max(maxOut, Sf.dot(C - fc) / an);
+789:     }
+790:     return maxOut;
+791: }
+792: 
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 11905-11970 =====
+11905:                         // 坐标）⇒ 候选平面序"事件平面优先"（predictor mechanism
+11906:                         // affinity 同序 ⇒ BC3 census 口径复现）。登记簿 = patch=-2 面
+11907:                         // （XV 缝 + H12 iface 副本）的镜像配对保全（xvPreCutPool/
+11908:                         // 终巡补切 ⇒ S8-A1c 键恒等构造保证）。逐胞局部（并行安全）；
+11909:                         // xvOn 门外零足迹（BC5）。
+11910:                         std::vector<Vec3> xvEvPts;
+11911:                         XvRegistry xvReg;
+11912:                         const XvCtx xvCtx{c.H, clipTol, 1e-9 * c.H,
+11913:                                           1e-10 * c.H * c.H, origin, qscale};
+11914:                         // 侧代表点 = 面升序×行走序首现组件 cen3（S7 诚实代表点梯产物）
+11915:                         // H13：侧代表点 = 【列表】（面升序×组件序全量）——单代表点
+11916:                         // 在三正交 barrier 角胞（ACU 角 (1.6,3,0.6) 实证）把可见性
+11917:                         // 回退打死：缝口组件到首代表点（西面 cen）的线段被 ACU-top
+11918:                         // 三角阻断，而到同侧北面组件 cen 的线段无阻断 ⇒ 单 rep 判
+11919:                         // "不可见" ⇒ compNoSide 弃置 ⇒ ΣSf 洞（1.2234e-4 = 东面
+11920:                         // (+,+,+) 组件面积精确对账）。多 rep 逐一试 = 可见性语义
+11921:                         // 不变（任一未阻断线段 ⇒ 同侧流体），首 rep 命中行为与旧版
+11922:                         // 逐点同一（列表首元 = 旧 sideRep 同一点同一序）。
+11923:                         std::vector<std::vector<Vec3>> sideReps((size_t)P.nSides);
+11924:                         for (int f2 = 0; f2 < 6; ++f2)
+11925:                             for (const auto& cc2 : P.faceComps[(size_t)f2])
+11926:                                 if (cc2.side >= 0 && cc2.side < (int)P.nSides)
+11927:                                     sideReps[(size_t)cc2.side].push_back(cc2.cen3);
+11928:                         // 点→侧分类器：① 签名精确匹配（扫全部组件 sig——sideSig 只是
+11929:                         // 代表，精确匹配须扫组件，种子解析同款口径；R1 规则①同签名
+11930:                         // 无条件并 ⇒ 签名→侧唯一）② 可见性回退（p 到侧代表线段不交
+11931:                         // 任何 barrier 三角 = R1 闭包同款 dcSegTriCross 保守带 ⇒ 过
+11932:                         // 阻塞方向 = 安全）③ 无匹配 = 固体/dropped 域 ⇒ -1。
+11933:                         std::vector<int8_t> clsSig;
+11934:                         auto sideOfPt3 = [&](const Vec3& p) -> int {
+11935:                             dcSignature(c, bar, p, clipTol, clsSig);
+11936:                             for (int f2 = 0; f2 < 6; ++f2)
+11937:                                 for (const auto& cc2 : P.faceComps[(size_t)f2])
+11938:                                     if (cc2.side >= 0 && cc2.sig == clsSig)
+11939:                                         return cc2.side;
+11940:                             // H13：可见性回退 = 多代表点逐一试（任一未阻断 ⇒ 同侧；
+11941:                             // 首 rep 命中 = 旧单 rep 行为逐点同一）
+11942:                             for (int s = 0; s < (int)P.nSides; ++s) {
+11943:                                 for (const Vec3& rpS : sideReps[(size_t)s]) {
+11944:                                     bool blocked = false;
+11945:                                     for (int t : bar) {
+11946:                                         const auto& tr = c.surf.tris[(size_t)t];
+11947:                                         if (dcSegTriCross(p, rpS,
+11948:                                                           c.surf.verts[(size_t)tr[0]],
+11949:                                                           c.surf.verts[(size_t)tr[1]],
+11950:                                                           c.surf.verts[(size_t)tr[2]],
+11951:                                                           clipTol)) {
+11952:                                             blocked = true;
+11953:                                             break;
+11954:                                         }
+11955:                                     }
+11956:                                     if (!blocked) return s;
+11957:                                 }
+11958:                             }
+11959:                             // （Hamming-最近签名兜底曾在此试验——曲面近点分类的
+11960:                             // 兜底会把 F5 类"双邻固体贴片=零发射"误判成发射 ⇒ 已撤。
+11961:                             // 曲面 barrier 的 dcMode 构造 = 登记在案的 WIP 缺口，
+11962:                             // dc_export 引擎块随 F13 翻转以平面几何重建。）
+11963:                             return -1;
+11964:                         };
+11965:                         // ---- pinch 分解（KB-1：T-junction 退化环处理）----
+11966:                         // 闭合行走环带重复顶点（设备足-地板 T-junction pinch，scout
+11967:                         // §9.1/§4：普遍构型；F1 齐平板-墙角的良性同款）⇒ 按重复点
+11968:                         // 抽取简单环（边重集守恒 ⇒ 面积守恒；零宽臂 = <3 节点环弃置
+11969:                         // loud）。不分解则整 pinch 环归一侧（诚实代表点落主体侧），
+11970:                         // 另一侧丢失面域 ⇒ ΣSf 开放胞（F1 实测 0.000625 根因）。
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 12520-12725 =====
+12520:                             const Vec3 nhat = nn / nn.norm();
+12521:                             int copies = 0;
+12522:                             for (const auto& fr : frags) {
+12523:                                 Vec3 tc{0, 0, 0};
+12524:                                 for (const auto& q : fr) tc = tc + q;
+12525:                                 tc = tc / (double)fr.size();
+12526:                                 const auto wallHalfOwnership =
+12527:                                     meshgen_leaf_ownership::boundaryHalfOwnership(
+12528:                                         bmn, bmx,
+12529:                                         surf.verts[surf.tris[t][0]],
+12530:                                         surf.verts[surf.tris[t][1]],
+12531:                                         surf.verts[surf.tris[t][2]], fr,
+12532:                                         tc + nhat * (clipTol * 10),
+12533:                                         tc - nhat * (clipTol * 10),
+12534:                                         clipTol, faceAreaVec(fr).norm2());
+12535:                                 // 主判据：共边已分类组件 ⇒ (侧, 半空间) 对（每侧至多
+12536:                                 // 一次；半空间 = 组件代表点对本三角平面的符号 ⇒ 外法向
+12537:                                 // = −sign·n̂，keep/side 语义导出、绕向不变式）
+12538:                                 std::vector<std::pair<int, double>> edgeSides;
+12539:                                 for (size_t e2 = 0; e2 < fr.size(); ++e2) {
+12540:                                     PtKey ek1 = ptKeyOf(fr[e2]);
+12541:                                     PtKey ek2 = ptKeyOf(fr[(e2 + 1) % fr.size()]);
+12542:                                     if (!pkLessEdge(ek1, ek2)) std::swap(ek1, ek2);
+12543:                                     auto itE = compEdgeSides.find(std::make_pair(ek1, ek2));
+12544:                                     if (itE == compEdgeSides.end()) continue;
+12545:                                     for (const auto& es : itE->second) {
+12546:                                         const double d = (es.rep - tc).dot(nhat);
+12547:                                         if (std::abs(d) < 1e-300) continue;
+12548:                                         const double sgn = (d > 0) ? 1.0 : -1.0;
+12549:                                         bool have = false;
+12550:                                         for (const auto& pr : edgeSides)
+12551:                                             if (pr.first == es.side) { have = true; break; }
+12552:                                         if (!have) edgeSides.emplace_back(es.side, sgn);
+12553:                                     }
+12554:                                 }
+12555:                                 int frCopies = 0;
+12556:                                 int fragSide0 = -1, fragSide1 = -1;
+12557:                                 // 主判据 = p± 点分类（碎片质心 ± ε·n̂ = 贴片【面邻接】
+12558:                                 // 的局部半空间测试；F5 cell49 实证：共边组件在绕角
+12559:                                 // 构型只是【切向边接触】（wrap-around 角），其 rep 半
+12560:                                 // 空间 ≠ 贴片脸邻接侧 ⇒ 共边判据不得作主判据）。
+12561:                                 const int sPlus = wallHalfOwnership.allows(0)
+12562:                                     ? sideOfPt3(tc + nhat * (clipTol * 10)) : -1;
+12563:                                 const int sMinus = wallHalfOwnership.allows(1)
+12564:                                     ? sideOfPt3(tc - nhat * (clipTol * 10)) : -1;
+12565:                                 if (envDbg6() &&
+12566:                                     dbgCellHitCen(ci, Vec3{(bmn.x + bmx.x) * 0.5,
+12567:                                                              (bmn.y + bmx.y) * 0.5,
+12568:                                                              (bmn.z + bmx.z) * 0.5})) {
+12569:                                     // H13 取证：逐碎片 p± 分类值（DBG_CELL/CEN 过滤）
+12570:                                     static std::mutex muTf;
+12571:                                     std::lock_guard<std::mutex> lkTf(muTf);
+12572:                                     std::fprintf(stderr,
+12573:                                         "[DC-SB-TNF] ci=%zu t=%d tc=(%.9g,%.9g,%.9g) "
+12574:                                         "nhat=(%.6g,%.6g,%.6g) s+=%d s-=%d eS=%zu\n",
+12575:                                         ci, t, tc.x, tc.y, tc.z, nhat.x, nhat.y, nhat.z,
+12576:                                         sPlus, sMinus, edgeSides.size());
+12577:                                     // dc17 E3d 取证：碎片环全点（单缓冲防交织）
+12578:                                     {
+12579:                                         char bufE3d[64 + 96 * 64];
+12580:                                         int offE3d = std::snprintf(
+12581:                                             bufE3d, sizeof(bufE3d),
+12582:                                             "[DC-E3D-FR] ci=%zu t=%d ring:", ci, t);
+12583:                                         for (const auto& qF : fr)
+12584:                                             offE3d += std::snprintf(
+12585:                                                 bufE3d + offE3d,
+12586:                                                 sizeof(bufE3d) - (size_t)offE3d,
+12587:                                                 " (%.9g,%.9g,%.9g)", qF.x, qF.y, qF.z);
+12588:                                         std::fprintf(stderr, "%s\n", bufE3d);
+12589:                                     }
+12590:                                 }
+12591:                                 // ---- Q2/B1（dc17 Step 5b KB-2 咨商 Q2）：wrap 侧
+12592:                                 // 继承（sig 全域版）+ 胞内 fin 成对删除 ----
+12593:                                 // 缺陷两型（F21 v5b 带胞 + BL 146910 逐面对账）：
+12594:                                 // ①fin 条带（part1 类比）缝侧探针分类失败（缝 = yA/yB
+12595:                                 //   间 0.1mm 槽：sig 无组件匹配 = S7 划分盲区 + 全代表
+12596:                                 //   点视线被 fin 自身/post 壁阻断）⇒ 孪生缺 ⇒ ΣSf_y 洞；
+12597:                                 // ②竖直边线壁（post 西壁）沿缝的条带碎片同因失败 ⇒
+12598:                                 //   缝口条带面缺 ⇒ ΣSf_x 洞（BL face-9 双洞构型）。
+12599:                                 // 修复：失败半侧探针的 sig 与任一 wrap 开口记录 sig
+12600:                                 // 逐位相等 ⇒ 继承其 kept 侧（R1 规则①同款：同签名 ⇒
+12601:                                 // 同侧——wrap 记录 = 开口 p± 双探针同归 kept 侧 S 的
+12602:                                 // 绕缘连通证据；sig 即划分语言里的区域身份，跨平面
+12603:                                 // 有效——BL 实测：缝 sig 的证据开口在 yA 平面（post
+12604:                                 // 南壁开口北探 = 缝内，绕 fin 西缘可见 side0），而
+12605:                                 // 待救碎片在 x_v 平面 ⇒ 平面限制版救不了型②）。
+12606:                                 // 判定分流：两半侧皆 kept 且经继承且同侧 ⇒ 胞内 fin
+12607:                                 // ⇒ 成对删除（invariant (ii)：ΣSf 中性、消除 fin 平面
+12608:                                 // vs 质心 kind3 违例源、使 x=x_v 拆分全绿可落地）；
+12609:                                 // 仅一半 kept（直接∨继承）⇒ 正常单拷贝发射（型②壁面，
+12610:                                 // patch = surf.patch[t] 直通 = invariant (i) patch 身份）。
+12611:                                 // 安全性：实体侧探针 sig 与任何 wrap 记录（流体开口
+12612:                                 // 探针 sig）必异（实体/流体区在胞内 barrier 平面符号
+12613:                                 // 组合上分离）⇒ 绝不误继承/误删。直接双侧分类（F4/F13
+12614:                                 // 类）路径逐字不变（继承仅在失败半侧触发）。
+12615:                                 int sRes[2] = {sPlus, sMinus};
+12616:                                 bool inhRes[2] = {false, false};
+12617:                                 if (!wrapSigs.empty()) {
+12618:                                     for (int half = 0; half < 2; ++half) {
+12619:                                         if (!wallHalfOwnership.allows(half)) continue;
+12620:                                         // dc17 E3d FIX-1（继承收紧）：直接分类【成功】
+12621:                                         // （sRes≥0，含 dropped 侧）= 终判，不再被 wrap-inh
+12622:                                         // sig 匹配覆盖；继承仅服务直接分类【失败】(s=-1)
+12623:                                         // ——E3b 设计文本原意（"碎片 p± 探针直接分类失败
+12624:                                         // …时"）的实现收紧。Tri 475/14596 实测：dropped 侧
+12625:                                         // 直接探针 (s-=2) 被 sheet 平面 wrap 记录 sig 覆盖
+12626:                                         // ⇒ 伪 fin 成对删除 ⇒ 1.49e-5 壁片丢失（斜墙铰链
+12627:                                         // 处 sig 只编码平面符号组合，柱体楔与开口共符号 ⇒
+12628:                                         // E3b 安全性论证在斜 barrier 上证伪，§5b-E3d.0）。
+12629:                                         // BL 保全：BL FINP 30/30 = s+=0 s-=-1（失败探针，
+12630:                                         // 收紧不触发）⇒ no-op（重跑字节门实证）。
+12631:                                         // 消融口径（CART_E3D_NO_INHTIGHT）：置位 =
+12632:                                         // branch-point 原式（仅 kept 侧跳过继承）。
+12633:                                         if (sRes[half] >= 0 &&
+12634:                                             (envE3dNoInhTight()
+12635:                                                  ? (sRes[half] < (int)P.nSides &&
+12636:                                                     sideKept(sRes[half]))
+12637:                                                  : true)) {
+12638:                                             if (!envE3dNoInhTight() &&
+12639:                                                 sRes[half] < (int)P.nSides &&
+12640:                                                 !sideKept(sRes[half]))
+12641:                                                 dcE3dInhTight.fetch_add(
+12642:                                                     1, std::memory_order_relaxed);
+12643:                                             continue;
+12644:                                         }
+12645:                                         const Vec3 probeF =
+12646:                                             tc + (((half == 0) ? nhat : nhat * -1.0) *
+12647:                                                   (clipTol * 10));
+12648:                                         std::vector<int8_t> sigF;
+12649:                                         dcSignature(c, bar, probeF, clipTol, sigF);
+12650:                                         for (const auto& wr : wrapSigs) {
+12651:                                             if (wr.sig != sigF) continue;
+12652:                                             sRes[half] = wr.side;
+12653:                                             inhRes[half] = true;
+12654:                                             break;   // 首记录优先（表序确定 ⇒ 决定性）
+12655:                                         }
+12656:                                     }
+12657:                                 }
+12658:                                 const bool k0W = (sRes[0] >= 0 && sRes[0] < (int)P.nSides &&
+12659:                                                   sideKept(sRes[0]));
+12660:                                 const bool k1W = (sRes[1] >= 0 && sRes[1] < (int)P.nSides &&
+12661:                                                   sideKept(sRes[1]));
+12662:                                 if (k0W && k1W && (inhRes[0] || inhRes[1]) &&
+12663:                                     sRes[0] == sRes[1]) {
+12664:                                     dcP1TileWrapInh.fetch_add(1, std::memory_order_relaxed);
+12665:                                     if (xvOn) xvEvPts.push_back(tc);   // XV 事件点（FINP）
+12666:                                     if (envDbg6() && dbgCellHit(ci)) {
+12667:                                         static std::mutex muWf;
+12668:                                         std::lock_guard<std::mutex> lkWf(muWf);
+12669:                                         std::fprintf(stderr,
+12670:                                             "[DC-SB-FINP] ci=%zu t=%d tc=(%.9g,%.9g,%.9g) "
+12671:                                             "s+=%d s-=%d inh=%d/%d => 成对删除（wrap-fin）\n",
+12672:                                             ci, t, tc.x, tc.y, tc.z, sPlus, sMinus,
+12673:                                             (int)inhRes[0], (int)inhRes[1]);
+12674:                                     }
+12675:                                     continue;   // 胞内 fin：± 成对删除（ΣSf 中性）
+12676:                                 }
+12677:                                 for (int half = 0; half < 2; ++half) {
+12678:                                     if (!wallHalfOwnership.allows(half)) continue;
+12679:                                     const int s = sRes[half];
+12680:                                     if (s < 0 || s >= (int)P.nSides || !sideKept(s))
+12681:                                         continue;
+12682:                                     if (inhRes[half]) {
+12683:                                         dcP1TileWrapInh.fetch_add(
+12684:                                             1, std::memory_order_relaxed);
+12685:                                         if (xvOn) xvEvPts.push_back(tc);   // XV 事件点（WINH）
+12686:                                         if (envDbg6() && dbgCellHit(ci)) {
+12687:                                             static std::mutex muWi;
+12688:                                             std::lock_guard<std::mutex> lkWi(muWi);
+12689:                                             std::fprintf(stderr,
+12690:                                                 "[DC-SB-WINH] ci=%zu t=%d half=%d "
+12691:                                                 "inherit side=%d tc=(%.9g,%.9g,%.9g)\n",
+12692:                                                 ci, t, half, s, tc.x, tc.y, tc.z);
+12693:                                         }
+12694:                                     }
+12695:                                     // 外法向 = 离该侧流体（流体在 p± ⇒ 外法向 = ∓n̂）
+12696:                                     // ——keep/side 语义导出；(s,方向) 配对绕向不变
+12697:                                     const Vec3 want = (half == 0) ? -nhat : nhat;
+12698:                                     std::vector<Vec3> cp = fr;
+12699:                                     if (faceAreaVec(cp).dot(want) < 0)
+12700:                                         std::reverse(cp.begin(), cp.end());
+12701:                                     PFace wf;
+12702:                                     wf.pts = std::move(cp);
+12703:                                     wf.patch = surf.patch[t];
+12704:                                     wf.side = -1;
+12705:                                     sideFaces[(size_t)s].push_back(std::move(wf));
+12706:                                     if (fragSide0 < 0) fragSide0 = s;
+12707:                                     else if (fragSide1 < 0) fragSide1 = s;
+12708:                                     ++frCopies;
+12709:                                 }
+12710:                                 if (frCopies == 0 && !edgeSides.empty()) {
+12711:                                     // 回退：共边已分类组件（曲面/密表面近点 p± 签名
+12712:                                     // 落空时的第二判据——球面 dc_export 实证人口；
+12713:                                     // 平面 DC 案 p± 为主 ⇒ 本回退 ≈ 稀疏）
+12714:                                     for (const auto& pr : edgeSides) {
+12715:                                         if (!wallHalfOwnership.allowsEdge(pr.second)) continue;
+12716:                                         const int s = pr.first;
+12717:                                         if (s < 0 || s >= (int)P.nSides || !sideKept(s))
+12718:                                             continue;
+12719:                                         const Vec3 want = nhat * (-pr.second);
+12720:                                         std::vector<Vec3> cp = fr;
+12721:                                         if (faceAreaVec(cp).dot(want) < 0)
+12722:                                             std::reverse(cp.begin(), cp.end());
+12723:                                         PFace wf;
+12724:                                         wf.pts = std::move(cp);
+12725:                                         wf.patch = surf.patch[t];
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 17276-17342 =====
+17276:             // 尝试按平面 pl 拆分单元 ci。dryRun=true 只评估（*outFoam=拆后最大
+17277:             // 块越界），不改 cells；dryRun=false 真正落地。成功（含 dryRun 可行）
+17278:             // 返回 true。
+17279:             auto trySplit = [&](size_t ci, const Plane& pl, bool dryRun,
+17280:                                 double* outFoam) -> bool {
+17281:                 CellRec& cr = cells[ci];
+17282:                 const size_t gptsBase = gpts.size();
+17283:                 splitNewPts.clear();
+17284:                 const double origFoam = foamMaxOut(cr);
+17285:                 auto srej = [&](const char* why) -> bool {
+17286:                     gpts.resize(gptsBase);
+17287:                     splitNewPts.clear();
+17288:                     if (dbgCellHitCen(ci, cr.cen) && envDbg6() && (!dryRun || envDbg7()))
+17289:                         std::fprintf(stderr, "[SPLIT-REJ%s] ci=%zu why=%s\n", dryRun ? "-DRY" : "", ci, why);
+17290:                     return false;
+17291:                 };
+17292:                 struct Frag {
+17293:                     std::vector<int> pts;
+17294:                     int patch, nbr;
+17295:                     Vec3 home;
+17296:                     int side;  // 0=minus(n·x≤d), 1=plus
+17297:                 };
+17298:                 std::vector<Frag> frags;
+17299:                 bool degen = false;
+17300:                 for (const auto& f : cr.faces) {
+17301:                     if (f.pts.size() < 3) continue;
+17302:                     double mx = -1e300, mn = 1e300;
+17303:                     for (int id : f.pts) {
+17304:                         const double dv = pl.n.dot(gpts[(size_t)id]) - pl.d;
+17305:                         mx = std::max(mx, dv);
+17306:                         mn = std::min(mn, dv);
+17307:                     }
+17308:                     if (mn >= -splitPtTol && mx <= splitPtTol) {
+17309:                         // 面在剖面上：按面法向归属（面外法向指向的一侧为对侧胞体）
+17310:                         const Vec3 Sf = faceAreaVecFromIds(f.pts, gpts);
+17311:                         const int side = (Sf.dot(pl.n) > 0) ? 0 : 1;
+17312:                         frags.push_back({f.pts, f.patch, f.nbr, f.home, side});
+17313:                         continue;
+17314:                     }
+17315:                     if (mn >= -splitPtTol) {  // 全 plus
+17316:                         frags.push_back({f.pts, f.patch, f.nbr, f.home, 1});
+17317:                         continue;
+17318:                     }
+17319:                     if (mx <= splitPtTol) {  // 全 minus
+17320:                         frags.push_back({f.pts, f.patch, f.nbr, f.home, 0});
+17321:                         continue;
+17322:                     }
+17323:                     // 横跨：两侧各裁剪。裁剪环可能退化为共线点链（剖切面掠过面边/
+17324:                     // 顶点时）⇒ 零面积碎片：丢弃（其『面』无几何意义，且会把虚假
+17325:                     // 在平面边带进剖面环行走）。
+17326:                     std::vector<int> rp, rm, np_, nm;
+17327:                     clipRing(f.pts, pl, rp, np_);
+17328:                     Plane inv{pl.n * -1.0, -pl.d};
+17329:                     clipRing(f.pts, inv, rm, nm);
+17330:                     const double fragAreaTol = 1e-12 * cr.h * cr.h;
+17331:                     const bool okP = rp.size() >= 3 &&
+17332:                                      faceAreaVecFromIds(rp, gpts).norm() > fragAreaTol;
+17333:                     const bool okM = rm.size() >= 3 &&
+17334:                                      faceAreaVecFromIds(rm, gpts).norm() > fragAreaTol;
+17335:                     if (okP) frags.push_back({rp, f.patch, f.nbr, f.home, 1});
+17336:                     if (okM) frags.push_back({rm, f.patch, f.nbr, f.home, 0});
+17337:                     if (!okP && !okM) { degen = true; break; }
+17338:                 }
+17339:                 if (degen || frags.empty()) return srej("degen_or_empty");
+17340:                 // 面片连通分量 = 拆块。相邻判据 = 共享边；但剖切面【在平面上】的边
+17341:                 // 只连接同侧面片——剖切经过既有顶点时两侧面片共享平面上顶点/边，
+17342:                 // 若按共享点/边无差别连通，上下两块被判成一块（T-CYL 首版缺陷）。
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 17590-17686 =====
+17590:                     FaceRec fr;
+17591:                     fr.pts = fg.pts;
+17592:                     fr.patch = fg.patch;
+17593:                     fr.nbr = fg.nbr;
+17594:                     fr.home = fg.home;
+17595:                     pieces[(size_t)comp[i]].faces.push_back(std::move(fr));
+17596:                     pieces[(size_t)comp[i]].fragIdx.push_back((int)i);
+17597:                 }
+17598:                 for (int kc = 0; kc < nComp; ++kc) {
+17599:                     for (auto& loop : compLoops[(size_t)kc]) {
+17600:                         // 环定向：minus 块剖切面外法向 = +n；plus 块 = −n
+17601:                         Vec3 Sf{0, 0, 0};
+17602:                         const Vec3& p0 = gpts[(size_t)loop[0]];
+17603:                         for (size_t i = 2; i < loop.size(); ++i)
+17604:                             Sf = Sf + (gpts[(size_t)loop[i - 1]] - p0)
+17605:                                           .cross(gpts[(size_t)loop[i]] - p0);
+17606:                         const bool wantPlus = (Sf.dot(pl.n) < 0);
+17607:                         // 判断该块在剖面哪侧：取其任一面片的一个非剖点
+17608:                         bool piecePlus = false;
+17609:                         bool decided = false;
+17610:                         for (int fi : pieces[(size_t)kc].fragIdx) {
+17611:                             for (int id : frags[(size_t)fi].pts) {
+17612:                                 const double dv = pl.n.dot(gpts[(size_t)id]) - pl.d;
+17613:                                 if (dv > splitPtTol) { piecePlus = true; decided = true; break; }
+17614:                                 if (dv < -splitPtTol) { piecePlus = false; decided = true; break; }
+17615:                             }
+17616:                             if (decided) break;
+17617:                         }
+17618:                         if (!decided) { return srej("side_undecided"); }
+17619:                         if (piecePlus != wantPlus) std::reverse(loop.begin(), loop.end());
+17620:                         FaceRec fr;
+17621:                         fr.pts = std::move(loop);
+17622:                         fr.patch = -1;
+17623:                         fr.nbr = -2;  // 占位：稍后指向对侧块
+17624:                         fr.home = cr.cen;
+17625:                         pieces[(size_t)kc].faces.push_back(std::move(fr));
+17626:                     }
+17627:                 }
+17628:                 // 每块验证：闭合 + 体积 + OpenFOAM 口径质心越界
+17629:                 std::vector<double> pieceVol((size_t)nComp, 0);
+17630:                 std::vector<Vec3> pieceCen((size_t)nComp, Vec3{0, 0, 0});
+17631:                 std::vector<Vec3> pieceOC((size_t)nComp, Vec3{0, 0, 0});  // OF 口径胞心
+17632:                 double maxPieceFoam = -1e300;
+17633:                 for (int kc = 0; kc < nComp; ++kc) {
+17634:                     Piece& pc = pieces[(size_t)kc];
+17635:                     if (pc.faces.size() < 4) { return srej("piece_faces_lt4"); }
+17636:                     Vec3 ssum{0, 0, 0};
+17637:                     for (const auto& f : pc.faces)
+17638:                         ssum = ssum + faceAreaVecFromIds(f.pts, gpts);
+17639:                     if (ssum.norm() > splitCloseTol) {
+17640:                         if (envDbg8() && dbgCellHitCen(ci, cr.cen)) {
+17641:                             std::fprintf(stderr, "  [PNCLOSE] ci=%zu kc=%d ssum=(%g,%g,%g) nfaces=%zu plane n=(%g,%g,%g) d=%g\n",
+17642:                                          ci, kc, ssum.x, ssum.y, ssum.z, pc.faces.size(), pl.n.x, pl.n.y, pl.n.z, pl.d);
+17643:                             for (size_t fi2 = 0; fi2 < pc.faces.size(); ++fi2) {
+17644:                                 const auto& f2 = pc.faces[fi2];
+17645:                                 Vec3 Sf2 = faceAreaVecFromIds(f2.pts, gpts);
+17646:                                 std::fprintf(stderr, "   pf%zu nbr=%d patch=%d npts=%zu Sf=(%g,%g,%g):", fi2,
+17647:                                              f2.nbr, f2.patch, f2.pts.size(), Sf2.x, Sf2.y, Sf2.z);
+17648:                                 for (int id : f2.pts)
+17649:                                     std::fprintf(stderr, " %d(%.6g,%.6g,%.6g)", id, gpts[(size_t)id].x,
+17650:                                                  gpts[(size_t)id].y, gpts[(size_t)id].z);
+17651:                                 std::fprintf(stderr, "\n");
+17652:                             }
+17653:                         }
+17654:                         return srej("piece_not_closed");
+17655:                     }
+17656:                     // OPT-CODE：ids 版体积/质心（消除逐块 Poly 拷贝；逐位同值）
+17657:                     double V = 0;
+17658:                     Vec3 C{0, 0, 0};
+17659:                     const bool volOK = polyVolumeCentroidIds(pc.faces, gpts, cr.cen, V, C);
+17660:                     if (!volOK || V <= 0) {
+17661:                         if (envDbg8() && dbgCellHitCen(ci, cr.cen))
+17662:                             std::fprintf(stderr, "  [PVOLBAD] ci=%zu kc=%d ok=%d V=%g nfaces=%zu plane n=(%g,%g,%g) d=%g\n",
+17663:                                          ci, kc, (int)volOK, V, pc.faces.size(), pl.n.x, pl.n.y, pl.n.z, pl.d);
+17664:                         return srej("piece_vol_bad");
+17665:                     }
+17666:                     if (V < splitVolMin * cr.h * cr.h * cr.h) {
+17667:                         return srej("piece_vol_small");
+17668:                     }
+17669:                     {
+17670:                         // OPT-CODE：ids 版 OF 口径质心/越界（rings 原口径不过滤
+17671:                         // <3 面 ⇒ minPts=0；outC = foamCellCentreOfRings 同一值，
+17672:                         // 单趟取回，消除二次全量面锥计算与 rings 拷贝）
+17673:                         thread_local std::vector<Vec3> sfsS, fcsS;
+17674:                         Vec3 Coc{0, 0, 0};
+17675:                         const double fo =
+17676:                             foamCentroidMaxOutIds(pc.faces, gpts, sfsS, fcsS, 0, &Coc);
+17677:                         maxPieceFoam = std::max(maxPieceFoam, fo);
+17678:                         if (envDbg8() && dbgCellHitCen(ci, cr.cen) && fo > planeTolE1)
+17679:                             std::fprintf(stderr,
+17680:                                          "  [PFOAM] ci=%zu kc=%d fo=%.6g V=%.6g nfaces=%zu\n",
+17681:                                          ci, kc, fo, V, pc.faces.size());
+17682:                         pieceOC[(size_t)kc] = Coc;
+17683:                     }
+17684:                     pieceVol[(size_t)kc] = V;
+17685:                     pieceCen[(size_t)kc] = C;
+17686:                 }
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 17753-17862 =====
+17753:                 // 邻居侧对半开面：凡被剖平面横穿的共享面，邻居面同步拆为两子面。
+17754:                 // 对应面按规范点集键精确配对（同一邻居可有多张面连本胞）。
+17755:                 struct NbrPatch {
+17756:                     int nbr;
+17757:                     size_t faceIdx;      // cells[nbr].faces 下标
+17758:                     std::vector<int> ptsPlus, ptsMinus;
+17759:                 };
+17760:                 std::vector<NbrPatch> nbrPatches;
+17761:                 std::set<std::pair<int, size_t>> seenNbrFace;
+17762:                 for (const auto& f : cr.faces) {
+17763:                     if (f.nbr < 0 || cells[(size_t)f.nbr].removed) continue;
+17764:                     double mx = -1e300, mn = 1e300;
+17765:                     for (int id : f.pts) {
+17766:                         const double dv = pl.n.dot(gpts[(size_t)id]) - pl.d;
+17767:                         mx = std::max(mx, dv);
+17768:                         mn = std::min(mn, dv);
+17769:                     }
+17770:                     if (!(mn < -splitPtTol && mx > splitPtTol)) continue;  // 未横穿
+17771:                     const std::vector<int> fk = canonKey(f.pts);
+17772:                     CellRec& N = cells[(size_t)f.nbr];
+17773:                     for (size_t gi = 0; gi < N.faces.size(); ++gi) {
+17774:                         const FaceRec& g = N.faces[gi];
+17775:                         if (g.nbr != (int)ci) continue;
+17776:                         if (canonKey(g.pts) != fk) continue;  // 必须是同一张面
+17777:                         if (!seenNbrFace.insert({f.nbr, gi}).second) continue;
+17778:                         std::vector<int> rp, rm, np2, nm2;
+17779:                         clipRing(g.pts, pl, rp, np2);
+17780:                         Plane inv{pl.n * -1.0, -pl.d};
+17781:                         clipRing(g.pts, inv, rm, nm2);
+17782:                         if (rp.size() < 3 || rm.size() < 3) {
+17783:                             return srej("piece_foamout");
+17784:                         }
+17785:                         nbrPatches.push_back({f.nbr, gi, rp, rm});
+17786:                         break;
+17787:                     }
+17788:                 }
+17789:                 // 邻居验证（只读模拟，不改 cells）：拆面改变邻居 cellCentres() 的
+17790:                 // 面中心均值，可能扰动其邻近面判向。判据（T-CYL 修复）：拆面不得
+17791:                 // 【恶化】邻居——原本合规（越界 ≤ 容差）的邻居拆后仍须合规；原本
+17792:                 // 已越界的邻居（其自身修复由本轮/后续轮的拆分负责）拆后越界不得
+17793:                 // 增大。旧实现一律要求拆后 ≤ 容差：越界胞的邻居常同为越界胞
+17794:                 // （端帽绕角成片），该检查把一切平面拒死 ⇒ 修复死锁。
+17795:                 {
+17796:                     std::vector<int> uniqNbrs;
+17797:                     for (const auto& np : nbrPatches)
+17798:                         if (std::find(uniqNbrs.begin(), uniqNbrs.end(), np.nbr) ==
+17799:                             uniqNbrs.end())
+17800:                             uniqNbrs.push_back(np.nbr);
+17801:                     for (int nb : uniqNbrs) {
+17802:                         const double preNbr = foamMaxOut(cells[(size_t)nb]);
+17803:                         CellRec tmp = cells[(size_t)nb];
+17804:                         std::vector<const NbrPatch*> mine;
+17805:                         for (const auto& np : nbrPatches)
+17806:                             if (np.nbr == nb) mine.push_back(&np);
+17807:                         std::sort(mine.begin(), mine.end(),
+17808:                                   [](const NbrPatch* a, const NbrPatch* b) {
+17809:                                       return a->faceIdx > b->faceIdx;
+17810:                                   });
+17811:                         for (const NbrPatch* np : mine) {
+17812:                             FaceRec fp = tmp.faces[np->faceIdx];
+17813:                             fp.pts = np->ptsPlus;
+17814:                             FaceRec fm = tmp.faces[np->faceIdx];
+17815:                             fm.pts = np->ptsMinus;
+17816:                             tmp.faces[np->faceIdx] = std::move(fp);
+17817:                             tmp.faces.push_back(std::move(fm));
+17818:                         }
+17819:                         const double postNbr = foamMaxOut(tmp);
+17820:                         // 合规邻居必须保持合规（不新增违规胞）；已越界邻居允许拆面
+17821:                         // 带来的胞心微扰（面中心均值移动 ⇒ 越界量浮动 ~1e-6 量级，
+17822:                         // 实测 z=0 端帽全绿拆分曾因此被误拒）——放宽到 1e-4·h 抖动带，
+17823:                         // 实质性恶化仍拒绝。
+17824:                         const double lim = (preNbr <= planeTolE1)
+17825:                                                ? planeTolE1
+17826:                                                : preNbr + 1e-4 * cr.h;
+17827:                         if (postNbr > lim + 1e-12) {
+17828:                             if (envDbg8() && dbgCellHitCen(ci, cr.cen))
+17829:                                 std::fprintf(stderr, "  [NBRCLIP] ci=%zu nb=%d pre=%g post=%g lim=%g\n",
+17830:                                              ci, nb, preNbr, postNbr, lim);
+17831:                             return srej("nbr_clip_bad");
+17832:                         }
+17833:                     }
+17834:                 }
+17835:                 // 提交前验证：剖切面两两配对 + 每块每张外部面都能在邻居（拆面后
+17836:                 // 的）面表中找到对应——保证提交后无悬挂引用。
+17837:                 auto keyOf = [&](const std::vector<int>& pts) { return canonKey(pts); };
+17838:                 std::map<std::vector<int>, std::pair<int, size_t>> extMap;  // 键→(块,面)
+17839:                 for (int kc = 0; kc < nComp; ++kc)
+17840:                     for (size_t fi = 0; fi < pieces[(size_t)kc].faces.size(); ++fi) {
+17841:                         const FaceRec& f = pieces[(size_t)kc].faces[fi];
+17842:                         if (f.nbr >= 0)
+17843:                             extMap[keyOf(f.pts)] = {kc, fi};
+17844:                     }
+17845:                 // 剖切面配对
+17846:                 std::vector<std::pair<int, size_t>> xfaces;  // 全部剖切面 (块,面)
+17847:                 for (int kc = 0; kc < nComp; ++kc)
+17848:                     for (size_t fi = 0; fi < pieces[(size_t)kc].faces.size(); ++fi)
+17849:                         if (pieces[(size_t)kc].faces[fi].nbr == -2)
+17850:                             xfaces.push_back({kc, fi});
+17851:                 std::vector<int> xmate(xfaces.size(), -1);
+17852:                 for (size_t i = 0; i < xfaces.size(); ++i) {
+17853:                     if (xmate[i] >= 0) continue;
+17854:                     const auto& fi = pieces[(size_t)xfaces[i].first].faces[xfaces[i].second];
+17855:                     const std::vector<int> ki = keyOf(fi.pts);
+17856:                     for (size_t j = i + 1; j < xfaces.size(); ++j) {
+17857:                         if (xmate[j] >= 0 || xfaces[j].first == xfaces[i].first) continue;
+17858:                         const auto& fj =
+17859:                             pieces[(size_t)xfaces[j].first].faces[xfaces[j].second];
+17860:                         if (keyOf(fj.pts) == ki) { xmate[i] = (int)j; xmate[j] = (int)i; break; }
+17861:                     }
+17862:                     if (xmate[i] < 0) { return srej("nbr_foamout"); }
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 17925-17955 =====
+17925:                 // 时 remap[removed]=-1 ⇒ 邻居侧界面退化为 nbr=-1 孤儿边界面，对侧块
+17926:                 // 仍指向邻居 ⇒ 界面点集只剩单拷贝 ⇒ S8 配对失败（Cylinder3D 端帽带：
+17927:                 // 相邻越界胞排队被同一平面拆分，先拆者的块仍指向后拆者）。反向同理
+17928:                 // 成立——本胞面指向已拆邻居的块时由对方的拆分负责重指。非横穿邻居
+17929:                 // 几何不变（仅 nbr 重指），无须 foamMaxOut 复检；其面表中一切指向
+17930:                 // ci 的面必须与某块外部面规范键配对（下方 nbrRepoint 统一验收），
+17931:                 // 配不上对即 srej，悬挂引用在提交前被拦截。
+17932:                 std::map<int, std::vector<FaceRec>> finalNbr;
+17933:                 {
+17934:                     std::set<int> touched;
+17935:                     for (const auto& np : nbrPatches) touched.insert(np.nbr);
+17936:                     for (const auto& f : cr.faces)
+17937:                         if (f.nbr >= 0 && !cells[(size_t)f.nbr].removed)
+17938:                             touched.insert(f.nbr);
+17939:                     for (int nb : touched) finalNbr[nb] = cells[(size_t)nb].faces;
+17940:                     for (const auto& np : nbrPatches) {
+17941:                         auto& fl = finalNbr[np.nbr];
+17942:                         FaceRec fp = fl[np.faceIdx];
+17943:                         fp.pts = np.ptsPlus;
+17944:                         FaceRec fm = fl[np.faceIdx];
+17945:                         fm.pts = np.ptsMinus;
+17946:                         fl[np.faceIdx] = std::move(fp);
+17947:                         fl.push_back(std::move(fm));
+17948:                     }
+17949:                 }
+17950:                 // H11（dcMode 门控）：T-junction 覆盖匹配——雕刻胞的弦不对称常态：
+17951:                 // barrier 触侧胞的面带弦顶点被细分，纯流体邻胞同位置只有单环面 ⇒
+17952:                 // 1:1 ID 键匹配必败（xface_unpaired）⇒ 雕刻胞拆分修复全灭（BL
+17953:                 // postSplit 2228 viol landed=0 / cell 9902 全平面 REJ 实证）。终网格
+17954:                 // 里 N:M 由 S11b 边一致性细分邻居面 = 合法常态 ⇒ trySplit 验收必须
+17955:                 // 同口径：邻居面 g 可被【同一块】的若干外部面（同 nbr、共面、顶点全
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 18025-18090 =====
+18025:                             }
+18026:                             if (!allIn) continue;
+18027:                             sumA += ae;
+18028:                             if (piece == -2) piece = kc;
+18029:                             else if (piece != kc) return -1;  // 跨块 ⇒ 非本匹配可解
+18030:                         }
+18031:                     }
+18032:                     if (piece < 0) return -1;
+18033:                     if (std::abs(sumA - ag) > 1e-8 * ag) return -1;
+18034:                     return piece;
+18035:                 };
+18036:                 // 每张『指向 ci 的邻居面（终态）』必须能匹配某块的外部面
+18037:                 std::map<std::pair<int, size_t>, int> nbrRepoint;  // (邻居,终态面下标)→块
+18038:                 for (auto& kv : finalNbr) {
+18039:                     const size_t giN0 = kv.second.size();
+18040:                     // 延迟修改（gi 扫描期不动 kv.second）：替换环 + 追加裁剪后半
+18041:                     std::vector<std::pair<size_t, std::vector<int>>> h11Repl;
+18042:                     std::vector<std::tuple<size_t, std::vector<int>, int>> h11App;
+18043:                     for (size_t gi = 0; gi < giN0; ++gi) {
+18044:                         const FaceRec& g = kv.second[gi];
+18045:                         if (g.nbr != (int)ci) continue;
+18046:                         auto it = extMap.find(keyOf(g.pts));
+18047:                         if (it == extMap.end()) {
+18048:                             bool h11Ok = false;
+18049:                             if (cfg.dcMode) {
+18050:                                 double gmn = 1e300, gmx = -1e300;
+18051:                                 for (int id : g.pts) {
+18052:                                     const double dv = pl.n.dot(gpts[(size_t)id]) - pl.d;
+18053:                                     gmn = std::min(gmn, dv);
+18054:                                     gmx = std::max(gmx, dv);
+18055:                                 }
+18056:                                 if (!(gmn < -splitPtTol && gmx > splitPtTol)) {
+18057:                                     const int pc = coverPieceOf(kv.first, g.pts);
+18058:                                     if (pc >= 0) {
+18059:                                         nbrRepoint[{kv.first, gi}] = pc;
+18060:                                         h11Ok = true;
+18061:                                     }
+18062:                                 } else {
+18063:                                     std::vector<int> rp2, rm2, np3, nm3;
+18064:                                     clipRing(g.pts, pl, rp2, np3);
+18065:                                     Plane inv2{pl.n * -1.0, -pl.d};
+18066:                                     clipRing(g.pts, inv2, rm2, nm3);
+18067:                                     if (rp2.size() >= 3 && rm2.size() >= 3) {
+18068:                                         const int pp = coverPieceOf(kv.first, rp2);
+18069:                                         const int pm = coverPieceOf(kv.first, rm2);
+18070:                                         if (pp >= 0 && pm >= 0) {
+18071:                                             h11Repl.push_back({gi, rp2});
+18072:                                             h11App.push_back({gi, rm2, pm});
+18073:                                             nbrRepoint[{kv.first, gi}] = pp;
+18074:                                             h11Ok = true;
+18075:                                         }
+18076:                                     }
+18077:                                 }
+18078:                             }
+18079:                             if (h11Ok) continue;
+18080:                             // H10 取证（DBG8 门控，纯打印不改判据）：失配邻居面环
+18081:                             // vs extMap 键——位置同而 ID 异（并点断裂）vs 位置集不同
+18082:                             // （T-junction 细分不对称）二分。
+18083:                             if (envDbg8() && dbgCellHitCen(ci, cr.cen)) {
+18084:                                 std::fprintf(stderr,
+18085:                                              "[XU] ci=%zu nb=%d gi=%zu plane n=(%g,%g,%g) "
+18086:                                              "d=%g ring:",
+18087:                                              ci, kv.first, gi, pl.n.x, pl.n.y, pl.n.z, pl.d);
+18088:                                 for (int id : g.pts)
+18089:                                     std::fprintf(stderr, " %d(%.6g,%.6g,%.6g)", id,
+18090:                                                  gpts[(size_t)id].x, gpts[(size_t)id].y,
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 18120-18248 =====
+18120:                                     const bool same = (epos == gpos);
+18121:                                     if (!same && !sameN) continue;
+18122:                                     std::fprintf(stderr, "  [XU-EXT%s%s] n=%zu blk=%d fi=%zu ids:",
+18123:                                                  same ? " POSSAME" : "", sameN ? " SAME_N" : "",
+18124:                                                  ek.first.size(), ek.second.first,
+18125:                                                  ek.second.second);
+18126:                                     for (int id : ek.first) std::fprintf(stderr, " %d", id);
+18127:                                     std::fprintf(stderr, "\n");
+18128:                                 }
+18129:                             }
+18130:                             return srej("xface_unpaired");
+18131:                         }
+18132:                         nbrRepoint[{kv.first, gi}] = it->second.first;
+18133:                     }
+18134:                     // H11 延迟修改落地（gi 扫描已毕）：替换环 + 追加裁剪后半
+18135:                     for (auto& rr : h11Repl)
+18136:                         kv.second[rr.first].pts = std::move(rr.second);
+18137:                     for (auto& ap : h11App) {
+18138:                         FaceRec fa = kv.second[std::get<0>(ap)];
+18139:                         fa.pts = std::move(std::get<1>(ap));
+18140:                         const size_t newGi = kv.second.size();
+18141:                         kv.second.push_back(std::move(fa));
+18142:                         nbrRepoint[{kv.first, newGi}] = std::get<2>(ap);
+18143:                     }
+18144:                 }
+18145:                 // （T-CYL2）邻居侧拆面歪斜质检：被剖平面横穿的邻居面拆为两半后，
+18146:                 // 其与新块心的几何关系同样按 v2412 口径校验（同 3.85 阈值）。
+18147:                 {
+18148:                     std::map<int, Vec3> nbrOCCache2;
+18149:                     auto nbrOC2 = [&](int nb) {
+18150:                         auto it = nbrOCCache2.find(nb);
+18151:                         if (it != nbrOCCache2.end()) return it->second;
+18152:                         std::vector<std::vector<Vec3>> rr;
+18153:                         rr.reserve(cells[(size_t)nb].faces.size());
+18154:                         for (const auto& f2 : cells[(size_t)nb].faces) {
+18155:                             if (f2.pts.size() < 3) continue;
+18156:                             std::vector<Vec3> ring;
+18157:                             ring.reserve(f2.pts.size());
+18158:                             for (int id : f2.pts) ring.push_back(gpts[(size_t)id]);
+18159:                             rr.push_back(std::move(ring));
+18160:                         }
+18161:                         return nbrOCCache2.emplace(nb, foamCellCentreOfRings(rr))
+18162:                             .first->second;
+18163:                     };
+18164:                     for (const auto& kv : finalNbr) {
+18165:                         if (cells[(size_t)kv.first].removed) continue;
+18166:                         const Vec3 Co = nbrOC2(kv.first);
+18167:                         for (size_t gi = 0; gi < kv.second.size(); ++gi) {
+18168:                             const FaceRec& g = kv.second[gi];
+18169:                             if (g.nbr != (int)ci) continue;
+18170:                             auto it = nbrRepoint.find({kv.first, gi});
+18171:                             if (it == nbrRepoint.end()) continue;
+18172:                             const double skv = skewOfFace(
+18173:                                 g.pts, Co, pieceOC[(size_t)it->second], false);
+18174:                             if (skv > 3.85) {
+18175:                                 if (envDbg8() && dbgCellHitCen(ci, cr.cen))
+18176:                                     std::fprintf(stderr,
+18177:                                                  "  [PSKEWN] ci=%zu nb=%d gi=%zu skew=%.6g\n",
+18178:                                                  ci, kv.first, gi, skv);
+18179:                                 return srej("piece_skew_nbr");
+18180:                             }
+18181:                         }
+18182:                     }
+18183:                 }
+18184:                 // ---- 落地判据：全绿块直接落地；否则须严格优于原胞（迭代续拆）----
+18185:                 if (outFoam) *outFoam = maxPieceFoam;
+18186:                 if (maxPieceFoam > planeTolE1 && maxPieceFoam >= origFoam - 1e-9) {
+18187:                     return srej("no_improvement");
+18188:                 }
+18189:                 if (dryRun) {
+18190:                     // dry-run 只评估：把即时注册的新点全部回滚（点号引用随之失效，
+18191:                     // 调用方仅保留 *outFoam 评分）
+18192:                     gpts.resize(gptsBase);
+18193:                     splitNewPts.clear();
+18194:                     return true;
+18195:                 }
+18196:                 // ---- 提交 ----
+18197:                 // 新点已在 regPt 即时落入 gpts（验证期即按真实坐标读），此处不再追加；
+18198:                 // 但须把它们补录进 ptGrid，供同轮后续拆分的并点查询命中。
+18199: #if defined(MESHGEN_WITH_MPI)
+18200:                 if (!dt.on) {
+18201: #endif
+18202:                 for (size_t i = ptGridSize; i < gpts.size(); ++i)
+18203:                     ptGrid.emplace(splitPkey(gpts[i]), (int)i);
+18204:                 ptGridSize = gpts.size();
+18205: #if defined(MESHGEN_WITH_MPI)
+18206:                 } else {
+18207:                     ptGridSize = gpts.size();  // E2：格按成员重建，新点经面引用入格
+18208:                 }
+18209: #endif
+18210:                 const int crLevel = cr.level;
+18211:                 const long long crLeaf = cr.leaf;
+18212:                 const double crH = cr.h;
+18213:                 const int crAbsorb = cr.nAbsorb;
+18214:                 splitNewPts.clear();
+18215:                 const int baseId = (int)cells.size();
+18216:                 cr.removed = true;
+18217:                 for (int kc = 0; kc < nComp; ++kc) {
+18218:                     CellRec pc2;
+18219:                     pc2.level = crLevel;
+18220:                     pc2.leaf = crLeaf;
+18221:                     pc2.h = crH;
+18222:                     pc2.vol = pieceVol[(size_t)kc];
+18223:                     pc2.cen = pieceCen[(size_t)kc];
+18224:                     pc2.cut = true;
+18225:                     pc2.merged = true;  // AMR protected；S10 用 home 参考
+18226:                     pc2.splitPiece = true;  // 拆分块：拆分时已过全绿质检，不重入合并
+18227:                     pc2.nAbsorb = crAbsorb;
+18228:                     pc2.faces = std::move(pieces[(size_t)kc].faces);
+18229:                     for (auto& f : pc2.faces)
+18230:                         if (f.nbr == -2) f.home = pc2.cen;
+18231:                     cells.push_back(std::move(pc2));
+18232:                 }
+18233:                 // 剖切面互指
+18234:                 for (size_t i = 0; i < xfaces.size(); ++i) {
+18235:                     const int j = xmate[i];
+18236:                     const int pid = baseId + xfaces[i].first;
+18237:                     const int pid2 = baseId + xfaces[(size_t)j].first;
+18238:                     cells[(size_t)pid].faces[xfaces[i].second].nbr = pid2;
+18239:                 }
+18240:                 // 邻居终态面表落地 + 重指
+18241:                 for (auto& kv : finalNbr) cells[(size_t)kv.first].faces = std::move(kv.second);
+18242:                 for (const auto& kv : nbrRepoint)
+18243:                     cells[(size_t)kv.first.first].faces[kv.first.second].nbr =
+18244:                         baseId + kv.second;
+18245:                 if (envDbg6() && dbgCellHitCen(ci, cr.cen))
+18246:                     std::fprintf(stderr, "[SPLIT] ci=%zu plane n=(%g,%g,%g) d=%g -> %d pieces\n",
+18247:                                  ci, pl.n.x, pl.n.y, pl.n.z, pl.d, nComp);
+18248:                 return true;
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 18250-18310 =====
+18250:             // （T-MQ）逐胞拆分落地体：轮扫与 onlyCi 单胞模式共用同一份落地
+18251:             // 判据（与原轮扫逐胞体逐行等同；原 `any = true` 改 `return true`，
+18252:             // viol 循环两道守卫移入函数头）。返回 true = 该胞落地了一次拆分。
+18253:             auto splitOneCell = [&](size_t ci) -> bool {
+18254:                 if (cells[ci].removed) return false;
+18255:                 if (foamMaxOut(cells[ci]) <= planeTolE1) return false;
+18256:                 CellRec& cr = cells[ci];
+18257:                 // 候选平面：本胞各面的平面，按该面越界降序（先治违规面）
+18258:                 Vec3 Cself = cr.cen;
+18259:                 {
+18260:                     std::vector<std::vector<Vec3>> rings;
+18261:                     rings.reserve(cr.faces.size());
+18262:                     for (const auto& f : cr.faces) {
+18263:                         if (f.pts.size() < 3) continue;
+18264:                         std::vector<Vec3> ring;
+18265:                         ring.reserve(f.pts.size());
+18266:                         for (int id : f.pts) ring.push_back(gpts[(size_t)id]);
+18267:                         rings.push_back(std::move(ring));
+18268:                     }
+18269:                     foamCentroidMaxOut(rings, &Cself);
+18270:                 }
+18271:                 struct PCand { double out; Plane pl; };
+18272:                 std::vector<PCand> pcands;
+18273:                 for (const auto& f : cr.faces) {
+18274:                     if (f.pts.size() < 3) continue;
+18275:                     std::vector<Vec3> ring;
+18276:                     ring.reserve(f.pts.size());
+18277:                     for (int id : f.pts) ring.push_back(gpts[(size_t)id]);
+18278:                     Vec3 Sf, fc;
+18279:                     foamFaceAreaCentre(ring, Sf, fc);
+18280:                     const double an = Sf.norm();
+18281:                     if (an < 1e-300) continue;
+18282:                     const Vec3 n = Sf / an;
+18283:                     const double outv = n.dot(Cself - fc);
+18284:                     // 同平面去重（量化法向+偏移）
+18285:                     bool dup = false;
+18286:                     for (const auto& q : pcands) {
+18287:                         if ((q.pl.n - n).norm() < 1e-6 &&
+18288:                             std::abs(q.pl.d - n.dot(fc)) < splitPtTol) { dup = true; break; }
+18289:                         if ((q.pl.n + n).norm() < 1e-6 &&
+18290:                             std::abs(q.pl.d + n.dot(fc)) < splitPtTol) { dup = true; break; }
+18291:                     }
+18292:                     if (!dup) pcands.push_back({outv, {n, n.dot(fc)}});
+18293:                 }
+18294:                 // 环向多平面候选（T-CYL 方向 2）：绕表面壳胞的自面平面皆为边界/
+18295:                 // 沿绕向平面，切不开胞体 ⇒ 补多个剖切方向：过 OF 胞心的三轴垂直
+18296:                 // 面 + 违规面各边与胞心张成的扇形面（径向导引，把绕向壳切成更短弧段）。
+18297:                 auto addCand = [&](const Vec3& nn, double dd) {
+18298:                     const double nl = nn.norm();
+18299:                     if (nl < 1e-12) return;
+18300:                     Plane p{nn / nl, dd / nl};
+18301:                     for (const auto& q : pcands) {
+18302:                         if ((q.pl.n - p.n).norm() < 1e-6 &&
+18303:                             std::abs(q.pl.d - p.d) < splitPtTol) return;
+18304:                         if ((q.pl.n + p.n).norm() < 1e-6 &&
+18305:                             std::abs(q.pl.d + p.d) < splitPtTol) return;
+18306:                     }
+18307:                     pcands.push_back({-1.0, p});
+18308:                 };
+18309:                 if (envDbg6() && dbgCellHitCen(ci, cr.cen))
+18310:                     std::fprintf(stderr, "[SPLIT-SCAN] ci=%zu foamOut=%g planes=%zu\n",
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 18332-18404 =====
+18332:                 // 先 dry-run 全部候选平面，取『拆后最大块越界最小』者落地；
+18333:                 // 全绿优先，其次严格改善（迭代续拆收敛）。面平面扫不出全绿时再
+18334:                 // 追加环向多平面候选重扫（附加候选只在全绿缺失时尝试，正常路径零开销）。
+18335:                 double origFoam = foamMaxOut(cr);
+18336:                 int bestIdx = -1;
+18337:                 double bestFoam = 1e300;
+18338:                 bool bestAllGreen = false;
+18339:                 auto scanPlanes = [&](size_t lo, size_t hi) {
+18340:                     for (size_t ip = lo; ip < hi; ++ip) {
+18341:                         const Plane plUse = pcands[ip].pl;
+18342:                         if (envDbg8() && dbgCellHitCen(ci, cr.cen))
+18343:                             std::fprintf(stderr, "  [STRY] ci=%zu ip=%zu n=(%g,%g,%g) d=%g\n",
+18344:                                          ci, ip, plUse.n.x, plUse.n.y, plUse.n.z, plUse.d);
+18345:                         double fo = 1e300;
+18346:                         if (!trySplit(ci, plUse, true, &fo)) continue;
+18347:                         const bool allGreen = (fo <= planeTolE1);
+18348:                         if (allGreen && (!bestAllGreen || fo < bestFoam)) {
+18349:                             bestAllGreen = true; bestIdx = (int)ip; bestFoam = fo;
+18350:                         } else if (!allGreen && !bestAllGreen && fo < bestFoam) {
+18351:                             bestIdx = (int)ip; bestFoam = fo;
+18352:                         }
+18353:                     }
+18354:                 };
+18355:                 scanPlanes(0, pcands.size());
+18356:                 if (!bestAllGreen && !envNoXtra()) {
+18357:                     const size_t extraBase = pcands.size();
+18358:                     addCand(Vec3{1, 0, 0}, Cself.x);
+18359:                     addCand(Vec3{0, 1, 0}, Cself.y);
+18360:                     addCand(Vec3{0, 0, 1}, Cself.z);
+18361:                     for (const auto& f : cr.faces) {
+18362:                         if (f.pts.size() < 3) continue;
+18363:                         std::vector<Vec3> ring;
+18364:                         ring.reserve(f.pts.size());
+18365:                         for (int id : f.pts) ring.push_back(gpts[(size_t)id]);
+18366:                         Vec3 Sf, fc;
+18367:                         foamFaceAreaCentre(ring, Sf, fc);
+18368:                         const double an = Sf.norm();
+18369:                         if (an < 1e-300) continue;
+18370:                         // 只对违规面（OF 胞心越过其平面）展边扇，控制候选量
+18371:                         if ((Sf / an).dot(Cself - fc) <= planeTolE1) continue;
+18372:                         const size_t m = f.pts.size();
+18373:                         for (size_t k = 0; k < m; ++k) {
+18374:                             const Vec3& pu = gpts[(size_t)f.pts[k]];
+18375:                             const Vec3& pv = gpts[(size_t)f.pts[(k + 1) % m]];
+18376:                             const Vec3 nn = (pu - Cself).cross(pv - Cself);
+18377:                             addCand(nn, nn.dot(pu));
+18378:                         }
+18379:                     }
+18380:                     if (pcands.size() > extraBase) {
+18381:                         if (envDbg6() && dbgCellHitCen(ci, cr.cen))
+18382:                             std::fprintf(stderr, "[SPLIT-XTRA] ci=%zu extra=%zu\n", ci,
+18383:                                          pcands.size() - extraBase);
+18384:                         scanPlanes(extraBase, pcands.size());
+18385:                     }
+18386:                 }
+18387:                 if (bestIdx >= 0) {
+18388:                     const Plane plBest = pcands[(size_t)bestIdx].pl;
+18389:                     const bool useIt = bestAllGreen ||
+18390:                                        (!allGreenOnly && bestFoam < origFoam - 1e-9);
+18391:                     if (envDbg6() && dbgCellHitCen(ci, cr.cen))
+18392:                         std::fprintf(stderr,
+18393:                                      "[SPLIT-BEST] ci=%zu plane=%d n=(%g,%g,%g) d=%g "
+18394:                                      "bestFoam=%g orig=%g allGreen=%d use=%d\n",
+18395:                                      ci, bestIdx, plBest.n.x, plBest.n.y, plBest.n.z,
+18396:                                      plBest.d, bestFoam, origFoam,
+18397:                                      (int)bestAllGreen, (int)useIt);
+18398:                     if (useIt && trySplit(ci, plBest, false, nullptr))
+18399:                         return true;
+18400:                 } else if (envDbg6() && dbgCellHitCen(ci, cr.cen)) {
+18401:                     std::fprintf(stderr, "[SPLIT-NOPLANE] ci=%zu\n", ci);
+18402:                 }
+18403:                 return false;
+18404:             };
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 18959-18999 =====
+18959:                     globalPool().parallelRanges(nCell, [&](size_t lo, size_t hi) {
+18960:                         auto& sv = segs[lo / chunk];
+18961:                         for (size_t ci = lo; ci < hi; ++ci) {
+18962:                             if (cfg.dcMode &&
+18963:                                 (dcScanCnt.fetch_add(1, std::memory_order_relaxed) &
+18964:                                  ((1ll << 18) - 1)) == 0)
+18965:                                 dcTailProgress(
+18966:                                     dcSrLabel, dcScanCnt.load(std::memory_order_relaxed),
+18967:                                     std::chrono::duration<double, std::milli>(
+18968:                                         std::chrono::steady_clock::now() - dcSrT0)
+18969:                                         .count());
+18970:                             if (cells[ci].removed) continue;
+18971:                             if (!(cells[ci].cut || cells[ci].merged)) continue;
+18972:                             if (foamMaxOut(cells[ci]) > planeTolE1) {
+18973:                                 ++segViolRaw[lo / chunk];
+18974:                                 // dc17 Step 5b (E3-R)：拒出类早退（标记只在合并停滞
+18975:                                 // 后存在 ⇒ preSplit 自然 no-op）+ 拆分备忘录（指纹
+18976:                                 // 不变 ⇒ 跳过 = 重放等同；并行内纯只读求值）。
+18977:                                 if (dcLvEE && ci < dcRefusal.size() && dcRefusal[ci]) {
+18978:                                     ++segSkipRef[lo / chunk];
+18979:                                     continue;
+18980:                                 }
+18981:                                 if (dcLvMemo && ci < dcSplitMemoV.size() &&
+18982:                                     (allGreenOnly ? dcSplitMemoV[ci]
+18983:                                                   : dcSplitMemoPostV[ci]) &&
+18984:                                     (allGreenOnly ? dcSplitMemoFp[ci]
+18985:                                                   : dcSplitMemoPostFp[ci]) ==
+18986:                                         dcNbrFp(ci)) {
+18987:                                     ++segSkipMemo[lo / chunk];
+18988:                                     continue;
+18989:                                 }
+18990:                                 sv.push_back(ci);
+18991:                             }
+18992:                         }
+18993:                     });
+18994:                     for (auto& sg : segs)
+18995:                         viol.insert(viol.end(), sg.begin(), sg.end());
+18996:                     for (size_t s = 0; s < nSeg; ++s) {
+18997:                         dcRoundViolRaw += segViolRaw[s];
+18998:                         dcRoundSkipRef += segSkipRef[s];
+18999:                         dcRoundSkipMemo += segSkipMemo[s];
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 32800-32845 =====
+32800:             // （home 是发射源凸胞质心，必在并集内部，仅作绕向参考——注意它不是
+32801:             // checkMesh 的判向依据，后者用 cellCentres()，见下方质心终检）。
+32802:             // 非凸胞（环状流体区等）中参考点可落到远端面平面的固体侧 ⇒ 假阳性，
+32803:             // 故廉价失败的面再做精确局部复核：取面内点沿 −Sf 内移微量，按单元自身
+32804:             // 闭合面族的绕数判内外——绕向正确则该点必在胞内。仅全部面内候选点
+32805:             // 复核仍失败才判定真错向。
+32806:             auto pointInCell = [&](const CellRec& cc2, const Vec3& q) -> bool {
+32807:                 double omega = 0;
+32808:                 for (const auto& f2 : cc2.faces) {
+32809:                     const size_t m = f2.pts.size();
+32810:                     if (m < 3) continue;
+32811:                     const Vec3& P0 = gpts[(size_t)f2.pts[0]];
+32812:                     for (size_t i = 2; i < m; ++i) {
+32813:                         Vec3 A = P0 - q;
+32814:                         Vec3 B = gpts[(size_t)f2.pts[i - 1]] - q;
+32815:                         Vec3 C = gpts[(size_t)f2.pts[i]] - q;
+32816:                         const double la = A.norm(), lb = B.norm(), lc = C.norm();
+32817:                         if (la < 1e-300 || lb < 1e-300 || lc < 1e-300) return true;
+32818:                         A = A / la;
+32819:                         B = B / lb;
+32820:                         C = C / lc;
+32821:                         omega += 2.0 * std::atan2(
+32822:                                      A.dot(B.cross(C)),
+32823:                                      1.0 + A.dot(B) + B.dot(C) + C.dot(A));
+32824:                     }
+32825:                 }
+32826:                 return std::abs(omega) > 2.0 * M_PI;
+32827:             };
+32828:             auto windingOf = [&](const CellRec& cc2, const Vec3& q) -> double {
+32829:                 double omega = 0;
+32830:                 for (const auto& f2 : cc2.faces) {
+32831:                     const size_t m = f2.pts.size();
+32832:                     if (m < 3) continue;
+32833:                     const Vec3& P0 = gpts[(size_t)f2.pts[0]];
+32834:                     for (size_t i = 2; i < m; ++i) {
+32835:                         Vec3 A = P0 - q;
+32836:                         Vec3 B = gpts[(size_t)f2.pts[i - 1]] - q;
+32837:                         Vec3 C = gpts[(size_t)f2.pts[i]] - q;
+32838:                         const double la = A.norm(), lb = B.norm(), lc = C.norm();
+32839:                         if (la < 1e-300 || lb < 1e-300 || lc < 1e-300) return 99.0;
+32840:                         A = A / la;
+32841:                         B = B / lb;
+32842:                         C = C / lc;
+32843:                         omega += 2.0 * std::atan2(
+32844:                                      A.dot(B.cross(C)),
+32845:                                      1.0 + A.dot(B) + B.dot(C) + C.dot(A));
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 32990-33042 =====
+32990:                 if (!envDbgAll()) return false;
+32991:                 anyCloseFail = true;
+32992:                 continue;  // 诊断模式：收集全部失败胞
+32993:             }
+32994:             // 面锥质心终检（E1 修复；与 checkMesh 实际判据对齐）：上面的绕向校验
+32995:             // 只验证绕向自洽（Sf 指向胞外），不验证 checkMesh 实际据以判向的
+32996:             // 『胞心在每面平面负侧』——后者用 cellCentres()（面锥分解，apex=面
+32997:             // 中心均值，见 foamCentroidMaxOut 注释），非凸胞上可越过面平面，
+32998:             // 导出后必报 wrongOrientedFaces。S9 已把越界 > 0.05h 的胞列为小胞
+32999:             // 合并（isSmall 阈值之五）且合并守卫按同口径逐面验收；此处对终网格
+33000:             // 几何（S9 后点不再移动，仅共线插点/并面，不改变面平面）复验。仍越界
+33001:             // = 无可行合并修复的病胞：宁可中止，不带病导出（checkMesh 必拒绝）。
+33002:             {
+33003:                 std::vector<std::vector<Vec3>> rings;
+33004:                 rings.reserve(cr.faces.size());
+33005:                 for (const auto& f : cr.faces) {
+33006:                     if (f.pts.size() < 3) continue;
+33007:                     std::vector<Vec3> ring;
+33008:                     ring.reserve(f.pts.size());
+33009:                     for (int id : f.pts) ring.push_back(gpts[(size_t)id]);
+33010:                     rings.push_back(std::move(ring));
+33011:                 }
+33012:                 const double maxOut = foamCentroidMaxOut(rings);
+33013:                 const double gateTol = 1e-9 * c.H;
+33014:                 if (envDbg9() && dbgCellHitCen(ci, cr.cen))
+33015:                     std::fprintf(stderr, "[GATE9] ci=%zu lvl=%d merged=%d cut=%d nAbsorb=%d foamOut=%g\n",
+33016:                                  ci, cr.level, (int)cr.merged, (int)cr.cut, cr.nAbsorb, maxOut);
+33017:                 if (maxOut > gateTol && envE1GateWarnOnly()) {
+33018:                     std::fprintf(stderr, "[E1GATE-WARN] cell %zu lvl=%d merged=%d foamOut=%g\n",
+33019:                                  ci, cr.level, (int)cr.merged, maxOut);
+33020:                     if (envE1GateDump()) {
+33021:                         const Vec3 Cd = foamCellCentreOfRings(rings);
+33022:                         std::fprintf(stderr,
+33023:                                      "[E1GATE-DUMP] cell %zu C=(%.12g,%.12g,%.12g) nFaces=%zu\n",
+33024:                                      ci, Cd.x, Cd.y, Cd.z, cr.faces.size());
+33025:                         for (size_t fi = 0; fi < cr.faces.size(); ++fi) {
+33026:                             const auto& f = cr.faces[fi];
+33027:                             if (f.pts.size() < 3) continue;
+33028:                             Vec3 Sf, fc;
+33029:                             std::vector<Vec3> fring;
+33030:                             fring.reserve(f.pts.size());
+33031:                             for (int id : f.pts) fring.push_back(gpts[(size_t)id]);
+33032:                             foamFaceAreaCentre(fring, Sf, fc);
+33033:                             const double an = Sf.norm();
+33034:                             const double outf =
+33035:                                 (an > 1e-300) ? Sf.dot(Cd - fc) / an : 0.0;
+33036:                             std::fprintf(stderr,
+33037:                                          "  f%zu nbr=%d patch=%d home=(%g,%g,%g) out=%g npts=%zu:",
+33038:                                          fi, f.nbr, f.patch, f.home.x, f.home.y, f.home.z,
+33039:                                          outf, fring.size());
+33040:                             for (const auto& p : fring)
+33041:                                 std::fprintf(stderr, " (%.10g,%.10g,%.10g)", p.x, p.y, p.z);
+33042:                             std::fprintf(stderr, "\n");
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 33820-33890 =====
+33820:                         r.len = (uint32_t)scratch.size();
+33821:                         r.hash = fnv(scratch.data(), scratch.size());
+33822:                         sk.arena.insert(sk.arena.end(), scratch.begin(), scratch.end());
+33823:                         sk.recs.push_back(r);
+33824:                     }
+33825:                 }
+33826:                 sk.cellStart[hi - lo] = (uint32_t)sk.recs.size();
+33827:             });
+33828:             for (size_t ci = 0; ci < cells.size(); ++ci) {
+33829:                 if (cells[ci].removed) continue;
+33830:                 const SegKeys& sk = segKeys[ci / kChunk];
+33831:                 const uint32_t recBase = sk.cellStart[ci - (ci / kChunk) * kChunk];
+33832:                 size_t fj = 0;
+33833:                 for (auto& f : cells[ci].faces) {
+33834:                     const KRec& kr = sk.recs[(size_t)recBase + fj];
+33835:                     ++fj;
+33836:                     if (kr.kind == 0) continue;
+33837:                     if (kr.kind == 1) {
+33838:                         // E5c W-SB-4(ii)：patch<0 = 孤儿缝占位 ⇒ REFUSE（dbg 路径同款；
+33839:                         // CART_E1_GATE_WARN_ONLY 诊断姿势 = loud 放行，生产恒拒）
+33840:                         if (f.patch < 0) {
+33841:                             std::fprintf(stderr,
+33842:                                 "[DC-OS-WARN] S11 边界面 patch<0 孤儿缝面：胞 %zu（W-SB-4 "
+33843:                                 "配对不变量）%s\n", ci,
+33844:                                 envE1GateWarnOnly() ? "——warn-only 诊断放行" : "");
+33845:                             if (!envE1GateWarnOnly()) {
+33846:                                 err = "S11 边界面 patch<0（孤儿缝面占位；W-SB-4 配对不变量）：胞 "
+33847:                                       + std::to_string(ci) + "——拒绝导出（loud，绝不静默）";
+33848:                                 return false;
+33849:                             }
+33850:                         }
+33851:                         // PERF-R15：boundary 面点集 move 出 cells（S11 后 cells.faces 即弃；
+33852:                         // 同一数据流入 m.faces ⇒ 字节不变，省一次拷贝 + 提前缩 cells 峰值）
+33853:                         BFace bf;
+33854:                         bf.pts = std::move(f.pts);
+33855:                         bf.owner = (int)ci;
+33856:                         bf.patch = f.patch;
+33857:                         boundary.push_back(std::move(bf));
+33858:                         continue;
+33859:                     }
+33860:                     const uint64_t h = kr.hash;
+33861:                     const int* keyPtr = sk.arena.data() + kr.off;
+33862:                     const size_t keyLen = kr.len;
+33863:                     uint32_t b = (uint32_t)(h & mask);
+33864:                     for (;;) {
+33865:                         const int32_t e = buckets[b];
+33866:                         if (e < 0) {
+33867:                             if ((entries.size() + 1) * 2 > capPow) {
+33868:                                 rehash();
+33869:                                 b = (uint32_t)(h & mask);
+33870:                                 continue;
+33871:                             }
+33872:                             Entry en;
+33873:                             en.hash = h;
+33874:                             en.keyOff = (uint32_t)keyArena.size();
+33875:                             en.keyLen = (uint32_t)keyLen;
+33876:                             en.count = 1;
+33877:                             keyArena.insert(keyArena.end(), keyPtr, keyPtr + keyLen);
+33878:                             entries.push_back(en);
+33879:                             buckets[b] = (int32_t)(entries.size() - 1);
+33880:                             internalPts.push_back(std::move(f.pts));  // PERF-R15：move（同上）
+33881:                             internalOwner.push_back((int)ci);
+33882:                             internalNbr.push_back(f.nbr);
+33883:                             break;
+33884:                         }
+33885:                         const Entry& en = entries[(size_t)e];
+33886:                         if (en.hash == h && en.keyLen == keyLen &&
+33887:                             std::equal(keyPtr, keyPtr + keyLen,
+33888:                                        keyArena.begin() + en.keyOff)) {
+33889:                             entries[(size_t)e].count++;
+33890:                             break;
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 34118-34128 =====
+34118:         // 终网格拓扑闭合硬校验：每胞每条边恰被本胞两个面共用（边集失配 ⇒
+34119:         // checkMesh open cells）。不满足即中止导出（响失败优于带病落盘）。
+34120:         bool anyEdgeFail = false;  // 仅 CART_DBG_ALL 诊断路径使用（收集全部失败胞）
+34121:         // OPT-CODE 项3：终检并行化 + 逐胞 unordered_map（43 万次构造/节点分配，
+34122:         // 剖面 S11b 主源）→ 线程内代际戳扁平开放定址表（零分配）。诊断路径
+34123:         //（CART_DBG/CART_DBG_ALL）保留原串行 unordered_map 实现原样冻结（打印序
+34124:         // 同一）。失败语义：拒出决定 = 任一边计数≠2（与序无关）；err 取升序首个
+34125:         // 失败胞（分段最小 ci 归并 = 串行首失败同一胞）；引文的边计数取扁平表
+34126:         // 首失配（原实现取 unordered_map 桶序首失配——同为实现定义序，仅失败
+34127:         // 文案的计数值可能不同，基线全绿路径无涉）。
+34128:         if (envDbg() || envDbgAll()) {
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines 34260-34349 =====
+34260:                     }
+34261:                     for (uint32_t bi : occIdx) {
+34262:                         const EdgeCntSlot& sl = tab[bi];
+34263:                         if (sl.cnt != 2) {
+34264:                             if (sf.ci == SIZE_MAX) sf = SegFail{ci2, sl.cnt};
+34265:                             break;
+34266:                         }
+34267:                     }
+34268:                 }
+34269:             });
+34270:             size_t firstCi = SIZE_MAX;
+34271:             int firstCnt = 0;
+34272:             for (const SegFail& sf : segFail)
+34273:                 if (sf.ci < firstCi) { firstCi = sf.ci; firstCnt = sf.cnt; }
+34274:             if (firstCi != SIZE_MAX) {
+34275:                 err = "S11b 边一致性终检失败：单元 " + std::to_string(firstCi) +
+34276:                       " 存在被 " + std::to_string(firstCnt) +
+34277:                       " 个面共用的边（≠2，拓扑开放）";
+34278:                 return false;
+34279:             }
+34280:         }
+34281:     }
+34282: 
+34283:     // ---- E5c W-SB-3（solve-blocker 工作单 §W-SB-3）：export 时精确共线内点剔除 ----
+34284:     // 目标人口：S11b edgeConsistency2 单侧插入产生的 302 面 noBase tet 类（8/10 点
+34285:     // 平面凸多边形，≥4 个【精确零面积】连续三点组——forensics 344/344 面逐位验证
+34286:     // area = 0.0 to last bit ⇒ 判据用精确 ==0，无新容差常数）。阻塞 tetBasePtIs
+34287:     // （v2412 findSharedBasePoint 鸽笼证明）⇒ 求解器 init 警告 + -allGeometry tet 门。
+34288:     // 不变量（工作单证明义务）：精确共线点删除下 Newell Sf 逐项 telescoping 恒等、
+34289:     // 扇质心 fC、pyramid/体积不变 ⇒ 几何零触；逐面确定性（最低下标优先重启扫描）
+34290:     // ⇒ any-np ≡ serial 平凡成立（S11b 后、rank0 重放尾段内）。位置 = S11b 定点后、
+34291:     // S11c 前：剔除松散的点由 S11c 孤儿压实统一回收（points 表零残留）。
+34292:     // dcMode 门控：OFF 六基线逐字节不变（红线）。
+34293:     if (cfg.dcMode) {
+34294:         long wsb3Faces = 0, wsb3Pts = 0;
+34295:         for (auto& fcW : out.mesh.faces) {
+34296:             if (fcW.size() < 4) continue;
+34297:             bool touchedW = false;
+34298:             bool changedW = true;
+34299:             while (changedW && fcW.size() > 3) {
+34300:                 changedW = false;
+34301:                 const size_t nW = fcW.size();
+34302:                 for (size_t iW = 0; iW < nW; ++iW) {
+34303:                     const Vec3& aW = out.mesh.points[(size_t)fcW[(iW + nW - 1) % nW]];
+34304:                     const Vec3& bW = out.mesh.points[(size_t)fcW[iW]];
+34305:                     const Vec3& cW = out.mesh.points[(size_t)fcW[(iW + 1) % nW]];
+34306:                     if ((bW - aW).cross(cW - bW).norm2() == 0.0) {   // 精确共线（格算术）
+34307:                         fcW.erase(fcW.begin() + (long)iW);
+34308:                         ++wsb3Pts;
+34309:                         touchedW = true;
+34310:                         changedW = true;
+34311:                         break;   // 重启（决定性：最低下标优先）
+34312:                     }
+34313:                 }
+34314:             }
+34315:             if (touchedW) ++wsb3Faces;
+34316:         }
+34317:         if (wsb3Faces > 0 || wsb3Pts > 0) {
+34318:             std::fprintf(stderr, "[DC-WSB3] collinearPrune faces=%ld pts=%ld\n",
+34319:                          wsb3Faces, wsb3Pts);
+34320:             std::fflush(stderr);
+34321:         }
+34322:         if (!out.dcReportJson.empty()) {
+34323:             auto jw3 = nlohmann::json::parse(out.dcReportJson, nullptr, false);
+34324:             if (jw3.is_object()) {
+34325:                 jw3["wsb3Prune"] = {{"faces", wsb3Faces}, {"points", wsb3Pts}};
+34326:                 out.dcReportJson = jw3.dump(1) + "\n";
+34327:             }
+34328:         }
+34329:     }
+34330:     // ---- S11c：孤立点压实（S9 丢弃界面/并面残留的孤儿点 ⇒ checkMesh
+34331:     // unusedPoints；AMR pointLevel 只按压实后的点表计算）----
+34332:     {
+34333:         StageTimer stS11c("S11c orphanCompact");
+34334:         std::vector<int> remap(out.mesh.points.size(), -1);
+34335:         std::vector<Vec3> npts;
+34336:         npts.reserve(out.mesh.points.size());
+34337:         for (auto& f : out.mesh.faces)
+34338:             for (int& id : f) {
+34339:                 int& r = remap[(size_t)id];
+34340:                 if (r < 0) {
+34341:                     r = (int)npts.size();
+34342:                     npts.push_back(out.mesh.points[(size_t)id]);
+34343:                 }
+34344:                 id = r;
+34345:             }
+34346:         out.mesh.points = std::move(npts);
+34347:     }
+34348: 
+34349:     if (envSkewDump()) {
+
+===== /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/meshgenerator/source/core/src/Cartesian.cpp lines33990-34117 =====
+33990:         out.mesh = std::move(m);
+33991:     }
+33992:     // PERF-R15：cells.faces 已在 S11 快路径去重后即并行释放（见上）；dbg 路径保留
+33993:     // （CART_DBG 连通分量诊断会读 faces）。S11b/S11c/AMR 场/nCut 只用 out.mesh 与
+33994:     // cells 标量字段（level/cut/vol/leaf），不再触及 faces。
+33995: 
+33996:     // ---- S11b：终网格边一致性化不动点（集成验证期增补）----
+33997:     // 装配期逐胞边一致性化只能看见本胞面上的顶点；但 S11 配对取首个拷贝
+33998:     // （owner 序较小一侧），若该拷贝带有对侧细分插入的共线点（对侧因其自身
+33999:     // 子面角点而细分），则本胞其他面的边上会留下未细分的穿越点 ⇒ 胞内边集
+34000:     // 失配 ⇒ checkMesh 判 open cells（"cells with over used edges"）。终网格上
+34001:     // 内部面仅一份，插点同时修复两侧；迭代至不动点（新插点可能继续穿越邻胞
+34002:     // 面边）。插入的必为共线内点 ⇒ 不改变任何面的几何/绕向/面积，S10 闭合与
+34003:     // 面锥结论保持成立。
+34004:     {
+34005:         StageTimer stS11b("S11b edgeConsistency2");
+34006:         const size_t nC2 = cells.size();
+34007:         std::vector<std::vector<int>> cf2(nC2);
+34008:         for (size_t fi = 0; fi < out.mesh.owner.size(); ++fi) {
+34009:             cf2[(size_t)out.mesh.owner[fi]].push_back((int)fi);
+34010:             if (out.mesh.neighbour[fi] >= 0)
+34011:                 cf2[(size_t)out.mesh.neighbour[fi]].push_back((int)fi);
+34012:         }
+34013:         const double tolEdge = clipTol * 10;
+34014:         // PERF-R15：Jacobi 不动点并行化（原逐胞 Gauss-Seidel 串行）。
+34015:         // 算子单调（面点集只增不减）⇒ 两种迭代序收敛到同一最小不动点（Knaster–
+34016:         // Tarski）；每面终态点列由『逐边内点按 (t,pid) 全序排序插入』唯一确定，
+34017:         // 与插点来源顺序无关 ⇒ 终网格逐字节一致。实现：相位 A 并行逐胞快照
+34018:         // cellPts（sort+unique，成员集与原 unordered_set 一致，遍历序无关——mid
+34019:         // 恒重排）；相位 B 并行逐面（每面恰一线程写，owner/nbr 的 cellPts 并集
+34020:         // 细分）——消除共享面读写竞争。迭代上限 64 同原（实践 1-3 轮收敛；
+34021:         // 不收敛病态网格由下方边计数终检如实拒出，同原语义）。
+34022:         std::vector<std::vector<int>> cellPtsAll((size_t)nC2);
+34023:         bool changed = true;
+34024:         for (int iter = 0; iter < 64 && changed; ++iter) {
+34025:             std::atomic<bool> chg{false};
+34026:             globalPool().parallelRanges((size_t)nC2, [&](size_t lo, size_t hi) {
+34027:                 for (size_t ci2 = lo; ci2 < hi; ++ci2) {
+34028:                     std::vector<int>& cp = cellPtsAll[ci2];
+34029:                     cp.clear();
+34030:                     for (int fi : cf2[ci2])
+34031:                         for (int id : out.mesh.faces[(size_t)fi]) cp.push_back(id);
+34032:                     std::sort(cp.begin(), cp.end());
+34033:                     cp.erase(std::unique(cp.begin(), cp.end()), cp.end());
+34034:                 }
+34035:             });
+34036:             globalPool().parallelRanges(out.mesh.faces.size(), [&](size_t lo, size_t hi) {
+34037:                 std::vector<int> comb, combLocal, np, un;
+34038:                 std::vector<std::pair<double, int>> mid;
+34039:                 for (size_t fi = lo; fi < hi; ++fi) {
+34040:                     const int o = out.mesh.owner[fi];
+34041:                     const int nb = out.mesh.neighbour[fi];
+34042:                     comb.clear();
+34043:                     const std::vector<int>& cpo = cellPtsAll[(size_t)o];
+34044:                     comb.insert(comb.end(), cpo.begin(), cpo.end());
+34045:                     if (nb >= 0) {
+34046:                         const std::vector<int>& cpn = cellPtsAll[(size_t)nb];
+34047:                         comb.insert(comb.end(), cpn.begin(), cpn.end());
+34048:                         std::sort(comb.begin(), comb.end());
+34049:                         comb.erase(std::unique(comb.begin(), comb.end()), comb.end());
+34050:                     }
+34051:                     std::vector<int>& f = out.mesh.faces[fi];
+34052:                     np.clear();
+34053:                     np.reserve(f.size() + 2);
+34054:                     const size_t m2 = f.size();
+34055:                     // OPT-CODE 项3 邻接：comb 逐面 bbox 预筛——p 在面 bbox±tolEdge 外
+34056:                     // ⇒ 到本面任一边线段距离 > tolEdge ⇒ 内点判定必失败（3 次比较
+34057:                     // 替代逐边 dot/norm 全检；保留候选集与逐边序不变 ⇒ mid 序列
+34058:                     // (t,pid) 全序同一 ⇒ np/un 逐位同一）。
+34059:                     combLocal.clear();
+34060:                     {
+34061:                         double bxmn = 1e300, bymn = 1e300, bzmn = 1e300;
+34062:                         double bxmx = -1e300, bymx = -1e300, bzmx = -1e300;
+34063:                         for (int id : f) {
+34064:                             const Vec3& q = out.mesh.points[(size_t)id];
+34065:                             bxmn = std::min(bxmn, q.x); bxmx = std::max(bxmx, q.x);
+34066:                             bymn = std::min(bymn, q.y); bymx = std::max(bymx, q.y);
+34067:                             bzmn = std::min(bzmn, q.z); bzmx = std::max(bzmx, q.z);
+34068:                         }
+34069:                         bxmn -= tolEdge; bxmx += tolEdge;
+34070:                         bymn -= tolEdge; bymx += tolEdge;
+34071:                         bzmn -= tolEdge; bzmx += tolEdge;
+34072:                         for (int pid : comb) {
+34073:                             const Vec3& q = out.mesh.points[(size_t)pid];
+34074:                             if (q.x >= bxmn && q.x <= bxmx && q.y >= bymn && q.y <= bymx &&
+34075:                                 q.z >= bzmn && q.z <= bzmx)
+34076:                                 combLocal.push_back(pid);
+34077:                         }
+34078:                     }
+34079:                     for (size_t i = 0; i < m2; ++i) {
+34080:                         const int ia = f[i], ib = f[(i + 1) % m2];
+34081:                         np.push_back(ia);
+34082:                         const Vec3& a = out.mesh.points[(size_t)ia];
+34083:                         const Vec3& b = out.mesh.points[(size_t)ib];
+34084:                         const Vec3 ab = b - a;
+34085:                         const double L2 = ab.norm2();
+34086:                         if (L2 < 1e-300) continue;
+34087:                         mid.clear();
+34088:                         for (int pid : combLocal) {
+34089:                             if (pid == ia || pid == ib) continue;
+34090:                             const Vec3& p = out.mesh.points[(size_t)pid];
+34091:                             const Vec3 ap = p - a;
+34092:                             const double t = ap.dot(ab) / L2;
+34093:                             if (t <= 1e-9 || t >= 1 - 1e-9) continue;
+34094:                             const Vec3 q = a + ab * t;
+34095:                             if ((p - q).norm() <= tolEdge) mid.push_back({t, pid});
+34096:                         }
+34097:                         if (!mid.empty()) {
+34098:                             std::sort(mid.begin(), mid.end());
+34099:                             for (auto& pr : mid)
+34100:                                 if (np.empty() || np.back() != pr.second)
+34101:                                     np.push_back(pr.second);
+34102:                         }
+34103:                     }
+34104:                     un.clear();
+34105:                     un.reserve(np.size());
+34106:                     for (int id : np)
+34107:                         if (un.empty() || un.back() != id) un.push_back(id);
+34108:                     while (un.size() >= 2 && un.front() == un.back()) un.pop_back();
+34109:                     if (un.size() >= 3 && un != f) {
+34110:                         f = un;  // 拷贝赋值（保 un 缓冲复用；内容与原 move 一致）
+34111:                         chg.store(true, std::memory_order_relaxed);
+34112:                     }
+34113:                 }
+34114:             });
+34115:             changed = chg.load(std::memory_order_relaxed);
+34116:         }
+34117:         std::vector<std::vector<int>>().swap(cellPtsAll);

@@ -1,0 +1,12 @@
+const fs=require('fs'),crypto=require('crypto');
+const B='/mnt/lv/home/litianyu/mycode/dcdtuni';
+const O=B+'/.codex-tmp/quadratic-gui-artifact-review-private-20261006';
+const E=require(O+'/canonical-hash-source/js/cfdrun_export.js');
+const tag=process.argv[2],dt={['2p0']:'2.0',['1p0']:'1.0',['0p5']:'0.5',['0p25']:'0.25'}[tag];
+const source=B+'/.codex-tmp/full-mms-quadratic-design-private-20261006/proposed-lowflow-cases/dt-'+dt+'/actual-gui-hydrated-dt-'+tag+'.cfdproj';
+const expected=process.argv[3],bytes=fs.readFileSync(source),project=JSON.parse(bytes.toString('utf8'));
+const actual=E.projectContentHashSync(project),output=O+'/saved-project-'+tag+'.cfdproj';
+fs.writeFileSync(output,bytes);
+const rec={tag,source,private_copy:output,bytes:bytes.length,raw_byte_SHA:crypto.createHash('sha256').update(bytes).digest('hex'),canonicalProjectSHA:actual,actual_runtime_source_project_SHA:expected,match:actual===expected,tracks:project.transient.tracks.length,algorithm:'actual shared cfdrunExport.projectContentHashSync→UTF8 stableStringify(canonicalProjectForHash→stripTrackedFields), not raw file SHA'};
+fs.writeFileSync(O+'/saved-project-'+tag+'-hash-receipt.json',JSON.stringify(rec,null,2));
+console.log(JSON.stringify(rec,null,2));if(!rec.match)process.exitCode=1;

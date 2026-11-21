@@ -1,0 +1,482 @@
+--- a/src/frontend/react/src/legacy/factories.ts
++++ b/src/frontend/react/src/legacy/factories.ts
+@@ -1,3 +1,4 @@
++import {createAuthoredTBranch} from '../liquid/tBranch'
+ import { type Bucket, type CfdProject, type Construction, modelsIn } from '../schema/cfdproj'
+ import { bucketForKind, finalizeNewModel, rackState, type V3Seed } from './cfdprojModules'
+ 
+@@ -253,6 +254,7 @@
+     customSTLBase64: null,
+     customOffset: { x: 0, y: 0, z: 0 },
+     cfd: defaultCfd('pipe_junction'),
++    junction: createAuthoredTBranch(),
+     parentPipeId,
+   }
+   return { bucket: bucketForKind('pipe_junction'), model: withRotateTool(finalizeNewModel(seed)) }
+--- a/src/frontend/react/src/legacy/liquidGlobals.ts
++++ b/src/frontend/react/src/legacy/liquidGlobals.ts
+@@ -1,3 +1,4 @@
++import {createAuthoredTBranch, DEFAULT_T_BRANCH_DIAMETER_M} from '../liquid/tBranch'
+ /**
+  * The bare globals `js/liquid_mode.js` needs and `liquidScene.ts` did not have.
+  *
+@@ -148,7 +149,9 @@
+   name: string,
+   parentPipeId: string | null,
+   position: Vec3 | null,
++  fittingDiameterM = DEFAULT_T_BRANCH_DIAMETER_M,
+ ): V3Seed {
++  const junction = createAuthoredTBranch(fittingDiameterM)
+   const rack = rackExtras()
+   return {
+     id: nextLiquidUid(project),
+@@ -167,11 +170,7 @@
+     customOffset: { x: 0, y: 0, z: 0 },
+     cfd: rack.getDefaultCfd('pipe_junction'),
+     parentPipeId,
+-    junction: {
+-      type: 'T_branch',
+-      quaternion: { x: 0, y: 0, z: 0, w: 1 },
+-      connectedPipes: [],
+-    },
++    junction,
+   }
+ }
+ 
+@@ -269,10 +268,11 @@
+     name = 'T-Branch',
+     parentPipeId: string | null = null,
+     position: Vec3 | null = null,
++    fittingDiameterM = DEFAULT_T_BRANCH_DIAMETER_M,
+   ) => {
+     const p = project()
+     if (!p) return null
+-    return finalizeNewModel(pipeJunctionSeed(p, name, parentPipeId, position))
++    return finalizeNewModel(pipeJunctionSeed(p, name, parentPipeId, position, fittingDiameterM))
+   }
+ 
+   w._getManifoldEndpoint = (
+--- a/src/frontend/shared/js/liquid_mode.js
++++ b/src/frontend/shared/js/liquid_mode.js
+@@ -1163,6 +1163,11 @@
+       return null;
+     }
+     const W = wps[waypointIndex];
++    const physicalDiameter = pipe.geometry && pipe.geometry.diameterM;
++    if (typeof physicalDiameter !== 'number' || !Number.isFinite(physicalDiameter) || physicalDiameter <= 0) {
++      alert(t('liquid.alert_upgrade_physical_diameter'));
++      return null;
++    }
+ 
+     // Verify factories exist BEFORE pushing undo checkpoint to avoid orphan checkpoints on failure
+     if (typeof createPipeJunctionModel !== 'function') {
+@@ -1180,19 +1185,12 @@
+     const junction = createPipeJunctionModel(
+       'TBranch_' + pipe.meta.name + '_' + waypointIndex,
+       pipeId,
+-      { x: W.x, y: W.y, z: W.z }
++      { x: W.x, y: W.y, z: W.z },
++      physicalDiameter
+     );
+-    // Define 3 ports (local offsets)
++    // The bridge factory owns the explicitly authored physical T contract.
+     const srcConn = (pipe.cooling && pipe.cooling.connection) || {};
+     const srcCool = pipe.cooling || {};
+-    if (!junction.cooling) junction.cooling = {};
+-    junction.cooling.type = 'T_branch';
+-    junction.cooling.quaternion = { x: 0, y: 0, z: 0, w: 1 };
+-    junction.cooling.ports = [
+-      { id: 'port_1', offset: { x: -0.04, y: 0, z: 0 }, type: 'inout', connectedPipeId: null },
+-      { id: 'port_2', offset: { x:  0.04, y: 0, z: 0 }, type: 'inout', connectedPipeId: null },
+-      { id: 'port_3', offset: { x: 0, y: 0, z:  0.04 }, type: 'out',   connectedPipeId: null }
+-    ];
+     junction.connectedPipes = [];
+ 
+     // 2. Create Pipe_A (original start → junction.port_1)
+@@ -1206,6 +1204,7 @@
+     if (!pipeA.cooling) pipeA.cooling = {};
+     pipeA.geometry.waypoints = wps.slice(0, waypointIndex + 1).map(p => ({x: p.x, y: p.y, z: p.z}));
+     pipeA.cooling.spec = srcCool.spec;
++    pipeA.geometry.diameterM = physicalDiameter;
+ 
+     // 3. Create Pipe_B (junction.port_2 → original end)
+     const pipeB = createPipeSegmentModel(
+@@ -1218,6 +1217,7 @@
+     if (!pipeB.cooling) pipeB.cooling = {};
+     pipeB.geometry.waypoints = wps.slice(waypointIndex).map(p => ({x: p.x, y: p.y, z: p.z}));
+     pipeB.cooling.spec = srcCool.spec;
++    pipeB.geometry.diameterM = physicalDiameter;
+ 
+     // 4. Wire up port connections on the junction
+     junction.cooling.ports[0].connectedPipeId = pipeA.uid;
+--- a/src/frontend/react/src/components/Inspector.tsx
++++ b/src/frontend/react/src/components/Inspector.tsx
+@@ -1,3 +1,4 @@
++import {PipeJunctionInspector} from './PipeJunctionInspector'
+ import { useEffect, useMemo, useState } from 'react'
+ import { allModels, type CfdProject, type Construction } from '../schema/cfdproj'
+ import * as store from '../projectStore'
+@@ -383,6 +384,7 @@
+       <SheetCfdSection model={model} />
+       <AcuCoolingModel project={project} model={model} />
+       <ModelLibraryPin model={model} />
++      {model.kind === 'pipe_junction' && project && <PipeJunctionInspector project={project} model={model} />}
+ 
+       <div className="prop-group">
+         <div className="prop-title">{t('inspector.model_settings')}</div>
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -439,7 +439,12 @@
+                 } else {
+                     const ports=model.cooling?.ports;
+                     if(model.cooling?.type!=='T_branch' || !Array.isArray(ports) || ports.length!==3)
+-                        throw new Error('Liquid transport currently needs an explicit three-port T fitting');
++                        throw new Error('Liquid transport currently needs an explicit three-port T fitting: declare its physical layout in Properties before exporting');
++                    if(typeof model.cooling.fittingDiameterM!=='number' || !Number.isFinite(model.cooling.fittingDiameterM) || model.cooling.fittingDiameterM<=0)
++                        throw new Error('invalid fitting diameter: set a positive physical T fitting diameter in Properties before exporting');
++                    if(ports.some(port=>!port || typeof port.id!=='string' || !port.id ||
++                        ![port.offset,port.direction].every(point=>point && ['x','y','z'].every(k=>typeof point[k]==='number' && Number.isFinite(point[k])) && Math.hypot(point.x,point.y,point.z)>0)) || new Set(ports.map(port=>port.id)).size!==3)
++                        throw new Error('Liquid transport needs three explicit physical port offsets and directions: declare the T fitting layout in Properties before exporting');
+                     const radius=diameter(model.cooling.fittingDiameterM,'fitting diameter')/2;
+                     const centre=vector(model.geometry?.location,'junction location');
+                     const endpoints=ports.map(port=>portPoint(model.uid+'.'+port.id));
+--- a/src/frontend/shared/i18n/en-US.json
++++ b/src/frontend/shared/i18n/en-US.json
+@@ -2281,5 +2281,13 @@
+   "lce.actual_execution_unknown": "Actual device and precision have not been reported by the backend; saved settings do not prove execution.",
+   "lce.legacy_compatibility_hint": "Compatibility for older projects: this button uses the separate legacy boundary-condition solver. Legacy parameters and PID scenarios retain their saved values; v2 runs support CPU only. The main experiment button follows the saved scenario version.",
+   "lce.legacy_preserved_hint": "Legacy solver parameters remain in the project for compatibility; this DAE uses the settings above.",
+-  "lce.execution_gpu_index": "GPU index (server visible)"
++  "lce.execution_gpu_index": "GPU index (server visible)",
++  "liquid.t_fitting_title": "T fitting · physical dimensions",
++  "liquid.t_fitting_diameter": "Physical diameter",
++  "liquid.t_fitting_missing": "Set a positive physical diameter before exporting this fitting.",
++  "liquid.t_fitting_layout_missing": "This fitting has no complete physical three-port layout; export is blocked.",
++  "liquid.t_fitting_declare": "Declare standard T layout",
++  "liquid.t_fitting_declare_help": "Enter the physical diameter, then explicitly declare local −X/+X through ports and a +Z branch. Existing port IDs and connections are retained.",
++  "liquid.t_fitting_invalid": "Use a positive finite diameter. Unrecognised port IDs need explicit rebuilding before declaring this standard layout.",
++  "liquid.alert_upgrade_physical_diameter": "Cannot split this pipe: set a positive physical pipe diameter in Properties first."
+ }
+--- a/src/frontend/shared/i18n/zh-CN.json
++++ b/src/frontend/shared/i18n/zh-CN.json
+@@ -2281,5 +2281,13 @@
+   "lce.actual_execution_unknown": "实际设备与精度尚未由后端报告；工程设置不代表实际执行结果。",
+   "lce.legacy_compatibility_hint": "兼容旧工程：此按钮使用独立的旧边界条件求解流程。旧参数和 PID 场景保留原值；v2 运行仅支持 CPU。主实验按钮仍按工程保存的版本运行。",
+   "lce.legacy_preserved_hint": "旧求解参数仍保存在工程中，用于旧版本兼容；此页 DAE 仅使用上方设置。",
+-  "lce.execution_gpu_index": "GPU 索引（服务端可见）"
++  "lce.execution_gpu_index": "GPU 索引（服务端可见）",
++  "liquid.t_fitting_title": "三通 · 物理尺寸",
++  "liquid.t_fitting_diameter": "物理口径",
++  "liquid.t_fitting_missing": "请填写正值物理口径后再导出三通。",
++  "liquid.t_fitting_layout_missing": "此三通尚未声明完整的三口物理布局，当前无法导出。",
++  "liquid.t_fitting_declare": "声明标准三通布局",
++  "liquid.t_fitting_declare_help": "先填写物理口径，再声明局部 −X/+X 直通口及 +Z 支路。现有端口标识和连接会保留。",
++  "liquid.t_fitting_invalid": "请输入有限正值口径；无法识别的端口标识需先明确重建，不能直接替换为标准布局。",
++  "liquid.alert_upgrade_physical_diameter": "无法拆分此管道：请先在属性中填写有限正值的物理管径。"
+ }
+--- /dev/null
++++ b/src/frontend/react/src/liquid/tBranch.ts
+@@ -0,0 +1,42 @@
++import type {Quat, Vec3} from '../schema/cfdproj'
++
++/** New authoring defaults in metres; never applied while loading old documents. */
++export const DEFAULT_T_BRANCH_DIAMETER_M = 0.025
++export interface TBranchPort {
++  id: string
++  offset: Vec3
++  direction: Vec3
++  type: string
++  connectedPipeId: string | null
++}
++export function positivePhysicalDiameter(value: unknown): value is number {
++  return typeof value === 'number' && Number.isFinite(value) && value > 0
++}
++export function createAuthoredTBranch(fittingDiameterM = DEFAULT_T_BRANCH_DIAMETER_M) {
++  if (!positivePhysicalDiameter(fittingDiameterM)) throw new Error('T fitting needs a finite positive physical diameter in metres')
++  // Preserve the existing authored local +/-X through-run and +Z branch frame.
++  const ports: TBranchPort[] = [
++    {id:'port_1',offset:{x:-0.04,y:0,z:0},direction:{x:-1,y:0,z:0},type:'inout',connectedPipeId:null},
++    {id:'port_2',offset:{x:0.04,y:0,z:0},direction:{x:1,y:0,z:0},type:'inout',connectedPipeId:null},
++    {id:'port_3',offset:{x:0,y:0,z:0.04},direction:{x:0,y:0,z:1},type:'out',connectedPipeId:null},
++  ]
++  return {type:'T_branch',quaternion:{x:0,y:0,z:0,w:1} as Quat,fittingDiameterM,ports,connectedPipes:[] as string[]}
++}
++function record(value: unknown): Record<string, unknown> | null {
++  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
++}
++function nonzeroPoint(value: unknown): boolean {
++  const p=record(value)
++  return !!p && ['x','y','z'].every(k=>typeof p[k]==='number' && Number.isFinite(p[k])) && Math.hypot(p.x as number,p.y as number,p.z as number)>0
++}
++export function hasAuthoredTBranchLayout(cooling: unknown): boolean {
++  const c=record(cooling),q=record(c?.quaternion)
++  if (!c || c.type!=='T_branch' || !q || !['x','y','z','w'].every(k=>typeof q[k]==='number' && Number.isFinite(q[k])) || Math.hypot(q.x as number,q.y as number,q.z as number,q.w as number)===0 || !Array.isArray(c.ports) || c.ports.length!==3) return false
++  const ids=new Set<string>()
++  for (const raw of c.ports) {
++    const port=record(raw)
++    if (!port || typeof port.id!=='string' || !port.id || ids.has(port.id) || !nonzeroPoint(port.offset) || !nonzeroPoint(port.direction)) return false
++    ids.add(port.id)
++  }
++  return true
++}
+--- /dev/null
++++ b/src/frontend/react/src/liquid/pipeJunctionInspector.ts
+@@ -0,0 +1,43 @@
++import type {Construction} from '../schema/cfdproj'
++import * as store from '../projectStore'
++import {createAuthoredTBranch,hasAuthoredTBranchLayout,positivePhysicalDiameter} from './tBranch'
++type Bag = Record<string, unknown>
++export function fittingDiameter(model: Construction): number | null {
++  const cooling=model.cooling as Bag | undefined
++  return positivePhysicalDiameter(cooling?.fittingDiameterM) ? cooling.fittingDiameterM : null
++}
++/** Editing a saved physical fitting keeps every authored port/quaternion field. */
++export function setFittingDiameter(uid: string, metres: number): boolean {
++  const project=store.getProject(),hit=project && store.findConstruction(project,uid)
++  if (!hit || hit.model.kind!=='pipe_junction' || !positivePhysicalDiameter(metres) || !hasAuthoredTBranchLayout(hit.model.cooling)) return false
++  store.edit('setFittingDiameter', `${uid} -> ${metres} m`, draft=>{
++    const model=store.findConstruction(draft,uid)!.model
++    ;(model.cooling as Bag).fittingDiameterM=metres
++  })
++  return true
++}
++/** Explicit user authoring only; neither a loader nor a migration fallback. */
++export function declareStandardFitting(uid: string, metres: number): boolean {
++  const project=store.getProject(),hit=project && store.findConstruction(project,uid)
++  if (!hit || hit.model.kind!=='pipe_junction' || !positivePhysicalDiameter(metres) || hasAuthoredTBranchLayout(hit.model.cooling)) return false
++  const previous=(hit.model.cooling || {}) as Bag
++  const ports=previous.ports
++  // Preserve connection identity. Unknown old port IDs require explicit rebuild,
++  // rather than dropping relations while replacing the physical declaration.
++  if (ports!==undefined && (!Array.isArray(ports) || ports.length!==3 || !ports.every((p: Bag)=>p && typeof p.id==='string' && ['port_1','port_2','port_3'].includes(p.id)) || new Set(ports.map((p: Bag)=>p.id)).size!==3)) return false
++  const authored=createAuthoredTBranch(metres)
++  if (Array.isArray(ports)) authored.ports=authored.ports.map(port=>({...(ports.find((p: Bag)=>p.id===port.id) as object),...port,
++    type: ((ports.find((p: Bag)=>p.id===port.id) as Bag).type as string | undefined) ?? port.type,
++    connectedPipeId: ((ports.find((p: Bag)=>p.id===port.id) as Bag).connectedPipeId as string | null | undefined) ?? null}))
++  // A valid saved orientation remains the owner's frame, even for old layouts.
++  const q=previous.quaternion as Bag | undefined
++  if (q && ['x','y','z','w'].every(k=>typeof q[k]==='number' && Number.isFinite(q[k])) && Math.hypot(q.x as number,q.y as number,q.z as number,q.w as number)>0)
++    authored.quaternion={x:q.x as number,y:q.y as number,z:q.z as number,w:q.w as number}
++  store.edit('declareStandardFitting', `${uid} -> explicit ${metres} m T fitting`, draft=>{
++    const model=store.findConstruction(draft,uid)!.model
++    // connectedPipes lives on the model, not cooling. Retain that relation list.
++    const {connectedPipes: _,...physical}=authored
++    model.cooling={...(model.cooling as Bag | undefined),...physical}
++  })
++  return true
++}
+--- /dev/null
++++ b/src/frontend/react/src/components/PipeJunctionInspector.tsx
+@@ -0,0 +1,38 @@
++import {useEffect,useState} from 'react'
++import type {CfdProject,Construction} from '../schema/cfdproj'
++import {fromDisplay,LENGTH_UNITS,stepFor,toDisplay,unitOf} from '../lengthUnits'
++import {hasAuthoredTBranchLayout,positivePhysicalDiameter} from '../liquid/tBranch'
++import {declareStandardFitting,fittingDiameter,setFittingDiameter} from '../liquid/pipeJunctionInspector'
++import {useTranslation} from '../useTranslation'
++import {NumberField} from './NumberField'
++
++export function PipeJunctionInspector({project,model}:{project:CfdProject;model:Construction}) {
++  const {t}=useTranslation(),unit=unitOf(project),diameter=fittingDiameter(model),layout=hasAuthoredTBranchLayout(model.cooling)
++  const [draft,setDraft]=useState<number|null>(diameter),[error,setError]=useState(false)
++  useEffect(()=>{setDraft(diameter);setError(false)},[model.uid,diameter])
++  const value=layout?diameter:draft
++  return <div className="prop-group" style={{borderLeftColor:'var(--hint-color)'}}>
++    <div className="prop-title">{t('liquid.t_fitting_title')}</div>
++    <div className="prop-row">
++      <label htmlFor="fitting-diameter">{t('liquid.t_fitting_diameter')} ({LENGTH_UNITS[unit].label})</label>
++      <NumberField id="fitting-diameter" value={value===null?null:toDisplay(value,unit)} step={stepFor(unit)} decimals={4}
++        ariaDescribedBy="fitting-physical-help" onCommit={raw=>{
++          const metres=fromDisplay(raw,unit)
++          if (!positivePhysicalDiameter(metres)) {setError(true);return false}
++          setError(false)
++          if (layout) return setFittingDiameter(model.uid,metres)
++          setDraft(metres);return true
++        }}/>
++    </div>
++    <div id="fitting-physical-help" className="prop-hint">
++      {layout ? (diameter===null?t('liquid.t_fitting_missing'):'') : t('liquid.t_fitting_layout_missing')}
++    </div>
++    {!layout && <>
++      <div className="prop-hint">{t('liquid.t_fitting_declare_help')}</div>
++      <button className="btn" disabled={!positivePhysicalDiameter(draft)} onClick={()=>setError(!declareStandardFitting(model.uid,draft!))}>
++        {t('liquid.t_fitting_declare')}
++      </button>
++    </>}
++    {error && <div role="alert" className="prop-hint">{t('liquid.t_fitting_invalid')}</div>}
++  </div>
++}
+--- /dev/null
++++ b/src/frontend/react/test/authoredTBranch.test.ts
+@@ -0,0 +1,76 @@
++import {afterEach, beforeEach, expect, it, vi} from 'vitest'
++import {createPipeJunction, createPipeSegment} from '../src/legacy/factories'
++import {stateV4} from '../src/legacy/cfdprojModules'
++import {installLiquidGlobals, _resetLiquidUidCounter} from '../src/legacy/liquidGlobals'
++import * as store from '../src/projectStore'
++import type {CfdProject} from '../src/schema/cfdproj'
++import * as THREE from 'three'
++import {createSceneBuilder,emptyRegistries,type SceneHost} from '../src/interaction/sceneBuilder'
++import {serializeProjectState,readProjectFileText} from '../src/io/projectFiles'
++import {bindStlFileHashes} from '../src/legacy/cfdrunBuild'
++import type {CfdrunV2} from '../src/schema/cfdrun'
++import '../src/legacy/geometryBuilder'
++
++
++type Bag = Record<string, any>
++const w = window as unknown as Bag
++function project() {const p=stateV4().getInitialStateV4() as unknown as CfdProject;p.uid='authored-tee';return p}
++function live() {return store.getProject()!}
++beforeEach(async()=>{_resetLiquidUidCounter();store.loadProject(project(), 'private-control.cfdproj');installLiquidGlobals();
++ for(const key of ['createPipeSegmentModel','createPipeJunctionModel','addModel'])vi.stubGlobal(key,w[key]);
++ vi.stubGlobal('t',(key:string)=>key);vi.stubGlobal('alert',vi.fn());vi.stubGlobal('rebuildGeometry',vi.fn());vi.stubGlobal('setSelection',vi.fn());vi.stubGlobal('pushUndoCheckpoint',store.pushUndoCheckpoint);
++ await import('../../shared/js/liquid_mode.js')})
++afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks()})
++function sourcePipe(diameter:unknown=.073) {const {bucket,model}=createPipeSegment(live());const pipe=model as Bag;pipe.geometry.diameterM=diameter;pipe.geometry.waypoints=[{x:-1,y:.25,z:0},{x:0,y:.25,z:0},{x:1,y:.25,z:0}];pipe.cooling.spec='pipe_999mm';pipe.cooling.loopRole='return';pipe.cooling.connection.startPortId='source.supply';pipe.cooling.connection.endPortId='destination.return';store.addModel(bucket,model);const actual=store.findConstruction(live(),model.uid)!.model as Bag;vi.stubGlobal('_modelMap',new Map([[model.uid,actual]]));return actual}
++it('real shared upgrade inherits the authored 73mm diameter rather than bridge25mm or spec text',()=>{const pipe=sourcePipe(),id=w._upgradeToTBranch(pipe.uid,1);const junction=store.findConstruction(live(),id)!.model as Bag;const parts=Object.values(live().constructions!.pipeSegments!) as Bag[];console.info('ACTUAL_SPLIT',JSON.stringify({inputDiameter:.073,inputSpec:pipe.cooling.spec,junctionDiameter:junction.cooling.fittingDiameterM,partDiameters:parts.map(p=>p.geometry.diameterM)}));expect(parts.map(p=>p.geometry.diameterM)).toEqual([.073,.073]);expect(junction.cooling.fittingDiameterM).toBe(.073);expect(new Set(parts.map(p=>p.uid)).size).toBe(2);expect(parts.map(p=>p.cooling.loopRole)).toEqual(['return','return']);expect(parts[0]!.cooling.connection).toMatchObject({startPortId:'source.supply',endPortId:id+'.port_1'});expect(parts[1]!.cooling.connection).toMatchObject({startPortId:id+'.port_2',endPortId:'destination.return'});expect(junction.cooling.ports.map((p:Bag)=>p.connectedPipeId)).toEqual([parts[0]!.uid,parts[1]!.uid,null]);expect(store.findConstruction(live(),pipe.uid)).toBeNull()})
++it('both real creation factories author an explicit25mm three-port physical fitting',()=>{const free=createPipeJunction(live()).model as Bag;const bridge=w.createPipeJunctionModel('Bridge',null,{x:0,y:.25,z:0}) as Bag;console.info('ACTUAL_FACTORY',JSON.stringify({free:free.cooling,bridge:bridge.cooling}));for(const m of [free,bridge]){expect(m.cooling.type).toBe('T_branch');expect(m.cooling.fittingDiameterM).toBe(.025);expect(m.cooling.ports).toHaveLength(3);expect(m.cooling.ports.map((p:Bag)=>p.direction)).toEqual([{x:-1,y:0,z:0},{x:1,y:0,z:0},{x:0,y:0,z:1}])}})
++
++it.each([undefined, null, 0, -.1, NaN, Infinity, '.073'])('rejects invalid authored source diameter %s before split/undo or topology mutation',diameter=>{
++ const pipe=sourcePipe(diameter);if(diameter===undefined)delete pipe.geometry.diameterM
++ const before=JSON.stringify(live()),checkpoint=vi.fn(store.pushUndoCheckpoint);vi.stubGlobal('pushUndoCheckpoint',checkpoint)
++ expect(w._upgradeToTBranch(pipe.uid,1)).toBeNull();expect(checkpoint).not.toHaveBeenCalled();expect(JSON.stringify(live())).toBe(before);expect(store.findConstruction(live(),pipe.uid)!.model).toBe(pipe);expect(w.alert).toHaveBeenCalled()
++})
++function exportFitting(p:CfdProject,id:string|string[]) {
++ const group=new THREE.Group(),wrapper=new THREE.Group();wrapper.add(group);wrapper.updateMatrixWorld(true)
++ const host:SceneHost={globalGroup:group,wrapperGroup:wrapper,registries:emptyRegistries(),project:()=>p,selectedUid:()=>null,webglAvailable:false},builder=createSceneBuilder(host)
++ const old=w.allModels;w.allModels=()=>stateV4().allModels(p)
++ try{return builder.api.buildGroupedStlMap(Array.isArray(id)?id:[id],false)}finally{builder.clear();w.allModels=old}
++}
++it('exports the factory physical fitting after yaw and uniform scale, with real source UID/carrier provenance and outward closed triangles',()=>{
++ const p=live(),made=createPipeJunction(p,{x:.2,y:.25,z:.3}),m=made.model as Bag
++ m.cooling.quaternion={x:0,y:Math.SQRT1_2,z:0,w:Math.SQRT1_2};m.geometry.scale={x:2,y:2,z:2};store.addModel(made.bucket,made.model)
++ const actual=store.findConstruction(live(),m.uid)!.model as Bag,before=JSON.stringify(actual),files=exportFitting(live(),m.uid),text=files['merged_liquid_transport.stl']!
++ expect(text).toBeTruthy();const vertices=[...text.matchAll(/vertex\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/g)].map(row=>new THREE.Vector3(Number(row[1]),Number(row[2]),Number(row[3])))
++ expect(Math.min(...vertices.map(v=>v.x))).toBeCloseTo(.175,7);expect(Math.max(...vertices.map(v=>v.x))).toBeCloseTo(.28,7)
++ expect(Math.min(...vertices.map(v=>v.y))).toBeCloseTo(.225,7);expect(Math.max(...vertices.map(v=>v.y))).toBeCloseTo(.275,7)
++ expect(Math.min(...vertices.map(v=>v.z))).toBeCloseTo(.22,7);expect(Math.max(...vertices.map(v=>v.z))).toBeCloseTo(.38,7)
++ const edges=new Map<string,[number,number]>();let volume=0
++ for(let i=0;i<vertices.length;i+=3){const a=vertices[i]!,b=vertices[i+1]!,c=vertices[i+2]!;expect(b.clone().sub(a).cross(c.clone().sub(a)).length()).toBeGreaterThan(0);volume+=a.dot(b.clone().cross(c))/6;for(const [one,two]of [[a,b],[b,c],[c,a]]){const u=one!.toArray().join(','),v=two!.toArray().join(','),key=[u,v].sort().join('|'),row=edges.get(key)??[0,0];row[u<v?0:1]++;edges.set(key,row)}}
++ expect([...edges.values()].every(([a,b])=>a===1&&b===1)).toBe(true);expect(volume).toBeGreaterThan(0)
++ const manifest={geometryExport:{coordinateSystem:'Y-up',unit:'m',stlFiles:{},solids:{}}} as CfdrunV2;bindStlFileHashes(manifest,files,live());expect(Object.values(manifest.geometryExport.sourceRegions??{}).map(row=>row.sourceEntityUid)).toEqual([m.uid]);expect(JSON.stringify(actual)).toBe(before)
++})
++it('keeps old absent fitting physics absent through actual load/save/reload and honestly rejects export with an actionable message',()=>{
++ const made=createPipeJunction(live()),m=made.model as Bag;delete m.cooling.fittingDiameterM;store.addModel(made.bucket,made.model)
++ const json=serializeProjectState(live()),loaded=readProjectFileText(json);expect(loaded.ok).toBe(true);if(!loaded.ok)throw new Error(loaded.error)
++ // The dialog's parsed document is installed by the actual store load path,
++ // which revives non-enumerable runtime kind from the canonical bucket.
++ store.loadProject(loaded.project,'private-reloaded-fitting.cfdproj')
++ const saved=store.findConstruction(live(),m.uid)!.model as Bag;expect(saved.kind).toBe('pipe_junction');expect(saved.cooling.fittingDiameterM).toBeUndefined();expect(saved.cooling.ports).toEqual(m.cooling.ports)
++ expect(()=>exportFitting(live(),m.uid)).toThrow(/invalid fitting diameter.*Properties before exporting/)
++ expect(saved.cooling.fittingDiameterM).toBeUndefined()
++})
++
++it('does not infer a missing physical port direction from its display or offset',()=>{
++ const made=createPipeJunction(live()),m=made.model as Bag;delete m.cooling.ports[0].direction;store.addModel(made.bucket,made.model);const before=JSON.stringify(live())
++ expect(()=>exportFitting(live(),m.uid)).toThrow(/explicit physical port offsets and directions.*Properties/);expect(JSON.stringify(live())).toBe(before)
++})
++
++it('runs the real73mm split through save/reload and grouped physical export without changing hydraulic input or contributor identities',()=>{
++ const pipe=sourcePipe();pipe.cooling.connection.startPortId=null;pipe.cooling.connection.endPortId=null
++ const id=w._upgradeToTBranch(pipe.uid,1),ids=stateV4().allModels(live()).filter(m=>m.kind==='pipe_segment'||m.kind==='pipe_junction').map(m=>m.uid)
++ const loaded=readProjectFileText(serializeProjectState(live()));expect(loaded.ok).toBe(true);if(!loaded.ok)throw new Error(loaded.error);store.loadProject(loaded.project,'private73mm-reload.cfdproj')
++ const before=JSON.stringify(live()),files=exportFitting(live(),ids),text=files['merged_liquid_transport.stl']!,ys=[...text.matchAll(/vertex\s+[^\s]+\s+([^\s]+)\s+[^\s]+/g)].map(row=>Number(row[1]))
++ expect(Math.min(...ys)).toBeCloseTo(.25-.073/2,6);expect(Math.max(...ys)).toBeCloseTo(.25+.073/2,6)
++ const manifest={geometryExport:{coordinateSystem:'Y-up',unit:'m',stlFiles:{},solids:{}}} as CfdrunV2;bindStlFileHashes(manifest,files,live());const rows=Object.values(manifest.geometryExport.sourceRegions??{});expect(new Set(rows.map(row=>row.sourceEntityUid))).toEqual(new Set(ids));expect(rows.every(row=>row.carrierContributorUids!.join(',')===[...ids].sort().join(','))).toBe(true)
++ expect((store.findConstruction(live(),id)!.model.cooling as Bag).fittingDiameterM).toBe(.073);expect(JSON.stringify(live())).toBe(before)
++})
+--- /dev/null
++++ b/src/frontend/react/test/PipeJunctionInspector.test.tsx
+@@ -0,0 +1,53 @@
++import {act,useSyncExternalStore} from 'react'
++import {createRoot,type Root} from 'react-dom/client'
++import {afterEach,beforeEach,expect,it,vi} from 'vitest'
++import {Inspector} from '../src/components/Inspector'
++import {createPipeJunction,createPipeSegment} from '../src/legacy/factories'
++import {stateV4} from '../src/legacy/cfdprojModules'
++import {serializeProjectState,readProjectFileText} from '../src/io/projectFiles'
++import {setFittingDiameter} from '../src/liquid/pipeJunctionInspector'
++import * as store from '../src/projectStore'
++import {setLocale,t} from '../src/i18n'
++import type {CfdProject} from '../src/schema/cfdproj'
++type Bag=Record<string,any>
++let root:Root,host:HTMLDivElement,uid:string
++function App(){useSyncExternalStore(store.subscribe,store.revision);return <Inspector project={store.getProject()} selectedUid={uid}/>}
++function current(){return store.findConstruction(store.getProject()!,uid)!.model as Bag}
++function create(cooling?:(c:Bag)=>void){const p=stateV4().getInitialStateV4() as unknown as CfdProject;p.meta={...(p.meta||{}),inputUnit:'mm'};const made=createPipeJunction(p);uid=made.model.uid;if(cooling)cooling(made.model.cooling as Bag);(stateV4() as any).addConstruction(p,made.model);store.loadProject(p,'private-fitting.cfdproj')}
++function mount(){act(()=>root.render(<App/>))}
++function commit(value:number){const input=host.querySelector<HTMLInputElement>('#fitting-diameter')!;expect(input).not.toBeNull();const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!;act(()=>{input.focus();setter.call(input,String(value));input.dispatchEvent(new Event('input',{bubbles:true}))});act(()=>input.blur())}
++function declaration(){return [...host.querySelectorAll<HTMLButtonElement>('button')].find(button=>button.textContent===t('liquid.t_fitting_declare'))!}
++beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;setLocale('en-US');host=document.createElement('div');document.body.appendChild(host);root=createRoot(host)})
++afterEach(()=>{act(()=>root.unmount());host.remove();vi.restoreAllMocks()})
++it('the actual common Inspector edits physical bore in display mm, preserves arbitrary saved ports/frame and roundtrips through the codec',()=>{
++ create(c=>{c.fittingDiameterM=.073;c.quaternion={x:0,y:Math.SQRT1_2,z:0,w:Math.SQRT1_2};c.ports[0].offset.x=-.12;c.ports[1].offset.x=.13;c.ports[2].offset.z=.14;c.ports[0].connectedPipeId='pipe_A';c.ports[1].id='saved_port_B';c.extra={retained:true}})
++ const before=structuredClone(current().cooling);mount();expect(host.querySelector<HTMLInputElement>('#fitting-diameter')!.value).toBe('73.0000');commit(32)
++ expect(current().cooling).toEqual({...before,fittingDiameterM:.032});expect(declaration()).toBeUndefined()
++ const check=readProjectFileText(serializeProjectState(store.getProject()!));expect(check.ok).toBe(true);if(!check.ok)throw new Error(check.error)
++ expect((store.findConstruction(check.project,uid)!.model.cooling as Bag)).toEqual({...before,fittingDiameterM:.032})
++ act(()=>store.undo());expect(current().cooling).toEqual(before)
++})
++it('does not author old missing physics on load/render/save or on draft input; the explicit declaration is the single authoring action',()=>{
++ create(c=>{delete c.type;delete c.quaternion;delete c.ports;delete c.fittingDiameterM});const before=JSON.stringify(current());mount()
++ expect(host.querySelector<HTMLInputElement>('#fitting-diameter')!.value).toBe('');expect(declaration().disabled).toBe(true);expect(JSON.stringify(current())).toBe(before)
++ const saved=JSON.parse(serializeProjectState(store.getProject()!));expect(saved.constructions.pipeJunctions[uid].cooling.fittingDiameterM).toBeUndefined()
++ commit(40);expect(JSON.stringify(current())).toBe(before);expect(declaration().disabled).toBe(false)
++ act(()=>declaration().click());expect(current().cooling.fittingDiameterM).toBe(.04);expect(current().cooling.ports.map((p:Bag)=>p.direction)).toEqual([{x:-1,y:0,z:0},{x:1,y:0,z:0},{x:0,y:0,z:1}]);expect(declaration()).toBeUndefined()
++ act(()=>store.undo());expect(JSON.stringify(current())).toBe(before)
++})
++it('explicitly reauthors a legacy standard layout without deleting IDs, connections, roles or saved orientation',()=>{
++ create(c=>{delete c.fittingDiameterM;c.quaternion={x:0,y:1,z:0,w:0};for(const port of c.ports)delete port.direction;c.ports[0].connectedPipeId='pipe_A';c.ports[1].connectedPipeId='pipe_B';c.ports[2].type='inout'})
++ const before=structuredClone(current().cooling);mount();commit(50);act(()=>declaration().click())
++ expect(current().cooling.quaternion).toEqual(before.quaternion);expect(current().cooling.ports.map((p:Bag)=>({id:p.id,connectedPipeId:p.connectedPipeId,type:p.type}))).toEqual(before.ports.map((p:Bag)=>({id:p.id,connectedPipeId:p.connectedPipeId,type:p.type})))
++ expect(current().cooling.fittingDiameterM).toBe(.05)
++})
++it('refuses unknown legacy port identities instead of severing a saved topology',()=>{
++ create(c=>{delete c.fittingDiameterM;delete c.ports[0].direction;c.ports[0].id='saved_unknown';c.ports[0].connectedPipeId='pipe_A'});mount();const before=JSON.stringify(current());commit(40);act(()=>declaration().click())
++ expect(host.querySelector('[role=alert]')?.textContent).toMatch(/Unrecognised port IDs/);expect(JSON.stringify(current())).toBe(before)
++})
++it('refuses zero/negative/nonfinite edits and wrong kinds without writing a checkpoint',()=>{
++ create();mount();const before=JSON.stringify(current());commit(0);expect(host.querySelector('[role=alert]')).not.toBeNull();commit(-20)
++ for(const value of [0,-1,NaN,Infinity])expect(setFittingDiameter(uid,value)).toBe(false)
++ expect(setFittingDiameter('missing',.03)).toBe(false);expect(JSON.stringify(current())).toBe(before)
++ const pipe=createPipeSegment(store.getProject()!);act(()=>store.addModel(pipe.bucket,pipe.model));expect(setFittingDiameter(pipe.model.uid,.03)).toBe(false);expect((store.findConstruction(store.getProject()!,pipe.model.uid)!.model.cooling as Bag).fittingDiameterM).toBeUndefined()
++})
+--- a/src/frontend/react/test/liquidFactories.test.ts
++++ b/src/frontend/react/test/liquidFactories.test.ts
+@@ -197,3 +197,15 @@
+     expect(Object.keys(JSON.parse(JSON.stringify(model)))).not.toContain('kind')
+   })
+ })
++
++
++describe('authored physical free T fittings',()=>{
++ it('uses25mm metres regardless of authoring input unit and does not share mutable port defaults',async()=>{
++  const {createPipeJunction}=await import('../src/legacy/factories')
++  const p=project();p.meta={...(p.meta||{}),inputUnit:'mm'}
++  const a=createPipeJunction(p).model.cooling as Record<string,any>,b=createPipeJunction(p).model.cooling as Record<string,any>
++  expect(a.fittingDiameterM).toBe(.025);expect(b.fittingDiameterM).toBe(.025)
++  a.ports[0].offset.x=9;a.ports[0].direction.x=4
++  expect(b.ports[0].offset).toEqual({x:-.04,y:0,z:0});expect(b.ports[0].direction).toEqual({x:-1,y:0,z:0})
++ })
++})
+--- a/src/frontend/react/test/legacy/liquidGlobals.test.ts
++++ b/src/frontend/react/test/legacy/liquidGlobals.test.ts
+@@ -193,3 +193,18 @@
+     expect((seed.junction as Record<string, unknown>).type).toBe('T_branch')
+   })
+ })
++
++
++describe('physical T fitting bridge seed',()=>{
++ it('accepts an explicit authored bore and includes finite physical ports in the existing frame',()=>{
++  const junction=pipeJunctionSeed(emptyProject(),'T','source',{x:1,y:2,z:3},.073).junction as Record<string,any>
++  expect(junction.fittingDiameterM).toBe(.073);expect(junction.quaternion).toEqual({x:0,y:0,z:0,w:1})
++  expect(junction.ports.map((p:Record<string,any>)=>({offset:p.offset,direction:p.direction,type:p.type}))).toEqual([
++   {offset:{x:-.04,y:0,z:0},direction:{x:-1,y:0,z:0},type:'inout'},
++   {offset:{x:.04,y:0,z:0},direction:{x:1,y:0,z:0},type:'inout'},
++   {offset:{x:0,y:0,z:.04},direction:{x:0,y:0,z:1},type:'out'}])
++ })
++ it.each([0,-1,NaN,Infinity])('refuses invalid physical bridge bore %s instead of silently replacing it',diameter=>{
++  expect(()=>pipeJunctionSeed(emptyProject(),'T',null,null,diameter)).toThrow(/positive physical diameter/)
++ })
++})

@@ -1,0 +1,871 @@
+{
+  "header": {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/dccart-dw-first-veto-fresh-build-run-plan-v2-20261007/build/native/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H",
+    "sha256": "371414310f6545c1aa310c6130219860d62b89c570bb2eff8a6218aeb2e461fa",
+    "bytes": 87789
+  },
+  "spans": {
+    "164-250": [
+      {
+        "line": 164,
+        "text": "    auto request=[&](const Row& q, Evaluation& e)"
+      },
+      {
+        "line": 165,
+        "text": "    {"
+      },
+      {
+        "line": 166,
+        "text": "        if (out.requests>=256)"
+      },
+      {
+        "line": 167,
+        "text": "        { out.stoppedByBudget=true;out.stoppedByRequestCap=true;return false; }"
+      },
+      {
+        "line": 168,
+        "text": "        if (!available())"
+      },
+      {
+        "line": 169,
+        "text": "        { out.stoppedByBudget=true;out.stoppedByTimeBudget=true;return false; }"
+      },
+      {
+        "line": 170,
+        "text": "        ++out.requests; e=evaluate(q);"
+      },
+      {
+        "line": 171,
+        "text": "        return e.valid && std::isfinite(e.objective)"
+      },
+      {
+        "line": 172,
+        "text": "            && !e.constraints.empty() && finite(e.constraints);"
+      },
+      {
+        "line": 173,
+        "text": "    };"
+      },
+      {
+        "line": 174,
+        "text": "    const bool widerDW=widerDWeightSearch && objectiveKind==ObjectiveKind::DWeightCount;"
+      },
+      {
+        "line": 175,
+        "text": "    const double trustBound=widerDW ? .2 : .08;"
+      },
+      {
+        "line": 176,
+        "text": "    Row q(dimension,0); Evaluation current;"
+      },
+      {
+        "line": 177,
+        "text": "    if (!request(q,current)) return out;"
+      },
+      {
+        "line": 178,
+        "text": "    const double initialHardDW=current.hardDW;"
+      },
+      {
+        "line": 179,
+        "text": "    for (unsigned iteration=0; iteration<32; ++iteration)"
+      },
+      {
+        "line": 180,
+        "text": "    {"
+      },
+      {
+        "line": 181,
+        "text": "        Matrix jac(current.constraints.size(),Row(dimension,0));"
+      },
+      {
+        "line": 182,
+        "text": "        Row grad(dimension,0); bool valid=true;"
+      },
+      {
+        "line": 183,
+        "text": "        for (unsigned k=0; k<dimension; ++k)"
+      },
+      {
+        "line": 184,
+        "text": "        {"
+      },
+      {
+        "line": 185,
+        "text": "            Row plus=q, minus=q; plus[k]+=1e-5; minus[k]-=1e-5;"
+      },
+      {
+        "line": 186,
+        "text": "            Evaluation ep,em;"
+      },
+      {
+        "line": 187,
+        "text": "            if (!request(plus,ep) || !request(minus,em)"
+      },
+      {
+        "line": 188,
+        "text": "             || ep.constraints.size()!=current.constraints.size()"
+      },
+      {
+        "line": 189,
+        "text": "             || em.constraints.size()!=current.constraints.size())"
+      },
+      {
+        "line": 190,
+        "text": "            { valid=false; break; }"
+      },
+      {
+        "line": 191,
+        "text": "            grad[k]=(ep.objective-em.objective)/2e-5;"
+      },
+      {
+        "line": 192,
+        "text": "            for (std::size_t i=0; i<jac.size(); ++i)"
+      },
+      {
+        "line": 193,
+        "text": "                jac[i][k]=(ep.constraints[i]-em.constraints[i])/2e-5;"
+      },
+      {
+        "line": 194,
+        "text": "        }"
+      },
+      {
+        "line": 195,
+        "text": "        if (!valid) break;"
+      },
+      {
+        "line": 196,
+        "text": "        const double n=std::sqrt(dot(grad,grad));"
+      },
+      {
+        "line": 197,
+        "text": "        if (!std::isfinite(n) || n<1e-12) break;"
+      },
+      {
+        "line": 198,
+        "text": "        bool accepted=false;"
+      },
+      {
+        "line": 199,
+        "text": "        for (double radius:{.004,.002,.001,.0005})"
+      },
+      {
+        "line": 200,
+        "text": "        {"
+      },
+      {
+        "line": 201,
+        "text": "            if (widerDW) radius*=5; // DW only: .02/.01/.005/.0025."
+      },
+      {
+        "line": 202,
+        "text": "            Row desired=grad;"
+      },
+      {
+        "line": 203,
+        "text": "            for (double& x:desired) x*=-radius/n;"
+      },
+      {
+        "line": 204,
+        "text": "            Matrix a=jac; Row b=current.constraints;"
+      },
+      {
+        "line": 205,
+        "text": "            for (unsigned k=0; k<dimension; ++k)"
+      },
+      {
+        "line": 206,
+        "text": "            {"
+      },
+      {
+        "line": 207,
+        "text": "                Row row(dimension,0); row[k]=1;"
+      },
+      {
+        "line": 208,
+        "text": "                a.push_back(row); b.push_back(q[k]+trustBound);"
+      },
+      {
+        "line": 209,
+        "text": "            }"
+      },
+      {
+        "line": 210,
+        "text": "            for (unsigned k=0; k<dimension; ++k)"
+      },
+      {
+        "line": 211,
+        "text": "            {"
+      },
+      {
+        "line": 212,
+        "text": "                Row row(dimension,0); row[k]=-1;"
+      },
+      {
+        "line": 213,
+        "text": "                a.push_back(row); b.push_back(trustBound-q[k]);"
+      },
+      {
+        "line": 214,
+        "text": "            }"
+      },
+      {
+        "line": 215,
+        "text": "            const Projection projected=project(desired,a,b);"
+      },
+      {
+        "line": 216,
+        "text": "            out.projectionUpdates+=projected.updates;"
+      },
+      {
+        "line": 217,
+        "text": "            if (!projected.feasible) continue;"
+      },
+      {
+        "line": 218,
+        "text": "            for (double fraction:{1.0,.5,.25,.125,.0625,.03125})"
+      },
+      {
+        "line": 219,
+        "text": "            {"
+      },
+      {
+        "line": 220,
+        "text": "                Row trial=q;"
+      },
+      {
+        "line": 221,
+        "text": "                for (unsigned k=0; k<dimension; ++k)"
+      },
+      {
+        "line": 222,
+        "text": "                    trial[k]+=fraction*projected.step[k];"
+      },
+      {
+        "line": 223,
+        "text": "                Evaluation next;"
+      },
+      {
+        "line": 224,
+        "text": "                if (!request(trial,next)) { valid=false; break; }"
+      },
+      {
+        "line": 225,
+        "text": "                if (next.constraints.size()!=current.constraints.size())"
+      },
+      {
+        "line": 226,
+        "text": "                { valid=false; break; }"
+      },
+      {
+        "line": 227,
+        "text": "                if (*std::min_element(next.constraints.begin(),next.constraints.end())>=-2e-9"
+      },
+      {
+        "line": 228,
+        "text": "                 && next.objective<current.objective-1e-8)"
+      },
+      {
+        "line": 229,
+        "text": "                {"
+      },
+      {
+        "line": 230,
+        "text": "                    q=trial; current=next; accepted=true;"
+      },
+      {
+        "line": 231,
+        "text": "                    out.parameters=q; out.improved=true;"
+      },
+      {
+        "line": 232,
+        "text": "                    // Reuse the already-evaluated accepted feasible iterate."
+      },
+      {
+        "line": 233,
+        "text": "                    // Soft trajectory and request accounting stay unchanged."
+      },
+      {
+        "line": 234,
+        "text": "                    if (objectiveKind==ObjectiveKind::DWeightCount"
+      },
+      {
+        "line": 235,
+        "text": "                     && validHardDW(initialHardDW) && validHardDW(current.hardDW)"
+      },
+      {
+        "line": 236,
+        "text": "                     && current.hardDW<initialHardDW"
+      },
+      {
+        "line": 237,
+        "text": "                     && (!out.bestHardImproved || current.hardDW<out.bestHardDW))"
+      },
+      {
+        "line": 238,
+        "text": "                    {"
+      },
+      {
+        "line": 239,
+        "text": "                        out.bestHardParameters=q;out.bestHardDW=current.hardDW;"
+      },
+      {
+        "line": 240,
+        "text": "                        out.bestHardImproved=true;"
+      },
+      {
+        "line": 241,
+        "text": "                    }"
+      },
+      {
+        "line": 242,
+        "text": "                    break;"
+      },
+      {
+        "line": 243,
+        "text": "                }"
+      },
+      {
+        "line": 244,
+        "text": "            }"
+      },
+      {
+        "line": 245,
+        "text": "            if (!valid || accepted) break;"
+      },
+      {
+        "line": 246,
+        "text": "        }"
+      },
+      {
+        "line": 247,
+        "text": "        ++out.iterations;"
+      },
+      {
+        "line": 248,
+        "text": "        if (!valid || !accepted"
+      },
+      {
+        "line": 249,
+        "text": "         || (objectiveKind==ObjectiveKind::Ratio && -current.objective*.01>=.0105)) break;"
+      },
+      {
+        "line": 250,
+        "text": "    }"
+      }
+    ],
+    "298-313": [
+      {
+        "line": 298,
+        "text": "    void evaluation(int at,const Evaluation& e,unsigned reason) noexcept"
+      },
+      {
+        "line": 299,
+        "text": "    {"
+      },
+      {
+        "line": 300,
+        "text": "        if(!enabled||at<0)return;auto& p=proposals[at];++p.evalCalls;p.evalValid+=e.valid;"
+      },
+      {
+        "line": 301,
+        "text": "        if(reason&&!p.firstInvalid)p.firstInvalid=reason;"
+      },
+      {
+        "line": 302,
+        "text": "        p.lastObjective=observationBits(e.objective);p.lastHard=observationBits(e.hardDW);"
+      },
+      {
+        "line": 303,
+        "text": "        if(p.evalCalls==1){p.firstObjective=p.lastObjective;p.firstHard=p.lastHard;}"
+      },
+      {
+        "line": 304,
+        "text": "    }"
+      },
+      {
+        "line": 305,
+        "text": "    void search(int at,const Search& s) noexcept"
+      },
+      {
+        "line": 306,
+        "text": "    {"
+      },
+      {
+        "line": 307,
+        "text": "        if(!enabled||at<0)return;auto& p=proposals[at];p.requests=s.requests;p.iterations=s.iterations;p.projectionUpdates=s.projectionUpdates;"
+      },
+      {
+        "line": 308,
+        "text": "        p.improved=s.improved;p.bestHardImproved=s.bestHardImproved;p.requestCap=s.stoppedByRequestCap;p.timeCap=s.stoppedByTimeBudget;"
+      },
+      {
+        "line": 309,
+        "text": "        if(s.parameters.size()>9||s.bestHardParameters.size()>9){incomplete=true;return;}"
+      },
+      {
+        "line": 310,
+        "text": "        for(unsigned j=0;j<s.parameters.size();++j)p.parameters[j]=observationBits(s.parameters[j]);"
+      },
+      {
+        "line": 311,
+        "text": "        for(unsigned j=0;j<s.bestHardParameters.size();++j)p.bestParameters[j]=observationBits(s.bestHardParameters[j]);"
+      },
+      {
+        "line": 312,
+        "text": "    }"
+      },
+      {
+        "line": 313,
+        "text": "    void stop(int at,unsigned reason) noexcept {if(enabled&&at>=0)proposals[at].breakReason=reason;}"
+      }
+    ],
+    "1308-1314": [
+      {
+        "line": 1308,
+        "text": "inline label hardDWCount(const Stencil& stencil,const State& state)"
+      },
+      {
+        "line": 1309,
+        "text": "{"
+      },
+      {
+        "line": 1310,
+        "text": "    label count=0;"
+      },
+      {
+        "line": 1311,
+        "text": "    for (scalar d:state.determinant) count+=d<.001;"
+      },
+      {
+        "line": 1312,
+        "text": "    for (label f=0;f<label(stencil.faces.size());++f) if (!stencil.faces[f].coupled)"
+      },
+      {
+        "line": 1313,
+        "text": "        count+=state.faceQuality[f][0]<.05;"
+      },
+      {
+        "line": 1314,
+        "text": "    return count;"
+      }
+    ],
+    "1732-1786": [
+      {
+        "line": 1732,
+        "text": "        std::set<label> activeSet;"
+      },
+      {
+        "line": 1733,
+        "text": "        for (label c:stencil.core) for (label f:stencil.cells[c].faces) activeSet.insert(f);"
+      },
+      {
+        "line": 1734,
+        "text": "        const std::vector<label> activeFaces(activeSet.begin(),activeSet.end());"
+      },
+      {
+        "line": 1735,
+        "text": "        scalar minD=.001,minW=.05,minR=.01,maxS=4;"
+      },
+      {
+        "line": 1736,
+        "text": "        for (label c:stencil.core) minD=min(minD,before.determinant[c]);"
+      },
+      {
+        "line": 1737,
+        "text": "        for (label f:activeFaces) if (!stencil.faces[f].coupled)"
+      },
+      {
+        "line": 1738,
+        "text": "        {"
+      },
+      {
+        "line": 1739,
+        "text": "            minW=min(minW,before.faceQuality[f][0]);"
+      },
+      {
+        "line": 1740,
+        "text": "            minR=min(minR,before.faceQuality[f][1]);"
+      },
+      {
+        "line": 1741,
+        "text": "            maxS=max(maxS,before.faceQuality[f][2]);"
+      },
+      {
+        "line": 1742,
+        "text": "        }"
+      },
+      {
+        "line": 1743,
+        "text": "        int observationIndex=-1;"
+      },
+      {
+        "line": 1744,
+        "text": "        auto evaluate=[&](const dcCartFiniteRepairKernel::Row& q)"
+      },
+      {
+        "line": 1745,
+        "text": "        {"
+      },
+      {
+        "line": 1746,
+        "text": "            dcCartFiniteRepairKernel::Evaluation value;"
+      },
+      {
+        "line": 1747,
+        "text": "            if (q.size()!=proposal.dimension || !dcCartFiniteRepairKernel::finite(q))"
+      },
+      {
+        "line": 1748,
+        "text": "            {if(observation.enabled&&dw)observation.evaluation(observationIndex,value,1);return value;}"
+      },
+      {
+        "line": 1749,
+        "text": "            const State next=stencil.evaluate(coordinates(q));"
+      },
+      {
+        "line": 1750,
+        "text": "            if (!next.valid)"
+      },
+      {
+        "line": 1751,
+        "text": "            {if(observation.enabled&&dw)observation.evaluation(observationIndex,value,2);return value;}"
+      },
+      {
+        "line": 1752,
+        "text": "            if (!dw) value.objective=-next.faceQuality[targetIndex][1]/.01;"
+      },
+      {
+        "line": 1753,
+        "text": "            else"
+      },
+      {
+        "line": 1754,
+        "text": "            {"
+      },
+      {
+        "line": 1755,
+        "text": "                value.hardDW=hardDWCount(stencil,next);"
+      },
+      {
+        "line": 1756,
+        "text": "                value.objective=0;"
+      },
+      {
+        "line": 1757,
+        "text": "                for (label c:stencil.core) value.objective+=std::exp(-next.determinant[c]/.001);"
+      },
+      {
+        "line": 1758,
+        "text": "                for (label f:activeFaces) if (!stencil.faces[f].coupled)"
+      },
+      {
+        "line": 1759,
+        "text": "                    value.objective+=.25*std::exp(-next.faceQuality[f][0]/.05)"
+      },
+      {
+        "line": 1760,
+        "text": "                        +.1*std::exp(-next.faceQuality[f][1]/.01);"
+      },
+      {
+        "line": 1761,
+        "text": "            }"
+      },
+      {
+        "line": 1762,
+        "text": "            for (label c:stencil.core)"
+      },
+      {
+        "line": 1763,
+        "text": "            {"
+      },
+      {
+        "line": 1764,
+        "text": "                const scalar bound=before.determinant[c]>=.001 ? .001 : minD;"
+      },
+      {
+        "line": 1765,
+        "text": "                value.constraints.push_back((next.determinant[c]-bound)/.001);"
+      },
+      {
+        "line": 1766,
+        "text": "            }"
+      },
+      {
+        "line": 1767,
+        "text": "            for (label k=0;k<4;++k)"
+      },
+      {
+        "line": 1768,
+        "text": "                for (label f:activeFaces) if (!stencil.faces[f].coupled)"
+      },
+      {
+        "line": 1769,
+        "text": "                {"
+      },
+      {
+        "line": 1770,
+        "text": "                    const scalar old=before.faceQuality[f][k],v=next.faceQuality[f][k];"
+      },
+      {
+        "line": 1771,
+        "text": "                    const scalar limit=k==0 ? .05 : k==1 ? .01 : k==2 ? 4 : 70;"
+      },
+      {
+        "line": 1772,
+        "text": "                    const scalar bound=k==0 ? (old>=limit ? limit : minW)"
+      },
+      {
+        "line": 1773,
+        "text": "                        : k==1 ? (old>=limit ? limit : minR)"
+      },
+      {
+        "line": 1774,
+        "text": "                        : k==2 ? (old<=limit ? limit : maxS) : ceiling;"
+      },
+      {
+        "line": 1775,
+        "text": "                    value.constraints.push_back(k<2 ? (v-bound)/limit : (bound-v)/limit);"
+      },
+      {
+        "line": 1776,
+        "text": "                }"
+      },
+      {
+        "line": 1777,
+        "text": "            for (label c:stencil.core) value.constraints.push_back(next.determinant[c]/.001);"
+      },
+      {
+        "line": 1778,
+        "text": "            for (label c:stencil.core)"
+      },
+      {
+        "line": 1779,
+        "text": "                value.constraints.push_back"
+      },
+      {
+        "line": 1780,
+        "text": "                ("
+      },
+      {
+        "line": 1781,
+        "text": "                    (next.volume[c]-1e-5*before.volume[c])/max(before.volume[c],VSMALL)"
+      },
+      {
+        "line": 1782,
+        "text": "                );"
+      },
+      {
+        "line": 1783,
+        "text": "            value.valid=finiteScalar(value.objective)"
+      },
+      {
+        "line": 1784,
+        "text": "                && dcCartFiniteRepairKernel::finite(value.constraints);"
+      },
+      {
+        "line": 1785,
+        "text": "            if(observation.enabled&&dw)observation.evaluation(observationIndex,value,value.valid?0:3);"
+      },
+      {
+        "line": 1786,
+        "text": "            return value;"
+      }
+    ],
+    "1806-1853": [
+      {
+        "line": 1806,
+        "text": "        // The last soft iterate is always primary. Only after all its fractions"
+      },
+      {
+        "line": 1807,
+        "text": "        // fail may one distinct best-hard checkpoint use the identical guards."
+      },
+      {
+        "line": 1808,
+        "text": "        for (unsigned checkpoint=0;checkpoint<2 && !accepted;++checkpoint)"
+      },
+      {
+        "line": 1809,
+        "text": "        {"
+      },
+      {
+        "line": 1810,
+        "text": "            if (checkpoint && (!dw || !search.bestHardImproved"
+      },
+      {
+        "line": 1811,
+        "text": "             || search.bestHardParameters==search.parameters)) break;"
+      },
+      {
+        "line": 1812,
+        "text": "            const auto& parameters=checkpoint ? search.bestHardParameters : search.parameters;"
+      },
+      {
+        "line": 1813,
+        "text": "            for (scalar fraction:{scalar(1),scalar(.95),scalar(.9),scalar(.5)})"
+      },
+      {
+        "line": 1814,
+        "text": "            {"
+      },
+      {
+        "line": 1815,
+        "text": "            if(observation.enabled&&dw)"
+      },
+      {
+        "line": 1816,
+        "text": "            {"
+      },
+      {
+        "line": 1817,
+        "text": "                if(!search.improved){observation.stop(observationIndex,1);break;}"
+      },
+      {
+        "line": 1818,
+        "text": "                if(!available()){observation.stop(observationIndex,2);break;}"
+      },
+      {
+        "line": 1819,
+        "text": "            }"
+      },
+      {
+        "line": 1820,
+        "text": "            else if (!search.improved || !available()) break;"
+      },
+      {
+        "line": 1821,
+        "text": "            const pointField candidate=coordinates(parameters,fraction);"
+      },
+      {
+        "line": 1822,
+        "text": "            const State after=stencil.evaluate(candidate);"
+      },
+      {
+        "line": 1823,
+        "text": "            if(observation.enabled&&dw)"
+      },
+      {
+        "line": 1824,
+        "text": "            {"
+      },
+      {
+        "line": 1825,
+        "text": "                unsigned called=0;bool hardCalled=false;std::int64_t oldHard=0,nextHard=0;"
+      },
+      {
+        "line": 1826,
+        "text": "                auto hardValue=[&](label value,bool old)"
+      },
+      {
+        "line": 1827,
+        "text": "                {hardCalled=true;if(old)oldHard=value;else nextHard=value;return value;};"
+      },
+      {
+        "line": 1828,
+        "text": "                const auto veto=dcCartFiniteRepairKernel::firstDWVeto(called,"
+      },
+      {
+        "line": 1829,
+        "text": "                    [&](){return !after.valid;},"
+      },
+      {
+        "line": 1830,
+        "text": "                    [&](){return !dw && after.faceQuality[targetIndex][1]<.01;},"
+      },
+      {
+        "line": 1831,
+        "text": "                    [&](){return dw && hardValue(hardDWCount(stencil,after),false)>=hardValue(hardDWCount(stencil,before),true);},"
+      },
+      {
+        "line": 1832,
+        "text": "                    [&](){return !qualityLineage(stencil,before,after,ceiling);},"
+      },
+      {
+        "line": 1833,
+        "text": "                    [&](){return !geometricGuard(stencil,before,after,candidate);},"
+      },
+      {
+        "line": 1834,
+        "text": "                    [&](){return !pointClearance(workingPoints,moving,candidate,stencil,available);},"
+      },
+      {
+        "line": 1835,
+        "text": "                    [&](){return !prefixRoles(acceptedRoles,stencil,after,true);});"
+      },
+      {
+        "line": 1836,
+        "text": "                std::uint64_t point[9]{};"
+      },
+      {
+        "line": 1837,
+        "text": "                if(observeDWPoints(stencil,moving,candidate,point))"
+      },
+      {
+        "line": 1838,
+        "text": "                    observation.row(observationIndex,checkpoint,fraction,called,veto,hardCalled,oldHard,nextHard,point,observeDWState(stencil,after));"
+      },
+      {
+        "line": 1839,
+        "text": "                else observation.incomplete=true;"
+      },
+      {
+        "line": 1840,
+        "text": "                if(veto!=dcCartFiniteRepairKernel::DWVeto::None)continue;"
+      },
+      {
+        "line": 1841,
+        "text": "            }"
+      },
+      {
+        "line": 1842,
+        "text": "            else"
+      },
+      {
+        "line": 1843,
+        "text": "            {"
+      },
+      {
+        "line": 1844,
+        "text": "            if (!after.valid"
+      },
+      {
+        "line": 1845,
+        "text": "             || (!dw && after.faceQuality[targetIndex][1]<.01)"
+      },
+      {
+        "line": 1846,
+        "text": "             || (dw && hardDWCount(stencil,after)>=hardDWCount(stencil,before))"
+      },
+      {
+        "line": 1847,
+        "text": "             || !qualityLineage(stencil,before,after,ceiling)"
+      },
+      {
+        "line": 1848,
+        "text": "             || !geometricGuard(stencil,before,after,candidate)"
+      },
+      {
+        "line": 1849,
+        "text": "             || !pointClearance(workingPoints,moving,candidate,stencil,available)) continue;"
+      },
+      {
+        "line": 1850,
+        "text": "            // Accumulate all newly passing hard roles before replacing the"
+      },
+      {
+        "line": 1851,
+        "text": "            // local prefix. The final installed oracle must retain them."
+      },
+      {
+        "line": 1852,
+        "text": "            if (!prefixRoles(acceptedRoles,stencil,after,true)) continue;"
+      },
+      {
+        "line": 1853,
+        "text": "            }"
+      }
+    ]
+  }
+}

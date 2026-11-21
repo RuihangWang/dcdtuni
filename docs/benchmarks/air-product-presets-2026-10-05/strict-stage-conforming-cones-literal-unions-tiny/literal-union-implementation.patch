@@ -1,0 +1,399 @@
+--- .codex-tmp/literal-union-source-before.C	2026-10-05 03:14:24.608403670 +0000
++++ .codex-tmp/literal-union-source-after.C	2026-10-05 03:20:50.163230101 +0000
+@@ -12593,6 +12593,15 @@
+         const label id=m.points.size();m.points.push_back(p);pointGrid[q].push_back(id);return id;
+     };
+     const bool traceCones=getenv("DCCART_CONE_EVIDENCE")!=nullptr;
++    const bool literalUnions=getenv("DCCART_CONE_LITERAL_UNIONS")!=nullptr;
++    // Algorithm ancestry is local and independent of optional evidence output.
++    // No allocation or iteration is added when this experiment is off.
++    std::vector<label> unionParent;
++    if (literalUnions)
++    {
++        unionParent.resize(oldCells);
++        std::iota(unionParent.begin(),unionParent.end(),label(0));
++    }
+     if (traceCones)
+     {
+         m.coneEvidenceParent.resize(oldCells);m.coneEvidenceBase.resize(oldFaces);
+@@ -13794,6 +13803,7 @@
+                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
+                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
++                if (literalUnions) { unionParent.push_back(c); }
+             }
+             first=false;
+             const auto& poly=m.faces[f];
+@@ -13822,6 +13832,372 @@
+     edgeFailures=returnReduce(edgeFailures,sumOp<label>());
+     if (closePoints || volumeFailures || edgeFailures)
+     { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
++    if (literalUnions)
++    {
++        // This operator only deletes one unzoned internal face. It neither
++        // inserts points nor joins exterior polygons. Coupled/zone cavities
++        // and unknown remote quality are conservatively unsupported.
++        clockTime unionClock;
++        std::vector<std::vector<label>> unionCF;
++        buildCellFaces(m,unionCF);
++        struct unionFace { label owner,neighbour;std::vector<label> polygon;vector area;point centre; };
++        std::vector<vector> unionArea(m.faces.size());
++        std::vector<point> unionCentre(m.faces.size());
++        for (label f=0;f<label(m.faces.size());++f) if (m.faceAlive[f])
++        { faceAreaCentreOF(m.points,m.faces[f],unionArea[f],unionCentre[f]); }
++        auto coupledType=[&](label f)
++        {
++            const label p=m.patch[f];if (p<0) { return false; }
++            if (p>=patchTypes.size()) { return true; }
++            const word& type=patchTypes[p];
++            return type.find("cyclic")==0 || type.find("processor")==0
++                || type.find("mapped")==0 || type.find("AMI")!=std::string::npos;
++        };
++        auto finiteUnionPoint=[](const vector& p)
++        { return std::isfinite(p.x())&&std::isfinite(p.y())&&std::isfinite(p.z()); };
++        struct unionCellGeometry
++        {
++            point centre=point::zero;scalar volume=0,determinant=0;
++            bool finite=false;std::vector<vector> areas;std::vector<point> centres;
++        };
++        // Cache current CC/V/D only. Candidate geometry and topology remain
++        // local; a candidate never rebuilds the whole mesh's cell faces.
++        std::vector<point> unionCC(m.nCells,point::zero);
++        std::vector<scalar> unionVolume(m.nCells,0),unionDet(m.nCells,0);
++        std::vector<unsigned char> unionValid(m.nCells,0);
++        auto evaluateUnionCell=[&](label c,const std::vector<label>& faces,
++                                  const std::map<label,unionFace>& changed,bool strict)
++        {
++            unionCellGeometry out;
++            if (faces.size()<4) { return out; }
++            point estimate(point::zero);scalar totalArea=0,selectedArea=0;label selectedCount=0;
++            std::vector<label> vertices;std::map<std::pair<label,label>,std::pair<label,label>> edges;
++            for (label f:faces)
++            {
++                const auto it=changed.find(f);const unionFace* row=it==changed.end() ? nullptr : &it->second;
++                const label owner=row ? row->owner : m.owner[f];
++                const vector a=(owner==c ? 1 : -1)*(row ? row->area : unionArea[f]);
++                const point fc=row ? row->centre : unionCentre[f];
++                if (!finiteUnionPoint(a) || !finiteUnionPoint(fc) || mag(a)<=1e-12) { return out; }
++                out.areas.push_back(a);out.centres.push_back(fc);estimate+=fc;totalArea+=mag(a);
++                if (m.patch[f]<0 || coupledType(f)) { selectedArea+=mag(a);++selectedCount; }
++                if (!strict) { continue; }
++                const auto& poly=row ? row->polygon : m.faces[f];
++                vector writerArea;point writerCentre;polygonNormalCentre(m.points,poly,writerArea,writerCentre);
++                if (!finiteUnionPoint(writerArea) || mag(writerArea)<=1e-12) { return out; }
++                for (size_t j=0;j<poly.size();++j)
++                {
++                    label a=poly[j],b=poly[(j+1)%poly.size()];
++                    if (owner!=c) { std::swap(a,b); }
++                    auto& e=edges[std::minmax(a,b)];++e.first;e.second+=a<b ? 1 : -1;
++                    vertices.push_back(a);
++                }
++            }
++            estimate/=faces.size();scalar pyramid3Sum=0;point weighted(point::zero);
++            for (size_t j=0;j<faces.size();++j)
++            {
++                const scalar p=out.areas[j]&(out.centres[j]-estimate);
++                pyramid3Sum+=p;weighted+=p*(.75*out.centres[j]+.25*estimate);
++            }
++            if (!std::isfinite(pyramid3Sum) || pyramid3Sum<=VSMALL || !finiteUnionPoint(weighted)) { return out; }
++            out.volume=pyramid3Sum/3;out.centre=weighted/pyramid3Sum;
++            if (!finiteUnionPoint(out.centre) || !selectedCount || selectedArea<=VSMALL) { return out; }
++            const scalar mean=selectedArea/selectedCount;symmTensor tensor(Zero);
++            for (size_t j=0;j<faces.size();++j)
++            { if (m.patch[faces[j]]<0 || coupledType(faces[j])) { tensor+=sqr(out.areas[j]/mean); } }
++            out.determinant=mag(det(tensor))/8;
++            if (!std::isfinite(out.determinant)) { return out; }
++            if (strict)
++            {
++                vector closure(vector::zero);point lo(GREAT,GREAT,GREAT),hi(-GREAT,-GREAT,-GREAT);
++                std::sort(vertices.begin(),vertices.end());vertices.erase(std::unique(vertices.begin(),vertices.end()),vertices.end());
++                for (label p:vertices)
++                { if (!finiteUnionPoint(m.points[p])) { return out; }lo=min(lo,m.points[p]);hi=max(hi,m.points[p]); }
++                const scalar span=max(mag(hi-lo),scalar(1e-6));
++                for (const auto& e:edges) if (e.second.first!=2 || e.second.second!=0) { return out; }
++                for (size_t j=0;j<faces.size();++j)
++                {
++                    const label f=faces[j];const auto it=changed.find(f);
++                    const auto& poly=it==changed.end() ? m.faces[f] : it->second.polygon;
++                    const vector a=out.areas[j],normal=a/mag(a);const point fc=out.centres[j];closure+=a;
++                    const scalar pv=(a&(fc-out.centre))/3;
++                    if (!std::isfinite(pv) || pv<=1e-15*out.volume) { return out; }
++                    for (label p:poly)
++                    { if (mag((m.points[p]-fc)&normal)>1e-10*span) { return out; } }
++                    for (label p:vertices)
++                    { if (((m.points[p]-fc)&normal)>1e-10*span) { return out; } }
++                    // Official checkConcaveCells also refuses coplanar tiles.
++                    for (size_t k=0;k<faces.size();++k) if (j!=k)
++                    {
++                        const vector d=out.centres[k]-fc;const scalar cosine=(normal&d)/max(mag(d),VSMALL);
++                        if (!std::isfinite(cosine) || cosine>-1e-6) { return out; }
++                    }
++                }
++                if (mag(closure)/max(totalArea,VSMALL)>1e-12) { return out; }
++            }
++            out.finite=true;return out;
++        };
++        const std::map<label,unionFace> noChanges;
++        auto currentUnionCell=[&](label c)
++        {
++            if (!unionValid[c])
++            {
++                const auto g=evaluateUnionCell(c,unionCF[c],noChanges,false);
++                unionCC[c]=g.centre;unionVolume[c]=g.volume;unionDet[c]=g.determinant;unionValid[c]=g.finite ? 1 : 2;
++            }
++            return unionValid[c]==1;
++        };
++        using unionGeometryKey=std::vector<std::tuple<scalar,scalar,scalar>>;
++        auto geometryKey=[&](label c)
++        {
++            unionGeometryKey key;std::set<label> ids;
++            for (label f:unionCF[c]) if (m.faceAlive[f]) for (label p:m.faces[f]) { ids.insert(p); }
++            for (label p:ids) { key.emplace_back(m.points[p].x(),m.points[p].y(),m.points[p].z()); }
++            std::sort(key.begin(),key.end());return key;
++        };
++        auto trueUnionTet=[&](label c)
++        {
++            if (unionCF[c].size()!=4) { return false; }
++            std::set<label> points;
++            for (label f:unionCF[c])
++            {
++                if (!m.faceAlive[f] || m.faces[f].size()!=3) { return false; }
++                for (label p:m.faces[f]) { points.insert(p); }
++            }
++            return points.size()==4;
++        };
++        // Cheap selected-Sf determinant census first. Most healthy tetrahedra
++        // never allocate cell geometry or populate the CC/V cache.
++        auto cheapUnionDet=[&](label c)
++        {
++            scalar total=0;label count=0;
++            for (label f:unionCF[c]) if (m.patch[f]<0 || coupledType(f)) { total+=mag(unionArea[f]);++count; }
++            if (!count || !std::isfinite(total) || total<=VSMALL) { return scalar(0); }
++            const scalar mean=total/count;symmTensor tensor(Zero);
++            for (label f:unionCF[c]) if (m.patch[f]<0 || coupledType(f)) { tensor+=sqr(unionArea[f]/mean); }
++            return mag(det(tensor))/8;
++        };
++        const scalar cacheSeconds=unionClock.elapsedTime();
++        std::vector<std::pair<unionGeometryKey,label>> seeds;
++        for (label c=0;c<m.nCells;++c) if (m.cellAlive[c] && unionParent[c]>=0 && trueUnionTet(c))
++        {
++            const scalar d=cheapUnionDet(c);
++            if (!std::isfinite(d) || d>=.001 || !currentUnionCell(c)) { continue; }
++            seeds.emplace_back(geometryKey(c),c);
++        }
++        std::sort(seeds.begin(),seeds.end());
++        const scalar censusSeconds=unionClock.elapsedTime()-cacheSeconds;
++        std::set<std::pair<label,label>> tested;
++        label examined=0,accepted=0,protectedCavity=0,geometryRejected=0,qualityRejected=0,capReached=0,rounds=0;
++        std::ofstream unionEvidence;
++        if (traceCones) { unionEvidence.open("conforming-literal-unions-rank"+std::to_string(myRank)+".jsonl");unionEvidence<<std::setprecision(17); }
++        struct unionMetrics { std::array<scalar,5> v{{GREAT,GREAT,GREAT,0,0}};bool valid=false; };
++        auto faceUnionMetrics=[&](label f,const unionFace* row,const point& own,scalar ov,const point& nei,scalar nv,bool internal)
++        {
++            unionMetrics q;const vector sf=row ? row->area : unionArea[f];const point fc=row ? row->centre : unionCentre[f];
++            const auto& polygon=row ? row->polygon : m.faces[f];const scalar ar=mag(sf);
++            if (!finiteUnionPoint(sf) || !finiteUnionPoint(fc) || ar<=1e-12 || !finiteUnionPoint(own)
++             || !std::isfinite(ov) || ov<=VSMALL) { return q; }
++            vector d;
++            if (internal)
++            {
++                if (!finiteUnionPoint(nei) || !std::isfinite(nv) || nv<=VSMALL) { return q; }
++                const scalar a=mag(sf&(fc-own)),b=mag(sf&(nei-fc));
++                q.v[1]=min(a,b)/(a+b+VSMALL);q.v[2]=min(ov,nv)/(max(ov,nv)+VSMALL);d=nei-own;
++                const scalar cosine=(sf&d)/(ar*mag(d)+ROOTVSMALL);
++                q.v[4]=std::acos(max(scalar(-1),min(scalar(1),cosine)))*180/constant::mathematical::pi;
++            }
++            else { const vector n=sf/ar;d=n*(n&(fc-own));q.v[1]=q.v[2]=1; }
++            const vector cpf=fc-own,sv=cpf-((sf&cpf)/((sf&d)+ROOTVSMALL))*d;
++            const vector direction=sv/(mag(sv)+ROOTVSMALL);scalar reach=(internal ? .2 : .4)*mag(d)+ROOTVSMALL;
++            for (label p:polygon) { reach=max(reach,mag(direction&(m.points[p]-fc))); }
++            q.v[3]=mag(sv)/reach;
++            bool anchor=false;
++            for (size_t j=0;j<polygon.size();++j)
++            {
++                const point& a=m.points[polygon[j]];const point& b=m.points[polygon[(j+1)%polygon.size()]];
++                const scalar oq=tetPointRef(a,b,fc,own).quality(),nq=internal ? tetPointRef(a,b,fc,nei).quality() : 1;
++                if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { return q; }
++            }
++            for (size_t k=0;k<polygon.size() && !anchor;++k)
++            {
++                bool good=true;
++                for (size_t j=1;j+1<polygon.size();++j)
++                {
++                    const point& a=m.points[polygon[k]];const point& b=m.points[polygon[(k+j)%polygon.size()]];
++                    const point& c=m.points[polygon[(k+j+1)%polygon.size()]];
++                    const scalar oq=tetPointRef(a,b,c,own).quality(),nq=internal ? tetPointRef(a,b,c,nei).quality() : 1;
++                    if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { good=false;break; }
++                }
++                anchor=good;
++            }
++            if (!anchor) { return q; }
++            for (scalar value:q.v) if (!std::isfinite(value)) { return q; }
++            q.valid=true;return q;
++        };
++        const std::array<scalar,5> unionThreshold{{.001,.05,.01,4-1e-8,70}};
++        auto passes=[&](scalar value,size_t metric)
++        { return metric<3 ? value>=unionThreshold[metric] : value<=unionThreshold[metric]; };
++        for (label round=0;round<2;++round)
++        {
++            ++rounds;label acceptedRound=0;tested.clear();
++            for (const auto& seed:seeds)
++            {
++                const label a=seed.second;if (!m.cellAlive[a] || !currentUnionCell(a) || unionDet[a]>=.001) { continue; }
++                std::vector<std::pair<unionGeometryKey,label>> neighbours;
++                for (label f:unionCF[a]) if (m.faceAlive[f] && m.patch[f]<0 && m.zone[f]<0 && m.neighbour[f]>=0)
++                {
++                    const label b=m.owner[f]==a ? m.neighbour[f] : m.owner[f];
++                    if (b>=0 && m.cellAlive[b] && m.cellRank[a]==myRank && m.cellRank[b]==myRank
++                     && unionParent[a]==unionParent[b] && trueUnionTet(b))
++                    { neighbours.emplace_back(geometryKey(b),b); }
++                }
++                std::sort(neighbours.begin(),neighbours.end());
++                for (const auto& candidate:neighbours)
++                {
++                    const label b=candidate.second;const auto pair=std::minmax(a,b);
++                    if (!m.cellAlive[a] || !m.cellAlive[b] || !tested.insert(pair).second) { continue; }
++                    if (examined>=1024) { capReached=1;break; }++examined;
++                    const label keep=pair.first,drop=pair.second;std::set<label> af(unionCF[a].begin(),unionCF[a].end()),bf(unionCF[b].begin(),unionCF[b].end());
++                    std::vector<label> shared,outer;
++                    std::set_intersection(af.begin(),af.end(),bf.begin(),bf.end(),std::back_inserter(shared));
++                    std::set_symmetric_difference(af.begin(),af.end(),bf.begin(),bf.end(),std::back_inserter(outer));
++                    if (shared.size()!=1 || outer.size()>6 || outer.size()<4 || m.patch[shared[0]]>=0 || m.zone[shared[0]]>=0)
++                    { ++protectedCavity;continue; }
++                    bool protect=false;std::set<label> affected{keep,drop};
++                    for (label f:outer)
++                    {
++                        protect=protect || coupledType(f) || m.zone[f]>=0;
++                        if (m.neighbour[f]>=0) { affected.insert(m.owner[f]);affected.insert(m.neighbour[f]); }
++                    }
++                    // Complete outside neighbours are checked. A remote face
++                    // on any affected cell makes the local stencil unknown.
++                    for (label c:affected) for (label f:unionCF[c]) { protect=protect || coupledType(f); }
++                    if (protect) { ++protectedCavity;continue; }
++                    std::map<label,unionFace> changed;
++                    for (label f:outer)
++                    {
++                        unionFace row{m.owner[f],m.neighbour[f],m.faces[f],unionArea[f],unionCentre[f]};
++                        if (row.owner==drop) { row.owner=keep; }if (row.neighbour==drop) { row.neighbour=keep; }
++                        if (row.neighbour>=0 && row.owner>row.neighbour)
++                        { std::swap(row.owner,row.neighbour);std::reverse(row.polygon.begin()+1,row.polygon.end()); }
++                        faceAreaCentreOF(m.points,row.polygon,row.area,row.centre);changed.emplace(f,std::move(row));
++                    }
++                    std::map<label,unionCellGeometry> next,oldGeometry;bool valid=true;
++                    for (label c:affected)
++                    {
++                        const auto old=evaluateUnionCell(c,unionCF[c],noChanges,true);oldGeometry.emplace(c,old);valid=valid&&old.finite;
++                        if (c==drop) { continue; }
++                        const auto neo=evaluateUnionCell(c,c==keep ? outer : unionCF[c],changed,true);next.emplace(c,neo);valid=valid&&neo.finite;
++                    }
++                    if (!valid) { ++geometryRejected;continue; }
++                    const auto& ng=next.at(keep);const auto& ka=oldGeometry.at(keep);const auto& kb=oldGeometry.at(drop);
++                    const scalar oldV=ka.volume+kb.volume;
++                    const scalar vr=mag(ng.volume-oldV)/max(oldV,VSMALL);
++                    scalar unionSpan=1e-6;
++                    for (label f:outer) for (label p:m.faces[f]) { unionSpan=max(unionSpan,mag(m.points[p]-ka.centre)); }
++                    const vector momentDelta=ng.volume*(ng.centre-ka.centre)-kb.volume*(kb.centre-ka.centre);
++                    const scalar mr=mag(momentDelta)/max(oldV*unionSpan,VSMALL);
++                    if (!std::isfinite(vr) || !std::isfinite(mr) || vr>1e-10 || mr>1e-10)
++                    { ++geometryRejected;continue; }
++                    // A repaired cell must pass D, inheriting BOTH old roles.
++                    bool quality=ng.determinant>=unionThreshold[0];label passingRoleRegressions=0;
++                    std::array<scalar,5> oldShell{{min(ka.determinant,kb.determinant),1,1,0,0}};
++                    std::array<scalar,5> newShell{{ng.determinant,1,1,0,0}};
++                    std::array<label,5> oldShellBad{{label(!passes(ka.determinant,0))+label(!passes(kb.determinant,0)),0,0,0,0}};
++                    std::array<label,5> newShellBad{{label(!passes(ng.determinant,0)),0,0,0,0}};
++                    if ((passes(ka.determinant,0) || passes(kb.determinant,0)) && !passes(ng.determinant,0)) { ++passingRoleRegressions; }
++                    for (const auto& row:next)
++                    {
++                        const scalar oldD=oldGeometry.at(row.first).determinant,newD=row.second.determinant;
++                        if (passes(oldD,0) && !passes(newD,0)) { ++passingRoleRegressions; }
++                        quality=quality && (!passes(oldD,0) || passes(newD,0))
++                            && (passes(oldD,0) || newD>=oldD*(1-1e-10));
++                    }
++                    std::set<label> facesToCheck;
++                    for (label c:affected) for (label f:unionCF[c]) if (f!=shared[0]) { facesToCheck.insert(f); }
++                    for (label f:facesToCheck)
++                    {
++                        const auto it=changed.find(f);const unionFace* row=it==changed.end() ? nullptr : &it->second;
++                        const label owner=row ? row->owner : m.owner[f],neighbour=row ? row->neighbour : m.neighbour[f];
++                        const label oo=m.owner[f],on=m.neighbour[f];
++                        if (!currentUnionCell(oo) || (on>=0 && !currentUnionCell(on))) { quality=false;break; }
++                        auto cc=[&](label c) { const auto t=next.find(c);return t==next.end() ? unionCC[c] : t->second.centre; };
++                        auto volume=[&](label c) { const auto t=next.find(c);return t==next.end() ? unionVolume[c] : t->second.volume; };
++                        if (!currentUnionCell(owner) || (neighbour>=0 && !currentUnionCell(neighbour))) { quality=false;break; }
++                        const auto before=faceUnionMetrics(f,nullptr,unionCC[oo],unionVolume[oo],on>=0 ? unionCC[on] : unionCC[oo],on>=0 ? unionVolume[on] : unionVolume[oo],on>=0);
++                        const auto after=faceUnionMetrics(f,row,cc(owner),volume(owner),neighbour>=0 ? cc(neighbour) : cc(owner),neighbour>=0 ? volume(neighbour) : volume(owner),neighbour>=0);
++                        if (!before.valid || !after.valid) { quality=false;break; }
++                        for (size_t k=1;k<5;++k)
++                        {
++                            if (row)
++                            {
++                                oldShell[k]=k<3 ? min(oldShell[k],before.v[k]) : max(oldShell[k],before.v[k]);
++                                newShell[k]=k<3 ? min(newShell[k],after.v[k]) : max(newShell[k],after.v[k]);
++                                oldShellBad[k]+=!passes(before.v[k],k);newShellBad[k]+=!passes(after.v[k],k);
++                            }
++                            if (passes(before.v[k],k) && !passes(after.v[k],k)) { quality=false;++passingRoleRegressions; }
++                            if (!passes(before.v[k],k) && (k<3 ? after.v[k]<before.v[k]*(1-1e-10) : after.v[k]>before.v[k]*(1+1e-10))) { quality=false; }
++                        }
++                    }
++                    if (!quality) { ++qualityRejected;continue; }
++                    // No mutation precedes complete geometry/role preflight.
++                    m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;
++                    for (auto& row:changed)
++                    {
++                        const label f=row.first;auto& value=row.second;
++                        m.owner[f]=value.owner;m.neighbour[f]=value.neighbour;m.faces[f].swap(value.polygon);
++                        unionArea[f]=value.area;unionCentre[f]=value.centre;
++                    }
++                    for (const auto& row:next)
++                    { const label c=row.first;unionCC[c]=row.second.centre;unionVolume[c]=row.second.volume;unionDet[c]=row.second.determinant;unionValid[c]=1; }
++                    unionValid[drop]=2;++accepted;++acceptedRound;
++                    if (unionEvidence.is_open())
++                    {
++                        unionEvidence<<"{\"round\":"<<round<<",\"keep\":"<<keep<<",\"drop\":"<<drop
++                            <<",\"sourceParent\":"<<unionParent[keep]<<",\"deletedFace\":"<<shared[0]
++                            <<",\"exteriorFaces\":[";
++                        for (size_t j=0;j<outer.size();++j) { if (j) { unionEvidence<<','; }unionEvidence<<outer[j]; }
++                        unionEvidence<<"],\"oldD\":["<<ka.determinant<<','<<kb.determinant<<"],\"newD\":"<<ng.determinant
++                            <<",\"relativeVolumeError\":"<<vr<<",\"relativeFirstMomentError\":"<<mr
++                            <<",\"passingRoleRegressions\":"<<passingRoleRegressions
++                            <<",\"metricOrder\":[\"determinant\",\"weight\",\"volumeRatio\",\"skew\",\"nonOrthDegrees\"]";
++                        auto writeMetric=[&](const char* name,const std::array<scalar,5>& values)
++                        { unionEvidence<<",\""<<name<<"\":[";for (size_t j=0;j<5;++j) { if (j) { unionEvidence<<','; }unionEvidence<<values[j]; }unionEvidence<<']'; };
++                        auto writeBad=[&](const char* name,const std::array<label,5>& values)
++                        { unionEvidence<<",\""<<name<<"\":[";for (size_t j=0;j<5;++j) { if (j) { unionEvidence<<','; }unionEvidence<<values[j]; }unionEvidence<<']'; };
++                        writeMetric("oldShellMinimumDWRMaximumSN",oldShell);writeMetric("newShellMinimumDWRMaximumSN",newShell);
++                        writeBad("oldShellBadCounts",oldShellBad);writeBad("newShellBadCounts",newShellBad);
++                        unionEvidence<<",\"absoluteFivePass\":"<<(std::all_of(newShellBad.begin(),newShellBad.end(),[](label n){return !n;}) ? "true" : "false")<<"}\n";
++                    }
++                    break;
++                }
++                if (capReached) { break; }
++            }
++            if (!acceptedRound || capReached) { break; }
++        }
++        // One unconditional gather after all local work, including empty
++        // ranks. The statistics never affect the subsequent mesh algorithm.
++        List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(11,0);
++        mine[0]=examined;mine[1]=accepted;mine[2]=protectedCavity;mine[3]=geometryRejected;
++        mine[4]=qualityRejected;mine[5]=capReached;mine[6]=rounds;mine[7]=unionClock.elapsedTime();
++        mine[8]=cacheSeconds;mine[9]=censusSeconds;mine[10]=mine[7]-cacheSeconds-censusSeconds;
++        summaries[Pstream::myProcNo()]=mine;Pstream::gatherList(summaries);
++        if (Pstream::master())
++        {
++            List<scalar> total(11,0);
++            for (const auto& row:summaries)
++            {
++                for (label j=0;j<6;++j) { total[j]+=row[j]; }
++                for (label j=6;j<11;++j) { total[j]=max(total[j],row[j]); }
++            }
++            Info<<"Conforming literal two-cell union experiment: examined "<<total[0]<<", accepted "<<total[1]
++                <<", protected/geometry/quality refused "<<total[2]<<'/'<<total[3]<<'/'<<total[4]
++                <<", capped ranks "<<total[5]<<", rounds "<<total[6]<<", max wall "<<total[7]
++                <<" s [cache,census,local] "<<total[8]<<'/'<<total[9]<<'/'<<total[10]
++                <<"; fixed original points and exterior polygons; full checkMesh required"<<endl;
++        }
++    }
+     rekeyPiecesByGeometry(m);
+     decomposed=returnReduce(decomposed,sumOp<label>());added=returnReduce(added,sumOp<label>());
+     partitioned=returnReduce(partitioned,sumOp<label>());faceFan=returnReduce(faceFan,sumOp<label>());anchorFan=returnReduce(anchorFan,sumOp<label>());

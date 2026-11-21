@@ -1,0 +1,238 @@
+--- original/FileBrowser.tsx
++++ new/FileBrowser.tsx
+@@ -1,4 +1,4 @@
+-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
++import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+ import { createPortal } from 'react-dom'
+ import { useTranslation } from '../useTranslation'
+ import { DialogResizeHandles } from '../ui/DialogResizeHandles'
+@@ -87,6 +87,21 @@
+   const [busy, setBusy] = useState(false)
+   const [showHidden, setShowHidden] = useState(false)
+   const [sort, setSort] = useState<SortState>(DEFAULT_SORT)
++  const [folderDraft, setFolderDraft] = useState<{ parent: string; name: string } | null>(null)
++  const [folderError, setFolderError] = useState<string | null>(null)
++  const [creating, setCreating] = useState(false)
++  const creatingRef = useRef(false)
++  const folderButtonRef = useRef<HTMLButtonElement>(null)
++  const hadFolderDraft = useRef(false)
++  const folderNameId = useId()
++  const navigationBlocked = busy || folderDraft !== null || creating
++  useEffect(() => {
++    if (folderDraft) hadFolderDraft.current = true
++    else if (hadFolderDraft.current) {
++      folderButtonRef.current?.focus()
++      hadFolderDraft.current = false
++    }
++  }, [folderDraft])
+   const dialogRef = useRef<HTMLDivElement>(null)
+   const lastClickedPath = useRef<string | null>(null)
+   // The directory the browser is IN. Held in a ref as well as derived below,
+@@ -128,9 +143,14 @@
+   // worse than no dialog.
+   useEffect(() => {
+     const onKey = (e: KeyboardEvent) => {
+-      if (e.key === 'Escape') onCancel()
++      if (e.key === 'Escape') {
++        if (folderDraft) {
++          e.preventDefault()
++          if (!creatingRef.current) { setFolderDraft(null); setFolderError(null) }
++        } else onCancel()
++      }
+       if (e.key === 'Enter') {
+-        if (busy) return
++        if (navigationBlocked) return
+         if (pickDirectory) {
+           if (cwdRef.current) onPick(cwdRef.current)
+         }
+@@ -139,26 +159,44 @@
+     }
+     window.addEventListener('keydown', onKey)
+     return () => window.removeEventListener('keydown', onKey)
+-  }, [onCancel, onPick, selected, pickDirectory, busy])
+-
+-  /**
+-   * Create a folder under the directory currently shown, then re-list it.
+-   *
+-   * `window.prompt` for the name, as the legacy does: the alternative is a
+-   * second modal on top of this one, and the name is a single line of text.
+-   */
+-  const newFolder = useCallback(async () => {
++  }, [onCancel, onPick, selected, pickDirectory, navigationBlocked, folderDraft])
++
++  /** Inline naming works in hosts where native browser dialogs are unavailable. */
++  const newFolder = useCallback(() => {
+     const here = cwdRef.current
+-    if (!here) return
+-    const name = window.prompt(t('filebrowser.new_folder_prompt'))
+-    if (!name || !name.trim()) return
+-    const result = await createRemoteDirectory(`${here.replace(/\/+$/, '')}/${name.trim()}`)
+-    if (!result.ok) {
+-      setError(result.error ?? t('filebrowser.create_failed'))
+-      return
++    if (!here || busy || creatingRef.current) return
++    setFolderError(null)
++    setFolderDraft({ parent: here, name: '' })
++  }, [busy])
++
++  const cancelFolder = () => {
++    if (creatingRef.current) return
++    setFolderDraft(null)
++    setFolderError(null)
++  }
++
++  const createFolder = async () => {
++    const name = folderDraft?.name.trim()
++    if (!folderDraft || !name || creatingRef.current) return
++    const here = folderDraft.parent
++    creatingRef.current = true
++    setCreating(true)
++    setFolderError(null)
++    try {
++      const result = await createRemoteDirectory(`${here.replace(/\/+$/, '')}/${name}`)
++      if (!result.ok) {
++        setFolderError(result.error ?? t('filebrowser.create_failed'))
++        return
++      }
++      setFolderDraft(null)
++      await browse(here)
++    } catch (err) {
++      setFolderError(err instanceof Error ? err.message : String(err))
++    } finally {
++      creatingRef.current = false
++      setCreating(false)
+     }
+-    await browse(here)
+-  }, [browse, t])
++  }
+ 
+   const rows = visibleEntries(listing?.dirs, pickDirectory ? undefined : listing?.files, showHidden, sort)
+ 
+@@ -188,6 +226,9 @@
+     <div className="modal-backdrop" onClick={onCancel}>
+       <div
+         className="modal file-browser"
++        role="dialog"
++        aria-modal="true"
++        aria-label={title}
+         ref={dialogRef}
+         onClick={(e) => e.stopPropagation()}
+         style={{ position: 'relative' }}
+@@ -207,7 +248,7 @@
+           <button
+             className="btn"
+             style={{ width: 'auto', margin: 0, padding: '4px 10px' }}
+-            disabled={!listing?.parent || busy}
++            disabled={!listing?.parent || navigationBlocked}
+             onClick={() => listing?.parent && void browse(listing.parent)}
+             title={t('filebrowser.go_up')}
+           >
+@@ -216,14 +257,15 @@
+           <input
+             type="text"
+             value={manual}
++            disabled={navigationBlocked}
+             spellCheck={false}
+             onChange={(e) => setManual(e.target.value)}
+-            onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), void browse(manual))}
++            onKeyDown={(e) => !navigationBlocked && e.key === 'Enter' && (e.stopPropagation(), void browse(manual))}
+           />
+           <button
+             className="btn"
+             style={{ width: 'auto', margin: 0, padding: '4px 10px' }}
+-            disabled={busy}
++            disabled={navigationBlocked}
+             onClick={() => void browse(manual)}
+           >
+             {t('filebrowser.go')}
+@@ -248,6 +290,44 @@
+             {t('filebrowser.show_hidden')}
+           </label>
+         </div>
++
++        {folderDraft && (
++          <form
++            aria-label={t('filebrowser.new_folder')}
++            onSubmit={(e) => { e.preventDefault(); void createFolder() }}
++            onKeyDown={(e) => {
++              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelFolder() }
++            }}
++            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
++              padding: '10px 12px', borderBottom: '1px solid var(--border)' }}
++          >
++            <label htmlFor={folderNameId} style={{ width: '100%', fontSize: '0.8rem' }}>
++              {t('filebrowser.new_folder_prompt')}
++            </label>
++            <input
++              id={folderNameId}
++              autoFocus
++              type="text"
++              value={folderDraft.name}
++              disabled={creating}
++              spellCheck={false}
++              onChange={(e) => setFolderDraft({ ...folderDraft, name: e.target.value })}
++              onKeyDown={(e) => {
++                if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void createFolder() }
++              }}
++              style={{ flex: '1 1 180px', minWidth: 0 }}
++            />
++            <button type="submit" className="btn primary" style={{ width: 'auto', margin: 0 }}
++              disabled={creating || !folderDraft.name.trim()}>
++              {creating ? t('common.loading') : t('filebrowser.new_folder')}
++            </button>
++            <button type="button" className="btn" style={{ width: 'auto', margin: 0 }}
++              disabled={creating} onClick={cancelFolder}>
++              {t('common.cancel')}
++            </button>
++            {folderError && <div role="alert" className="error" style={{ width: '100%' }}>{folderError}</div>}
++          </form>
++        )}
+ 
+         <div
+           className="fb-col-header"
+@@ -282,7 +362,7 @@
+                   data-path={entry.path}
+                   onClick={(e) => {
+                     // A fast listing refresh can put another row under click two.
+-                    if (e.detail > 1) return
++                    if (e.detail > 1 || navigationBlocked) return
+                     void browse(entry.path)
+                   }}
+                   title={entry.path}
+@@ -299,12 +379,12 @@
+                   className={`fb-row fb-file${selected === entry.path ? ' selected' : ''}`}
+                   data-path={entry.path}
+                   onClick={(e) => {
+-                    if (e.detail > 1 || pickDirectory) return
++                    if (e.detail > 1 || pickDirectory || navigationBlocked) return
+                     lastClickedPath.current = entry.path
+                     setSelected(entry.path)
+                   }}
+                   onDoubleClick={() => {
+-                    if (!pickDirectory && lastClickedPath.current === entry.path) onPick(entry.path)
++                    if (!navigationBlocked && !pickDirectory && lastClickedPath.current === entry.path) onPick(entry.path)
+                   }}
+                   title={entry.path}
+                 >
+@@ -322,9 +402,10 @@
+         <div className="fb-actions">
+           <button
+             className="btn fb-new-folder"
++            ref={folderButtonRef}
+             style={{ width: 'auto', margin: 0 }}
+-            disabled={!cwd || busy}
+-            onClick={() => void newFolder()}
++            disabled={!cwd || navigationBlocked}
++            onClick={newFolder}
+           >
+             {t('filebrowser.new_folder')}
+           </button>
+@@ -337,7 +418,7 @@
+           <button
+             className="btn primary"
+             style={{ width: 'auto', margin: 0 }}
+-            disabled={busy || (pickDirectory ? !cwd : !selected)}
++            disabled={navigationBlocked || (pickDirectory ? !cwd : !selected)}
+             onClick={() => {
+               if (pickDirectory) {
+                 if (cwd) onPick(cwd)

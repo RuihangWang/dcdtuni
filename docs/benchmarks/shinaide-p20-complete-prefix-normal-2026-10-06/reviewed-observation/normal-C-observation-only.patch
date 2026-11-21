@@ -1,0 +1,31 @@
+--- a/dcCartCutCells.C
++++ b/dcCartCutCells.C
+@@ -4,6 +4,7 @@
+ #include "dcCartWriterNumericContext.H"
+ #include "dcCartCompleteCavityLocalOracle.H"
+ #include "dcCartCompleteCavityRepair.H"
++#include "dcCartCompleteCavityReplayObservation.H"
+ #include "polyMesh.H"
+ #include "Time.H"
+ #include "polyPatch.H"
+@@ -15030,6 +15031,20 @@
+                 Pout<<"; actual installed prefix/final and earliest coupled guards still required"<<endl;
+             }
+         }
++        // Default-OFF replay observation runs only after all original decisions.
++        // No quality/source/admission callback, oracle refresh or mutation.
++        if(dcCartCompleteCavityReplayObservation::enabled()&&m.completeCavityContext)
++        {
++            const fileName output=runTime.path()/("complete-prefix-observation-rank"+std::to_string(myRank)+".json");
++            const auto observed=dcCartCompleteCavityReplayObservation::capture
++                (true,output.c_str(),*m.completeCavityContext,m,unionCF,patchTypes,
++                 dcCartLegacyJournalObservation::state,dcCartLegacyJournalObservation::dependencyStorage());
++            Pout<<"Complete prefix replay observation: rank "<<myRank
++                <<", complete/written "<<observed.complete<<'/'<<observed.written
++                <<", reason "<<observed.refusal<<", entries/cells/faces/aliases/members "
++                <<observed.entries<<'/'<<observed.cells<<'/'<<observed.faces<<'/'<<observed.aliases<<'/'<<observed.members
++                <<", bytes "<<observed.bytes<<", observation "<<observed.seconds<<" s; no repair permission"<<endl;
++        }
+         // One unconditional gather after all local work, including empty
+         // ranks. The statistics never affect the subsequent mesh algorithm.
+         List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(21,0);

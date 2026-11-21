@@ -1,0 +1,200 @@
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -295,16 +295,34 @@
+                 if (model.kind === 'floor' && model.cooling?.defaultBoundaryType === 'wallBaffle') {
+                     const meshes = ctx.renderMeshes.filter(mesh => mesh.userData?.modelId === uid &&
+                         mesh.userData?.exportName === solid && !mesh.userData?.isDoor);
+-                    if (!meshes.length || ctx.state.constructions?.floors?.[uid] !== model)
+-                        throw new Error('Floor source sheet has no current canonical producer');
+-                    for (const mesh of meshes) {
+-                        const proof = floorSheetSources.get(mesh);
+-                        if (!proof || proof.model !== model || proof.faceId !== 'top' ||
+-                            model.geometry?.faces?.[proof.faceId] !== proof.face || proof.face.id !== proof.faceId ||
+-                            proof.snapshot !== snapshot || mesh.userData.faceId !== proof.faceId)
+-                            throw new Error('Floor source sheet has absent or stale canonical face ancestry');
++                    if (meshes.length !== 1 || ctx.state.constructions?.floors?.[uid] !== model)
++                        throw new Error('Floor source sheet needs one current canonical physical leaf');
++                    const mesh = meshes[0], proof = floorSheetSources.get(mesh);
++                    if (proof?.refusal) throw new Error(proof.refusal);
++                    if (!proof || proof.model !== model || proof.faceId !== 'top' ||
++                        model.geometry?.faces?.[proof.faceId] !== proof.face || proof.face.id !== proof.faceId ||
++                        proof.snapshot !== snapshot || proof.geometrySnapshot !== JSON.stringify(model.geometry) ||
++                        mesh.userData.faceId !== proof.faceId || proof.exportName !== solid)
++                        throw new Error('Floor source sheet has absent or stale canonical face ancestry');
++                    if (proof.sheetKind === 'patch') {
++                        if (!proof.patch || !proof.face.patches.includes(proof.patch) ||
++                            proof.patch.id !== proof.patchId || JSON.stringify(proof.patch) !== proof.patchSnapshot ||
++                            mesh.userData.isBaseWall !== false || mesh.userData.refIds?.length !== 1 ||
++                            mesh.userData.refIds[0] !== proof.patchId)
++                            throw new Error('Floor source sheet has absent or stale typed patch ancestry');
++                    } else if (mesh.userData.isBaseWall !== true || mesh.userData.refIds !== null) {
++                        throw new Error('Floor source sheet has invalid canonical remainder ancestry');
+                     }
+-                    sourceSurface = Object.freeze({sourceFaceId:'top', representation:'zeroThicknessSheet'});
++                    sourceSurface = Object.freeze({sourceFaceId:'top', sourceSheetKind:proof.sheetKind,
++                        ...(proof.patch ? {sourcePatchId:proof.patchId, sourcePatchSnapshot:proof.patchSnapshot} : {}),
++                        representation:'zeroThicknessSheet'});
++                    for (const previous of activeSourceEmission.values()) {
++                        const old = previous.sourceSurface;
++                        if (previous.sourceEntityUid === uid && old?.sourceSheetKind === sourceSurface.sourceSheetKind &&
++                            old.sourcePatchId === sourceSurface.sourcePatchId &&
++                            (previous.solidName !== solid || previous.block !== match[0]))
++                            throw new Error('Floor physical source leaf is split across multiple STL fragments');
++                    }
+                 }
+                 activeSourceEmission.set(key, Object.freeze({sourceEntityUid:uid,
+                     solidName:solid, operation, facetCount, block:match[0], sourceEntitySnapshot:snapshot,
+@@ -2547,6 +2565,29 @@
+             const islands = facesIslands[primaryFaceId] || [];
+             const face = model.geometry.faces[primaryFaceId];
+             const sheetMeshes = [];
++            const certifyFloor = model.kind === 'floor' && model.cooling?.defaultBoundaryType === 'wallBaffle';
++            const islandPatchSources = new Map();
++            let sourceRefusal = '';
++            if (certifyFloor) {
++                if (primaryFaceId !== 'top' || face.id !== primaryFaceId ||
++                    ctx.state.constructions?.floors?.[model.uid] !== model || !Array.isArray(face.patches))
++                    sourceRefusal = sourceRefusal || 'Floor source sheet has no current canonical top face';
++                const patches = new Map();
++                for (const patch of face.patches) {
++                    if (!patch?.id || typeof patch.id !== 'string' || patches.has(patch.id))
++                        sourceRefusal = sourceRefusal || 'Floor source sheet has duplicate or absent saved patch IDs';
++                    patches.set(patch.id, patch);
++                }
++                const used = new Set();
++                for (const island of islands) {
++                    if (!Array.isArray(island.refIds) || island.refIds.length !== 1 ||
++                        !patches.has(island.refIds[0]) || !Array.isArray(island.poly) || island.poly.length !== 1)
++                        sourceRefusal = sourceRefusal || 'Floor source sheet needs one island for one saved patch physical leaf';
++                    const id = Array.isArray(island.refIds) ? island.refIds[0] : null;
++                    if (used.has(id)) sourceRefusal = sourceRefusal || 'Floor saved patch physical leaf has multiple fragments';
++                    used.add(id); islandPatchSources.set(island, patches.get(id));
++                }
++            }
+             const faceOpacity = (face.opacity ?? (model.meta.display.opacity ?? 1)) * _dimMult;
+         
+             // Polygon floor/ceiling: use polygon vertices as base shape instead of rectangle
+@@ -2565,8 +2606,12 @@
+             // Apply cutouts (from deletePatchWithCavity or boolDiff)
+             if (Array.isArray(model.geometry.cutouts)) {
+                 model.geometry.cutouts.forEach(cutout => {
+-                    if (cutout.faceId === primaryFaceId && cutout.polygon) {
+-                        try { wallPoly = polygonClipping.difference(wallPoly, cutout.polygon); } catch (e) {}
++                    if (cutout.faceId === primaryFaceId) {
++                        if (!cutout.polygon && certifyFloor) sourceRefusal = sourceRefusal || 'Floor source sheet has an invalid authored top cutout';
++                        if (cutout.polygon) {
++                            try { wallPoly = polygonClipping.difference(wallPoly, cutout.polygon); }
++                            catch (e) { if (certifyFloor) sourceRefusal = sourceRefusal || 'Floor source sheet has an invalid authored top cutout'; }
++                        }
+                     }
+                 });
+             }
+@@ -2586,7 +2631,7 @@
+                     var _pImgSrc = patchImageSource(face, island);
+                     if (_pImgSrc) _pOK = FACE_IMAGE_KIND + _pImgSrc;
+                     var _pIsImg = (_pOK === 'baffle-grille') || !!_pImgSrc;
+-                    sheetMeshes.push(spawnRenderable(modelGroup, geom, {
++                    const mesh = spawnRenderable(modelGroup, geom, {
+                         color: _pIsImg ? '#ffffff' : island.color,
+                         opacity: faceOpacity,
+                         doubleSide: true,
+@@ -2594,7 +2639,8 @@
+                         renderOrder: 3,
+                         uvNormalize: _pImgSrc ? { type: 'stretch' } : undefined,
+                         userData: { modelId: model.uid, faceId: primaryFaceId, refIds: island.refIds, exportName: composeModelScopedExportName(model, primaryFaceId, face, { isPatch: true, patchIndex: islandIndex, patchCount: islands.length }), isBaseWall: false }
+-                    }));
++                    });
++                    sheetMeshes.push({mesh, patch:islandPatchSources.get(island), sheetKind:'patch'});
+                 });
+             });
+         
+@@ -2610,18 +2656,26 @@
+                 const geom = new THREE.ShapeGeometry(shape, 32);
+                 geom.applyMatrix4(layout.mat);
+                 const _sheetImg = faceImageSource(face);
+-                sheetMeshes.push(spawnRenderable(modelGroup, geom, {
++                const mesh = spawnRenderable(modelGroup, geom, {
+                     color: _sheetImg ? '#ffffff' : baseColor,
+                     opacity: wallOpacity,
+                     doubleSide: true,
+                     objectKind: _sheetImg ? (FACE_IMAGE_KIND + _sheetImg) : objectKind,
+                     ...(_sheetImg ? { uvNormalize: { type: 'stretch' } } : {}),
+                     userData: { modelId: model.uid, faceId: primaryFaceId, refIds: null, wallIndex, exportName: composeModelScopedExportName(model, primaryFaceId, face, { isWallPart: true, partIndex: wallIndex, partCount: wallPoly.length }), isBaseWall: true }
+-                }));
+-            });
+-            if (model.kind === 'floor' && primaryFaceId === 'top' && face.id === primaryFaceId) {
+-                const proof = Object.freeze({model, face, faceId:primaryFaceId, snapshot:JSON.stringify(model)});
+-                sheetMeshes.forEach(mesh => floorSheetSources.set(mesh, proof));
++                });
++                const partitioned = islands.length > 0 || (model.geometry.cutouts || []).some(cutout => cutout.faceId === primaryFaceId);
++                sheetMeshes.push({mesh, patch:null, sheetKind:partitioned ? 'remainder' : 'wholeFace'});
++            });
++            if (certifyFloor) {
++                if (wallPoly.length > 1) sourceRefusal = sourceRefusal || 'Floor canonical remainder physical sheet has multiple fragments';
++                const snapshot = JSON.stringify(model), geometrySnapshot = JSON.stringify(model.geometry);
++                for (const row of sheetMeshes) {
++                    const proof = Object.freeze({model, face, faceId:primaryFaceId, snapshot, geometrySnapshot, refusal:sourceRefusal,
++                        exportName:row.mesh.userData.exportName, sheetKind:row.sheetKind, patch:row.patch,
++                        ...(row.patch ? {patchId:row.patch.id, patchSnapshot:JSON.stringify(row.patch)} : {})});
++                    floorSheetSources.set(row.mesh, proof);
++                }
+             }
+         
+         }
+--- a/src/frontend/react/src/legacy/cfdrunBuild.ts
++++ b/src/frontend/react/src/legacy/cfdrunBuild.ts
+@@ -114,11 +114,13 @@
+     sourceFaceUid:string;representation:'zeroThicknessSheet'|'surfaceFace'}
+   const sources:Record<string,SourceRow>={}
+   const matchedFloorUids=new Set<string>()
++  const floorSourceFaceKeys=new Map<string,string>()
+   const emitter=(window as unknown as {geometryScene?:{getGroupedStlSourceCatalogue?(files:Record<string,string>):{
+     schema:string;projectUid:string;files:Record<string,string>;regions:ReadonlyArray<{filename:string;solidName:string;
+       sourceEntityUid:string;facetCount:number;block:string;operation:string;sourceEntitySnapshot:string;
+       carrierUid?:string;carrierContributorUids?:readonly string[];
+-      sourceSurface?:{sourceFaceId:string;representation:string}}>;liquidTransport?:{filename:string;carrierUid:string;contributors:readonly string[];dependencies:readonly{uid:string;snapshot:string}[]}
++      sourceSurface?:{sourceFaceId:string;sourceSheetKind:string;sourcePatchId?:string;
++        sourcePatchSnapshot?:string;representation:string}}>;liquidTransport?:{filename:string;carrierUid:string;contributors:readonly string[];dependencies:readonly{uid:string;snapshot:string}[]}
+   }|null}}).geometryScene?.getGroupedStlSourceCatalogue?.(files)
+   if(emitter){
+     if(emitter.schema!=='dcdtuni.stl-source-emission/v1'||emitter.projectUid!==project.uid||
+@@ -139,7 +141,8 @@
+       if(index<0||entities.get(row.sourceEntityUid)!==row.sourceEntitySnapshot||!Number.isSafeInteger(row.facetCount)||row.facetCount<1||regions[key])
+         throw new Error('STL source region has absent, ambiguous or stale OO entity ancestry')
+       const floor=project.constructions?.floors?.[row.sourceEntityUid] as unknown as {
+-        uid:string;cooling?:{defaultBoundaryType?:string};geometry?:{faces?:Record<string,{id?:string}>}
++        uid:string;cooling?:{defaultBoundaryType?:string};geometry?:{faces?:Record<string,{id?:string;
++          patches?:Array<{id?:string}>}>;cutouts?:Array<{faceId?:string}>}
+       }|undefined
+       if(floor?.cooling?.defaultBoundaryType==='wallBaffle'||row.sourceSurface){
+         const faceId=row.sourceSurface?.sourceFaceId
+@@ -148,8 +151,28 @@
+           faceId!=='top'||floor.geometry?.faces?.[faceId]?.id!==faceId||
+           row.sourceSurface?.representation!=='zeroThicknessSheet')
+           throw new Error('Floor source sheet has absent or invalid canonical face ancestry')
++        const face=floor.geometry!.faces![faceId]!,sheet=row.sourceSurface!,patches=face.patches??[]
++        if(patches.some(patch=>!patch.id)||new Set(patches.map(patch=>patch.id)).size!==patches.length)
++          throw new Error('Floor source sheet has duplicate or absent saved patch IDs')
++        let sourceFaceUid=`${project.uid}/${floor.uid}/${faceId}`
++        if(sheet.sourceSheetKind==='patch'){
++          const patch=patches.filter(patch=>patch.id===sheet.sourcePatchId)
++          if(patch.length!==1||JSON.stringify(patch[0])!==sheet.sourcePatchSnapshot)
++            throw new Error('Floor source sheet has absent or stale saved patch ancestry')
++          sourceFaceUid+=`/patch/${sheet.sourcePatchId}`
++        }else if(sheet.sourceSheetKind==='remainder'){
++          if(!patches.length&&!floor.geometry?.cutouts?.some(cutout=>cutout.faceId===faceId))
++            throw new Error('Floor remainder sheet has no authored partition')
++          sourceFaceUid+='/remainder-sheet'
++        }else if(sheet.sourceSheetKind!=='wholeFace'||patches.length||
++          floor.geometry?.cutouts?.some(cutout=>cutout.faceId===faceId)){
++          throw new Error('Floor whole sheet has invalid canonical face partition')
++        }
++        const previous=floorSourceFaceKeys.get(sourceFaceUid)
++        if(previous&&previous!==key)throw new Error('Floor physical source leaf is split across multiple STL fragments')
++        floorSourceFaceKeys.set(sourceFaceUid,key)
+         sources[key]={stlFileId:fileId,solidName:row.solidName,sourceObjectUid:floor.uid,
+-          sourceFaceUid:`${project.uid}/${floor.uid}/${faceId}`,representation:'zeroThicknessSheet'}
++          sourceFaceUid,representation:'zeroThicknessSheet'}
+         matchedFloorUids.add(floor.uid)
+       }
+       regions[key]={stlFileId:fileId,solidName:row.solidName,sourceEntityUid:row.sourceEntityUid,

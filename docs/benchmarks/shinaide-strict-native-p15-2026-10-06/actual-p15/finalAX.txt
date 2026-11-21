@@ -1,0 +1,221 @@
+Browser tab: 1, Title: "DCTwin Editor", URL: "http://10.96.72.147:8396/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 1371
++				1371 button 📂 加载工程
++				1372 button 💾 保存工程
++				1373 button 🏠 房间 2D 平面设计
++				1374 button 🎮 进入第一人称, ID: fps-toggle-btn
++				1375 button 💧 液冷模拟, ID: btn-mode-liquid
++				1376 button 🌬️ 风冷模拟, ID: btn-mode-air
++				1377 container left-tab-bar
++					1378 button Description: 🗂️ 几何与属性, ID: tab-btn-geometry
++					1379 button Description: ⚙️ 网格, ID: tab-btn-mesh
++					1380 button (disabled) Description: 🔬 求解, Help: 请先生成网格, ID: tab-btn-solver
++					1381 button (disabled) Description: 📊 后处理, Help: 请先完成求解, ID: tab-btn-postprocess
++					1382 button Description: ⚙ System, ID: tab-btn-system
++					1383 container
++						1384 text 🌐 网格全局参数 基础尺寸 (m)
++						1385 stepper (settable, float) 基础尺寸 (m), Value: 0.25, ID: ms-base-size
++						1386 text 最大网格数
++						1387 stepper (settable, integer) 最大网格数, Value: 5000000, ID: ms-max-cells
++						1388 text 达到此规模后停止进一步加密；当前加密步和后续网格处理可能让实际数量超过此值。
++						1389 checkbox (settable, integer) Description: 并行网格, Value: 1, ID: ms-parallel
++						1390 text 进程数
++						1391 stepper (settable, integer) 进程数, Value: 8, ID: ms-procs
++					1392 container
++						1393 text ⚙️ 网格引擎 (Mesh Engine) 网格引擎
++						1394 pop up button (collapsed, settable) 网格引擎, Value: dcCartMesh, ID: ms-mesh-engine, Secondary Actions: Expand
++							1395 menu
++								1396 snappyHexMesh
++								1397 (selected) dcCartMesh
++								1398 MeshGenerator
++						1399 text 生成贴合设备表面的笛卡尔切割网格，支持并行网格。
++						1400 button (collapsed) 高级引擎说明, Secondary Actions: Expand
++							1401 text 高级引擎说明
++						1402 text 首层尺寸 (m)
++						1403 stepper (settable) 首层尺寸 (m), ID: ms-first-cell
++					1404 container
++						1405 text 📐 单元尺寸规则 dcCart 的首层网格下限与机架单元下限。留空 = runner 默认值（焊合 1.2 mm，首层 0.3 × 层间距，上限 5 mm）。下方读数按当前设置换算成每类表面的单元边长。
++						1406 container 轴对齐表面距最细一级网格面小于此值时并到网格面上 (m)。0 = 关闭。
++							1407 text 焊合容差 (m)
++						1408 stepper (settable, float) 焊合容差 (m), Value: 0.0012000000569969416, Details: 0.0012, ID: ms-weldTolerance
++						1409 container 首层下限：每类表面按其加密层间距的这一比例把表面吸附到网格面，保证壁面第一层不薄于该值。0 = 关闭，0.5 = 全部吸附。
++							1410 text 首层下限 (×层间距)
++						1411 stepper (settable, float) 首层下限 (×层间距), Value: 0.30000001192092896, Details: 0.3, ID: ms-firstLayerMinFraction
++						1412 container 首层下限的绝对上限 (m)，0 = 不封顶。
++							1413 text 首层下限上限 (m)
++						1414 stepper (settable, float) 首层下限上限 (m), Value: 0.004999999888241291, Details: 0.005, ID: ms-firstLayerMax
++						1415 container 两固体之间宽于此值的缝隙不会被首层吸附封死 (m)；-1 = 与焊合容差相同。
++							1416 text 可封缝隙 (m)
++						1417 stepper (settable, integer) 可封缝隙 (m), Value: -1, ID: ms-firstLayerSealGap
++						1418 container 机架区域单元下限 (m)：为分辨最薄风扇服务器而自动提升机架加密层级时，单元不会小于此值。留空 = 不封顶。
++							1419 text 机架单元下限 (m)
++						1420 stepper (settable, float) 机架单元下限 (m), Value: 0.017500000074505806, Details: 0.0175, ID: ms-rackCellMinSize
++						1421 button 📐 应用推荐尺寸规则, Help: 设置背景0.25 m、dcCart、8个网格进程、完整网格预算300 s；焊合1.2 mm、首层0.3倍间距且上限5 mm、机架单元下限17.5 mm。保留局部加密、单元数上限和种子点。
++						1422 container ms-sizing-readout
++							1423 container
++								1424 text 背景网格 : L 0  →  250.0  mm
++							1425 container
++								1426 text 房间墙壁 : L 1  →  125.0  mm
++							1427 container
++								1428 text 机架区域加密 : L 4  →  15.6  mm
++							1429 container
++								1430 text ACU : L 1  →  125.0  mm
++							1431 container
++								1432 text 白模 : L 1  →  125.0  mm
++							1433 container
++								1434 text 挡板/地板 : L 1  →  125.0  mm
++							1435 text 首层下限 0.3×层间距 → 最薄 4.7 mm
++							1436 text 地面 71.1 m²，14 台机架 → 建议上限 ≥ 800,000（当前 5,000,000）
++					1437 container
++						1438 text 🔬 加密策略 表面 [min, max]：控制几何表面附近网格密度。特征线：控制转角/棱边附近网格密度（建议 ≥ 表面 max）。
++						1439 container ms-refine-grid
++							1440 text 表面 min 表面 max 特征线
++							1441 container 房间墙壁 (room_wall.stl)
++								1442 text 房间墙壁
++							1443 stepper (settable, integer) Description: 房间墙壁 表面 min, Value: 1, ID: ms-rl-0
++							1444 stepper (settable, integer) Description: 房间墙壁 表面 max, Value: 1, ID: ms-rl-1
++							1445 stepper (settable, integer) Description: 房间墙壁 特征线, Value: 2, ID: ms-feat-default
++							1446 text 机架区域加密
++							1447 stepper (settable, integer) Description: 机架区域加密, Value: 4, ID: ms-rack-region
++							1448 container ACU 设备 (merged_acu.stl)
++								1449 text ACU
++							1450 stepper (settable, integer) Description: ACU 表面 min, Value: 1, ID: ms-acu-0
++							1451 stepper (settable, integer) Description: ACU 表面 max, Value: 1, ID: ms-acu-1
++							1452 stepper (settable, integer) Description: ACU 特征线, Value: 2, ID: ms-feat-acu
++							1453 container 白模 (merged_box.stl)
++								1454 text 白模
++							1455 stepper (settable, integer) Description: 白模 表面 min, Value: 1, ID: ms-box-0
++							1456 stepper (settable, integer) Description: 白模 表面 max, Value: 1, ID: ms-box-1
++							1457 stepper (settable, integer) Description: 白模 特征线, Value: 2, ID: ms-feat-box
++							1458 text 隔离墙
++							1459 stepper (settable, integer) Description: 隔离墙 表面 min, Value: 1, ID: ms-pw-0
++							1460 stepper (settable, integer) Description: 隔离墙 表面 max, Value: 1, ID: ms-pw-1
++							1461 stepper (settable, integer) Description: 隔离墙 特征线, Value: 2, ID: ms-feat-pw
++							1462 container 挡板和地板 (merged_baffle.stl, merged_floor_ceiling.stl)
++								1463 text 挡板/地板
++							1464 stepper (settable, integer) Description: 挡板/地板 表面 min, Value: 1, ID: ms-bfl-0
++							1465 stepper (settable, integer) Description: 挡板/地板 表面 max, Value: 1, ID: ms-bfl-1
++							1466 stepper (settable, integer) Description: 挡板/地板 特征线, Value: 2, ID: ms-feat-baffle
++							1467 text 地板 (FLOOR)
++							1468 stepper (settable, integer) Description: 地板 (FLOOR) 表面 min, Value: 1, ID: rx-floor-0
++							1469 stepper (settable, integer) Description: 地板 (FLOOR) 表面 max, Value: 1, ID: rx-floor-1
++							1470 stepper (settable, integer) Description: 地板 (FLOOR) 特征线, Value: 2, ID: rx-floor-feat
++						1471 button 🔍 自动检测, ID: btn-auto-detect-refinement
++						1472 text 检测基准 (m)
++						1473 stepper (settable, float) 检测基准 (m), Value: 0.20000000298023224, Details: 0.2, ID: ms-detect-base
++					1474 container
++						1475 text 🧊 BlockMesh 计算域
++						1476 container bm-readonly-display
++							1477 text BlockMesh 范围由房间边界自动计算（各方向外扩 1 个网格单元）
++							1478 text X: [-0.2990, 9.2010] Y: [-0.2560, 4.8560] Z: [-0.8690, 7.5250]
++						1479 button 👁 预览背景网格, ID: bm-grid-preview-btn
++					1480 container
++						1481 text 📍 locationInMesh (m) 流体域内一点，snappyHexMesh 保留该点所在的一侧。 X
++						1482 stepper (settable, float) Description: 📍 locationInMesh (m) X, Value: 3.2799999713897705, Details: 3.28, ID: slv-loc-x
++						1483 text Y
++						1484 stepper (settable, float) Description: 📍 locationInMesh (m) Y, Value: 1.5800000429153442, Details: 1.58, ID: slv-loc-y
++						1485 text Z
++						1486 stepper (settable, float) Description: 📍 locationInMesh (m) Z, Value: 3.359999895095825, Details: 3.36, ID: slv-loc-z
++						1487 checkbox (settable, integer) Description: 显示, Value: 0, ID: loc-visible-cb
++						1488 text 拖拽轴约束
++						1489 checkbox (settable, integer) Description: X, Value: 1, ID: loc-axis-x
++						1490 checkbox (settable, integer) Description: Y, Value: 1, ID: loc-axis-y
++						1491 checkbox (settable, integer) Description: Z, Value: 1, ID: loc-axis-z
++						1492 button 📷 定位视角到该点, ID: btn-locate-loc
++						1493 text 用于标记额外的连通流体区域（均为 none 模式）。
++						1494 button ＋ 添加种子点, ID: btn-add-seed
++					1495 container
++						1496 text 📦 体积加密区域 (Refinement Zones) 无加密区域
++						1497 button ➕ 添加加密区域, ID: btn-add-zone
+~					1368 button 🚀 执行网格生成, ID: mesh-run-btn
+~					1369 button 🔍 检测网格状态, ID: mesh-check-btn
++					1498 text 此网格尚未通过完整质量检查。请检测已有网格，或重新生成后再求解。
++					1499 text ❌ 失败 rc=1
++				1500 container left-geo-export
++					1501 button 📥 导出 CFD 流形拓扑 STL, ID: btn-export-stl
++					1502 button 🔬 导出 CFD 工程包 (JSON+STL), ID: btn-export-package
++			1503 container toolbar
++				1504 button (expanded) Description: ▼ 折叠工具栏, ID: toolbar-collapse-btn, Secondary Actions: Collapse
++				1505 container toolbar-content
++					1506 Description: 风冷工况：稳态或瞬态, Help: 工况：稳态计算，或带进度条与关键帧的瞬态计算, ID: transient-mode-selector
++						1507 text 风冷
++						1508 radio button 稳态, Value: 1
++						1509 radio button 瞬态, Value: 0
++					1510 container renderer-switch-slot
++						1511 container
++							1512 text 渲染器
++							1513 pop up button (collapsed, settable) Description: 渲染器, Value: Three.js, Secondary Actions: Expand
++								1514 menu
++									1515 (selected) Three.js
++									1516 Omniverse
++						1517 button 导出渲染场景
++						1518 container
++							1519 button (collapsed) OV 连接, Secondary Actions: Expand
++								1520 text OV 连接
++					1521 button (collapsed) 建模工具, ID: toolbar-model-tools-toggle, Secondary Actions: Expand
++					1522 button (collapsed) 视图工具, ID: toolbar-view-tools-toggle, Secondary Actions: Expand
++					1523 button (collapsed) 偏好设置, ID: toolbar-preferences-toggle, Secondary Actions: Expand
+~						170 text FPS:  33
++			1524 container right-panel
++				1525 container right-panel-tabs
++					1526 button ⚙️ 属性检查器 (Inspector), ID: rpt-inspector-tab
++					1527 button 🔲 网格预览, ID: rpt-meshpreview-tab
++				1528 text 🗂️ 工程设定
++				1529 container prop-content
++					1530 container
++						1531 text 📏 输入单位 长度单位
++						1532 pop up button (collapsed, settable) 长度单位, Value: mm, ID: input-unit, Secondary Actions: Expand
++							1533 menu
++								1534 (selected) mm
++								1535 cm
++								1536 m
++						1537 text 内部几何统一以米存储，当前输入和显示单位为  mm 。
++					1538 container
++						1539 text 模型描述
++						1540 text entry area (settable) project-description
++					1541 container
++						1542 text 传感器数据（实测） 真实场景传感器读数，仅作记录，不参与求解。
++						1543 button + 添加传感器, ID: sensor-rec-add
++					1544 container
++						1545 text 📐 工程边界约束 (mm) 勾选后，所有模型的边界（位置+尺寸）不得超越对应轴的限制值。未勾选的方向不做约束。 X
++						1546 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-xMin-enabled
++						1547 stepper (disabled, settable, integer) Description: X Min (mm), Value: 0, ID: bound-xMin-value
++						1548 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-xMax-enabled
++						1549 stepper (disabled, settable, integer) Description: X Max (mm), Value: 1000, ID: bound-xMax-value
++						1550 text Y
++						1551 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-yMin-enabled
++						1552 stepper (disabled, settable, integer) Description: Y Min (mm), Value: 0, ID: bound-yMin-value
++						1553 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-yMax-enabled
++						1554 stepper (disabled, settable, integer) Description: Y Max (mm), Value: 1000, ID: bound-yMax-value
++						1555 text Z
++						1556 checkbox (settable, integer) Description: Min, Value: 0, ID: bound-zMin-enabled
++						1557 stepper (disabled, settable, integer) Description: Z Min (mm), Value: 0, ID: bound-zMin-value
++						1558 checkbox (settable, integer) Description: Max, Value: 0, ID: bound-zMax-enabled
++						1559 stepper (disabled, settable, integer) Description: Z Max (mm), Value: 1000, ID: bound-zMax-value
++					1560 container
++						1561 text 📐 房间几何 (m) 宽度 X 9.000 进深 Z 7.900 层高 Y 3.600 轮廓顶点 4 房间轮廓是多边形，宽度与进深取其包围盒，非矩形房间同样成立。
++					1562 container
++						1563 text 🌡️ 室温 (Reference Temperature) 设定环境参考温度，影响 TRef 和热膨胀系数 beta (= 1/TRef)。 室温
++						1564 pop up button (collapsed, settable) 室温, Value: 22°C (295.15 K), ID: room-temp-select, Secondary Actions: Expand
++							1565 menu
++								1566 18°C (291.15 K)
++								1567 20°C (293.15 K)
++								1568 (selected) 22°C (295.15 K)
++								1569 24°C (297.15 K)
++								1570 26°C (299.15 K)
++								1571 28°C (301.15 K)
++								1572 30°C (303.15 K)
++								1573 自定义...
++						1574 text 当前: 22°C = 295.15 K | beta = 3.388e-3
++					1575 container
++						1576 text 📋 工程名称 项目名
++						1577 text field (settable) 项目名, Value: Shinaide_MeshAbort_CUA, ID: project-name-input
++						1578 text 保存工程（.cfdproj）和导出 CFD 工程包时使用此名称。
++					1579 container
++						1580 text 🔧 DCTwin 集成设置 Case 路径
++						1581 text /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_TypedAdmissionP15_CUA
++						1582 button ✅ 已就绪 — 点击更换目录, ID: dctwin-setdir-btn
++					1583 container
++						1584 text 工程总览 当前模型数 32 Schema 版本 5 在特征树中选中一个模型可查看并编辑它的属性。
+The focused UI element is 0 AXWebArea DCTwin Editor, URL: 10.96.72.147:8396/

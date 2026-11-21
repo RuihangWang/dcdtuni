@@ -1,0 +1,302 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/panelResizerKeyboard.test.tsx (18 tests | 17 failed) 181ms
+   × exposes the left edge as a focusable, named separator with actual bounds 72ms
+     → expected null to be 'separator' // Object.is equality
+   × exposes the right edge as a focusable, named separator with actual bounds 7ms
+     → expected null to be 'separator' // Object.is equality
+   × exposes the toolbar edge as a focusable, named separator with actual bounds 6ms
+     → expected null to be 'separator' // Object.is equality
+   × exposes the log edge as a focusable, named separator with actual bounds 4ms
+     → expected null to be 'separator' // Object.is equality
+   × moves the left edge from the drawn 294.4px, overriding the automatic share only on that side 16ms
+     → expected <body class>…(5)</body> to be <div id="left-resizer" …(2)></div> // Object.is equality
+   × moves the right edge in screen direction, with Shift using a larger step 4ms
+     → expected 294.40000000000003 to be close to 304.4, received difference is 9.999999999999943, but expected 0.005
+   × resizes the toolbar at readable scale and keeps its separator on the drawn edge 4ms
+     → expected 201.60000000000002 to be close to 211.60000000000002, received difference is 10, but expected 0.005
+   × moves the log edge in screen direction and can reopen the collapsed dock 4ms
+     → expected 160 to be 170 // Object.is equality
+   × does not change left on an off-axis arrow or leak it to viewport shortcuts 6ms
+     → expected false to be true // Object.is equality
+   × does not change right on an off-axis arrow or leak it to viewport shortcuts 4ms
+     → expected false to be true // Object.is equality
+   × does not change toolbar on an off-axis arrow or leak it to viewport shortcuts 4ms
+     → expected false to be true // Object.is equality
+   × does not change log on an off-axis arrow or leak it to viewport shortcuts 3ms
+     → expected false to be true // Object.is equality
+   × clamps requested sizes to the actual CSS fit and half-height limits 13ms
+     → expected 294.40000000000003 to be 510 // Object.is equality
+   × hides the collapsed left separator without overwriting its remembered size 4ms
+     → expected false to be true // Object.is equality
+   × hides the collapsed right separator without overwriting its remembered size 4ms
+     → expected false to be true // Object.is equality
+   × keeps the manual request across window changes while reporting the smaller drawn bounds 4ms
+     → expected +0 to be 110 // Object.is equality
+   × localizes the log separator and keyboard help when the locale changes 15ms
+     → the given combination of arguments (null and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+
+ Test Files  1 failed (1)
+      Tests  17 failed | 1 passed (18)
+   Start at  03:46:39
+   Duration  12.84s (transform 399ms, setup 0ms, collect 809ms, tests 181ms, environment 11.00s, prepare 443ms)
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 17 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > exposes the left edge as a focusable, named separator with actual bounds
+ FAIL  test/panelResizerKeyboard.test.tsx > exposes the right edge as a focusable, named separator with actual bounds
+ FAIL  test/panelResizerKeyboard.test.tsx > exposes the toolbar edge as a focusable, named separator with actual bounds
+ FAIL  test/panelResizerKeyboard.test.tsx > exposes the log edge as a focusable, named separator with actual bounds
+AssertionError: expected null to be 'separator' // Object.is equality
+
+- Expected: 
+"separator"
+
++ Received: 
+null
+
+ ❯ test/panelResizerKeyboard.test.tsx:88:35
+     86| it.each(edges)('exposes the %s edge as a focusable, named separator wi…
+     87|   const el = handle(edge)
+     88|   expect(el.getAttribute('role')).toBe('separator')
+       |                                   ^
+     89|   expect(el.tabIndex).toBe(0)
+     90|   expect(el.getAttribute('aria-orientation')).toBe(edge === 'left' || …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > moves the left edge from the drawn 294.4px, overriding the automatic share only on that side
+AssertionError: expected <body class>…(5)</body> to be <div id="left-resizer" …(2)></div> // Object.is equality
+
+- Expected
++ Received
+
++ <body
++   class=""
++ >
++   <div
++     id="left-panel"
++   />
++   <div
++     id="right-panel"
++   />
++   <div
++     data-scrollable="true"
++     id="toolbar"
++     style="height: 201.60000000000002px;"
++   >
++     <div
++       id="toolbar-content"
++     />
++   </div>
++   <div
++     id="log-panel"
++   />
++   <div>
+      <div
+        class="resize-handle"
+        id="left-resizer"
+        title="Drag to resize left panel"
+      />
++     <div
++       class="resize-handle"
++       id="right-resizer"
++       title="Drag to resize right panel"
++     />
++     <div
++       class="resize-handle-h"
++       id="toolbar-resizer"
++       style="top: 202px;"
++       title="Drag to resize toolbar height"
++     />
++     <div
++       class="resize-handle-h"
++       id="log-resizer"
++       title="Drag to resize log panel"
++     />
++   </div>
++ </body>
+
+ ❯ test/panelResizerKeyboard.test.tsx:101:34
+     99|   handle('left').focus()
+    100|   key('left', 'ArrowRight')
+    101|   expect(document.activeElement).toBe(handle('left'))
+       |                                  ^
+    102|   expect(drawn('left')).toBeCloseTo(304.4)
+    103|   expect(drawn('right')).toBeCloseTo(294.4)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > moves the right edge in screen direction, with Shift using a larger step
+AssertionError: expected 294.40000000000003 to be close to 304.4, received difference is 9.999999999999943, but expected 0.005
+ ❯ test/panelResizerKeyboard.test.tsx:114:26
+    112| it('moves the right edge in screen direction, with Shift using a large…
+    113|   key('right', 'ArrowLeft')
+    114|   expect(drawn('right')).toBeCloseTo(304.4)
+       |                          ^
+    115|   key('right', 'ArrowRight', true)
+    116|   expect(drawn('right')).toBeCloseTo(264.4)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > resizes the toolbar at readable scale and keeps its separator on the drawn edge
+AssertionError: expected 201.60000000000002 to be close to 211.60000000000002, received difference is 10, but expected 0.005
+ ❯ test/panelResizerKeyboard.test.tsx:121:28
+    119|   const before = drawn('toolbar')
+    120|   key('toolbar', 'ArrowDown')
+    121|   expect(drawn('toolbar')).toBeCloseTo(before + 10)
+       |                            ^
+    122|   expect(panels.toolbar!.style.transform).toBe('')
+    123|   expect(value('toolbar', 'aria-valuenow')).toBeCloseTo(drawn('toolbar…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > moves the log edge in screen direction and can reopen the collapsed dock
+AssertionError: expected 160 to be 170 // Object.is equality
+
+- Expected
++ Received
+
+- 170
++ 160
+
+ ❯ test/panelResizerKeyboard.test.tsx:128:24
+    126| it('moves the log edge in screen direction and can reopen the collapse…
+    127|   key('log', 'ArrowUp')
+    128|   expect(drawn('log')).toBe(170)
+       |                        ^
+    129|   key('log', 'ArrowDown', true)
+    130|   expect(drawn('log')).toBe(130)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > does not change left on an off-axis arrow or leak it to viewport shortcuts
+ FAIL  test/panelResizerKeyboard.test.tsx > does not change right on an off-axis arrow or leak it to viewport shortcuts
+ FAIL  test/panelResizerKeyboard.test.tsx > does not change toolbar on an off-axis arrow or leak it to viewport shortcuts
+ FAIL  test/panelResizerKeyboard.test.tsx > does not change log on an off-axis arrow or leak it to viewport shortcuts
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/panelResizerKeyboard.test.tsx:142:34
+    140|   document.body.removeEventListener('keydown', bubble)
+    141|   expect(document.documentElement.style.cssText).toBe(before)
+    142|   expect(event.defaultPrevented).toBe(true)
+       |                                  ^
+    143|   expect(bubble).not.toHaveBeenCalled()
+    144| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > clamps requested sizes to the actual CSS fit and half-height limits
+AssertionError: expected 294.40000000000003 to be 510 // Object.is equality
+
+- Expected
++ Received
+
+- 510
++ 294.40000000000003
+
+ ❯ test/panelResizerKeyboard.test.tsx:150:25
+    148|     key('toolbar', 'ArrowDown', true); key('log', 'ArrowUp', true)
+    149|   }
+    150|   expect(drawn('left')).toBe(510); expect(drawn('right')).toBe(510)
+       |                         ^
+    151|   expect(width - drawn('left') - drawn('right')).toBe(260)
+    152|   expect(value('left', 'aria-valuemax')).toBe(510)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > hides the collapsed left separator without overwriting its remembered size
+ FAIL  test/panelResizerKeyboard.test.tsx > hides the collapsed right separator without overwriting its remembered size
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/panelResizerKeyboard.test.tsx:164:31
+    162|     await Promise.resolve()
+    163|   })
+    164|   expect(handle(edge).hidden).toBe(true)
+       |                               ^
+    165|   expect(handle(edge).tabIndex).toBe(-1)
+    166|   key(edge, edge === 'right' ? 'ArrowLeft' : edge === 'left' ? 'ArrowR…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > keeps the manual request across window changes while reporting the smaller drawn bounds
+AssertionError: expected +0 to be 110 // Object.is equality
+
+- Expected
++ Received
+
+- 110
++ 0
+
+ ❯ test/panelResizerKeyboard.test.tsx:176:42
+    174|   act(() => window.dispatchEvent(new Event('resize')))
+    175|   expect(drawn('left')).toBe(110)
+    176|   expect(value('left', 'aria-valuemin')).toBe(110)
+       |                                          ^
+    177|   expect(value('left', 'aria-valuemax')).toBe(110)
+    178|   expect(value('left', 'aria-valuenow')).toBe(110)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/17]⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > localizes the log separator and keyboard help when the locale changes
+AssertionError: the given combination of arguments (null and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ test/panelResizerKeyboard.test.tsx:184:52
+    182| it('localizes the log separator and keyboard help when the locale chan…
+    183|   act(() => setLocale('zh-CN'))
+    184|   expect(handle('log').getAttribute('aria-label')).toContain('日志')
+       |                                                    ^
+    185|   expect(handle('log').title).toContain('Shift')
+    186|   expect(document.getElementById(handle('log').getAttribute('aria-desc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/17]⎯
+
+
+
+ADDITIONAL BEFORE-FIX BORDER-BOX REGRESSION (separate invocation)
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/panelResizerKeyboard.test.tsx (22 tests | 1 failed | 21 skipped) 342ms
+   × includes nonzero borders and fractional natural height in toolbar limits and keyboard steps 340ms
+     → expected 100 to be 102.25 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 skipped (22)
+   Start at  04:02:52
+   Duration  11.06s (transform 390ms, setup 0ms, collect 675ms, tests 342ms, environment 9.42s, prepare 333ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/panelResizerKeyboard.test.tsx > includes nonzero borders and fractional natural height in toolbar limits and keyboard steps
+AssertionError: expected 100 to be 102.25 // Object.is equality
+
+- Expected
++ Received
+
+- 102.25
++ 100
+
+ ❯ test/panelResizerKeyboard.test.tsx:242:45
+    240|   expect(drawn('toolbar')).toBe(102.25)
+    241|   expect(value('toolbar', 'aria-valuenow')).toBe(102.25)
+    242|   expect(value('toolbar', 'aria-valuemax')).toBe(102.25)
+       |                                             ^
+    243|   key('toolbar', 'ArrowUp')
+    244|   expect(drawn('toolbar')).toBe(92.25)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

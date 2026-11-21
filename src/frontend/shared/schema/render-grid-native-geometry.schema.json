@@ -1,0 +1,304 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Native world-plane grid synchronization, not encoded pixel proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "phase",
+    "domain",
+    "binding",
+    "grid",
+    "requestedCamera",
+    "acceptedCamera",
+    "timeSeconds",
+    "nativeSource",
+    "carrierSha256",
+    "gridPixelVerified",
+    "encodedFrameProof"
+  ],
+  "properties": {
+    "schema": {
+      "const": "dcdtuni.native-grid-geometry/v1"
+    },
+    "phase": {
+      "const": "synchronized"
+    },
+    "domain": {
+      "const": "native-world-plane"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectUid",
+        "projectContentSha256",
+        "sceneRevision",
+        "viewRevision"
+      ],
+      "properties": {
+        "projectUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "projectContentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sceneRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "viewRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "properties": {
+        "visible": {
+          "type": "boolean"
+        },
+        "spacingM": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1
+        },
+        "divisions": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 4000
+        },
+        "extentM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 2002
+        },
+        "centerColor": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "lineColor": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "matrix": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 16,
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "visible",
+        "spacingM",
+        "divisions",
+        "extentM",
+        "centerColor",
+        "lineColor",
+        "opacity",
+        "matrix"
+      ],
+      "additionalProperties": false
+    },
+    "requestedCamera": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "target": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "up": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "fov": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 180
+        },
+        "aspect": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "near": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "far": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "position",
+        "target",
+        "up",
+        "fov",
+        "aspect",
+        "near",
+        "far"
+      ],
+      "additionalProperties": false
+    },
+    "acceptedCamera": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "target": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "up": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "fov": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 180
+        },
+        "aspect": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "near": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "far": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "position",
+        "target",
+        "up",
+        "fov",
+        "aspect",
+        "near",
+        "far"
+      ],
+      "additionalProperties": false
+    },
+    "timeSeconds": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "nativeSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ownerSha256",
+        "projectionSha256",
+        "frameNumber",
+        "resolution",
+        "fullResolution"
+      ],
+      "properties": {
+        "ownerSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "projectionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frameNumber": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "resolution": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        "fullResolution": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384
+          }
+        }
+      }
+    },
+    "carrierSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gridPixelVerified": {
+      "const": false
+    },
+    "encodedFrameProof": {
+      "const": "unresolved"
+    }
+  }
+}

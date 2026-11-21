@@ -1,0 +1,27 @@
+# Independent signed-outline verification of actual native partition witnesses
+
+This is a read-only geometric audit. It neither changes the native mesh nor accepts the Shinaide case. The experimental native run still stopped before writing a mesh with invalidfans=21, nearpoints=0; the current physical case still requires the unchanged full checker and 300 s whole-job deadline.
+
+The eight saved native rank files contain 21 planar nonconvex bases and 127 proposed triangles: 16 physical bases and five internal bases. Fourteen original coordinate cycles match the earlier remaining-face snapshot exactly on the same rank; the other seven do not, so the two sets of 21 must not be treated as the same immutable fixture.
+
+The original float64 coordinates are converted to exact binary rationals. The oracle is computed from the original oriented polygon alone: for projected points, A = 1/2 sum(x_i y_(i+1) - x_(i+1) y_i), Mx = 1/6 sum((x_i+x_(i+1)) cross_i), and My analogously. C = M/A, with the third coordinate recovered from the original exact plane. Candidate pieces do not enter this derivation.
+
+All 21 original outlines are exactly planar and strictly simple. Nonadjacent crossings, endpoint touches, collinear overlaps, adjacent backtracking and repeated coordinates are rejected. Each proposed triangle uses original coordinates. Exact verification proves the original directed boundary appears once, each new diagonal appears once in either direction, all original vertices remain, every piece is convex with the original winding, verification triangle edges/interiors remain inside the original outline, pairwise interior intersection area is zero, and signed area/first moments equal the original oracle exactly.
+
+The native piece centroid and separately reported signed centroid agree with the independent oracle within 1.9860273225978185e-15 m. The old OpenFOAM absolute-weighted face centroid differs tangentially by up to 0.0017344083412155153 m. Its maximum normal-coordinate difference is 8.881784197001252e-16 m. For example rank 5 native face 1855594 has independent C = [5.031315920077693, 2.7055072442002164, 5.21987247467041] m, while the old absolute-weighted C = [5.032342138452301, 2.704109013839476, 5.219872474670411] m.
+
+The installed implementation in primitiveMeshTools.C:241–265 sums vector areas with sign but uses the magnitude of each fan triangle for the centroid. When the average-vertex anchor lies outside a nonconvex polygon's kernel, triangles of opposite orientation are counted positively in the centroid and it need not equal the polygon's geometric centroid. The saved source excerpt and full source SHA bind this observation to the installed implementation.
+
+For a planar base, every valid face centroid lies on the same supporting plane, hence its normal projection is invariant. With an arbitrary fixed apex a, V = S · (C - a)/3. Candidate triangle contributions sum exactly to the signed-original pyramid volume for every recorded owner and neighbour apex. Comparing to the old OpenFOAM centroid gives only a maximum relative volume difference of 1.1512591161683167e-13 from its few-ulp normal-coordinate error. Reported signed volumes use the witness's canonical winding; a negative value does not diagnose a cell inversion because the actual native per-cell outward winding is not supplied here.
+
+Tangential centroid correction is material for volume moments: the pyramid centroid is 3C/4 + a/4, and OpenFOAM's reconstructed cell centre uses this weighted value (primitiveMeshTools.C:333–376). Thus conserved supporting plane and volume do not prove unchanged cell centres, interpolation weights, skewness or the numerical solution. Those must be evaluated on the real resulting mesh. No threshold was changed or bypassed in this audit.
+
+Seven focused tests cover an exact L-polygon signed centroid versus the separate absolute-weighted construction, nonadjacent self-touch without proper crossings, contained-triangle overlap and boundary-only adjacency, reversal/rotation invariance, moved vertices and tiny nonplanarity rejection, tangential-shift volume identity, and overlapping candidate partitions. They pass. The test's first draft incorrectly anticipated the L-polygon's absolute-weighted value; its observed failing output was corrected to the independently computed exact value 401/342. The signed original value remains 11/10.
+
+Recompute from the repository root:
+
+    OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= python tools/audit_air_signed_face_partition.py --witness-dir docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/conforming-cone-planar-partition-witnesses --old-comparison docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/target-tet-cleanup-comparison.json --output docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/conforming-cone-signed-partition-audit.json
+
+    python -m pytest -q src/backend/tests/test_audit_air_signed_face_partition.py --basetemp .codex-tmp/pytest-signed-partition
+
+The saved native coordinates, failed native conditions/log/source patch, independent full audit, source observations, pytest output and receipt preserve the distinction between mathematical proof and actual full mesh acceptance. No processor/cyclic distributed ordering or surrounding-cell quality is inferred from these base-only witnesses.

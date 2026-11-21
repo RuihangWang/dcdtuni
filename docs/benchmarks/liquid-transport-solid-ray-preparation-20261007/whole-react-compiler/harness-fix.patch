@@ -1,0 +1,46 @@
+--- actual-whole-cfdrun-v1.before.ts
++++ actual-whole-cfdrun.ts
+@@ -9,7 +9,7 @@
+ const OUT=resolve(process.env.DCDTUNI_COMPILER_OUT||'')
+ function contained(p:string){return p===BASE||p.startsWith(BASE+'/')}
+ if(!contained(REPO)||!contained(CASE)||!contained(OUT)||OUT===BASE||existsSync(OUT))throw new Error('expected new private B-contained output and B-contained repo/case')
+-mkdirSync(OUT,{recursive:true});if(!contained(realpathSync(OUT)))throw new Error('output realpath outside B')
++mkdirSync(OUT,{recursive:true});mkdirSync(OUT+'/files');if(!contained(realpathSync(OUT)))throw new Error('output realpath outside B')
+ const sha=(x:string|Buffer)=>createHash('sha256').update(x).digest('hex')
+ const paths=['src/frontend/react/src/interaction/sceneBuilder.ts','src/frontend/react/src/legacy/geometryBuilder.ts','src/frontend/react/src/legacy/cfdrunBuild.ts','src/frontend/shared/js/geometry_scene.js','src/frontend/shared/js/geometry_pure.js','src/frontend/shared/js/cfdrun_build.js','src/frontend/shared/js/cfdrun_export.js','src/frontend/shared/vendor/three-csg-ts.umd.js','src/frontend/shared/js/cfdproj_state_v4.js','src/frontend/shared/js/model_pose_ports.js','src/backend/aircooling/runner/stlgen_runner.py','src/backend/aircooling/runner/cfdrun_schema.py']
+ const sourceBefore=Object.fromEntries(paths.map(p=>[p,sha(readFileSync(REPO+'/'+p))]))
+@@ -27,6 +27,9 @@
+  const {compileDynamicLiquidGraph}=await import(REPO+'/src/frontend/react/src/liquid/dynamicLiquidGraph.ts')
+  const {createSceneBuilder,emptyRegistries}=await import(REPO+'/src/frontend/react/src/interaction/sceneBuilder.ts')
+  const {createCfdrunBuild,buildManifestV2,bindStlFileHashes}=await import(REPO+'/src/frontend/react/src/legacy/cfdrunBuild.ts')
++ // Browser globals share the window object. JSDOM in standalone vite-node does not;
++ // forward only missing public window properties, without replacing producer APIs.
++ for(const key of Object.keys(win))if(!(key in globalThis))Object.defineProperty(globalThis,key,{get:()=>win[key],set:v=>{win[key]=v},configurable:true})
+  const p=stateV4().normalizeStateV4(JSON.parse(input.toString())),projectBefore=JSON.stringify(p),models=stateV4().allModels(p),ids=models.map((m:any)=>m.uid)
+  if(ids.length!==36||new Set(ids).size!==ids.length)throw new Error('actual target must contain 36 unique OO model UIDs')
+  const graphBefore=compileDynamicLiquidGraph(p),graphHash=sha(JSON.stringify(graphBefore)),g=new THREE.Group(),w=new THREE.Group();w.add(g);w.updateMatrixWorld(true)
+@@ -40,7 +43,7 @@
+    if(requested.join('\0')!==ids.join('\0')||leakage!==true)throw new Error('actual comprehensive compiler requested a different whole model set/leakage flag')
+    const key=JSON.stringify({requested,leakage});if(requestKey&&requestKey!==key)throw new Error('cached original files requested with changed inputs');requestKey=key
+    receipt.requestedModelIds=requested.slice();receipt.includeLeakage=leakage
+-   if(!files){const start=performance.now();receipt.exportCalls++;try{files=builder.api.buildGroupedStlMap(requested,leakage)}catch(e){exportError=e;throw e}phase('actual-original-grouped-returned',{exportSeconds:(performance.now()-start)/1000,fileNames:Object.keys(files!),bytes:Object.values(files!).reduce((n:number,t:string)=>n+Buffer.byteLength(t),0)})}
++   if(!files){const start=performance.now();receipt.exportCalls++;try{files=builder.api.buildGroupedStlMap(requested,leakage)}catch(e){exportError=e;throw e}for(const [name,text]of Object.entries(files!)){if(!/^[A-Za-z0-9_.-]+\.stl$/.test(name))throw new Error('unsafe actual filename');writeFileSync(OUT+'/files/'+name,text)}phase('actual-original-grouped-returned',{exportSeconds:(performance.now()-start)/1000,fileNames:Object.keys(files!),bytes:Object.values(files!).reduce((n:number,t:string)=>n+Buffer.byteLength(t),0)})}
+    return files!
+  }})
+  const manifest=await buildManifestV2(api,p,'2026-10-07T00:00:00.000Z')
+@@ -51,12 +54,12 @@
+  if(!catalogue||catalogue.files!==files&&Object.keys(catalogue.files).some(name=>catalogue.files[name]!==files![name]))throw new Error('original returned map lacks exact emitter record')
+  bindStlFileHashes(manifest,files,p);phase('actual-react-source-bound')
+  if(JSON.stringify(p)!==projectBefore||sha(JSON.stringify(compileDynamicLiquidGraph(p)))!==graphHash||sha(readFileSync(CASE))!==inputSha)throw new Error('project, source case or liquid graph changed')
+- const transport=Object.values(manifest.geometryExport.solids).filter((r:any)=>r.kind==='liquid_transport_wall') as any[]
+- if(transport.length!==6||transport.some(r=>r.role!=='wall'||!(r.areaM2>0)||r.path!=='merged_liquid_transport.stl'||r.surfaceUid!==null))throw new Error('actual whole manifest lacks six positive owned wall regions in one carrier')
+  const transportSources=Object.values(manifest.geometryExport.sourceRegions).filter((r:any)=>r.operation==='liquidTransportUnionBoundary') as any[]
+  if(transportSources.length!==6)throw new Error('actual whole source catalogue lacks six transport regions')
++ const transportNames=new Set(transportSources.map(r=>r.solidName))
++ const transport=Object.values(manifest.geometryExport.solids).filter((r:any)=>transportNames.has(r.solidName)) as any[]
++ if(transport.length!==6||transport.some(r=>r.role!=='wall'||!(r.areaM2>0)||manifest.geometryExport.stlFiles[r.stlFileId]?.path!=='merged_liquid_transport.stl'||r.surfaceUid!==null))throw new Error('actual whole manifest lacks six positive owned wall regions in one carrier')
+  const sourceAfter=Object.fromEntries(paths.map(rel=>[rel,sha(readFileSync(REPO+'/'+rel))]));if(JSON.stringify(sourceAfter)!==JSON.stringify(sourceBefore))throw new Error('normal source changed during actual replay')
+- mkdirSync(OUT+'/files');for(const [name,text]of Object.entries(files)){if(!/^[A-Za-z0-9_.-]+\.stl$/.test(name))throw new Error('unsafe actual filename');writeFileSync(OUT+'/files/'+name,text)}
+  const output=JSON.stringify(manifest,null,2);writeFileSync(OUT+'/files/transport.cfdrun',output)
+  const catalogueReceipt={schema:catalogue.schema,projectUid:catalogue.projectUid,liquidTransport:catalogue.liquidTransport,regions:catalogue.regions.map((r:any)=>({filename:r.filename,solidName:r.solidName,sourceEntityUid:r.sourceEntityUid,facetCount:r.facetCount,operation:r.operation,sourceEntitySnapshot:r.sourceEntitySnapshot,carrierUid:r.carrierUid,carrierContributorUids:r.carrierContributorUids,blockSha256:sha(r.block)}))}
+  writeFileSync(OUT+'/source-catalogue.json',JSON.stringify(catalogueReceipt,null,2))

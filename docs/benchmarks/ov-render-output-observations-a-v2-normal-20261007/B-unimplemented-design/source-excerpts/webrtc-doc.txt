@@ -1,0 +1,60 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.livestream.webrtc-9.0.2+109.0.0.lx64.r.cp312/docs/Overview.md
+FULL_SHA256 74796d2dba34cfa946d673a6751f9119c2ea560eef257ee06b99725fb7e6d91b
+LINES 3–12
+3: The `omni.kit.livestream.webrtc` extension provides implementations of the streaming server interface (`IServer`) for both WebRTC and native protocols. It enables streaming video frames from CUDA buffers to remote clients with support for bidirectional messaging and input handling.
+4: 
+5: ## Purpose
+6: 
+7: This extension bridges the Omniverse Kit rendering pipeline with remote clients by:
+8: 
+9: 1. Registering WebRTC and native streaming implementations with the `omni.kit.livestream.core` server factory
+10: 2. Providing efficient CUDA-based video frame encoding and streaming
+11: 3. Handling client input and message events
+12: 4. Managing streaming sessions and connection state
+LINES 36–66
+36: ### Creating and Using a WebRTC Server
+37: 
+38: ```cpp
+39: // Get the server factory interface
+40: auto serverFactory = carb::getCachedInterface<omni::kit::livestream::IServerFactory>();
+41: 
+42: // Create a WebRTC server
+43: auto server = serverFactory->createServer("webrtc");
+44: 
+45: // Configure the server
+46: omni::kit::livestream::IServer::Config config;
+47: config.width = 1920;
+48: config.height = 1080;
+49: config.targetFPS = 60;
+50: config.signalPort = 49100;
+51: config.streamPort = 47999;
+52: config.publicIp = ""; // Leave empty to use ICE for NAT traversal
+53: config.allowDynamicResize = false;
+54: 
+55: // Start the server
+56: server->start(config);
+57: 
+58: // Stream a frame from a CUDA buffer
+59: server->streamVideoCudaBuffer(cudaBuffer, pitchBytes, width, height);
+60: 
+61: // Send a message to the client
+62: server->sendMessageToClient("Hello from server");
+63: 
+64: // Stop the server when done
+65: server->stop();
+66: ```
+LINES 92–105
+92: ### Stream Types
+93: 
+94: The server manages three types of streams:
+95: 
+96: 1. **Video Stream**: For streaming video frames from CUDA buffers
+97: 2. **Audio Stream**: For streaming audio data (when enabled)
+98: 3. **Input Stream**: For receiving input events from the client
+99: 
+100: ### Resizing Capabilities
+101: 
+102: The server supports two types of resizing:
+103: 
+104: - **Static Resizing**: Before client connection (via `resizeVideoStreamStatic`)
+105: - **Dynamic Resizing**: After client connection (via `resizeVideoStreamDynamic`)

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${DCDT_MESHER:?Set DCDT_MESHER to the source-matched dcCartMesh binary}"
+root=${1:?Pass a new scratch output directory}
+if [ -e "$root" ]; then
+    echo "Scratch directory already exists: $root" >&2
+    exit 1
+fi
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+repo=$(cd "$here/../../../../.." && pwd -P)
+mkdir -p "$root"
+
+run_case() {
+    local name=$1
+    shift
+    python3 "$here/generate_case.py" "$root/$name" "$@"
+    (
+        cd "$root/$name"
+        CUDA_VISIBLE_DEVICES= DCCART_DEBUG_BOX=0.095,0.075,0.095,0.125,0.125,0.125 \
+            taskset -c "${DCDT_CPUS:-0-3}" nice -n 10 timeout 90 \
+            "$DCDT_MESHER" -overwrite > mesher.log 2>&1
+    )
+}
+
+check_case() {
+    local name=$1
+    PYTHONPATH="$repo/src${PYTHONPATH:+:$PYTHONPATH}" python3 "$here/check_stage_support.py" \
+        --stage "$root/$name/iface_dbg/02baffles.0.txt" \
+        --tri-surface "$root/$name/constant/triSurface" \
+        --map 0:wall.stl:wall --map 1:floor.stl:floor \
+        > "$root/$name/stage-support.json"
+}
+
+run_case control --control
+check_case control
+echo "PASS: control sheet faces stay inside the exported triangle support"
+
+run_case near-grid
+set +e
+check_case near-grid
+status=$?
+set -e
+if [ "$status" -eq 2 ]; then
+    echo "RED: near-grid sheet faces leave source support at 02baffles; see $root/near-grid/stage-support.json"
+elif [ "$status" -eq 0 ]; then
+    echo "GREEN: near-grid sheet faces stay inside source support"
+else
+    echo "ERROR: support checker failed with status $status" >&2
+fi
+exit "$status"

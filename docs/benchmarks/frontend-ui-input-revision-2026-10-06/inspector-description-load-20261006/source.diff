@@ -1,0 +1,22 @@
+--- Inspector.before.tsx
++++ Inspector.after.tsx
+@@ -763,6 +763,10 @@
+ function ProjectDescription({ project }: { project: CfdProject }) {
+   const { t } = useTranslation()
+   const description = String((project.meta as { description?: string })?.description ?? '')
++  const [loadRevision, setLoadRevision] = useState(0)
++  // A new document can reuse both UID and committed text. Drop its predecessor's
++  // uncommitted draft on load, while preserving drafts during ordinary edits.
++  useEffect(() => store.subscribeProjectLoad(() => setLoadRevision((n) => n + 1)), [])
+   return (
+     <div className="prop-group">
+       <div className="prop-title">{t('inspector.description_title')}</div>
+@@ -772,7 +776,7 @@
+         style={{ width: '100%', resize: 'vertical' }}
+         placeholder={t('inspector.description_placeholder')}
+         defaultValue={description}
+-        key={project.uid ?? 'project'}
++        key={`${project.uid ?? 'project'}:${loadRevision}:${description}`}
+         onBlur={(e) => e.target.value !== description && store.setProjectDescription(e.target.value)}
+       />
+     </div>

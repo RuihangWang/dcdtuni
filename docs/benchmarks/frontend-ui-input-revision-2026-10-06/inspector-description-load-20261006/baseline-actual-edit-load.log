@@ -1,0 +1,70 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx (4 tests | 3 failed) 221ms
+   × project description belongs to the loaded document > clears a previous committed description on loading an empty copy with the same UID 124ms
+     → expected 'previous-proof-payload previous-proof…' to be '' // Object.is equality
+   × project description belongs to the loaded document > drops an uncommitted old-document draft even when the next UID and committed text are identical 33ms
+     → expected 'not part of the next document' to be '' // Object.is equality
+   × project description belongs to the loaded document > keeps normal blur editing and restores the visible committed text on undo 36ms
+     → expected 'edited description' to be 'committed description' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  19:13:15
+   Duration  8.16s (transform 3.01s, setup 0ms, collect 6.82s, tests 221ms, environment 807ms, prepare 77ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/ProjectDescriptionLoad.test.tsx > project description belongs to the loaded document > clears a previous committed description on loading an empty copy with the same UID
+AssertionError: expected 'previous-proof-payload previous-proof…' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload previous-proof-payload 
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx:68:30
+     66|     load('')
+     67|     expect(store.getProject()!.uid).toBe(uid)
+     68|     expect(textarea().value).toBe('')
+       |                              ^
+     69|     flushSync(() => { textarea().focus(); textarea().blur() })
+     70|     expect(store.getProject()!.meta?.description).toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/components/ProjectDescriptionLoad.test.tsx > project description belongs to the loaded document > drops an uncommitted old-document draft even when the next UID and committed text are identical
+AssertionError: expected 'not part of the next document' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ not part of the next document
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx:80:30
+     78|     expect(store.getProject()!.meta?.description).toBe('')
+     79|     load('')
+     80|     expect(textarea().value).toBe('')
+       |                              ^
+     81|     expect(store.isDirty()).toBe(false)
+     82|     expect(store.undoDepth()).toBe(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/components/ProjectDescriptionLoad.test.tsx > project description belongs to the loaded document > keeps normal blur editing and restores the visible committed text on undo
+AssertionError: expected 'edited description' to be 'committed description' // Object.is equality
+
+Expected: "committed description"
+Received: "edited description"
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx:95:30
+     93|     flushSync(() => store.undo())
+     94|     expect(store.getProject()!.meta?.description).toBe('committed desc…
+     95|     expect(textarea().value).toBe('committed description')
+       |                              ^
+     96|   })
+     97| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

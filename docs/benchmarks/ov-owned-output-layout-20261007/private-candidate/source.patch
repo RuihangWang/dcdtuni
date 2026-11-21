@@ -1,0 +1,660 @@
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/output_layout.py
+@@ -0,0 +1,327 @@
++"""Owned public inner-Frame lifecycle; no encoded layout or pixel authority.
++
++Default off. Only lifecycle preparation can install a delegate; sampling never
++changes SDK objects. The reviewed SDK exposes no complete current stream layout
++producer, so capture_current deliberately cannot return a positive transform.
++"""
++from dataclasses import dataclass
++import hashlib
++import importlib
++import itertools
++import json
++from pathlib import Path
++
++from .render_output_observations import (
++    _frame, _matrix, _owner, _positive_pair, _same_public_api,
++    reviewed_runtime_getters,
++)
++
++_serial = itertools.count(1)
++
++
++@dataclass(frozen=True)
++class LayoutLease:
++    """Local owner epoch, never an encoder/frame/permission identifier."""
++    owner: object
++    generation: int
++    key: str
++
++    def same(self, other):
++        return (type(other) is LayoutLease and self.owner is other.owner
++                and self.generation == other.generation and self.key == other.key)
++
++
++def same_layout_lease(a, b):
++    return type(a) is LayoutLease and a.same(b)
++
++
++def _value(value):
++    # Local immutable comparison image, not outgoing metadata or wire authority.
++    raw = json.dumps(value, sort_keys=True, allow_nan=False,
++                     ensure_ascii=False, separators=(',', ':')).encode('utf-8')
++    if len(raw) > 16384:
++        raise ValueError('owned view/context limit')
++    return raw
++
++
++def reviewed_layout_runtime():
++    """Gate public installed sources/classes before making an owned delegate.
++
++    This binds disk cohort and loaded classes, not extension memory to disk or
++    an encoder source. Unknown cohorts cannot install anything.
++    """
++    getters = reviewed_runtime_getters()
++    if getters is None:
++        return None
++    module = importlib.import_module('omni.kit.widget.viewport.display_delegate')
++    p = Path(module.__file__).resolve()
++    if (p.parent.parent.parent.parent.parent.name != 'omni.kit.widget.viewport-e33603573147cc56'
++            or hashlib.sha256(p.read_bytes()).hexdigest() !=
++            '47ebdf1077aa854f366e9c2d7208e5ee1b96dd6cb75384aeae7aa4a6f18449ba'):
++        return None
++    ui = importlib.import_module('omni.ui')
++    base = module.ViewportDisplayDelegate
++    if not isinstance(base, type):
++        return None
++    return dict(getters=getters, make_delegate=lambda: _delegate(ui, base),
++                supports_provider=lambda p: isinstance(p, ui.ImageProvider),
++                expected_policy=ui.IwpFillPolicy.IWP_PRESERVE_ASPECT_FIT,
++                expected_alignment=ui.Alignment.CENTER)
++
++
++def _delegate(ui, base):
++    class OwnedDelegate(base):
++        def __init__(self):
++            # Base private storage is not touched. Only these owned UI objects
++            # are created/destroyed; the ImageProvider is always borrowed.
++            self.frame = None
++            self.image = None
++            self.stack = None
++            self.provider = None
++            self.updates = 0
++
++        @property
++        def image_provider(self):
++            return self.provider
++
++        def create(self, ui_frame, previous, *args, **kwargs):
++            provider = previous.image_provider
++            self.destroy()
++            self.frame, self.provider = ui_frame, provider
++            with ui_frame:
++                self.stack = ui.ZStack()
++                with self.stack:
++                    self.image = ui.ImageWithProvider(provider,
++                        style_type_name_override='ViewportImage', name='Color',
++                        fill_policy=ui.IwpFillPolicy.IWP_PRESERVE_ASPECT_FIT,
++                        alignment=ui.Alignment.CENTER)
++            return self.stack
++
++        def update(self, viewport_api, texture, view, projection,
++                   presentation_key=0, metadata=None):
++            # Opaque resource forwards directly; no holding/copy/extraction.
++            self.provider.set_image_data(texture, presentation_key=presentation_key,
++                                         metadata=metadata)
++            self.updates += 1
++            return self.size
++
++        @property
++        def size(self):
++            if self.image is None:
++                return 0, 0
++            return int(self.image.computed_width), int(self.image.computed_height)
++
++        def destroy(self):
++            stack = self.stack
++            self.stack = self.image = self.frame = self.provider = None
++            self.updates = 0
++            if stack is not None:
++                stack.destroy()  # its own child tree; never provider.destroy()
++
++    return OwnedDelegate()
++
++
++class OwnedOutputLayout:
++    def __init__(self, enabled=False, runtime_factory=reviewed_layout_runtime):
++        self.enabled = enabled is True
++        self._runtime_factory = runtime_factory
++        self._binding = None
++        self._generation = 0
++        self._nonce = object()
++        self._id = next(_serial)
++        self._closed = False
++        self.lifecycle_error = False
++
++    def _lease(self):
++        return LayoutLease(self._nonce, self._generation,
++                           'native-layout:%d:%d' % (self._id, self._generation))
++
++    def _retire_sample(self):
++        self._generation += 1
++        return None
++
++    def prepare(self, api, window, stage, camera, read_context, read_view, paired):
++        """Explicit lifecycle action, never called from capture_current."""
++        if self._closed or not self.enabled:
++            return False
++        try:
++            runtime = self._runtime_factory()
++            if runtime is None:
++                self.invalidate()
++                return False
++            getters = runtime['getters']
++            if (getters['supports_viewport'](api) is not True
++                    or getters['supports_window'](window) is not True):
++                self.invalidate()
++                return False
++            owner, widget = _owner(api, window, stage, camera)
++            app = window.app_window
++            if app is None or getters['supports_appwindow'](app) is not True:
++                self.invalidate()
++                return False
++            active_api, active_window = paired()
++            if active_window is not window or not _same_public_api(active_api, api):
++                self.invalidate()
++                return False
++            context, view = _value(read_context()), _value(read_view())
++            old = self._binding
++            if (old and old['window'] is window and old['widget'] is widget
++                    and old['app'] is app and _same_public_api(old['api'], api)
++                    and owner == old['owner']
++                    and widget.display_delegate is old['delegate']):
++                if context != old['context'] or view != old['view']:
++                    self._generation += 1
++                old.update(context=context, view=view, read_context=read_context,
++                           read_view=read_view, paired=paired)
++                return True
++            self.invalidate()
++            previous = widget.display_delegate
++            provider = previous.image_provider
++            if runtime['supports_provider'](provider) is not True:
++                return False
++            delegate = runtime['make_delegate']()
++            # Store before setter/create so an incomplete create can be restored.
++            self._binding = dict(api=api, window=window, widget=widget, app=app,
++                stage=stage, camera=camera, owner=owner, context=context, view=view,
++                read_context=read_context, read_view=read_view, paired=paired,
++                runtime=runtime, previous=previous, delegate=delegate, provider=provider)
++            try:
++                widget.display_delegate = delegate
++            except Exception:
++                # The reviewed setter clears Frame before calling create. If
++                # create fails, its delegate pointer can still be previous.
++                if widget.display_delegate is previous and delegate.frame is not None:
++                    previous.create(delegate.frame, delegate)
++                raise
++            # Installation itself may trigger callbacks. Pin public identities
++            # before the last immutable context/view fence; never keep a UI
++            # delegate installed for a replaced active viewport/window.
++            final_owner, final_widget = _owner(api, window, stage, camera)
++            final_delegate = final_widget.display_delegate
++            final_app = window.app_window
++            final_api, final_window = paired()
++            same_api = _same_public_api(final_api, api)
++            final_view = _value(read_view())
++            final_context = _value(read_context())
++            if (self._binding is None or self._binding['delegate'] is not delegate
++                    or final_owner != owner or final_widget is not widget
++                    or final_delegate is not delegate or final_app is not app
++                    or final_window is not window or not same_api
++                    or final_view != view or final_context != context):
++                raise ValueError('owned delegate install context changed')
++            self._generation += 1
++            return True
++        except Exception:
++            self.invalidate()
++            return False
++
++    def invalidate(self):
++        self._generation += 1
++        binding, self._binding = self._binding, None
++        if binding is None:
++            return
++        widget, delegate = binding['widget'], binding['delegate']
++        try:
++            if widget.display_delegate is delegate:
++                widget.display_delegate = binding['previous']
++        except Exception:
++            self.lifecycle_error = True
++        finally:
++            try:
++                delegate.destroy()
++            except Exception:
++                self.lifecycle_error = True
++
++    def close(self):
++        if not self._closed:
++            self._closed = True
++            self.invalidate()
++
++    def observe_native_current(self, api, window, app):
++        """Pinned native raw measurements only; no physical/stream transform."""
++        b = self._binding
++        if self._closed or not self.enabled or b is None:
++            return None
++        try:
++            generation = self._generation
++            if (window is not b['window'] or app is not b['app']
++                    or not _same_public_api(api, b['api'])):
++                return self._retire_sample()
++            getters = b['runtime']['getters']
++            owner, widget = _owner(api, window, b['stage'], b['camera'])
++            if widget is not b['widget'] or owner != b['owner']:
++                return self._retire_sample()
++            paired_api, paired_window = b['paired']()
++            if paired_window is not window or not _same_public_api(paired_api, api):
++                return self._retire_sample()
++            widget_api = widget.viewport_api
++            delegate = b['delegate']
++            frame, image, provider = delegate.frame, delegate.image, delegate.provider
++            if (widget.display_delegate is not delegate or window.app_window is not app
++                    or frame is None or image is None or provider is not b['provider']
++                    or delegate.updates <= 0 or provider.is_reference_valid is not True):
++                return self._retire_sample()
++            native_time = api.time
++            initial_frame = _frame(api)
++            from .render_output_observations import _dimensions
++            canvas = (_matrix(api.view), _matrix(api.projection),
++                      _matrix(api.transform), _dimensions(api.resolution), _dimensions(api.full_resolution))
++            def values():
++                from .render_output_observations import _number, _dimensions
++                if (getters['is_app_window_attached'](app) is not True
++                        or image.fill_policy != b['runtime']['expected_policy']
++                        or image.alignment != b['runtime']['expected_alignment']):
++                    raise ValueError('unsupported native image policy/window')
++                return dict(frameRaw=[_number(frame.screen_position_x), _number(frame.screen_position_y),
++                        *_positive_pair(frame.computed_content_width, frame.computed_content_height)],
++                    imageRaw=[_number(image.screen_position_x), _number(image.screen_position_y),
++                        *_positive_pair(image.computed_content_width, image.computed_content_height)],
++                    imagePolicy=str(image.fill_policy), imageAlignment=str(image.alignment),
++                    textureSize=_dimensions((provider.width, provider.height)),
++                    framebufferSize=_dimensions((getters['get_framebuffer_width'](app), getters['get_framebuffer_height'](app))),
++                    scales=_positive_pair(app.get_dpi_scale(), app.get_ui_scale()))
++            measured, final_measured = values(), values()
++            # All final identity getters precede the final frame/time/view fence.
++            final_owner, final_widget = _owner(api, window, b['stage'], b['camera'])
++            final_widget_api = final_widget.viewport_api
++            final_delegate = final_widget.display_delegate
++            final_app = window.app_window
++            final_api, final_window = b['paired']()
++            same_api = _same_public_api(final_api, api)
++            final_frame, final_image, final_provider = delegate.frame, delegate.image, delegate.provider
++            final_valid = provider.is_reference_valid
++            final_canvas = (_matrix(api.view), _matrix(api.projection),
++                            _matrix(api.transform), _dimensions(api.resolution), _dimensions(api.full_resolution))
++            final_delivered = _frame(api)
++            final_time = api.time
++            final_view = _value(b['read_view']())
++            final_context = _value(b['read_context']())
++            if (self._binding is not b or self._generation != generation
++                    or final_owner != owner or final_widget is not widget
++                    or final_widget_api is not widget_api or final_delegate is not delegate
++                    or final_app is not app or final_window is not window or not same_api
++                    or final_frame is not frame or final_image is not image or final_provider is not provider
++                    or final_valid is not True or measured != final_measured
++                    or final_canvas != canvas or final_delivered != initial_frame or final_time != native_time
++                    or final_context != b['context'] or final_view != b['view']):
++                return self._retire_sample()
++            return dict(lease=self._lease(), measurements=measured,
++                        deliveredFrame=initial_frame, canvas=canvas,
++                        layoutProof='unresolved', physicalRectProof='unresolved',
++                        frameSourceBindingProof='unresolved', pixelVerified=False)
++        except Exception:
++            return self._retire_sample()
++
++    def current_lease(self):
++        b = self._binding
++        if b is None:
++            return None
++        sample = self.observe_native_current(b['api'], b['window'], b['app'])
++        return sample['lease'] if sample is not None else None
++
++    def capture_current(self, api, window, app):
++        # Native Frame observations do not establish UI-unit→framebuffer and
++        # framebuffer→current decoded-stream ownership/crop/scale. No producer
++        # for these segments is reviewed/installed in this implementation.
++        self.observe_native_current(api, window, app)
++        return None
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -68,6 +68,9 @@
+         self._render_project_hash = None
+         self._scene_revision = 0
+         self._grid_raster = None
++        from .output_layout import OwnedOutputLayout
++        self._owned_output_layout = OwnedOutputLayout(
++            carb.settings.get_settings().get('/exts/dc.cfd_bridge/ownedOutputLayout/enabled'))
+         self._grid_frame_revision = 0
+         self._grid_viewport_api = None
+         self._grid_subscriptions = []
+@@ -225,6 +228,9 @@
+         print("[dc.cfd_bridge] native UI hidden (render-only viewport)")
+ 
+     def on_shutdown(self):
++        layout = getattr(self, '_owned_output_layout', None)
++        if layout is not None:
++            layout.close()
+         if self._grid_raster is not None:
+             self._grid_raster.close()
+         for subscription in self._grid_subscriptions:
+@@ -606,7 +612,9 @@
+         if self._grid_raster is None:
+             from .grid_raster import GridRasterCoordinator
+             self._grid_raster = GridRasterCoordinator(self._current_scene_context,
+-                self._sample_grid_raster,lambda:self._grid_frame_revision)
++                self._sample_grid_raster,lambda:self._grid_frame_revision,
++                layout_lease=lambda: self._owned_output_layout.current_lease()
++                    if getattr(self, '_owned_output_layout', None) is not None else None)
+         return self._grid_raster
+ 
+     def _sample_grid_raster(self, stage):
+@@ -615,8 +623,25 @@
+         from omni.kit.viewport.utility import get_active_viewport_and_window
+         import omni.appwindow
+         viewport, window = get_active_viewport_and_window()
++        layout = getattr(self, '_owned_output_layout', None)
++        owned = layout is not None and layout.enabled
++        app = window.app_window if owned and window is not None else omni.appwindow.get_default_app_window()
+         return sample_grid_viewport(viewport,stage,render_scene.CAMERA,
+-            self._current_scene_context(stage),window,omni.appwindow.get_default_app_window())
++            self._current_scene_context(stage),window,app,output_layout=layout if owned else None)
++
++    def _prepare_output_layout(self, stage):
++        # Explicit lifecycle step. The sampler never installs/restores UI.
++        layout = getattr(self, '_owned_output_layout', None)
++        if layout is None or not layout.enabled:
++            return
++        from . import render_scene
++        from omni.kit.viewport.utility import get_active_viewport_and_window
++        viewport, window = get_active_viewport_and_window()
++        selection = omni.usd.get_context().get_selection()
++        layout.prepare(viewport, window, stage, render_scene.CAMERA,
++            lambda: self._current_scene_context(stage),
++            lambda: render_scene.read_view(stage, selection.get_selected_prim_paths()),
++            get_active_viewport_and_window)
+ 
+     def _observe_grid_viewport(self):
+         from omni.kit.viewport.utility import get_active_viewport
+@@ -652,6 +677,7 @@
+             ctx.get_selection().set_selected_prim_paths(paths, True)
+         finally:
+             self._suppress_ov_pick = False
++        self._prepare_output_layout(stage)
+         self._observe_grid_viewport()
+         grid = self._ensure_grid_raster()
+         grid.offer(stage,view)
+@@ -879,6 +905,9 @@
+                         not re.fullmatch(r'[0-9a-f]{64}', project_hash)):
+                     raise ValueError('Invalid project content hash')
+                 self._display_generation += 1
++                layout = getattr(self, '_owned_output_layout', None)
++                if layout is not None:
++                    layout.invalidate()
+                 self._verified_result_controller.invalidate()
+                 self._trusted_result_context = None
+                 self._ack_after(request_id, command, self._author_render_scene(
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_viewport.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_viewport.py
+@@ -39,12 +39,18 @@
+     read from a browser request/snapshot. Current legacy layout supplies None.
+     """
+     from pxr import Gf, UsdGeom, CameraUtil
++    from .output_layout import OwnedOutputLayout, same_layout_lease
+     obs = {'layoutProof':'unresolved'}
+     def pending(reason):
+         return {'phase':'pending','reason':reason,'observations':obs,'projection':None}
+     if viewport_api is None:
+         return pending('viewport-unavailable')
+     try:
++        initial_layout_lease = None
++        if output_layout is not None:
++            if type(output_layout) is not OwnedOutputLayout:
++                return pending('stream-layout-unresolved')
++            initial_layout_lease = output_layout.current_lease()
+         obs['stageSame'] = viewport_api.stage == expected_stage
+         obs['cameraPath'] = str(viewport_api.camera_path)
+         if not obs['stageSame'] or obs['cameraPath'] != str(expected_camera_path):
+@@ -115,10 +121,23 @@
+             return pending('stream-layout-unresolved')
+         # A future owned producer must supply a native frame association and a
+         # texture-to-whole-output transform. It cannot be a dict from the wire.
+-        if not hasattr(output_layout,'capture_current'):
++        if initial_layout_lease is None:
+             return pending('stream-layout-unresolved')
+         layout = output_layout.capture_current(viewport_api,viewport_window,app_window)
+         if layout is None:
++            return pending('stream-layout-unresolved')
++        # Native producer cannot currently produce a transform. These closing
++        # fences remain mandatory if a reviewed stream producer is later added.
++        final_layout_lease = output_layout.current_lease()
++        if (not same_layout_lease(initial_layout_lease, final_layout_lease)
++                or viewport_api.stage != expected_stage
++                or str(viewport_api.camera_path) != str(expected_camera_path)
++                or _matrix(viewport_api.world_to_ndc) != obs['worldToNdc']
++                or _matrix(viewport_api.view) != obs['view']
++                or _matrix(viewport_api.transform) != obs['transform']
++                or _matrix(viewport_api.projection) != obs['uiProjection']
++                or _size(viewport_api.resolution) != obs['resolution']
++                or _size(viewport_api.full_resolution) != obs['fullResolution']):
+             return pending('stream-layout-unresolved')
+         transform = Gf.Matrix4d(*_numbers(layout['imageNdcToOutputNdc'],16))
+         if abs(transform.GetDeterminant()) <= 1e-12:
+@@ -126,7 +145,7 @@
+         obs['layoutProof'] = 'owned-native-frame'
+         obs['imageNdcToOutputNdc'] = _matrix(transform)
+         return {'phase':'ready','reason':None,'observations':obs,
+-                'projection':_matrix(image_world*transform)}
++                'layoutLease':final_layout_lease, 'projection':_matrix(image_world*transform)}
+     except Exception:
+         # Fixed reason is safe for the UI; arbitrary native payload is not logged.
+         return pending('public-viewport-observation-unavailable')
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
+@@ -335,11 +335,13 @@
+ 
+ class GridRasterCoordinator:
+     """Latest immutable request; ownership is checked after every awaited phase."""
+-    def __init__(self, current_context, sample, frame_revision, calculate=calculate_ribbons):
++    def __init__(self, current_context, sample, frame_revision, calculate=calculate_ribbons, layout_lease=lambda: None):
+         self.current_context = current_context
+         self.sample = sample
+         self.frame_revision = frame_revision
+         self.calculate = calculate
++        self.layout_lease = layout_lease
++        self._contract_layout_lease = None
+         self._pool = ThreadPoolExecutor(max_workers=1,thread_name_prefix='dc-grid-raster')
+         self._closed = False
+         self._request = None
+@@ -452,7 +454,12 @@
+         self._start()
+ 
+     def carrier_contract(self, stage, view=None):
++        from .output_layout import same_layout_lease
+         contract = self._contract
++        if contract is None:
++            return None
++        if not same_layout_lease(self._contract_layout_lease, self.layout_lease()):
++            return None
+         if contract is None or contract.stage != stage or tuple(sorted(self.current_context(stage).items())) != contract.context:
+             return None
+         if view is not None:
+@@ -497,11 +504,19 @@
+                         phase = 'unsupported' if capture['reason'].startswith('stream-layout') else 'pending'
+                         self.receipt = {'phase':phase,'reason':capture['reason'],'viewRevision':self._last_view}
+                     return
++                from .output_layout import same_layout_lease
++                captured_lease = capture.get('layoutLease')
++                if not same_layout_lease(captured_lease, self.layout_lease()):
++                    self._contract = None
++                    self._contract_layout_lease = None
++                    self.receipt = {'phase':'unsupported','reason':'stream-layout-unresolved','viewRevision':self._last_view}
++                    return
+                 view = request['view']
+                 grid,raster = view['backgroundGrid'],view['backgroundGridRaster']
+                 key = json.dumps({'context':request['context'],'mediaOwner':raster['output']['owner'],
+                     'outputPresentation':raster['output'],'metricVersion':raster['metricVersion'],'metric':raster['line'],'grid':grid,
+-                    'projection':capture['projection'],'layout':capture['observations'].get('imageNdcToOutputNdc')},
++                    'projection':capture['projection'],'layout':capture['observations'].get('imageNdcToOutputNdc'),
++                    'layoutOwnerEpoch':captured_lease.key},
+                     sort_keys=True,separators=(',',':'),allow_nan=False)
+                 if carrier_matches(request['stage'],key,self.carrier_contract(request['stage'])):
+                     self.receipt = {'phase':'rendered','viewRevision':self._last_view}
+@@ -515,7 +530,11 @@
+                 if not self._current(request):
+                     continue
+                 final_capture = self._capture(request)
+-                if final_capture['phase'] != 'ready' or final_capture['projection'] != capture['projection'] or final_capture['observations'].get('imageNdcToOutputNdc') != capture['observations'].get('imageNdcToOutputNdc'):
++                if (final_capture['phase'] != 'ready'
++                        or not same_layout_lease(captured_lease, final_capture.get('layoutLease'))
++                        or not same_layout_lease(captured_lease, self.layout_lease())
++                        or final_capture['projection'] != capture['projection']
++                        or final_capture['observations'].get('imageNdcToOutputNdc') != capture['observations'].get('imageNdcToOutputNdc')):
+                     # Wait for a coherent fresh public receipt. Do not commit a
+                     # projection from before the decode/layout/camera transition.
+                     self.receipt = {'phase':'pending','reason':'viewport-frame-not-current','viewRevision':self._last_view}
+@@ -525,6 +544,7 @@
+                 contract = author_ribbons(request['stage'],grid,result,key)
+                 contract = replace(contract,context=tuple(sorted(request['context'].items())),intent=intent)
+                 self._contract = contract
++                self._contract_layout_lease = captured_lease
+                 self.receipt = {'phase':'rendered','viewRevision':self._last_view}
+                 return
+             except Exception:
+@@ -543,6 +563,7 @@
+         self._serial += 1
+         self._canonical = None
+         self._contract = None
++        self._contract_layout_lease = None
+         if self._task is not None:
+             self._task.cancel()
+         self._pool.shutdown(wait=False,cancel_futures=True)
+--- /dev/null
++++ b/src/frontend/omniverse/cfd_demo/tests/test_owned_output_layout.py
+@@ -0,0 +1,114 @@
++"""Controlled public UI carriers: lifecycle/coherence, never native/pixel proof."""
++from pathlib import Path
++import ast,copy,importlib.util,sys,types,unittest
++BR=Path(__file__).resolve().parents[1]/'kit/extensions/dc.cfd_bridge/dc/cfd_bridge'
++package=types.ModuleType('owned_bridge');package.__path__=[str(BR)];sys.modules['owned_bridge']=package
++from owned_bridge import output_layout as o
++M=[float(i%5==0) for i in range(16)]
++class Frame:
++ def __init__(self):self.screen_position_x=13.;self.screen_position_y=17.;self.computed_content_width=800.;self.computed_content_height=600.;self.computed_width=800.;self.computed_height=600.;self.clears=0
++ def __enter__(self):return self
++ def __exit__(self,*_):pass
++ def clear(self):self.clears+=1
++class Stack(Frame):
++ def __init__(self):super().__init__();self.destroyed=False
++ def destroy(self):self.destroyed=True
++class Provider:
++ width=800;height=600;is_reference_valid=True
++ def __init__(self):self.destroy_calls=0;self.received=[]
++ def set_image_data(self,*args,**kwargs):self.received.append((args,kwargs))
++ def destroy(self):self.destroy_calls+=1
++class Image(Frame):
++ fail=False
++ def __init__(self,provider,**kwargs):
++  if Image.fail:Image.fail=False;raise RuntimeError('controlled UI create failure')
++  super().__init__();self.fill_policy=kwargs.get('fill_policy','legacy');self.alignment=kwargs.get('alignment','legacy')
++  self.destroyed=False
++ def destroy(self):self.destroyed=True
++UI=types.SimpleNamespace(ZStack=Stack,ImageWithProvider=Image,ImageProvider=Provider,IwpFillPolicy=types.SimpleNamespace(IWP_PRESERVE_ASPECT_FIT='fit'),Alignment=types.SimpleNamespace(CENTER='center'))
++# Controlled public protocol for portable unit tests. The separate private
++# SDK harness reuses these tests with the literal reviewed public class bodies.
++class Base:
++ def __init__(self,_):self.provider=None;self.image=None;self.stack=None
++ @property
++ def image_provider(self):return self.provider
++ @image_provider.setter
++ def image_provider(self,p):self.provider=p;self.image=Image(p)
++ def create(self,frame,previous):
++  p=previous.image_provider;self.destroy();self.provider=p;self.image=Image(p);self.stack=Stack();return self.stack
++ def destroy(self):
++  if self.image is not None:self.image.destroy()
++  if self.stack is not None:self.stack.destroy()
++  self.provider=self.image=self.stack=None
++class Widget:
++ @property
++ def display_delegate(self):return self._ViewportWidget__display_delegate
++ @display_delegate.setter
++ def display_delegate(self,delegate):
++  self._ViewportWidget__ui_frame.clear();delegate.create(self._ViewportWidget__ui_frame,self.display_delegate);self._ViewportWidget__display_delegate=delegate
++class API:
++ def __init__(self,stage):
++  self.stage=stage;self.id='controlled-public-id';self.usd_context_name='';self.camera_path='/World/RenderCamera';self.render_product_path='/Render/Controlled';self.time=0;self.view=M[:];self.projection=M[:];self.transform=M[:];self.resolution=(800,600);self.full_resolution=(800,600);self.frame_info={'frame_number':3,'resolution':[800,600],'view':M[:],'projection':M[:]}
++class App:
++ def get_dpi_scale(self):return 1.25
++ def get_ui_scale(self):return 1.5
++class Contract(unittest.TestCase):
++ def fixture(self,enabled=True):
++  stage=object();api=API(stage);app=App();frame=Frame();provider=Provider();previous=Base(None);previous.image_provider=provider;widget=Widget();widget._ViewportWidget__ui_frame=frame;widget._ViewportWidget__display_delegate=previous;widget.viewport_api=api
++  window=types.SimpleNamespace(viewport_widget=widget,app_window=app);context={'uid':'project','sceneRevision':1,'generation':7};view={'selectedUids':[],'timeSeconds':None};current={'api':api,'window':window};count={'factory':0}
++  getters={'supports_viewport':lambda a:a.__class__ is API,'supports_window':lambda _:True,'supports_appwindow':lambda a:a.__class__ is App,'is_app_window_attached':lambda _:True,'get_framebuffer_width':lambda _:800,'get_framebuffer_height':lambda _:600}
++  runtime={'getters':getters,'make_delegate':lambda:o._delegate(UI,Base),'supports_provider':lambda p:isinstance(p,Provider),'expected_policy':'fit','expected_alignment':'center'}
++  def factory():count['factory']+=1;return runtime
++  owner=o.OwnedOutputLayout(enabled,factory)
++  def prepare():return owner.prepare(current['api'],current['window'],stage,'/World/RenderCamera',lambda:copy.deepcopy(context),lambda:copy.deepcopy(view),lambda:(current['api'],current['window']))
++  return types.SimpleNamespace(**locals())
++ def update(self,f):
++  d=f.widget.display_delegate;opaque=object();d.update(f.api,opaque,None,None,presentation_key=31,metadata=None);return opaque
++ def test_defaultoff_and_wire_values_do_zero_sdk_work(self):
++  for enabled in [False,None,0,1,'true',{}, {'enabled':True}]:
++   f=self.fixture(enabled);self.assertFalse(f.prepare());self.assertIsNone(f.owner.capture_current(f.api,f.window,f.app));f.owner.close();self.assertEqual(f.count['factory'],0);self.assertEqual(f.frame.clears,0)
++ def test_actual_public_setter_delegate_update_restore_borrowed_provider(self):
++  f=self.fixture();self.assertTrue(f.prepare());d=f.widget.display_delegate;self.assertIs(d.frame,f.frame);opaque=self.update(f);self.assertIs(f.provider.received[-1][0][0],opaque)
++  sample=f.owner.observe_native_current(f.api,f.window,f.app);self.assertIsNotNone(sample);self.assertEqual(sample['measurements']['scales'],[1.25,1.5]);self.assertFalse(sample['pixelVerified']);self.assertEqual(sample['layoutProof'],'unresolved');self.assertIsNone(f.owner.capture_current(f.api,f.window,f.app))
++  f.owner.close();self.assertIs(f.widget.display_delegate,f.previous);self.assertEqual(f.provider.destroy_calls,0);self.assertIs(f.previous.image_provider,f.provider)
++ def test_external_delegate_replacement_is_not_overwritten_on_close(self):
++  f=self.fixture();f.prepare();other=Base(None);other.image_provider=f.provider;f.widget.display_delegate=other;clears=f.frame.clears;f.owner.close();self.assertIs(f.widget.display_delegate,other);self.assertEqual(f.frame.clears,clears);self.assertEqual(f.provider.destroy_calls,0)
++ def test_failed_actual_setter_create_restores_previous_cleared_frame(self):
++  f=self.fixture();Image.fail=True;self.assertFalse(f.prepare());self.assertIs(f.widget.display_delegate,f.previous);self.assertGreater(f.frame.clears,0);self.assertIs(f.previous.image_provider,f.provider);self.assertEqual(f.provider.destroy_calls,0)
++ def test_same_numeric_state_different_api_referent_retires(self):
++  f=self.fixture();f.prepare();self.update(f);old=f.owner.current_lease();f.current['api']=API(f.stage);f.widget.viewport_api=f.current['api'];self.assertIsNone(f.owner.observe_native_current(f.api,f.window,f.app));self.assertTrue(f.prepare());self.update(f);new=f.owner.current_lease();self.assertFalse(o.same_layout_lease(old,new));f.owner.close()
++ def test_view_advance_retires_same_owner_epoch(self):
++  f=self.fixture();f.prepare();self.update(f);old=f.owner.current_lease();f.view['selectedUids']=['new'];self.assertIsNone(f.owner.current_lease());f.prepare();self.assertFalse(o.same_layout_lease(old,f.owner.current_lease()));f.owner.close()
++ def test_changed_public_values_and_missing_stream_never_grant(self):
++  for mut in [lambda f:setattr(f.provider,'width',0),lambda f:setattr(f.provider,'height',True),lambda f:setattr(f.provider,'is_reference_valid',False),lambda f:setattr(f.widget.display_delegate.image,'fill_policy','stretch'),lambda f:setattr(f.widget.display_delegate.frame,'computed_content_width',float('nan')),lambda f:setattr(f.window,'app_window',App()),lambda f:setattr(f.api,'resolution',(True,600))]:
++   f=self.fixture();f.prepare();self.update(f);mut(f);self.assertIsNone(f.owner.observe_native_current(f.api,f.window,f.app));self.assertIsNone(f.owner.capture_current(f.api,f.window,f.app));f.owner.close()
++ def test_late_identity_getter_precedes_final_frame_context_fence(self):
++  for kind in ['context','frame','time','view']:
++   f=self.fixture();f.prepare();self.update(f);calls=[0]
++   def width(_):
++    calls[0]+=1
++    if calls[0]==2:
++     if kind=='context':f.context['sceneRevision']=2
++     elif kind=='frame':f.api.frame_info['frame_number']=4
++     elif kind=='time':f.api.time=1
++     else:f.view['selectedUids']=['changed']
++    return 800
++   f.getters['get_framebuffer_width']=width;self.assertIsNone(f.owner.observe_native_current(f.api,f.window,f.app));f.owner.close()
++ def test_install_callback_mutation_restores_and_refuses(self):
++  for mode in ('context','view','active-window','app-window','same-label-api'):
++   f=self.fixture();original=f.runtime['make_delegate']
++   def make():
++    d=original();create=d.create
++    def callback(*args,**kwargs):
++     result=create(*args,**kwargs)
++     if mode=='context':f.context['sceneRevision']=2
++     elif mode=='view':f.view['selectedUids']=['changed']
++     elif mode=='active-window':f.current['window']=types.SimpleNamespace(viewport_widget=f.widget,app_window=f.app)
++     elif mode=='app-window':f.window.app_window=App()
++     else:f.current['api']=API(f.stage)
++     return result
++    d.create=callback;return d
++   f.runtime['make_delegate']=make;self.assertFalse(f.prepare());self.assertIs(f.widget.display_delegate,f.previous);self.assertEqual(f.provider.destroy_calls,0)
++ def test_plain_equal_looking_lease_is_not_same_owner(self):
++  a=o.LayoutLease(object(),1,'same');b=o.LayoutLease(object(),1,'same');self.assertFalse(o.same_layout_lease(a,b));self.assertFalse(o.same_layout_lease(a,{'owner':a.owner,'generation':1,'key':'same'}))
++if __name__=='__main__':unittest.main(verbosity=2)

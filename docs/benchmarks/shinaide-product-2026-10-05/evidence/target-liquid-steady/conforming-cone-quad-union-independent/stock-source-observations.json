@@ -1,0 +1,103 @@
+{
+  "primitiveMeshCheck.C": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+    "sha256": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+    "ranges": [
+      {
+        "start": 35,
+        "end": 43,
+        "text": "#include \"primitiveMeshTools.H\"\n\n// * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //\n\nFoam::scalar Foam::primitiveMesh::closedThreshold_  = 1.0e-6;\nFoam::scalar Foam::primitiveMesh::aspectThreshold_  = 1000;\nFoam::scalar Foam::primitiveMesh::nonOrthThreshold_ = 70;    // deg\nFoam::scalar Foam::primitiveMesh::skewThreshold_    = 4;\nFoam::scalar Foam::primitiveMesh::planarCosAngle_   = 1.0e-6;"
+      },
+      {
+        "start": 808,
+        "end": 911,
+        "text": "bool Foam::primitiveMesh::checkConcaveCells\n(\n    const vectorField& fAreas,\n    const pointField& fCentres,\n    const bool report,\n    labelHashSet* setPtr\n) const\n{\n    DebugInFunction << \"Checking for concave cells\" << endl;\n\n    const cellList& c = cells();\n    const labelList& fOwner = faceOwner();\n\n    label nConcaveCells = 0;\n\n    forAll(c, celli)\n    {\n        const cell& cFaces = c[celli];\n\n        bool concave = false;\n\n        forAll(cFaces, i)\n        {\n            if (concave)\n            {\n                break;\n            }\n\n            label fI = cFaces[i];\n\n            const point& fC = fCentres[fI];\n\n            vector fN = fAreas[fI];\n\n            fN /= max(mag(fN), VSMALL);\n\n            // Flip normal if required so that it is always pointing out of\n            // the cell\n            if (fOwner[fI] != celli)\n            {\n                fN *= -1;\n            }\n\n            // Is the centre of any other face of the cell on the\n            // wrong side of the plane of this face?\n\n            forAll(cFaces, j)\n            {\n                if (j != i)\n                {\n                    label fJ = cFaces[j];\n\n                    const point& pt = fCentres[fJ];\n\n                    // If the cell is concave, the point will be on the\n                    // positive normal side of the plane of f, defined by\n                    // its centre and normal, and the angle between (pt -\n                    // fC) and fN will be less than 90 degrees, so the dot\n                    // product will be positive.\n\n                    vector pC = (pt - fC);\n\n                    pC /= max(mag(pC), VSMALL);\n\n                    if ((pC & fN) > -planarCosAngle_)\n                    {\n                        // Concave or planar face\n\n                        concave = true;\n\n                        if (setPtr)\n                        {\n                            setPtr->insert(celli);\n                        }\n\n                        nConcaveCells++;\n\n                        break;\n                    }\n                }\n            }\n        }\n    }\n\n    reduce(nConcaveCells, sumOp<label>());\n\n    if (nConcaveCells > 0)\n    {\n        if (debug || report)\n        {\n            Info<< \" ***Concave cells (using face planes) found,\"\n                << \" number of cells: \" << nConcaveCells << endl;\n        }\n\n        return true;\n    }\n\n    if (debug || report)\n    {\n        Info<< \"    Concave cell check OK.\" << endl;\n    }\n\n    return false;\n}"
+      },
+      {
+        "start": 468,
+        "end": 548,
+        "text": "bool Foam::primitiveMesh::checkFacePyramids\n(\n    const pointField& points,\n    const vectorField& ctrs,\n    const bool report,\n    const bool detailedReport,\n    const scalar minPyrVol,\n    labelHashSet* setPtr\n) const\n{\n    DebugInFunction << \"Checking face orientation\" << endl;\n\n    const labelList& own = faceOwner();\n    const labelList& nei = faceNeighbour();\n    const faceList& f = faces();\n\n\n    scalarField ownPyrVol;\n    scalarField neiPyrVol;\n    primitiveMeshTools::facePyramidVolume\n    (\n        *this,\n        points,\n        ctrs,\n        ownPyrVol,\n        neiPyrVol\n    );\n\n\n    label nErrorPyrs = 0;\n\n    forAll(ownPyrVol, facei)\n    {\n        if (ownPyrVol[facei] < minPyrVol)\n        {\n            if (setPtr)\n            {\n                setPtr->insert(facei);\n            }\n            if (detailedReport)\n            {\n                Pout<< \"Negative pyramid volume: \" << ownPyrVol[facei]\n                    << \" for face \" << facei << \" \" << f[facei]\n                    << \"  and owner cell: \" << own[facei] << endl\n                    << \"Owner cell vertex labels: \"\n                    << cells()[own[facei]].labels(faces())\n                    << endl;\n            }\n\n            nErrorPyrs++;\n        }\n\n        if (isInternalFace(facei))\n        {\n            if (neiPyrVol[facei] < minPyrVol)\n            {\n                if (setPtr)\n                {\n                    setPtr->insert(facei);\n                }\n                if (detailedReport)\n                {\n                    Pout<< \"Negative pyramid volume: \" << neiPyrVol[facei]\n                        << \" for face \" << facei << \" \" << f[facei]\n                        << \"  and neighbour cell: \" << nei[facei] << nl\n                        << \"Neighbour cell vertex labels: \"\n                        << cells()[nei[facei]].labels(faces())\n                        << endl;\n                }\n                nErrorPyrs++;\n            }\n        }\n    }\n\n    reduce(nErrorPyrs, sumOp<label>());\n\n    if (nErrorPyrs > 0)\n    {\n        if (debug || report)\n        {\n            Info<< \" ***Error in face pyramids: \""
+      }
+    ]
+  },
+  "primitiveMeshTools.C": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshTools.C",
+    "sha256": "db2868dc5ccb66f8e3e8c4b919afb8abf8bb3b0fc290c704f9ad4c65b645a712",
+    "ranges": [
+      {
+        "start": 284,
+        "end": 377,
+        "text": "void Foam::primitiveMeshTools::makeCellCentresAndVols\n(\n    const primitiveMesh& mesh,\n    const vectorField& fCtrs,\n    const vectorField& fAreas,\n    vectorField& cellCtrs_s,\n    scalarField& cellVols_s\n)\n{\n    PrecisionAdaptor<solveVector, vector> tcellCtrs(cellCtrs_s, false);\n    PrecisionAdaptor<solveScalar, scalar> tcellVols(cellVols_s, false);\n    Field<solveVector>& cellCtrs = tcellCtrs.ref();\n    Field<solveScalar>& cellVols = tcellVols.ref();\n\n    // Clear the fields for accumulation\n    cellCtrs = Zero;\n    cellVols = Zero;\n\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n\n    // first estimate the approximate cell centre as the average of\n    // face centres\n\n    Field<solveVector> cEst(mesh.nCells(), Zero);\n    labelField nCellFaces(mesh.nCells(), Zero);\n\n    forAll(own, facei)\n    {\n        cEst[own[facei]] += solveVector(fCtrs[facei]);\n        ++nCellFaces[own[facei]];\n    }\n\n    forAll(nei, facei)\n    {\n        cEst[nei[facei]] += solveVector(fCtrs[facei]);\n        ++nCellFaces[nei[facei]];\n    }\n\n    forAll(cEst, celli)\n    {\n        cEst[celli] /= nCellFaces[celli];\n    }\n\n    forAll(own, facei)\n    {\n        const solveVector fc(fCtrs[facei]);\n        const solveVector fA(fAreas[facei]);\n\n        // Calculate 3*face-pyramid volume\n        solveScalar pyr3Vol = fA & (fc - cEst[own[facei]]);\n\n        // Calculate face-pyramid centre\n        solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[own[facei]];\n\n        // Accumulate volume-weighted face-pyramid centre\n        cellCtrs[own[facei]] += pyr3Vol*pc;\n\n        // Accumulate face-pyramid volume\n        cellVols[own[facei]] += pyr3Vol;\n    }\n\n    forAll(nei, facei)\n    {\n        const solveVector fc(fCtrs[facei]);\n        const solveVector fA(fAreas[facei]);\n\n        // Calculate 3*face-pyramid volume\n        solveScalar pyr3Vol = fA & (cEst[nei[facei]] - fc);\n\n        // Calculate face-pyramid centre\n        solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[nei[facei]];\n\n        // Accumulate volume-weighted face-pyramid centre\n        cellCtrs[nei[facei]] += pyr3Vol*pc;\n\n        // Accumulate face-pyramid volume\n        cellVols[nei[facei]] += pyr3Vol;\n    }\n\n    forAll(cellCtrs, celli)\n    {\n        if (mag(cellVols[celli]) > VSMALL)\n        {\n            cellCtrs[celli] /= cellVols[celli];\n        }\n        else\n        {\n            cellCtrs[celli] = cEst[celli];\n        }\n    }\n\n    cellVols *= (1.0/3.0);\n}"
+      },
+      {
+        "start": 582,
+        "end": 618,
+        "text": "void Foam::primitiveMeshTools::facePyramidVolume\n(\n    const primitiveMesh& mesh,\n    const pointField& points,\n    const vectorField& ctrs,\n\n    scalarField& ownPyrVol,\n    scalarField& neiPyrVol\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n    const faceList& f = mesh.faces();\n\n    ownPyrVol.setSize(mesh.nFaces());\n    neiPyrVol.setSize(mesh.nInternalFaces());\n\n    forAll(f, facei)\n    {\n        // Create the owner pyramid\n        ownPyrVol[facei] = -pyramidPointFaceRef\n        (\n            f[facei],\n            ctrs[own[facei]]\n        ).mag(points);\n\n        if (mesh.isInternalFace(facei))\n        {\n            // Create the neighbour pyramid - it will have positive volume\n            neiPyrVol[facei] = pyramidPointFaceRef\n            (\n                f[facei],\n                ctrs[nei[facei]]\n            ).mag(points);\n        }\n    }\n}"
+      }
+    ]
+  },
+  "polyMeshTetDecomposition.C": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTetDecomposition.C",
+    "sha256": "50b2b67e249951c4ef7343655c44811351209415a4d894abcf6ac4089532180c",
+    "ranges": [
+      {
+        "start": 32,
+        "end": 36,
+        "text": "\n// Note: the use of this tolerance is ad-hoc, there may be extreme\n// cases where the resulting tetrahedra still have particle tracking\n// problems, or tets with lower quality may track OK.\nconst Foam::scalar Foam::polyMeshTetDecomposition::minTetQuality = sqr(SMALL);"
+      },
+      {
+        "start": 41,
+        "end": 92,
+        "text": "Foam::scalar Foam::polyMeshTetDecomposition::minQuality\n(\n    const polyMesh& mesh,\n    const point& cC,\n    const label fI,\n    const bool isOwner,\n    const label faceBasePtI\n)\n{\n    // Does fan decomposition of face (starting at faceBasePti) and determines\n    // min quality over all resulting tets.\n\n    const pointField& pPts = mesh.points();\n    const face& f = mesh.faces()[fI];\n    const point& tetBasePt = pPts[f[faceBasePtI]];\n\n    scalar thisBaseMinTetQuality = VGREAT;\n\n    for (label tetPtI = 1; tetPtI < f.size() - 1; tetPtI++)\n    {\n        label facePtI = (tetPtI + faceBasePtI) % f.size();\n        label otherFacePtI = f.fcIndex(facePtI);\n\n        label ptAI = -1;\n        label ptBI = -1;\n\n        if (isOwner)\n        {\n            ptAI = f[facePtI];\n            ptBI = f[otherFacePtI];\n        }\n        else\n        {\n            ptAI = f[otherFacePtI];\n            ptBI = f[facePtI];\n        }\n\n        const point& pA = pPts[ptAI];\n        const point& pB = pPts[ptBI];\n\n        tetPointRef tet(cC, tetBasePt, pA, pB);\n\n        scalar tetQuality = tet.quality();\n\n        if (tetQuality < thisBaseMinTetQuality)\n        {\n            thisBaseMinTetQuality = tetQuality;\n        }\n    }\n    return thisBaseMinTetQuality;\n}\n"
+      },
+      {
+        "start": 383,
+        "end": 517,
+        "text": "bool Foam::polyMeshTetDecomposition::checkFaceTets\n(\n    const polyMesh& mesh,\n    scalar tol,\n    const bool report,\n    labelHashSet* setPtr\n)\n{\n    const labelList& own = mesh.faceOwner();\n    const labelList& nei = mesh.faceNeighbour();\n    const polyBoundaryMesh& patches = mesh.boundaryMesh();\n\n    const vectorField& cc = mesh.cellCentres();\n    const vectorField& fc = mesh.faceCentres();\n\n    // Calculate coupled cell centre\n    pointField neiCc(mesh.nBoundaryFaces());\n\n    for (label facei = mesh.nInternalFaces(); facei < mesh.nFaces(); ++facei)\n    {\n        neiCc[facei - mesh.nInternalFaces()] = cc[own[facei]];\n    }\n\n    syncTools::swapBoundaryFacePositions(mesh, neiCc);\n\n    const faceList& fcs = mesh.faces();\n\n    const pointField& p = mesh.points();\n\n    label nErrorTets = 0;\n\n    forAll(fcs, facei)\n    {\n        const face& f = fcs[facei];\n\n        forAll(f, fPtI)\n        {\n            scalar tetQual = tetPointRef\n            (\n                p[f[fPtI]],\n                p[f.nextLabel(fPtI)],\n                fc[facei],\n                cc[own[facei]]\n            ).quality();\n\n            if (tetQual > -tol)\n            {\n                if (setPtr)\n                {\n                    setPtr->insert(facei);\n                }\n\n                nErrorTets++;\n                break;              // no need to check other tets\n            }\n        }\n\n        if (mesh.isInternalFace(facei))\n        {\n            // Create the neighbour tet - it will have positive volume\n            const face& f = fcs[facei];\n\n            forAll(f, fPtI)\n            {\n                scalar tetQual = tetPointRef\n                (\n                    p[f[fPtI]],\n                    p[f.nextLabel(fPtI)],\n                    fc[facei],\n                    cc[nei[facei]]\n                ).quality();\n\n                if (tetQual < tol)\n                {\n                    if (setPtr)\n                    {\n                        setPtr->insert(facei);\n                    }\n\n                    nErrorTets++;\n                    break;\n                }\n            }\n\n            if (findSharedBasePoint(mesh, facei, tol, report) == -1)\n            {\n                if (setPtr)\n                {\n                    setPtr->insert(facei);\n                }\n\n                nErrorTets++;\n            }\n        }\n        else\n        {\n            const label patchi = patches.patchID(facei);\n\n            if (patches[patchi].coupled())\n            {\n                if\n                (\n                    findSharedBasePoint\n                    (\n                        mesh,\n                        facei,\n                        neiCc[facei - mesh.nInternalFaces()],\n                        tol,\n                        report\n                    ) == -1\n                )\n                {\n                    if (setPtr)\n                    {\n                        setPtr->insert(facei);\n                    }\n\n                    nErrorTets++;\n                }\n            }\n            else\n            {\n                if (findBasePoint(mesh, facei, tol, report) == -1)\n                {\n                    if (setPtr)\n                    {\n                        setPtr->insert(facei);\n                    }\n\n                    nErrorTets++;\n                }\n            }\n        }\n    }\n"
+      }
+    ]
+  },
+  "tetrahedronI.H": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/tetrahedronI.H",
+    "sha256": "46147b68744b5e0175d94b5f5e0b40dc21f89aa146a7208989aea32796ff6c46",
+    "ranges": [
+      {
+        "start": 258,
+        "end": 262,
+        "text": "template<class Point, class PointRef>\ninline Foam::scalar Foam::tetrahedron<Point, PointRef>::mag() const\n{\n    return (1.0/6.0)*(((b_ - a_) ^ (c_ - a_)) & (d_ - a_));\n}"
+      },
+      {
+        "start": 292,
+        "end": 328,
+        "text": "template<class Point, class PointRef>\ninline Foam::scalar Foam::tetrahedron<Point, PointRef>::circumRadius() const\n{\n    vector a = b_ - a_;\n    vector b = c_ - a_;\n    vector c = d_ - a_;\n\n    scalar lambda = magSqr(c) - (a & c);\n    scalar mu = magSqr(b) - (a & b);\n\n    vector ba = b ^ a;\n    vector ca = c ^ a;\n\n    vector num = lambda*ba - mu*ca;\n    scalar denom = (c & ba);\n\n    if (Foam::mag(denom) < ROOTVSMALL)\n    {\n        // Degenerate tetrahedron, returning GREAT for circumRadius.\n        return GREAT;\n    }\n\n    return Foam::mag(0.5*(a + num/denom));\n}\n\n\ntemplate<class Point, class PointRef>\ninline Foam::scalar Foam::tetrahedron<Point, PointRef>::quality() const\n{\n    return\n        mag()\n       /(\n            8.0/(9.0*sqrt(3.0))\n           *pow3(Foam::min(circumRadius(), GREAT))\n          + ROOTVSMALL\n        );\n}"
+      }
+    ]
+  },
+  "upstream-v2412-checkGeometry.C": {
+    "officialRawURL": "https://gitlab.com/openfoam/core/openfoam/-/raw/OpenFOAM-v2412/applications/utilities/mesh/manipulation/checkMesh/checkGeometry.C",
+    "sha256": "95b223c7300c2072b5521dc0d15109531c8d6e5b03941d52f23a10c3508e23a3",
+    "ranges": [
+      {
+        "start": 719,
+        "end": 739,
+        "text": "\n    {\n        faceSet faces(mesh, \"wrongOrientedFaces\", mesh.nFaces()/100 + 1);\n        if (mesh.checkFacePyramids(true, -SMALL, &faces))\n        {\n            noFailedChecks++;\n\n            label nFaces = returnReduce(faces.size(), sumOp<label>());\n\n            if (nFaces > 0)\n            {\n                Info<< \"  <<Writing \" << nFaces\n                    << \" faces with incorrect orientation to set \"\n                    << faces.name() << endl;\n                faces.instance() = mesh.pointsInstance();\n                faces.write();\n                if (surfWriter && surfWriter->enabled())\n                {\n                    mergeAndWrite(*surfWriter, faces);\n                }\n            }"
+      },
+      {
+        "start": 788,
+        "end": 822,
+        "text": "\n    if (allGeometry)\n    {\n        faceSet faces(mesh, \"lowQualityTetFaces\", mesh.nFaces()/100+1);\n        if\n        (\n            polyMeshTetDecomposition::checkFaceTets\n            (\n                mesh,\n                polyMeshTetDecomposition::minTetQuality,\n                true,\n                &faces\n            )\n        )\n        {\n            noFailedChecks++;\n\n            label nFaces = returnReduce(faces.size(), sumOp<label>());\n\n            if (nFaces > 0)\n            {\n                Info<< \"  <<Writing \" << nFaces\n                    << \" faces with low quality or negative volume \"\n                    << \"decomposition tets to set \" << faces.name() << endl;\n                faces.instance() = mesh.pointsInstance();\n                faces.write();\n                if (surfWriter && surfWriter->enabled())\n                {\n                    mergeAndWrite(*surfWriter, faces);\n                }\n            }\n        }\n    }\n\n    if (allGeometry)"
+      },
+      {
+        "start": 937,
+        "end": 955,
+        "text": "    if (allGeometry)\n    {\n        cellSet cells(mesh, \"concaveCells\", mesh.nCells()/100);\n        if (mesh.checkConcaveCells(true, &cells))\n        {\n            noFailedChecks++;\n\n            label nCells = returnReduce(cells.size(), sumOp<label>());\n\n            Info<< \"  <<Writing \" << nCells\n                << \" concave cells to set \" << cells.name() << endl;\n            cells.instance() = mesh.pointsInstance();\n            cells.write();\n            if (surfWriter && surfWriter->enabled())\n            {\n                mergeAndWrite(*surfWriter, cells);\n            }\n        }\n    }"
+      }
+    ],
+    "applicationSourceNotInstalledInConda": true
+  },
+  "installedCheckMeshELF": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/checkMesh",
+    "sha256": "e38280298727e15e703a8bed2b5d3c8788f2408a3061c125f02a327fc4e0e7de",
+    "scope": "The installed library source implements the face-plane test; the matching official v2412 application source explicitly increments noFailedChecks. No candidate mesh/native executable was run."
+  }
+}

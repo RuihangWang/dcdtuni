@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "source": "frontend",
+  "projectName": "CDULoopTest",
+  "gravity": [0, -9.81, 0],
+  "fluid": {
+    "rho_kg_m3": 997.0,
+    "cp_J_kgK": 4182.0,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1.0,
+    "N_t": 5,
+    "bdf_order": 1
+  },
+  "racks": [],
+  "nodes": [
+    {"id": "supply", "type": "pressure_bc", "position_m": [0,0,0], "bc": {"P_Pa": 200000, "T_K": 298.15}},
+    {"id": "rack_out", "type": "junction", "position_m": [1.0,0,0]},
+    {"id": "hx_out", "type": "junction", "position_m": [1.1,0,0]},
+    {"id": "return", "type": "pressure_bc", "position_m": [2,0,0], "bc": {"P_Pa": 100000}}
+  ],
+  "edges": [
+    {
+      "id": "cold_plate_1", "type": "cold_plate",
+      "from": "supply", "to": "rack_out",
+      "params": {"dp_a": 500.0, "dp_b": 50.0, "UA_W_per_K": 150.0,
+                 "C_solid_J_per_K": 50.0, "V_fluid_m3": 5e-6, "Q_W": 500.0}
+    },
+    {
+      "id": "cdu_hx", "type": "heat_exchanger",
+      "from": "rack_out", "to": "hx_out",
+      "params": {"UA_W_per_K": 5000.0, "T_secondary_K": 293.15,
+                 "dp_a": 500.0, "dp_b": 50.0}
+    },
+    {
+      "id": "return_pipe", "type": "pipe",
+      "from": "hx_out", "to": "return",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[1.1,0,0],[2,0,0]], "K_minor_per_bend": 0.5}
+    }
+  ],
+  "events": [],
+  "initial_conditions": {"T_fluid_K": 298.15, "T_solid_K": 340.0, "P_uniform_Pa": 150000},
+  "solver": {
+    "optimizer": "adam", "lr": 1.0, "max_epochs": 15000, "convergence_tol": 1e-4,
+    "weights": {"mass": 1.0, "momentum": 1e-5, "energy": 1.0, "bc": 100.0, "ic": 10.0}
+  }
+}

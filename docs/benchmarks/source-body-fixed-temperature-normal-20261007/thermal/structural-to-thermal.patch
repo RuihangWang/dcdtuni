@@ -1,0 +1,93 @@
+--- structural-base/src/frontend/shared/js/cfdrun_build.js
++++ thermal-candidate/src/frontend/shared/js/cfdrun_build.js
+@@ -969,6 +969,7 @@
+ 
+             function buildComprehensiveStlMap(state) {
+             const stlMap = {};
++            const nativeFixedPatches = new Map();
+         
+             // Reuse buildCfdrunJson's numbered-patch solid name (ACU / box patches).
+             const patchSolidNameFor = (mdl, faceId, patchId) => {
+@@ -1143,12 +1144,15 @@
+                                 const patchCfd = patch.cfd || {};
+                                 if (patchCfd.fixedTemperature == null) return;
+                                 const hpSolid = patchSolidNameFor(model, fid, patch.id);
+-                                put(sanitizeName(modelName + '_' + hpSolid), {
++                                if (stlMap[hpSolid] || nativeFixedPatches.has(hpSolid))
++                                    throw new Error('fixed-temperature patch conflicts with an existing semantic binding');
++                                put(hpSolid, {
+                                     kind: 'wall_object',
+-                                    objectPath: 'constructions.boxes.' + model.uid,
++                                    objectPath: 'constructions.' + (model.kind === 'cdu' ? 'cdus' : 'boxes') + '.' + model.uid,
+                                     physics: { heatPower: 0, fixedTemperature: patchCfd.fixedTemperature },
+                                     objSize: objSize,
+                                     source: { modelUid: model.uid, faceId: fid, patchId: patch.id } });
++                                nativeFixedPatches.set(hpSolid, { model, faceId: fid, patchId: patch.id, entry: stlMap[hpSolid] });
+                             });
+                         });
+                         // Legacy cfd.heatPatches (power-based) → wall_object too.
+@@ -1460,6 +1464,64 @@
+                 });
+             }
+ 
++            // Fixed-temperature native patches use the same already-scoped OO name.
++            // Bind only the real current patch, never a body, merged role or custom STL.
++            if (nativeFixedPatches.size) {
++                const catalogue = window.geometryScene?.getGroupedStlSourceCatalogue?.(groupedMap);
++                const fileNames = Object.keys(groupedMap).sort();
++                if (!catalogue || !Array.isArray(catalogue.regions)
++                    || Object.keys(catalogue.files || {}).sort().join('\0') !== fileNames.join('\0')
++                    || fileNames.some(name => catalogue.files[name] !== groupedMap[name]))
++                    throw new Error('fixed-temperature patch lacks exact grouped OO emission');
++                const blocks = new Map();
++                fileNames.forEach(filename => {
++                    const re = /^solid[ \t]+([^\r\n]+)\r?\n([\s\S]*?)^endsolid[ \t]+([^\r\n]+)[ \t]*\r?\n?/gm;
++                    let row;
++                    while ((row = re.exec(groupedMap[filename])) !== null) {
++                        const name = row[1].trim(), key = filename + '\0' + name;
++                        if (name !== row[3].trim() || blocks.has(key))
++                            throw new Error('fixed-temperature patch has inconsistent or duplicate literal solid');
++                        blocks.set(key, row[0]);
++                    }
++                });
++                nativeFixedPatches.forEach((binding, name) => {
++                    const { model, faceId, patchId, entry } = binding;
++                    const bucket = model.kind === 'cdu' ? 'cdus' : 'boxes';
++                    if (ctx.state.constructions?.[bucket]?.[model.uid] !== model
++                        || model.customSTLBase64 || (Array.isArray(model.solidRegions) && model.solidRegions.length)
++                        || model.customMesh?.stlBase64 || (Array.isArray(model.customMesh?.solidRegions) && model.customMesh.solidRegions.length)
++                        || stlMap[name] !== entry)
++                        throw new Error('fixed-temperature patch lacks a current native construction owner');
++                    const parts = _pure()._boxGeometryProduct(model, model.kind).parts.filter(part => part.exportName === name);
++                    if (!parts.length || parts.some(part => part.isBaseWall || part.faceId !== faceId
++                        || !Array.isArray(part.refIds) || part.refIds.length !== 1 || part.refIds[0] !== patchId))
++                        throw new Error('fixed-temperature patch name aliases a body or another physical patch');
++                    const rows = catalogue.regions.filter(row => row.solidName === name);
++                    if (rows.length !== 1) throw new Error('fixed-temperature patch has ambiguous or absent emitted ownership');
++                    const row = rows[0];
++                    if (row.sourceEntityUid !== model.uid || row.sourceEntitySnapshot !== JSON.stringify(model)
++                        || row.operation !== 'modelBoundary'
++                        || blocks.get(row.filename + '\0' + name) !== row.block
++                        || !Number.isSafeInteger(row.facetCount) || row.facetCount < 1)
++                        throw new Error('fixed-temperature patch has stale or unsupported OO emission');
++                    const vertices = Array.from(row.block.matchAll(/vertex\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/g),
++                        m => [Number(m[1]), Number(m[2]), Number(m[3])]);
++                    if (vertices.length !== row.facetCount * 3 || vertices.some(v => v.some(n => !Number.isFinite(n))))
++                        throw new Error('fixed-temperature patch has invalid literal triangles');
++                    let areaM2 = 0;
++                    for (let i = 0; i < vertices.length; i += 3) {
++                        const a = vertices[i], b = vertices[i + 1], c = vertices[i + 2];
++                        const u = b.map((v, j) => v - a[j]), v = c.map((n, j) => n - a[j]);
++                        areaM2 += Math.hypot(u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]) / 2;
++                    }
++                    if (!Number.isFinite(areaM2) || areaM2 <= 1e-8)
++                        throw new Error('fixed-temperature patch has invalid world-space area');
++                    entry.path = row.filename;
++                    entry.stlFileId = 'stl_' + String(fileNames.indexOf(row.filename)).padStart(3, '0');
++                    entry.areaM2 = areaM2;
++                });
++            }
++
+             const parseSolidNames = (stl) => {
+                 const names = [];
+                 if (!stl) return names;

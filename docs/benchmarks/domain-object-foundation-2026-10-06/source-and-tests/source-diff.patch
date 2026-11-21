@@ -1,0 +1,1561 @@
+--- a/src/frontend/react/src/domain/BaseEntity.ts
++++ b/src/frontend/react/src/domain/BaseEntity.ts
+@@ -0,0 +1,135 @@
++/** Renderer-independent, derived views. The source record remains plain project JSON. */
++export type EntityRecord = Record<string, unknown>
++export type EntityFamily = 'geometry' | 'equipment' | 'network' | 'child' | 'definition' | 'unknown'
++export interface EntityDefinition {
++  readonly type: string
++  readonly version: 1
++  readonly family: EntityFamily
++  readonly kind: string
++  readonly geometryStrategy: 'body' | 'surface' | 'polyline' | 'imported' | 'room' | 'record' | 'none'
++  readonly aliases: readonly string[]
++}
++export interface EntityIdentity {
++  readonly uid: string
++  readonly path: string
++  readonly parentPath?: string
++  readonly parentUid?: string
++  readonly source: 'record' | 'id' | 'key' | 'derived'
++}
++export function objectRecord(value: unknown): EntityRecord | null {
++  return value !== null && typeof value === 'object' && !Array.isArray(value)
++    ? value as EntityRecord : null
++}
++export class BaseEntity {
++  constructor(
++    readonly definition: EntityDefinition,
++    readonly identity: EntityIdentity,
++    readonly record: EntityRecord,
++    readonly supported = true,
++  ) {}
++  get uid(): string { return this.identity.uid }
++  get type(): string { return this.definition.type }
++  get kind(): string { return this.definition.kind }
++  /** Snapshot only on explicit request; enumeration never clones geometry/texture payloads. */
++  toRecord(): EntityRecord { return structuredClone(this.record) }
++  geometry() {
++    return {
++      type: this.type, strategy: this.definition.geometryStrategy,
++      geometry: objectRecord(this.record.geometry), polygon: this.record.polygon,
++      sourcePath: this.identity.path,
++    }
++  }
++  render() {
++    const meta = objectRecord(this.record.meta)
++    const display = objectRecord(meta?.display)
++    return {
++      type: this.type, sourcePath: this.identity.path, modelUid: this.uid,
++      label: typeof meta?.name === 'string' ? meta.name : this.uid,
++      // The persisted activation flag is not final viewport visibility or a
++      // solver inclusion decision; renderer/physics adapters own those policies.
++      enabled: meta?.enabled !== false,
++      display: display ?? null,
++      opacity: typeof display?.opacity === 'number' ? display.opacity : 1,
++      supported: this.supported,
++    }
++  }
++  physics() {
++    return {
++      type: this.type, sourcePath: this.identity.path, modelUid: this.uid,
++      parentUid: this.identity.parentUid,
++      declarations: {
++        cfd: this.record.cfd, physics: this.record.physics,
++        cooling: this.record.cooling, liquidCooling: this.record.liquidCooling,
++      },
++    }
++  }
++  requireSupported(operation: string): void {
++    if (!this.supported) throw new Error('Unsupported entity ' + this.identity.path + ' for ' + operation)
++  }
++}
++export class GeometryEntity extends BaseEntity {}
++export class EquipmentEntity extends GeometryEntity {}
++export class RackEntity extends EquipmentEntity {
++  serverUids(): string[] {
++    const constructions = objectRecord(this.record.constructions)
++    return Object.entries(objectRecord(constructions?.servers) ?? {}).map(([key, value]) => {
++      const record = objectRecord(value)
++      return typeof record?.uid === 'string' ? record.uid : key
++    })
++  }
++}
++export class NetworkEntity extends BaseEntity {
++  override physics() {
++    return { ...super.physics(), topology: { nodes: this.record.nodes, edges: this.record.edges } }
++  }
++}
++export class RoomEntity extends GeometryEntity {
++  override geometry() {
++    return { ...super.geometry(), geometry: this.record, polygon: this.record.plane }
++  }
++}
++export class ChildEntity extends BaseEntity {}
++export class OpaqueEntity extends BaseEntity {}
++
++/** Named domain types share the same data contract; carriers stay in adapters. */
++export class BoxEntity extends GeometryEntity {}
++export class CustomMeshEntity extends GeometryEntity {}
++export class SurfaceEntity extends GeometryEntity {}
++export class WallEntity extends SurfaceEntity {}
++export class PartitionWallEntity extends WallEntity {}
++export class BaffleEntity extends SurfaceEntity {}
++export class FloorEntity extends SurfaceEntity {}
++export class RowEntity extends GeometryEntity {}
++export class ServerEntity extends EquipmentEntity {}
++export class AcuEntity extends EquipmentEntity {}
++export class CduEntity extends EquipmentEntity {}
++export class PipeSegmentEntity extends GeometryEntity {}
++export class PipeJunctionEntity extends GeometryEntity {}
++export class PipeEntity extends GeometryEntity {}
++export class SensorEntity extends BaseEntity {}
++export class LiquidFlowNetworkEntity extends NetworkEntity {}
++export class HeatGainEntity extends BaseEntity {}
++export class RaisedFloorEntity extends FloorEntity {}
++export class FalseCeilingEntity extends SurfaceEntity {}
++export class RackServerEntity extends ServerEntity {}
++export class ColdPlatePairEntity extends ChildEntity {}
++export class CoolingPortEntity extends ChildEntity {}
++export class ValveEntity extends ChildEntity {}
++export class PipeWaypointEntity extends ChildEntity {}
++export class ModelFaceEntity extends ChildEntity {}
++export class SurfacePatchEntity extends ChildEntity {}
++export class LiquidNetworkNodeEntity extends ChildEntity {}
++export class LiquidNetworkEdgeEntity extends ChildEntity {}
++export class InstrumentProbeEntity extends ChildEntity {}
++export class InstrumentMeasurementEntity extends ChildEntity {}
++export class ModelDefinitionEntity extends ChildEntity {}
++/** Only an explicit asset type hydrates this class; names do not assign physics. */
++export class PduEntity extends BoxEntity {}
++export class ChipEntity extends ChildEntity {}
++export class ColdPlateEntity extends ChildEntity {}
++export class RackPartitionEntity extends ChildEntity {}
++export class RdhxEntity extends ChildEntity {}
++export class HeatExchangerEntity extends ChildEntity {}
++export class PumpEntity extends ChildEntity {}
++export class FanEntity extends ChildEntity {}
++export class GeometryCutoutEntity extends ChildEntity {}
+--- a/src/frontend/react/src/domain/entityRegistry.ts
++++ b/src/frontend/react/src/domain/entityRegistry.ts
+@@ -0,0 +1,116 @@
++import * as entities from './BaseEntity'
++import type { BaseEntity, EntityDefinition, EntityIdentity, EntityRecord } from './BaseEntity'
++
++/** Registry version is independent of the persisted cfdproj schema version. */
++export const ENTITY_REGISTRY_VERSION = 1 as const
++export const CONSTRUCTION_BUCKET_TYPES = {
++  boxes: 'box', customMeshes: 'custom', surfaces: 'surface', walls: 'wall',
++  partitionWalls: 'partitionWall', baffles: 'baffle', floors: 'floor',
++  racks: 'rack', rows: 'row', servers: 'server', acus: 'acu', cdus: 'cdu',
++  pipeSegments: 'pipe_segment', pipeJunctions: 'pipe_junction', pipes: 'pipe',
++  sensors: 'sensor', liquidFlowNetworks: 'liquidFlowNetwork', heatGains: 'heat_gain',
++} as const
++/** Existing shared exporter order: networks are topology, not STL models. */
++export const LEGACY_EXPORT_BUCKETS = Object.keys(CONSTRUCTION_BUCKET_TYPES).filter(b => b !== 'liquidFlowNetworks')
++export const SINGLETON_TYPES = ['raisedFloor', 'falseCeiling'] as const
++export const CHILD_TYPES = [
++  'rackServer', 'coldPlatePair', 'coolingPort', 'valve', 'pipeWaypoint',
++  'modelFace', 'surfacePatch', 'liquidNetworkNode', 'liquidNetworkEdge',
++  'instrumentProbe', 'instrumentMeasurement', 'modelDefinition',
++  'chip', 'coldPlate', 'rackPartition', 'rdhx', 'heatExchanger', 'pump', 'fan', 'geometryCutout',
++] as const
++
++const ENTITY_CLASSES: Record<string, typeof entities.BaseEntity> = {
++  boxes: entities.BoxEntity,
++  customMeshes: entities.CustomMeshEntity,
++  surfaces: entities.SurfaceEntity,
++  walls: entities.WallEntity,
++  partitionWalls: entities.PartitionWallEntity,
++  baffles: entities.BaffleEntity,
++  floors: entities.FloorEntity,
++  racks: entities.RackEntity,
++  rows: entities.RowEntity,
++  servers: entities.ServerEntity,
++  acus: entities.AcuEntity,
++  cdus: entities.CduEntity,
++  pipeSegments: entities.PipeSegmentEntity,
++  pipeJunctions: entities.PipeJunctionEntity,
++  pipes: entities.PipeEntity,
++  sensors: entities.SensorEntity,
++  liquidFlowNetworks: entities.LiquidFlowNetworkEntity,
++  heatGains: entities.HeatGainEntity,
++  room: entities.RoomEntity,
++  raisedFloor: entities.RaisedFloorEntity,
++  falseCeiling: entities.FalseCeilingEntity,
++  rackServer: entities.RackServerEntity,
++  coldPlatePair: entities.ColdPlatePairEntity,
++  coolingPort: entities.CoolingPortEntity,
++  valve: entities.ValveEntity,
++  pipeWaypoint: entities.PipeWaypointEntity,
++  modelFace: entities.ModelFaceEntity,
++  surfacePatch: entities.SurfacePatchEntity,
++  liquidNetworkNode: entities.LiquidNetworkNodeEntity,
++  liquidNetworkEdge: entities.LiquidNetworkEdgeEntity,
++  instrumentProbe: entities.InstrumentProbeEntity,
++  instrumentMeasurement: entities.InstrumentMeasurementEntity,
++  modelDefinition: entities.ModelDefinitionEntity,
++  pdu: entities.PduEntity,
++  chip: entities.ChipEntity,
++  coldPlate: entities.ColdPlateEntity,
++  rackPartition: entities.RackPartitionEntity,
++  rdhx: entities.RdhxEntity,
++  heatExchanger: entities.HeatExchangerEntity,
++  pump: entities.PumpEntity,
++  fan: entities.FanEntity,
++  geometryCutout: entities.GeometryCutoutEntity,
++}
++
++function definition(type: string, kind: string, family: EntityDefinition['family'],
++  geometryStrategy: EntityDefinition['geometryStrategy'], aliases: readonly string[] = [kind]): EntityDefinition {
++  return Object.freeze({ type, version: 1, kind, family, geometryStrategy, aliases: Object.freeze([...aliases]) })
++}
++export class EntityRegistry {
++  readonly version = ENTITY_REGISTRY_VERSION
++  private readonly definitions = new Map<string, EntityDefinition>()
++  constructor() {
++    for (const [bucket, kind] of Object.entries(CONSTRUCTION_BUCKET_TYPES)) {
++      const equipment = ['racks', 'servers', 'acus', 'cdus'].includes(bucket)
++      const surface = ['surfaces', 'walls', 'partitionWalls', 'baffles', 'floors'].includes(bucket)
++      const pipe = ['pipeSegments', 'pipes'].includes(bucket)
++      const network = bucket === 'liquidFlowNetworks'
++      this.definitions.set(bucket, definition(bucket, kind,
++        network ? 'network' : equipment ? 'equipment' : 'geometry',
++        network ? 'none' : surface ? 'surface' : pipe ? 'polyline' : bucket === 'customMeshes' ? 'imported' : 'body',
++        bucket === 'boxes' ? ['box', 'heat_source', 'crh', 'cold_plate', bucket] : [kind, bucket]))
++    }
++    this.definitions.set('room', definition('room', 'room', 'geometry', 'room'))
++    this.definitions.set('pdu', definition('pdu', 'box', 'equipment', 'body', ['box']))
++    for (const type of SINGLETON_TYPES) this.definitions.set(type, definition(type, type, 'geometry', 'surface'))
++    for (const type of CHILD_TYPES) this.definitions.set(type, definition(type, type,
++      type === 'modelDefinition' ? 'definition' : 'child', 'record'))
++  }
++  types(): readonly string[] { return [...this.definitions.keys()] }
++  resolve(type: string, version: number = 1): EntityDefinition | undefined {
++    return version === this.version ? this.definitions.get(type) : undefined
++  }
++  create(type: string, identity: EntityIdentity, record: EntityRecord): BaseEntity {
++    const entry = this.resolve(type)
++    const meta = record.meta !== null && typeof record.meta === 'object' ? record.meta as EntityRecord : null
++    const declaredKind = typeof meta?.legacyKind === 'string' ? meta.legacyKind
++      : typeof record.kind === 'string' ? record.kind : undefined
++    const supported = !!entry && (!declaredKind || entry.family === 'child' || entry.family === 'definition'
++      || type === 'room' || SINGLETON_TYPES.includes(type as typeof SINGLETON_TYPES[number])
++      || entry.aliases.includes(declaredKind))
++    const def = entry ?? definition(type, declaredKind ?? type, 'unknown', 'none')
++    // Preserve legacy BOX subtypes without rewriting their source records.
++    const effective = declaredKind && supported && def.aliases.includes(declaredKind)
++      ? Object.freeze({ ...def, kind: declaredKind }) : def
++    if (!supported) return new entities.OpaqueEntity(
++      declaredKind ? Object.freeze({ ...def, kind: declaredKind }) : def, identity, record, false)
++    const asset = entities.objectRecord(record.assetDefinition)
++    const Type = type === 'boxes' && asset?.type === 'pdu' ? entities.PduEntity : ENTITY_CLASSES[type]
++    if (!Type) return new entities.OpaqueEntity(effective, identity, record, false)
++    return new Type(effective, identity, record)
++  }
++}
++export const entityRegistry = new EntityRegistry()
+--- a/src/frontend/react/src/domain/DomainProject.ts
++++ b/src/frontend/react/src/domain/DomainProject.ts
+@@ -0,0 +1,152 @@
++import type { CfdProject } from '../schema/cfdproj'
++import { objectRecord, type BaseEntity, type EntityRecord } from './BaseEntity'
++import { CONSTRUCTION_BUCKET_TYPES, LEGACY_EXPORT_BUCKETS, SINGLETON_TYPES, entityRegistry } from './entityRegistry'
++
++const escapePath = (key: string) => key.replace(/~/g, '~0').replace(/\//g, '~1')
++function pathOf(parts: readonly string[]): string { return '/' + parts.map(escapePath).join('/') }
++
++/** A cheap derived view: no methods or descriptors are attached to project JSON. */
++export class DomainProject {
++  constructor(readonly document: CfdProject) {}
++  private entity(type: string, value: unknown, parts: string[], key: string, parent?: BaseEntity): BaseEntity | null {
++    const record = objectRecord(value)
++    if (!record) return null
++    const ownUid = typeof record.uid === 'string' && record.uid ? record.uid
++      : typeof record.id === 'string' && record.id ? record.id : key
++    return entityRegistry.create(type, {
++      uid: ownUid, path: pathOf(parts), source: typeof record.uid === 'string' && record.uid ? 'record'
++        : typeof record.id === 'string' && record.id ? 'id' : 'key',
++      ...(parent ? { parentPath: parent.identity.path, parentUid: parent.uid } : {}),
++    }, record)
++  }
++  /** Caller-selected order is retained, including insertion order inside each bucket. */
++  topLevel(bucketOrder: readonly string[] = Object.keys(CONSTRUCTION_BUCKET_TYPES)): BaseEntity[] {
++    const result: BaseEntity[] = []
++    const constructions = objectRecord(this.document.constructions)
++    for (const bucket of bucketOrder) {
++      const members = objectRecord(constructions?.[bucket])
++      for (const [key, value] of Object.entries(members ?? {})) {
++        const entity = this.entity(bucket, value, ['constructions', bucket, key], key)
++        if (entity) result.push(entity)
++      }
++    }
++    return result
++  }
++  structuralForAirExport(): BaseEntity[] {
++    const entities = this.topLevel(LEGACY_EXPORT_BUCKETS)
++    // Unknown records remain loadable/saveable, but a declared geometric body
++    // requires a registry entry before a physical snapshot can be exported.
++    for (const entity of entities) {
++      entity.requireSupported('air export')
++      if (entity.identity.source !== 'record') throw new Error('Missing stable uid for air export: ' + entity.identity.path)
++    }
++    for (const entity of this.allEntities()) {
++      if (!entity.supported && (entity.record.geometry !== undefined || entity.record.polygon !== undefined))
++        throw new Error('Unsupported geometric bucket ' + entity.identity.path)
++    }
++    return entities
++  }
++  /** Full identity inventory is opt-in; rendering enumeration does not walk every face. */
++  allEntities(): BaseEntity[] {
++    const top = this.topLevel()
++    const result = [...top]
++    const room = objectRecord(this.document.geometry)
++    if (room) result.push(entityRegistry.create('room', {
++      uid: String(this.document.uid ?? '') + '/room', path: '/geometry', source: 'derived',
++    }, room))
++    const constructions = objectRecord(this.document.constructions)
++    for (const slot of SINGLETON_TYPES) {
++      const entity = this.entity(slot, constructions?.[slot], ['constructions', slot], String(this.document.uid ?? '') + '/' + slot)
++      if (entity) result.push(entity)
++    }
++    const append = (type: string, value: unknown, parts: string[], parent?: BaseEntity) => {
++      if (Array.isArray(value)) value.forEach((item, index) => {
++        const entity = this.entity(type, item, [...parts, String(index)], String(index), parent)
++        if (entity) { result.push(entity); walk(entity, [...parts, String(index)]) }
++      })
++      else for (const [key, item] of Object.entries(objectRecord(value) ?? {})) {
++        const entity = this.entity(type, item, [...parts, key], key, parent)
++        if (entity) { result.push(entity); walk(entity, [...parts, key]) }
++      }
++    }
++    const appendOne = (type: string, value: unknown, parts: string[], parent?: BaseEntity) => {
++      const entity = this.entity(type, value, parts, parts[parts.length - 1]!, parent)
++      if (entity) { result.push(entity); walk(entity, parts) }
++    }
++    const appendUnknown = (type: string, value: unknown, parts: string[], parent?: BaseEntity) => {
++      const record = objectRecord(value)
++      if (record && (record.uid !== undefined || record.geometry !== undefined || record.polygon !== undefined))
++        appendOne(type, value, parts, parent)
++      else append(type, value, parts, parent)
++    }
++    const walk = (entity: BaseEntity, parts: string[]) => {
++      const record = entity.record
++      const geometry = objectRecord(record.geometry)
++      const cooling = objectRecord(record.cooling)
++      const liquidCooling = objectRecord(record.liquidCooling)
++      const nested = objectRecord(record.constructions)
++      const knownNested = new Set<string>()
++      const nestedMany = (key: string, type: string) => {
++        knownNested.add(key)
++        append(type, nested?.[key], [...parts, 'constructions', key], entity)
++      }
++      const nestedOne = (key: string, type: string) => {
++        knownNested.add(key)
++        appendOne(type, nested?.[key], [...parts, 'constructions', key], entity)
++      }
++      if (entity.type === 'racks') {
++        nestedMany('servers', 'rackServer')
++        nestedMany('partitions', 'rackPartition')
++        nestedOne('rdhx', 'rdhx')
++      }
++      if (entity.type === 'servers' || entity.type === 'rackServer') {
++        nestedMany('chips', 'chip')
++        nestedMany('coldPlates', 'coldPlate')
++      }
++      if (entity.type === 'acus') {
++        nestedOne('heatExchanger', 'heatExchanger')
++        nestedMany('fans', 'fan')
++      }
++      if (entity.type === 'cdus') {
++        nestedOne('heatExchanger', 'heatExchanger')
++        nestedOne('pump', 'pump')
++        nestedOne('valve', 'valve')
++      }
++      for (const [key, value] of Object.entries(nested ?? {})) {
++        if (!knownNested.has(key)) appendUnknown('unknownConstruction:' + key, value, [...parts, 'constructions', key], entity)
++      }
++      append('coldPlatePair', liquidCooling?.cpCuPairs, [...parts, 'liquidCooling', 'cpCuPairs'], entity)
++      append('coolingPort', cooling?.ports, [...parts, 'cooling', 'ports'], entity)
++      append('coolingPort', liquidCooling?.ports, [...parts, 'liquidCooling', 'ports'], entity)
++      append('valve', cooling?.valves, [...parts, 'cooling', 'valves'], entity)
++      append('pipeWaypoint', geometry?.waypoints, [...parts, 'geometry', 'waypoints'], entity)
++      append('modelFace', geometry?.faces, [...parts, 'geometry', 'faces'], entity)
++      append('modelFace', record.faces, [...parts, 'faces'], entity)
++      append('geometryCutout', geometry?.cutouts, [...parts, 'geometry', 'cutouts'], entity)
++      append('surfacePatch', record.patches, [...parts, 'patches'], entity)
++      if (entity.type === 'liquidFlowNetworks') {
++        append('liquidNetworkNode', record.nodes, [...parts, 'nodes'], entity)
++        append('liquidNetworkEdge', record.edges, [...parts, 'edges'], entity)
++      }
++    }
++    for (const entity of [...result]) walk(entity, entity.identity.path.slice(1).split('/').map(s => s.replace(/~1/g, '/').replace(/~0/g, '~')))
++    for (const [bucket, members] of Object.entries(constructions ?? {})) {
++      if (Object.prototype.hasOwnProperty.call(CONSTRUCTION_BUCKET_TYPES, bucket) || SINGLETON_TYPES.includes(bucket as typeof SINGLETON_TYPES[number])) continue
++      appendUnknown(bucket, members, ['constructions', bucket])
++    }
++    const instrumentation = objectRecord((this.document as unknown as EntityRecord).instrumentation)
++    append('instrumentProbe', instrumentation?.probes, ['instrumentation', 'probes'])
++    append('instrumentMeasurement', instrumentation?.measurements, ['instrumentation', 'measurements'])
++    const models = objectRecord((this.document as unknown as EntityRecord).models)
++    for (const [group, definitions] of Object.entries(models ?? {})) {
++      for (const [kind, records] of Object.entries(objectRecord(definitions) ?? {})) {
++        const fields = objectRecord(records)
++        // Model-library dictionaries vary by group: a definition is identified by
++        // its actual path, never by an invented construction or solver UID.
++        if (fields && ('uid' in fields || 'type' in fields || 'geometry' in fields)) append('modelDefinition', { [kind]: fields }, ['models', group])
++        else append('modelDefinition', records, ['models', group, kind])
++      }
++    }
++    return result
++  }
++}
+--- a/src/frontend/react/src/domain/projectCodec.ts
++++ b/src/frontend/react/src/domain/projectCodec.ts
+@@ -0,0 +1,36 @@
++import type { CfdProject } from '../schema/cfdproj'
++import { DomainProject } from './DomainProject'
++import { objectRecord, type EntityRecord } from './BaseEntity'
++
++/** The established runtime-only test/editor bag; other unknown keys are extensions. */
++export const RUNTIME_ONLY_PROJECT_KEYS = ['__runtimeOnly'] as const
++
++/** Ordered canonical keys first, then lossless JSON document extensions. */
++export function encodeProjectRecord(source: EntityRecord, canonicalKeys: readonly string[]): EntityRecord {
++  const out: EntityRecord = {}
++  const assign = (key: string, value: unknown) => Object.defineProperty(out, key, {
++    value, enumerable: true, configurable: true, writable: true,
++  })
++  for (const key of canonicalKeys) if (Object.prototype.hasOwnProperty.call(source, key)) assign(key, source[key])
++  for (const [key, value] of Object.entries(source)) {
++    if (canonicalKeys.includes(key) || RUNTIME_ONLY_PROJECT_KEYS.includes(key as typeof RUNTIME_ONLY_PROJECT_KEYS[number])) continue
++    assign(key, value)
++  }
++  return out
++}
++
++/** Validate before legacy migrations can narrow an integer with bitwise arithmetic. */
++export function projectSchemaVersion(record: EntityRecord): number {
++  const version = Number(record.schemaVersion ?? 0)
++  if (!Number.isSafeInteger(version) || version < 0 || version > 5)
++    throw new Error('Unsupported schemaVersion ' + String(record.schemaVersion))
++  return version
++}
++
++/** Read a migrated document without attaching methods/prototypes or altering data. */
++export function decodeDomainProject(source: unknown): DomainProject {
++  const record = objectRecord(source)
++  if (!record) throw new Error('Expected a plain cfdproj document')
++  projectSchemaVersion(record)
++  return new DomainProject(record as CfdProject)
++}
+--- a/src/frontend/react/src/domain/index.ts
++++ b/src/frontend/react/src/domain/index.ts
+@@ -0,0 +1,4 @@
++export * from './BaseEntity'
++export * from './entityRegistry'
++export * from './DomainProject'
++export * from './projectCodec'
+--- a/src/frontend/react/src/io/projectFiles.ts
++++ b/src/frontend/react/src/io/projectFiles.ts
+@@ -16,6 +16,7 @@
+  */
+ 
+ import type { CfdProject } from '../schema/cfdproj'
++import { decodeDomainProject, encodeProjectRecord, projectSchemaVersion } from '../domain'
+ import { stlNaming } from '../legacy/stlNaming'
+ // Side-effect import: the shared .cfdproj modules attach `migrateCfdprojToV5`
+ // to `window`, and the validation below calls it. Without this the module
+@@ -186,9 +187,8 @@
+ /**
+  * The canonical document keys (V4 order, STL_generate.html:14884, plus v5's `transient`).
+  *
+- * A whitelist rather than a plain stringify of the live project: anything a
+- * panel parks on the project object at runtime would otherwise be written into
+- * the .cfdproj and then fail the Python schema on the way back in.
++ * Established fields keep canonical order. JSON extension fields are retained;
++ * the domain codec excludes only the explicit editor runtime bag.
+  */
+ const SAVE_KEYS = [
+   'schemaVersion',
+@@ -218,9 +218,7 @@
+   if(errors.length)throw new Error(errors.map(e=>`${e.path}: ${e.msg}`).join('; '))
+   tm.stripTrackedFields(src)
+   src.schemaVersion = 5
+-  const out: Record<string, unknown> = {}
+-  for (const key of SAVE_KEYS) if (key in src) out[key] = src[key]
+-  return out
++  return encodeProjectRecord(src, SAVE_KEYS)
+ }
+ 
+ /** Two-space JSON, the same bytes the legacy editor writes. */
+@@ -269,8 +267,8 @@
+   // Read the version off the RAW document: the migrator passes anything already
+   // at v5 or later straight through, so the two agree, and a v6 file has to be
+   // refused rather than half-understood.
+-  const version = Number(raw.schemaVersion ?? 0) | 0
+-  if (version > 5) return { ok: false, error: `Unsupported schemaVersion ${raw.schemaVersion}` }
++  try { projectSchemaVersion(raw) }
++  catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) } }
+   // One marker per document generation. `construction` — singular, an array — is
+   // v3's, and leaving it out refused EVERY v3 file: all sixteen paper labels and
+   // every project saved before b821e27. The shared migrator has always handled
+@@ -292,7 +290,8 @@
+   }
+   const errors=[...projectExperimentErrors(migrated),...projectHybridHeatBudgetErrors(migrated),...projectGeometryTopologyErrors(migrated)]
+   if(errors.length)return {ok:false,error:errors.map(e=>`${e.path}: ${e.msg}`).join('; ')}
+-  return { ok: true, project: migrated as unknown as CfdProject }
++  try { return { ok: true, project: decodeDomainProject(migrated).document } }
++  catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) } }
+ }
+ 
+ /** Parse the text of a picked file and validate it. Parse errors come back as messages, not throws. */
+--- a/src/frontend/react/src/schema/cfdproj.ts
++++ b/src/frontend/react/src/schema/cfdproj.ts
+@@ -13,6 +13,7 @@
+  */
+ 
+ import type { TranslationKey } from '../i18n'
++import { DomainProject } from '../domain/DomainProject'
+ 
+ export interface Vec3 {
+   x: number
+@@ -191,15 +192,8 @@
+ 
+ /** Every construction, in bucket order then insertion order. */
+ export function allModels(project: CfdProject): TreeModel[] {
+-  const out: TreeModel[] = []
+-  for (const { bucket } of CATEGORIES) {
+-    const items = project.constructions?.[bucket]
+-    if (!items) continue
+-    for (const model of Object.values(items)) {
+-      if (model && typeof model === 'object') out.push({ bucket, model })
+-    }
+-  }
+-  return out
++  return new DomainProject(project).topLevel(CATEGORIES.map(item => item.bucket))
++    .map(entity => ({ bucket: entity.type as Bucket, model: entity.record as unknown as Construction }))
+ }
+ 
+ export function modelsIn(project: CfdProject, bucket: Bucket): Construction[] {
+--- a/src/frontend/react/src/run/runSubmit.ts
++++ b/src/frontend/react/src/run/runSubmit.ts
+@@ -10,8 +10,8 @@
+ 
+ import type * as THREE from 'three'
+ import type { CfdProject } from '../schema/cfdproj'
++import { DomainProject } from '../domain/DomainProject'
+ import { t } from '../i18n'
+-import { stateV4 } from '../legacy/cfdprojModules'
+ import { buildManifestV2, createCfdrunBuild, type CfdrunContext } from '../legacy/cfdrunBuild'
+ import { LENGTH_UNITS } from '../lengthUnits'
+ import { MESH_MODES } from './meshConfig'
+@@ -92,7 +92,7 @@
+     project,
+     projectPath,
+     modelUids: () =>
+-      project ? (stateV4().allModels(project) as { uid: string }[]).map((m) => m.uid) : [],
++      project ? new DomainProject(project).structuralForAirExport().map(entity => entity.uid) : [],
+     duplicateSolids: (uids) =>
+       builder && project ? duplicateSolidNames(builder, project, uids) : [],
+     buildManifest: async () => {
+--- a/src/frontend/shared/js/cfdproj_migrate.js
++++ b/src/frontend/shared/js/cfdproj_migrate.js
+@@ -1,6 +1,22 @@
+ (function () {
+   'use strict';
+   const SCHEMA_VERSION = 3;
++
++  // Plain JSON merges must preserve an own "__proto__" extension as data.
++  // Define each own field in source order, retaining overwrite/null-skip semantics.
++  function _setOwn(target, key, value) {
++    Object.defineProperty(target, key, {
++      value, enumerable: true, configurable: true, writable: true,
++    });
++  }
++
++  function _assignRecord(target, ...sources) {
++    for (const source of sources) {
++      if (source == null) continue;
++      for (const key of Object.keys(source)) _setOwn(target, key, source[key]);
++    }
++    return target;
++  }
+ 
+   // keys consumed explicitly below; everything else is carried forward verbatim
+   const HANDLED = new Set([
+@@ -77,7 +93,7 @@
+     // forward-compat: carry any unrecognized top-level keys so on-disk batch
+     // conversion never silently drops data.
+     for (const k of Object.keys(raw)) {
+-      if (!HANDLED.has(k) && !(k in v3)) v3[k] = raw[k];
++      if (!HANDLED.has(k) && !Object.prototype.hasOwnProperty.call(v3, k)) _setOwn(v3, k, raw[k]);
+     }
+     return v3;
+   }
+@@ -92,10 +108,15 @@
+ 
+   function _sanitizeUid(s) { return String(s || 'untitled').replace(/[^A-Za-z0-9_]/g, '_'); }
+ 
++  function _bucketForKind(S, kind) {
++    return Object.prototype.hasOwnProperty.call(S.BUCKET_BY_KIND, kind)
++      ? S.BUCKET_BY_KIND[kind] : undefined;
++  }
++
+   function _keyByName(arr) {
+     const out = {};
+     for (const item of Array.isArray(arr) ? arr : []) {
+-      if (item && item.name != null) out[item.name] = item;
++      if (item && item.name != null) _setOwn(out, item.name, item);
+     }
+     return out;
+   }
+@@ -119,7 +140,7 @@
+   }
+ 
+   function _distributePatchPhysics(faces, patchPhysics) {
+-    const left = Object.assign({}, patchPhysics || {});
++    const left = _assignRecord({}, patchPhysics || {});
+     for (const face of _facesList(faces)) {
+       for (const patch of Array.isArray(face.patches) ? face.patches : []) {
+         if (patch && patch.id != null && left[patch.id] !== undefined) {
+@@ -164,15 +185,15 @@
+       if (heatSource.totalPower != null) out.cooling.totalPowerW = heatSource.totalPower;
+       if (heatSource.fixedTemperature != null) out.cooling.fixedTemperatureC = heatSource.fixedTemperature;
+       const { heatMode, totalPower, fixedTemperature, ...hsRest } = heatSource;
+-      Object.assign(out.cooling, hsRest);
++      _assignRecord(out.cooling, hsRest);
+     }
+     if (crh) out.crh = crh;
+     if (coldPlate) out.coldPlate = coldPlate;
+     const { role, patchPhysics, ...cfdRest } = cfd;
+     const leftover = _distributePatchPhysics(out.geometry.faces, patchPhysics);
+     if (Object.keys(leftover).length) out.cooling.unboundPatchPhysics = leftover;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   // Real v3 floors store defaultBC as an object {type:'wall'} (case files are
+@@ -200,12 +221,12 @@
+     if (defaultBCSeedConfigs) out.cooling.defaultSeedConfigs = defaultBCSeedConfigs;
+     out.geometry.openings = (Array.isArray(openings) ? openings : []).map(op => {
+       const { perforated, ...opRest } = op || {};
+-      return perforated ? Object.assign(opRest, { perforation: perforated }) : opRest;
++      return perforated ? _assignRecord(opRest, { perforation: perforated }) : opRest;
+     });
+     const leftover = _distributePatchPhysics(out.geometry.faces, patchPhysics);
+     if (Object.keys(leftover).length) out.cooling.unboundPatchPhysics = leftover;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest);
+   }
+ 
+   function _migratePlanar(m) {  // wall, baffle, partitionWall
+@@ -219,8 +240,8 @@
+     if (holes) out.geometry.openings = holes;
+     const leftover = _distributePatchPhysics(out.geometry.faces, patchPhysics);
+     if (Object.keys(leftover).length) out.cooling.unboundPatchPhysics = leftover;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest);
+   }
+ 
+   // Convert a single v3 construction model `m` to its V4 construction object.
+@@ -229,7 +250,9 @@
+   // path the load migrator uses. Output MUST stay byte-identical to the inline switch.
+   function migrateModelV3toV4(m) {
+     const S = _schema();
+-    const legacy = (S.BUCKET_BY_KIND[m.kind] === 'boxes' && m.kind !== 'box') ? m.kind : undefined;
++    const bucket = _bucketForKind(S, m.kind);
++    const legacy = ((bucket === 'boxes' && m.kind !== 'box') ||
++      (bucket === undefined && typeof m.kind === 'string')) ? m.kind : undefined;
+     let obj;
+     switch (m.kind) {
+       case 'rack': obj = _migrateRack(m); break;
+@@ -284,12 +307,12 @@
+     doc.models.coolingModels.pumps = _keyByName(specs.pumpSpec);
+     doc.models.coolingModels.heatExchangers = _keyByName(specs.hxSpec);
+     doc.models.coolingModels.valves = _keyByName(specs.valveSpec);
+-    if (lc.fluid && lc.fluid.type) doc.models.materialModels.fluids[lc.fluid.type] = lc.fluid;
++    if (lc.fluid && lc.fluid.type) _setOwn(doc.models.materialModels.fluids, lc.fluid.type, lc.fluid);
+ 
+     for (const m of Array.isArray(raw.construction) ? raw.construction : []) {
+       const obj = migrateModelV3toV4(m);
+-      const bucket = S.BUCKET_BY_KIND[m.kind] || 'boxes';
+-      doc.constructions[bucket][obj.uid] = obj;
++      const bucket = _bucketForKind(S, m.kind) || 'boxes';
++      _setOwn(doc.constructions[bucket], obj.uid, obj);
+     }
+ 
+     for (const p of Array.isArray(raw.probeData) ? raw.probeData : []) {
+@@ -298,11 +321,11 @@
+       // migrator). An undefined id would otherwise become the literal 'undefined'
+       // object key here while Python produces an unserializable sentinel key.
+       if (id == null) continue;
+-      doc.instrumentation.probes[id] = Object.assign(
+-        { uid: id, geometry: { location: { x, y, z } }, meta: { name: name, enabled: enabled !== false } }, pRest);
++      _setOwn(doc.instrumentation.probes, id, _assignRecord(
++        { uid: id, geometry: { location: { x, y, z } }, meta: { name: name, enabled: enabled !== false } }, pRest));
+     }
+     for (const s of Array.isArray(raw.sensorData) ? raw.sensorData : []) {
+-      if (s && s.id != null) doc.instrumentation.measurements[s.id] = s;
++      if (s && s.id != null) _setOwn(doc.instrumentation.measurements, s.id, s);
+     }
+ 
+     const split = _splitSimulation(raw.simulation, S);
+@@ -319,13 +342,13 @@
+     if (lc.enabled === true && lc.piping &&
+         (lc.piping.autoGenerated !== undefined || lc.piping.mainPipeSpec || lc.piping.branchPipeSpec)) {
+       const { chains, ...pipingRest } = lc.piping;
+-      doc.constructions.liquidFlowNetworks.net_main = Object.assign(
++      doc.constructions.liquidFlowNetworks.net_main = _assignRecord(
+         { uid: 'net_main', geometry: {}, meta: { name: 'main', enabled: true } }, pipingRest);
+     }
+ 
+     const known = new Set(['schemaVersion', 'meta', 'model', 'construction', 'probeData',
+                            'sensorData', 'simulation', 'liquidCooling', 'ui', 'uid']);
+-    for (const [k, v] of Object.entries(raw)) if (!known.has(k)) doc[k] = v;
++    for (const [k, v] of Object.entries(raw)) if (!known.has(k)) _setOwn(doc, k, v);
+     return doc;
+   }
+ 
+@@ -346,7 +369,7 @@
+     for (const [uid, door] of [['inletDoor', inletDoor], ['outletDoor', outletDoor]]) {
+       if (!door) continue;
+       const { perforated, ...doorRest } = door;
+-      out.geometry.faces.push(Object.assign({ uid, role: 'door' },
++      out.geometry.faces.push(_assignRecord({ uid, role: 'door' },
+         doorRest, perforated ? { perforation: perforated } : {}));
+     }
+     const { role, leakage, servers: physicsList, patchPhysics, ...cfdRest } = cfd;
+@@ -361,21 +384,21 @@
+     }
+     const physById = {};
+     for (const p of Array.isArray(physicsList) ? physicsList : []) {
+-      if (p && p.equipmentId != null) physById[p.equipmentId] = p;
++      if (p && p.equipmentId != null) _setOwn(physById, p.equipmentId, p);
+     }
+     const servers = {};
+     (Array.isArray(equipments) ? equipments : []).forEach((eq, idx) => {
+       const { id, name, type, kind, startUnit, spanUnits, liquidCooling, ...eqRest } = eq;
+       const uid = id != null ? String(id) : 'srv_' + idx;
+-      const phys = physById[uid] || {};
++      const phys = Object.prototype.hasOwnProperty.call(physById, uid) ? physById[uid] : {};
+       const { equipmentId: _eqid, ...physRest } = phys;
+       const coldPlates = {};
+       const pairs = liquidCooling && Array.isArray(liquidCooling.cpCuPairs) ? liquidCooling.cpCuPairs : [];
+       pairs.forEach((pair, pidx) => {
+         const cpUid = pair.id != null ? String(pair.id) : (pair.name != null ? String(pair.name) : 'cp_' + pidx);
+-        coldPlates[cpUid] = Object.assign({ uid: cpUid }, pair);
++        _setOwn(coldPlates, cpUid, _assignRecord({ uid: cpUid }, pair));
+       });
+-      servers[uid] = {
++      _setOwn(servers, uid, {
+         uid,
+         type: type || kind || 'fanServer',
+         geometry: { slotPosition: startUnit, slotOccupation: spanUnits },
+@@ -384,13 +407,13 @@
+         meta: { name: name != null ? name : uid, enabled: true },
+         ...(liquidCooling ? { liquidCooling } : {}),
+         ...eqRest,
+-      };
++      });
+     });
+     out.constructions = { servers, partitions: Array.isArray(partitions) ? partitions : [], rdhx: null };
+     const leftover = _distributePatchPhysics(out.geometry.faces, patchPhysics);
+     if (Object.keys(leftover).length) out.cooling.unboundPatchPhysics = leftover;
+-    Object.assign(out.cooling, cfdRest);
+-    Object.assign(out, rackRest, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    _assignRecord(out, rackRest, rest2);
+     return out;
+   }
+ 
+@@ -412,8 +435,8 @@
+     out.geometry.supplyFaces = supplyFaces;
+     out.geometry.returnFaces = returnFaces;
+     out.constructions = { heatExchanger: null, fans: {} };
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest);
+   }
+ 
+   function _migrateCdu(m) {
+@@ -425,7 +448,7 @@
+     if (supplyPressure != null) out.cooling.supplyPressureKpa = supplyPressure;
+     if (totalFlowRate != null) out.cooling.totalFlowRate = totalFlowRate;
+     if (advancedMode !== undefined) out.cooling.advancedMode = advancedMode;
+-    Object.assign(out.cooling, lcRest);
++    _assignRecord(out.cooling, lcRest);
+     const adv = advanced || {};
+     out.constructions = {
+       heatExchanger: adv.heatExchanger || null,
+@@ -434,8 +457,8 @@
+     };
+     out.meta.racks = Array.isArray(servedRacks) ? servedRacks : [];
+     const { role, ...cfdRest } = cfd;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   function _migratePipe(m) {
+@@ -454,10 +477,10 @@
+       blindEnds: blindEnds || { start: false, end: false },
+       junctions: junctions || [],
+     };
+-    Object.assign(out.cooling, pipeRest);
++    _assignRecord(out.cooling, pipeRest);
+     const { role, ...cfdRest } = cfd;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   // Air-side pipe / duct (kind 'pipe', bucket 'pipes'): a swept solid along
+@@ -474,10 +497,10 @@
+     out.geometry.widthM = widthM != null ? widthM : 0.2;
+     out.geometry.heightM = heightM != null ? heightM : 0.2;
+     out.geometry.joins = Array.isArray(joins) ? joins : [];
+-    Object.assign(out.cooling, pipeRest);
++    _assignRecord(out.cooling, pipeRest);
+     const { role, ...cfdRest } = cfd;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   function _migrateJunction(m) {
+@@ -488,11 +511,11 @@
+       if (type != null) out.cooling.type = type;
+       if (lossCoeff != null) out.cooling.lossCoeff = lossCoeff;
+       if (connectedPipes) out.connectedPipes = connectedPipes;
+-      Object.assign(out.cooling, jRest);
++      _assignRecord(out.cooling, jRest);
+     }
+     const { role, ...cfdRest } = cfd;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   function _migrateCustom(m) {
+@@ -506,8 +529,8 @@
+     const { role, patchPhysics, ...cfdRest } = cfd;
+     const leftover = _distributePatchPhysics(out.geometry.faces, patchPhysics);
+     if (Object.keys(leftover).length) out.cooling.unboundPatchPhysics = leftover;
+-    Object.assign(out.cooling, cfdRest);
+-    return Object.assign(out, rest2);
++    _assignRecord(out.cooling, cfdRest);
++    return _assignRecord(out, rest2);
+   }
+ 
+   if (typeof window !== 'undefined') {
+--- a/src/frontend/react/test/domainCodecRegression.test.ts
++++ b/src/frontend/react/test/domainCodecRegression.test.ts
+@@ -0,0 +1,35 @@
++import { describe, expect, it } from 'vitest'
++import { projectForSave, readProjectFileText, serializeProjectState } from '../src/io/projectFiles'
++import type { CfdProject } from '../src/schema/cfdproj'
++import * as store from '../src/projectStore'
++
++function project(): CfdProject {
++  return {
++    schemaVersion: 5, uid: 'domain-test', name: 'Domain test',
++    geometry: { height: 3, plane: [], tileSize: .6 },
++    constructions: { boxes: { b: { uid: 'b', meta: { name: 'Box' }, futureModel: { vendor: 'x' } } } },
++    futureDocument: { revision: 7, nested: ['retained'] },
++  } as CfdProject
++}
++
++describe('domain document codec on real load/save/store paths', () => {
++  it('retains a document extension across canonical save and actual file parse', () => {
++    const saved = projectForSave(project())
++    expect(saved.futureDocument).toEqual({ revision: 7, nested: ['retained'] })
++    const loaded = readProjectFileText(serializeProjectState(project()))
++    expect(loaded.ok).toBe(true)
++    if (loaded.ok) expect((loaded.project as unknown as Record<string, unknown>).futureDocument).toEqual(saved.futureDocument)
++  })
++
++  it('retains nested extension fields across ordinary edit/undo/redo', () => {
++    store.loadProject(project(), '/owned/domain.cfdproj')
++    store.renameModel('b', 'Changed')
++    expect(store.getProject()?.constructions?.boxes?.b?.meta.name).toBe('Changed')
++    store.undo()
++    expect(store.getProject()?.constructions?.boxes?.b?.meta.name).toBe('Box')
++    store.redo()
++    expect(store.getProject()?.constructions?.boxes?.b?.futureModel).toEqual({ vendor: 'x' })
++    expect((store.getProject() as unknown as Record<string, unknown>).futureDocument).toEqual({ revision: 7, nested: ['retained'] })
++    expect(Object.getPrototypeOf(store.getProject())).toBe(Object.prototype)
++  })
++})
+--- a/src/frontend/react/test/domainProject.test.ts
++++ b/src/frontend/react/test/domainProject.test.ts
+@@ -0,0 +1,658 @@
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++import { describe, expect, it } from 'vitest'
++import { DomainProject, entityRegistry, CONSTRUCTION_BUCKET_TYPES, LEGACY_EXPORT_BUCKETS,
++  BaseEntity, RackEntity, ServerEntity, WallEntity, BaffleEntity, CduEntity, BoxEntity, PduEntity, decodeDomainProject } from '../src/domain'
++import { allModels, BUCKETS, type CfdProject } from '../src/schema/cfdproj'
++import { stateV4, reviveKinds } from '../src/legacy/cfdprojModules'
++import { checkProjectDocument, readProjectFileText, projectForSave, serializeProjectState } from '../src/io/projectFiles'
++import { sceneRunDeps } from '../src/run/runSubmit'
++import { compileDynamicLiquidGraph } from '../src/liquid/dynamicLiquidGraph'
++import { cfdrunExport, createCfdrunBuild, buildManifestV2 } from '../src/legacy/cfdrunBuild'
++import * as THREE from 'three'
++import { createSceneBuilder, emptyRegistries } from '../src/interaction/sceneBuilder'
++import { liveProject } from '../src/transient/model'
++
++const model = (uid: string) => ({ uid, meta: { name: uid, enabled: true }, geometry: { location: { x: 0, y: 0, z: 0 } } })
++function complete(): CfdProject {
++  const constructions: Record<string, unknown> = {}
++  for (const bucket of Object.keys(CONSTRUCTION_BUCKET_TYPES)) constructions[bucket] = { [bucket]: model(bucket) }
++  constructions.raisedFloor = model('raised')
++  constructions.falseCeiling = model('ceiling')
++  return { schemaVersion: 5, uid: 'project', geometry: { plane: [], height: 3 }, constructions } as CfdProject
++}
++
++describe('complete versioned domain registry and identity views', () => {
++  it('covers the exact 18 persisted buckets, two singleton slots and room without registering Three objects', () => {
++    expect(Object.keys(CONSTRUCTION_BUCKET_TYPES).sort()).toEqual([...BUCKETS].sort())
++    expect(Object.keys(CONSTRUCTION_BUCKET_TYPES)).toHaveLength(18)
++    const p = complete()
++    const before = JSON.stringify(p)
++    const domain = new DomainProject(p)
++    expect(domain.allEntities().map(e => e.type)).toEqual([...Object.keys(CONSTRUCTION_BUCKET_TYPES), 'room', 'raisedFloor', 'falseCeiling'])
++    expect(domain.allEntities().every(e => e instanceof BaseEntity && e.supported)).toBe(true)
++    expect(entityRegistry.resolve('racks', 2)).toBeUndefined()
++    expect(entityRegistry.version).toBe(1)
++    expect(JSON.stringify(p)).toBe(before)
++  })
++
++  it('hydrates named entity classes while PDU names remain physical BOX records', () => {
++    const p = complete()
++    const entities = new DomainProject(p).topLevel()
++    expect(entities.find(e => e.type === 'servers')).toBeInstanceOf(ServerEntity)
++    expect(entities.find(e => e.type === 'walls')).toBeInstanceOf(WallEntity)
++    expect(entities.find(e => e.type === 'baffles')).toBeInstanceOf(BaffleEntity)
++    expect(entities.find(e => e.type === 'cdus')).toBeInstanceOf(CduEntity)
++    const box = p.constructions!.boxes!.boxes!
++    box.meta.name = 'PDU_named_only'
++    expect(new DomainProject(p).topLevel(['boxes'])[0]).toBeInstanceOf(BoxEntity)
++    expect(new DomainProject(p).topLevel(['boxes'])[0]).not.toBeInstanceOf(PduEntity)
++    box.assetDefinition = { type: 'pdu', futureElectrical: 'not-inferred' }
++    const explicit = new DomainProject(p).topLevel(['boxes'])[0]!
++    expect(explicit).toBeInstanceOf(PduEntity)
++    expect(explicit.kind).toBe('box')
++    expect(explicit.record).toBe(box)
++    expect(explicit.physics().declarations).not.toHaveProperty('electricity')
++  })
++
++  it('does not invent final visibility or physical inclusion from a metadata flag', () => {
++    const p = complete()
++    const box = p.constructions!.boxes!.boxes!
++    box.meta.enabled = true
++    box.meta.display = { opacity: .5, hidden: true } as typeof box.meta.display
++    const render = new DomainProject(p).topLevel(['boxes'])[0]!.render()
++    expect(render.enabled).toBe(true)
++    expect(render.display).toEqual({ opacity: .5, hidden: true })
++    expect(render).not.toHaveProperty('visible')
++  })
++
++  it('preserves parent-local server UIDs and authored CP/valve/port/face/network child records', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.constructions.racks = {
++      r1: { ...model('r1'), constructions: { servers: { s: { ...model('s'), futureChild: 1,
++        liquidCooling: { cpCuPairs: [{ uid: 'cp/a', futurePair: 2 }] } } } } },
++      r2: { ...model('r2'), constructions: { servers: { s: model('s') } } },
++    }
++    p.constructions.pipeSegments.ps = { ...model('ps'),
++      cooling: { valves: [{ id: 'v' }], ports: { inlet: { id: 'inlet' } } },
++      geometry: { waypoints: [{ x: 1, y: 2, z: 3 }], faces: { front: { patches: [{ id: 'patch' }] } } },
++    }
++    p.constructions.liquidFlowNetworks.net = { ...model('net'), nodes: { n: { id: 'n' } }, edges: [{ id: 'e' }] }
++    const entities = new DomainProject(p as CfdProject).allEntities()
++    const servers = entities.filter(e => e.type === 'rackServer')
++    expect(servers.map(e => [e.uid, e.identity.parentUid])).toEqual([['s', 'r1'], ['s', 'r2']])
++    expect(new Set(servers.map(e => e.identity.path)).size).toBe(2)
++    expect(entities.find(e => e.type === 'coldPlatePair')?.record.futurePair).toBe(2)
++    for (const type of ['coolingPort', 'valve', 'pipeWaypoint', 'modelFace', 'surfacePatch', 'liquidNetworkNode', 'liquidNetworkEdge'])
++      expect(entities.some(e => e.type === type)).toBe(true)
++    const rack = entities.find(e => e.uid === 'r1') as RackEntity
++    expect(rack.serverUids()).toEqual(['s'])
++  })
++
++  it('enumerates actual LiquidSingle authored cold plates, equipment internals and face records', () => {
++    const p = JSON.parse(readFileSync(resolve(process.cwd(), '../../../case/LiquidSingle/LiquidSingle.cfdproj'), 'utf8'))
++    const before = JSON.stringify(p)
++    const entities = new DomainProject(p).allEntities()
++    const plate = entities.find(e => e.type === 'coldPlate' && e.uid === 'CP-CU_1')
++    expect(plate?.identity.path).toBe('/constructions/racks/m_2/constructions/servers/e_2/constructions/coldPlates/CP-CU_1')
++    expect(plate?.identity.parentUid).toBe('e_2')
++    expect(plate?.record.Q_W).toBe(3500)
++    const legacyPair = entities.find(e => e.type === 'coldPlatePair')
++    expect(legacyPair?.identity.path).not.toBe(plate?.identity.path)
++    expect(legacyPair?.record).not.toBe(plate?.record)
++    for (const type of ['heatExchanger', 'pump', 'valve'])
++      expect(entities.some(e => e.type === type && e.identity.parentUid === 'm_1')).toBe(true)
++    expect(entities.some(e => e.type === 'modelFace' && e.identity.path.endsWith('/servers/e_2/faces/inlet'))).toBe(true)
++    expect(new Set(entities.map(e => e.identity.path)).size).toBe(entities.length)
++    expect(JSON.stringify(p)).toBe(before)
++  })
++
++  it('covers declared chips, rack partitions/RDHX, ACU fans and cutouts without assigning new source UIDs', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.constructions.racks.r = { ...model('r'), constructions: {
++      servers: { s: { ...model('s'), constructions: { chips: { chip: { uid: 'chip', power: 10 } }, coldPlates: {} } } },
++      partitions: [{ id: 'partition', height: 1 }], rdhx: { enabled: true },
++    } }
++    p.constructions.acus.a = { ...model('a'), constructions: { heatExchanger: { specName: 'HX' }, fans: { fan: { uid: 'fan' } } } }
++    p.constructions.walls.w = { ...model('w'), geometry: { cutouts: [{ faceId: 'front', polygon: [1, 2, 3], sourceName: 'AHU1' }] } }
++    const before = JSON.stringify(p)
++    const entities = new DomainProject(p as CfdProject).allEntities()
++    for (const type of ['chip', 'rackPartition', 'rdhx', 'fan', 'geometryCutout'])
++      expect(entities.some(e => e.type === type)).toBe(true)
++    expect(entities.find(e => e.type === 'rackPartition')?.identity.source).toBe('id')
++    expect(JSON.stringify(p)).toBe(before)
++  })
++
++  it('exposes pure data geometry/render/physics descriptions and explicit record copies', () => {
++    const p = complete()
++    const domain = new DomainProject(p)
++    const box = domain.topLevel(['boxes'])[0]!
++    expect(box.geometry().strategy).toBe('body')
++    expect(box.render().modelUid).toBe('boxes')
++    expect(box.physics().sourcePath).toBe('/constructions/boxes/boxes')
++    expect(box.toRecord()).toEqual(box.record)
++    expect(box.toRecord()).not.toBe(box.record)
++    expect(Object.getPrototypeOf(p)).toBe(Object.prototype)
++    expect(JSON.stringify(projectForSave(p))).not.toContain('definition')
++  })
++
++  it('keeps the real tree enumeration scope/order and object identity, excluding topology-only network entries', () => {
++    const p = reviveKinds(complete())
++    const before = JSON.stringify(p)
++    const legacy = stateV4().allModels(p) as { uid: string }[]
++    const actual = new DomainProject(p).structuralForAirExport()
++    expect(actual.map(e => e.uid)).toEqual(legacy.map(m => m.uid))
++    expect(actual.map(e => e.type)).toEqual(LEGACY_EXPORT_BUCKETS)
++    expect(allModels(p).map(e => e.model.uid)).toEqual([
++      'boxes', 'racks', 'acus', 'cdus', 'pipeSegments', 'pipeJunctions', 'pipes',
++      'walls', 'partitionWalls', 'baffles', 'floors', 'customMeshes', 'surfaces', 'rows', 'servers', 'sensors', 'heatGains',
++    ])
++    expect(allModels(p)[0]?.model).toBe(p.constructions?.boxes?.boxes)
++    expect(JSON.stringify(p)).toBe(before)
++  })
++
++  it('uses registry admission in the actual air run model UID path without changing legacy order', () => {
++    const p = reviveKinds(complete())
++    const deps = sceneRunDeps({ project: p, projectPath: null, builder: null })
++    expect(deps.modelUids()).toEqual((stateV4().allModels(p) as { uid: string }[]).map(m => m.uid))
++    expect(deps.modelUids()).not.toContain('liquidFlowNetworks')
++  })
++
++  it('preserves future records on load and refuses undeclared geometry at physical export', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.constructions.futureDevices = { f: { ...model('f'), future: 7 } }
++    const loaded = checkProjectDocument(p)
++    expect(loaded.ok).toBe(true)
++    expect(new DomainProject(p as CfdProject).allEntities().find(e => e.type === 'futureDevices')?.supported).toBe(false)
++    expect(() => sceneRunDeps({ project: p as CfdProject, projectPath: null, builder: null }).modelUids()).toThrow(/Unsupported geometric bucket/)
++    delete p.constructions.futureDevices.f.geometry
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).not.toThrow()
++  })
++
++  it('refuses unknown geometric arrays and nested rack bodies while retaining their plain source records', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.constructions.futureDevices = [{ ...model('future') }]
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).toThrow(/futureDevices\/0/)
++    delete p.constructions.futureDevices
++    p.constructions.racks.racks.constructions = { futureDevices: [{ ...model('nested') }] }
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).toThrow(/racks\/racks\/constructions\/futureDevices\/0/)
++    expect(projectForSave(p as CfdProject).constructions).toEqual(p.constructions)
++    p.constructions.racks.racks.constructions = { vendorNotes: { note: { text: 'not geometric' } } }
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).not.toThrow()
++  })
++
++  it('refuses an unsupported kind in a known bucket rather than admitting the box export fallback', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.constructions.boxes.boxes.meta.legacyKind = 'futureSolid'
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).toThrow(/Unsupported entity/)
++    expect(p.constructions.boxes.boxes.meta.legacyKind).toBe('futureSolid')
++  })
++
++  it('does not invent missing physical export UIDs from bucket keys', () => {
++    const p = complete() as unknown as Record<string, any>
++    delete p.constructions.boxes.boxes.uid
++    expect(new DomainProject(p as CfdProject).topLevel(['boxes'])[0]?.identity.source).toBe('key')
++    expect(() => new DomainProject(p as CfdProject).structuralForAirExport()).toThrow(/Missing stable uid/)
++  })
++})
++
++describe('document extensions remain separate from strict solver snapshots', () => {
++  it('retains JSON own __proto__ extensions without changing the output prototype', () => {
++    const p = JSON.parse(JSON.stringify(complete()).replace('"schemaVersion":5',
++      '"schemaVersion":5,"__proto__":{"vendor":"retained"}'))
++    const saved = projectForSave(p)
++    expect(Object.prototype.hasOwnProperty.call(saved, '__proto__')).toBe(true)
++    expect(saved.__proto__).toEqual({ vendor: 'retained' })
++    expect(Object.getPrototypeOf(saved)).toBe(Object.prototype)
++    const reopened = JSON.parse(serializeProjectState(p))
++    expect(reopened.__proto__).toEqual({ vendor: 'retained' })
++    expect(Object.getPrototypeOf(reopened)).toBe(Object.prototype)
++  })
++
++  it.each(['__proto__', 'toString'])('treats an own %s bucket as unknown and preserves its identity', bucket => {
++    const p = complete()
++    const source = JSON.parse('{"' + bucket + '":{"f":{"uid":"f","meta":{"name":"Future"},"geometry":{}}}}')
++    Object.defineProperty(p.constructions, bucket, { value: source[bucket], enumerable: true })
++    const entity = new DomainProject(p).allEntities().find(e => e.type === bucket)
++    expect(entity?.supported).toBe(false)
++    expect(entity?.uid).toBe('f')
++    expect(() => new DomainProject(p).structuralForAirExport()).toThrow(/Unsupported geometric bucket/)
++    expect(projectForSave(p).constructions).toHaveProperty(bucket)
++  })
++
++  it('retains private-named JSON extensions but excludes only the established runtime bag', () => {
++    const p = complete() as unknown as Record<string, any>
++    p.__vendorExtension = { declared: true }
++    p._customEngineeringNote = { note: 'retained' }
++    p.__runtimeOnly = { threeJsHandle: 1 }
++    const saved = projectForSave(p as CfdProject)
++    expect(saved.__vendorExtension).toEqual({ declared: true })
++    expect(saved._customEngineeringNote).toEqual({ note: 'retained' })
++    expect(saved.__runtimeOnly).toBeUndefined()
++    expect(saved.constructions).toEqual(p.constructions)
++    expect(decodeDomainProject(saved).document).toBe(saved)
++    expect(() => decodeDomainProject({ ...saved, schemaVersion: 6 })).toThrow(/Unsupported/)
++  })
++
++  it.each([4294967301, 5.5, -1, 'NaN', 'Infinity'])('returns a failed load for invalid schema version %s without narrowing or throwing', version => {
++    const source = { ...complete(), schemaVersion: version }
++    expect(() => readProjectFileText(JSON.stringify(source))).not.toThrow()
++    expect(readProjectFileText(JSON.stringify(source))).toEqual({ ok: false, error: 'Unsupported schemaVersion ' + String(version) })
++    expect(() => decodeDomainProject(source)).toThrow(/Unsupported schemaVersion/)
++  })
++
++  it('preserves actual v3 root and BOX own __proto__ fields through migration/save/reload without prototype mutation', () => {
++    const raw = JSON.parse('{"schemaVersion":3,"meta":{"projectName":"proto"},"construction":[{"uid":"b","kind":"box","name":"Box","__proto__":{"vendorModel":"retained"}}],"simulation":{},"__proto__":{"vendorDocument":"retained"}}')
++    const loaded = checkProjectDocument(raw)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const box = loaded.project.constructions!.boxes!.b!
++    expect(Object.prototype.hasOwnProperty.call(loaded.project, '__proto__')).toBe(true)
++    expect(Object.prototype.hasOwnProperty.call(box, '__proto__')).toBe(true)
++    expect(Object.getPrototypeOf(loaded.project)).toBe(Object.prototype)
++    expect(Object.getPrototypeOf(box)).toBe(Object.prototype)
++    const reopened = readProjectFileText(serializeProjectState(loaded.project))
++    expect(reopened.ok).toBe(true)
++    if (!reopened.ok) return
++    expect((reopened.project as Record<string, unknown>).__proto__).toEqual({ vendorDocument: 'retained' })
++    expect((reopened.project.constructions!.boxes!.b! as Record<string, unknown>).__proto__).toEqual({ vendorModel: 'retained' })
++    expect(Object.prototype).not.toHaveProperty('vendorDocument')
++    expect(Object.prototype).not.toHaveProperty('vendorModel')
++  })
++
++  it('preserves own v2 root __proto__ and inherited-key-named extensions before v3 migration', () => {
++    const raw = JSON.parse('{"schemaVersion":2,"cfdRoom":{},"models":[],"__proto__":{"vendorDocument":"v2"},"toString":{"vendor":"extension"}}')
++    const loaded = checkProjectDocument(raw)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const saved = projectForSave(loaded.project)
++    expect(Object.prototype.hasOwnProperty.call(saved, '__proto__')).toBe(true)
++    expect(saved.__proto__).toEqual({ vendorDocument: 'v2' })
++    expect(saved.toString).toEqual({ vendor: 'extension' })
++    expect(Object.getPrototypeOf(saved)).toBe(Object.prototype)
++  })
++
++  it.each([
++  {
++    "name": "modelUID",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "uid edge case"
++      },
++      "construction": [
++        {
++          "uid": "__proto__",
++          "kind": "box",
++          "name": "Box"
++        }
++      ],
++      "simulation": {}
++    },
++    "path": [
++      "constructions",
++      "boxes"
++    ]
++  },
++  {
++    "name": "serverUID",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "uid edge case"
++      },
++      "construction": [
++        {
++          "uid": "r",
++          "kind": "rack",
++          "name": "Rack",
++          "rack": {
++            "coolingType": "liquid",
++            "equipments": [
++              {
++                "id": "__proto__",
++                "type": "liquidServer",
++                "name": "Server",
++                "startUnit": 1,
++                "spanUnits": 1,
++                "liquidCooling": {
++                  "cpCuPairs": [
++                    {
++                      "id": "cp",
++                      "name": "Pair",
++                      "Q_W": 100
++                    }
++                  ]
++                }
++              }
++            ],
++            "partitions": []
++          }
++        }
++      ],
++      "simulation": {}
++    },
++    "path": [
++      "constructions",
++      "racks",
++      "r",
++      "constructions",
++      "servers"
++    ]
++  },
++  {
++    "name": "coldPlateUID",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "uid edge case"
++      },
++      "construction": [
++        {
++          "uid": "r",
++          "kind": "rack",
++          "name": "Rack",
++          "rack": {
++            "coolingType": "liquid",
++            "equipments": [
++              {
++                "id": "s",
++                "type": "liquidServer",
++                "name": "Server",
++                "startUnit": 1,
++                "spanUnits": 1,
++                "liquidCooling": {
++                  "cpCuPairs": [
++                    {
++                      "id": "__proto__",
++                      "name": "Pair",
++                      "Q_W": 100
++                    }
++                  ]
++                }
++              }
++            ],
++            "partitions": []
++          }
++        }
++      ],
++      "simulation": {}
++    },
++    "path": [
++      "constructions",
++      "racks",
++      "r",
++      "constructions",
++      "servers",
++      "s",
++      "constructions",
++      "coldPlates"
++    ]
++  },
++  {
++    "name": "probeUID",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "uid edge case"
++      },
++      "construction": [],
++      "simulation": {},
++      "probeData": [
++        {
++          "id": "__proto__",
++          "name": "P",
++          "x": 0,
++          "y": 0,
++          "z": 0
++        }
++      ]
++    },
++    "path": [
++      "instrumentation",
++      "probes"
++    ]
++  },
++  {
++    "name": "measurementUID",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "uid edge case"
++      },
++      "construction": [],
++      "simulation": {},
++      "sensorData": [
++        {
++          "id": "__proto__",
++          "name": "M"
++        }
++      ]
++    },
++    "path": [
++      "instrumentation",
++      "measurements"
++    ]
++  }
++])('retains a literal __proto__ $name as an own dictionary entity through migration/save/reload', ({ input, path }) => {
++    const loaded = checkProjectDocument(input)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const dictionary = path.reduce((value, key) => value[key], loaded.project as Record<string, any>)
++    expect(Object.prototype.hasOwnProperty.call(dictionary, '__proto__')).toBe(true)
++    expect(Object.getPrototypeOf(dictionary)).toBe(Object.prototype)
++    const reopened = readProjectFileText(serializeProjectState(loaded.project))
++    expect(reopened.ok).toBe(true)
++    if (!reopened.ok) return
++    const savedDictionary = path.reduce((value, key) => value[key], reopened.project as Record<string, any>)
++    expect(savedDictionary.__proto__).toEqual(dictionary.__proto__)
++    expect(Object.keys(savedDictionary)).toContain('__proto__')
++    expect(Object.prototype).not.toHaveProperty('uid')
++  })
++
++  it.each(['futureSolid', 'toString', '__proto__'])('retains unknown v3 kind %s and refuses its physical export', kind => {
++    const raw = { schemaVersion: 3, meta: { projectName: 'Future' }, construction: [{ uid: 'future', kind, name: 'Future' }], simulation: {} }
++    expect(() => checkProjectDocument(raw)).not.toThrow()
++    const loaded = checkProjectDocument(raw)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    expect((loaded.project.constructions!.boxes!.future!.meta as unknown as Record<string, unknown>).legacyKind).toBe(kind)
++    expect(new DomainProject(loaded.project).topLevel(['boxes'])[0]?.supported).toBe(false)
++    expect(new DomainProject(loaded.project).topLevel(['boxes'])[0]?.kind).toBe(kind)
++    expect(() => new DomainProject(loaded.project).structuralForAirExport()).toThrow(/Unsupported entity/)
++    const reopened = readProjectFileText(serializeProjectState(loaded.project))
++    expect(reopened.ok).toBe(true)
++    if (reopened.ok) expect((reopened.project.constructions!.boxes!.future!.meta as unknown as Record<string, unknown>).legacyKind).toBe(kind)
++  })
++
++  it.each([
++  {
++    "name": "coldPlateSpec",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "dict preservation"
++      },
++      "construction": [],
++      "simulation": {},
++      "liquidCooling": {
++        "specifications": {
++          "coldPlateSpec": [
++            {
++              "name": "__proto__",
++              "R_th": 0.03
++            }
++          ]
++        },
++        "fluid": {
++          "type": "__proto__",
++          "rho": 997,
++          "cp": 4180
++        }
++      }
++    },
++    "path": [
++      "models",
++      "coolingModels",
++      "coldPlates"
++    ]
++  },
++  {
++    "name": "fluid.type",
++    "input": {
++      "schemaVersion": 3,
++      "meta": {
++        "projectName": "dict preservation"
++      },
++      "construction": [],
++      "simulation": {},
++      "liquidCooling": {
++        "specifications": {
++          "coldPlateSpec": [
++            {
++              "name": "__proto__",
++              "R_th": 0.03
++            }
++          ]
++        },
++        "fluid": {
++          "type": "__proto__",
++          "rho": 997,
++          "cp": 4180
++        }
++      }
++    },
++    "path": [
++      "models",
++      "materialModels",
++      "fluids"
++    ]
++  }
++])('preserves the existing migration $name dictionary own __proto__ definition', ({ input, path }) => {
++    const loaded = checkProjectDocument(input)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const dictionary = path.reduce((value, key) => value[key], loaded.project as Record<string, any>)
++    expect(Object.prototype.hasOwnProperty.call(dictionary, '__proto__')).toBe(true)
++    expect(Object.getPrototypeOf(dictionary)).toBe(Object.prototype)
++    const reopened = readProjectFileText(serializeProjectState(loaded.project))
++    expect(reopened.ok).toBe(true)
++    if (reopened.ok) {
++      const savedDictionary = path.reduce((value, key) => value[key], reopened.project as Record<string, any>)
++      expect(Object.keys(savedDictionary)).toContain('__proto__')
++      expect(savedDictionary.__proto__).toEqual(dictionary.__proto__)
++    }
++  })
++
++  it('keeps existing migration server physics matched by own equipmentId and rejects inherited phantom rows', () => {
++    const raw = {
++  "schemaVersion": 3,
++  "meta": {
++    "projectName": "physics lookup"
++  },
++  "construction": [
++    {
++      "uid": "r",
++      "kind": "rack",
++      "rack": {
++        "equipments": [
++          {
++            "id": "__proto__",
++            "name": "__proto__",
++            "type": "fanServer",
++            "startUnit": 1,
++            "spanUnits": 1
++          },
++          {
++            "id": "server_p",
++            "name": "server_p",
++            "type": "fanServer",
++            "startUnit": 1,
++            "spanUnits": 1
++          }
++        ]
++      },
++      "cfd": {
++        "servers": [
++          {
++            "equipmentId": "__proto__",
++            "volumeFlowRate": 0.1,
++            "server_p": {
++              "volumeFlowRate": 0.42,
++              "fixedTemperature": 48
++            }
++          }
++        ]
++      }
++    }
++  ],
++  "simulation": {}
++}
++    const loaded = checkProjectDocument(raw)
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const servers = (loaded.project as Record<string, any>).constructions.racks.r.constructions.servers
++    expect(servers.__proto__.cooling).toEqual({
++      volumeFlowRate: .1, server_p: { volumeFlowRate: .42, fixedTemperature: 48 },
++    })
++    expect(servers.server_p.cooling).toEqual({})
++    expect(Object.getPrototypeOf(servers)).toBe(Object.prototype)
++    expect(Object.prototype).not.toHaveProperty('volumeFlowRate')
++  })
++
++  it('preserves legacy root extensions through the actual v3 migration and save', () => {
++    const loaded = checkProjectDocument({ schemaVersion: 3, meta: { projectName: 'Legacy' }, construction: [],
++      vendorDocument: { retained: 7 }, simulation: {} })
++    expect(loaded.ok).toBe(true)
++    if (loaded.ok) expect(projectForSave(loaded.project).vendorDocument).toEqual({ retained: 7 })
++  })
++
++  it.each(['LiquidSingle/LiquidSingle', 'Shinaide_Liquid/Shinaide_liquid'])('preserves actual %s graph bindings/physics and omits project extensions from liquidrun', name => {
++    const p = JSON.parse(readFileSync(resolve(process.cwd(), '../../../case/' + name + '.cfdproj'), 'utf8'))
++    const baseline = compileDynamicLiquidGraph(p)
++    p.vendorDocument = { futureVolume: 'retained-not-executed' }
++    const loaded = checkProjectDocument(JSON.parse(serializeProjectState(p)))
++    expect(loaded.ok).toBe(true)
++    if (!loaded.ok) return
++    const compiled = compileDynamicLiquidGraph(loaded.project)
++    expect(compiled.nodes).toEqual(baseline.nodes)
++    expect(compiled.edges).toEqual(baseline.edges)
++    expect(compiled.object_bindings).toEqual(baseline.object_bindings)
++    expect(compiled).not.toHaveProperty('vendorDocument')
++  })
++
++  it('omits a project extension from the real strict air manifest producer', async () => {
++    const p = JSON.parse(readFileSync(resolve(process.cwd(), '../../../case/Base_leakage/Base_leakage.cfdproj'), 'utf8'))
++    async function air(source: CfdProject) {
++      const current = liveProject(stateV4().normalizeStateV4(structuredClone(source)) as unknown as CfdProject, 0)
++      const globalGroup = new THREE.Group(), wrapperGroup = new THREE.Group()
++      wrapperGroup.add(globalGroup)
++      const globals = window as unknown as { allModels?: () => import('../src/schema/cfdproj').Construction[] }
++      const previous = globals.allModels
++      globals.allModels = () => stateV4().allModels(current) as import('../src/schema/cfdproj').Construction[]
++      const builder = createSceneBuilder({ globalGroup, wrapperGroup, registries: emptyRegistries(),
++        selectedUid: () => null, project: () => current, webglAvailable: false, previewMode: () => false })
++      try {
++        builder.rebuild()
++        wrapperGroup.updateMatrixWorld(true)
++        return await buildManifestV2(createCfdrunBuild({ state: current, globalGroup,
++          LENGTH_UNITS: { m: { scale: 1, label: 'm', step: .0001, precision: 4 } },
++          _MESH_MODES: ['bodyFitted', 'cartesianLocalized', 'structured'],
++          buildGroupedStlMap: (uids, leakage) => builder.api.buildGroupedStlMap(uids, leakage),
++        }), current, '2026-10-06T00:00:00.000Z')
++      } finally {
++        builder.clear()
++        if (previous) globals.allModels = previous
++        else delete globals.allModels
++      }
++    }
++    const baseline = await air(p)
++    p.vendorDocument = { declared: true }
++    const after = await air(p)
++    expect(after).not.toHaveProperty('vendorDocument')
++    expect(after.inputs).toEqual(baseline.inputs)
++    expect(after.boundaryBindings).toEqual(baseline.boundaryBindings)
++    expect(after.geometryExport).toEqual(baseline.geometryExport)
++    expect(cfdrunExport().projectContentHashSync(p)).not.toBe(baseline.sourceProject?.contentHash)
++  })
++})

@@ -1,0 +1,817 @@
+FILE dcCartCutCells.C SHA256 d76c093eece4a2fb8b9e16b7b98e6b0de9623bd254dba19baaaf9743426de2db
+
+9117: void Foam::dcCartCutCells::mergeCoincidentPoints
+9118: (
+9119:     cutMesh& m, const boundBox* within, std::vector<label>* flattenedAlias
+9120: )
+9121: {
+9122:     // Crossings, cap pieces and the octree's hanging vertices can put two
+9123:     // ids on one position; the polyMesh must have one point there or the
+9124:     // faces around it do not share it. `within`: only the points in that
+9125:     // box (a shell's neighbourhood) — the whole mesh costs 0.4 s a pass.
+9126:     //
+9127:     // canonMin, not canon: the surviving coordinate of a cluster is its
+9128:     // canonical minimum (grid corner preferred), NOT the first id this
+9129:     // rank appended. Cut-point ids follow each rank's own pass order, so a
+9130:     // first-wins rule leaves the owner of an interface cell and the rank
+9131:     // holding it as halo with bit-different coordinates for the same
+9132:     // geometry: split histories diverge, cell global ids stop matching
+9133:     // across ranks, the merge rounds arbitrate on names that are not the
+9134:     // same cell, and the two ranks' processor patches end up holding
+9135:     // different face sets — checkMesh then segfaults exchanging indices
+9136:     // with a neighbour whose list does not mirror its own (DAML-Testbed
+9137:     // rank2/rank3, four faces apart at a GPU server straddling the slab).
+9138:     pointCanon canon;
+9139:     std::vector<label> alias(m.points.size());
+9140:     label nDup = 0;
+9141:     for (label p = 0; p < label(m.points.size()); ++p)
+9142:     {
+9143:         alias[p] = p;
+9144:         if (within && !within->contains(m.points[p])) { continue; }
+9145:         const label c = canon.canonMin(m.points, p, alias, m.nGridPoints);
+9146:         alias[p] = c;
+9147:         if (c != p) { ++nDup; }
+9148:     }
+9149:     // A representative superseded late in the sweep leaves a chain behind
+9150:     // (alias[alias[p]] != alias[p]); flatten before rewriting the faces.
+9151:     for (label p = 0; p < label(alias.size()); ++p)
+9152:     {
+9153:         label r = alias[p];
+9154:         label guard = 0;
+9155:         while (alias[r] != r && ++guard < 128) { r = alias[r]; }
+9156:         alias[p] = r;
+9157:     }
+9158:     if (flattenedAlias) { *flattenedAlias=alias; }
+9159:     // UNCONDITIONAL face rewrite — nDup is not a safe gate. canonMin's
+9160:     // supersede path (canonical minimum arrives late) sets alias[got] = v
+9161:     // and returns v, so neither v itself (c == p at the caller) nor the
+9162:     // displaced got (swept earlier, its own call returned c == p) is ever
+9163:     // counted in nDup. A pass whose within-box holds only pure cut-vs-cut
+9164:     // clusters with the minimum arriving late would see nDup == 0 and skip
+9165:     // the rewrite, while a rank whose local append order made the minimum
+9166:     // arrive first rewrites: the two ranks' faces then reference different
+9167:     // ids whose coordinates differ by ~1e-6 m, breaking byte-identity and
+9168:     // every rekey/gid/sync step built on it. The flattened alias is a
+9169:     // rank-invariant pure function of the cluster coordinate multisets,
+9170:     // and when nothing moved alias[p] == p for every p, so the sweep below
+9171:     // writes each id back to itself — a semantic no-op costing one linear
+9172:     // pass over the face table, the same order as the point sweep above.
+9173:     for (label f = 0; f < label(m.faces.size()); ++f)
+9174:     {
+9175:         for (label& v : m.faces[f]) { v = alias[v]; }
+9176:     }
+9177:     if (nDup && !within)
+9178:     {
+9179:         Info<< "Cut mesh: merged " << nDup << " coincident points" << nl;
+9180:     }
+
+14210:         clockTime oracleClock;
+14211:         if (m.writerBaseline)
+14212:         { FatalErrorInFunction<<"preoperator writer baseline must be captured once"<<exit(FatalError); }
+14213:         auto baseline=std::make_shared<writerCoupledBaseline>();
+14214:         baseline->cutPayloadBytes=writerCutPayloadBytes(m);
+14215:         auto checkpoint=std::make_shared<cutMesh>(m);
+14216:         checkpoint->writerBaseline.reset();
+14217:         checkpoint->weightUnionState.reset(); // never alias mutable operator state into earliest input
+14218:         baseline->checkpoint=checkpoint;
+14219:         cutMesh working(*checkpoint);
+14220:         baseline->copySeconds=oracleClock.timeIncrement();
+14221:         writerBindings oracleBindings;
+14222:         label baselineFailures=0;
+14223:         {
+14224:             autoPtr<polyMesh> oracle=toPolyMesh
+14225:             (
+14226:                 working,runTime,polyMesh::defaultRegion,patchNames,patchTypes,
+14227:                 faceZoneNames,patchNeighbours,patchGroups,true,&oracleBindings
+14228:             );
+14229:             // Demand-driven installed geometry is materialized before the
+14230:             // construct clock stops; no quality checker/remote metric is run.
+14231:             oracle->cellCentres();oracle->cellVolumes();oracle->faceAreas();oracle->faceCentres();
+14232:             baseline->constructSeconds=oracleClock.timeIncrement();
+14233:             baselineFailures=snapshotWriterCoupled(*checkpoint,*oracle,oracleBindings,*baseline);
+14234: 
+14235:             if (weightUnions)
+14236:             {
+14237:                 // cf still holds the pre-cone source-facet IDs; patch/zone
+14238:                 // properties of retained source slots are unchanged by partition.
+14239:                 // This normal ancestry does not infer a fluid/material role.
+14240:                 auto sourceOrigin=[&](label parent) -> weightUnionOrigin
+14241:                 {
+14242:                     // Normal immutable APP snapshot supplies the complete
+14243:                     // pre-cone shape/roles/identity; never TRACE or current
+14244:                     // partitioned m.faces standing in for the old outline.
+14245:                     return weightAuthority.normalOriginFromSnapshot
+14246:                         ? weightAuthority.normalOriginFromSnapshot(parent)
+14247:                         : weightUnionOrigin();
+14248:                 };
+14249:                 // The real oracle, not cut arithmetic, selects actual W-bad.
+14250:                 // Every value and native binding is copied before oracle destruction.
+14251:                 m.weightUnionState->clock=clockTime();
+14252:                 dcCartWeightUnionPreview::capture
+14253:                     (*m.weightUnionState,*checkpoint,*oracle,oracleBindings,unionParent,sourceOrigin);
+14254:             }
+14255:         }
+14256:         // Working data and actual oracle must not remain aliases/references
+14257:         // in the stored certificate. Every recorded value is an owned copy.
+14258:         working=cutMesh();oracleBindings=writerBindings();
+
+14779:                     if (!quality) { ++cavityQuality;if (!joinedPhysical.empty()) { ++roleRefused[5]; }return false; }
+14780:                     // No mutation precedes complete geometry/role preflight.
+14781:                     if (weightPacket)
+14782:                     {
+14783:                         if (shared[0]!=weightPacket->nativeFace || !joinedPhysical.empty())
+14784:                         { ++cavityQuality;return false; }
+14785:                         auto record=*weightPacket;record.keep=keep;record.drop=drop;
+14786:                         m.weightUnionState->committed.push_back(std::move(record));
+14787:                         m.weightUnionState->survivorOrigins[keep]=weightPacket->origins;
+14788:                         // Optional evidence must not pretend a multi-origin survivor is one cone parent.
+14789:                         if (traceCones) { m.coneEvidenceParent[keep]=-1; }
+14790:                         ++m.weightUnionState->accepted;
+14791:                     }
+14792:                     // Record every surviving origin; failure only makes this
+14793:                     // new permission unavailable, never alters the old union.
+14794:                     m.completeCavityLineage.join(keep,drop,cavityAvailable);
+14795:                     m.faceAlive[shared[0]]=false;m.cellAlive[drop]=false;unionCF[drop].clear();unionCF[keep]=outer;
+14796:                     if (!joinedPhysical.empty())
+14797:                     {
+14798:                         m.faceAlive[joinedPhysical[1]]=false;++roleAccepted;
+14799:                         if (m.weightUnionState)
+14800:                         { ++m.weightUnionState->authorizedPhysicalPruned[m.patch[joinedPhysical[1]]]; }
+14801:                     }
+14802:                     for (auto& row:changed)
+14803:                     {
+14804:                         const label f=row.first;auto& value=row.second;
+14805:                         m.owner[f]=value.owner;m.neighbour[f]=value.neighbour;m.faces[f].swap(value.polygon);
+14806:                         unionArea[f]=value.area;unionCentre[f]=value.centre;
+14807:                     }
+14808:                     for (const auto& row:next)
+14809:                     { const label c=row.first;unionCC[c]=row.second.centre;unionVolume[c]=row.second.volume;unionDet[c]=row.second.determinant;unionValid[c]=1; }
+14810:                     unionValid[drop]=2;if (!weightPacket) { ++accepted; }++acceptedRound;
+14811:                     if (!certifiedCoupled.empty()) { ++unchangedCoupledAccepted; }
+14812:                     if (unionEvidence.is_open())
+14813:                     {
+14814:                         unionEvidence<<"{\"round\":"<<round<<",\"keep\":"<<keep<<",\"drop\":"<<drop
+
+14936:                     done=tryLiteralUnion(packet.a,packet.b,
+14937:                         keepA?packet.a:packet.b,keepA?packet.b:packet.a,2,acceptedWeightRound,&packet);
+14938:                 }
+14939:                 if (!done) { ++state.guardRefused; }
+14940:             }
+14941:         }
+14942:         // One unconditional gather after all local work, including empty
+14943:         // ranks. The statistics never affect the subsequent mesh algorithm.
+14944:         List<List<scalar>> summaries(Pstream::nProcs());List<scalar> mine(21,0);
+14945:         mine[0]=examined;mine[1]=accepted;mine[2]=protectedCavity;mine[3]=geometryRejected;
+14946:         mine[4]=qualityRejected;mine[5]=capReached;mine[6]=rounds;mine[7]=unionClock.elapsedTime();
+14947:         mine[8]=cacheSeconds;mine[9]=censusSeconds;mine[10]=mine[7]-cacheSeconds-censusSeconds;
+14948:         mine[11]=roleTried;mine[12]=roleAccepted;for (label j=0;j<6;++j) { mine[13+j]=roleRefused[j]; }
+14949:         mine[19]=unchangedCoupledAccepted;mine[20]=unchangedCoupledRefused;
+14950:         summaries[Pstream::myProcNo()]=mine;Pstream::gatherList(summaries);
+14951:         if (Pstream::master())
+14952:         {
+14953:             List<scalar> total(21,0);
+14954:             for (const auto& row:summaries)
+14955:             {
+14956:                 for (label j=0;j<6;++j) { total[j]+=row[j]; }
+14957:                 for (label j=6;j<11;++j) { total[j]=max(total[j],row[j]); }
+14958:                 for (label j=11;j<21;++j) { total[j]+=row[j]; }
+14959:             }
+14960:             Info<<"Conforming literal two-cell union experiment: examined "<<total[0]<<", accepted "<<total[1]
+14961:                 <<", protected/geometry/quality refused "<<total[2]<<'/'<<total[3]<<'/'<<total[4]
+14962:                 <<", capped ranks "<<total[5]<<", rounds "<<total[6]<<", max wall "<<total[7]
+14963:                 <<" s [cache,census,local] "<<total[8]<<'/'<<total[9]<<'/'<<total[10]
+14964:                 <<"; fixed original points and literal or qualified same-role exterior outlines; full checkMesh required"<<endl;
+14965:             Info<<"Conforming unchanged outside coupled guard: accepted candidates "<<total[19]
+14966:                 <<", guard refused "<<total[20]
+14967:                 <<"; finite own CC/V bytes and ordered interface data unchanged; no remote quality recomputation; full checkMesh required"<<endl;
+14968:             if (samePhysicalRole)
+14969:             {
+14970:                 Info<<"Conforming physical same-source-facet quad experiment: tried "<<total[11]<<", accepted "<<total[12]
+14971:                     <<", refused [no-pair,role,outline,conservation,geometry,quality] ";
+14972:                 for (label j=13;j<19;++j) { if (j>13) { Info<<'/'; }Info<<total[j]; }
+14973:                 Info<<"; complete original facet passing-role lineage retained; full checkMesh required"<<endl;
+14974:             }
+14975:         }
+14976:     }
+14977:     if (m.completeCavityLineage.started())
+14978:     {
+14979:         const auto& lineage=m.completeCavityLineage;
+14980:         Pout<<"Normal complete-cavity lineage: rank "<<myRank<<", active "<<lineage.active()
+14981:             <<", native cell keys/composite sets "<<lineage.size()<<'/'<<lineage.compositeCount()
+14982:             <<", key/sparse capacity bytes "<<lineage.keyCapacityBytes()<<'/'<<lineage.compositeCapacityBytes()
+14983:             <<", refusals [none,missing,budget,cell-cap,index,unknown,origin-cap,set-cap,repeat,binding] ";
+14984:         for (const auto count:lineage.refusals()) { Pout<<count<<' '; }
+14985:         Pout<<"; source-only permission, no cavity replacement"<<endl;
+14986:     }
+14987:     rekeyPiecesByGeometry(m);
+14988:     decomposed=returnReduce(decomposed,sumOp<label>());added=returnReduce(added,sumOp<label>());
+14989:     partitioned=returnReduce(partitioned,sumOp<label>());faceFan=returnReduce(faceFan,sumOp<label>());anchorFan=returnReduce(anchorFan,sumOp<label>());
+
+15863:     // The oracle executes this exact normalizer on a separate deep copy.
+15864:     // It is unregistered/NO_WRITE and explicitly bypasses TRACE file output.
+15865:     writerBindings finalBindings;
+15866:     writerBindings* bindings=requestedBindings;
+15867:     if (!baselineOnly && m.writerBaseline && !bindings) { bindings=&finalBindings; }
+15868:     // ---- cells: compact ---------------------------------------------------
+15869:     std::vector<label> newCell(m.nCells, -1);
+15870:     label nC = 0;
+15871:     for (label c = 0; c < m.nCells; ++c)
+15872:     {
+15873:         if (m.cellAlive[c]) { newCell[c] = nC++; }
+15874:     }
+15875: 
+15876:     if (bindings) { mergeCoincidentPoints(m,nullptr,&bindings->alias); }
+15877:     else { mergeCoincidentPoints(m); }
+
+15950:         label o = m.owner[f] >= 0 ? newCell[m.owner[f]] : -1;
+15951:         label n = m.neighbour[f] >= 0 ? newCell[m.neighbour[f]] : -1;
+15952:         if (o < 0 && n < 0) { continue; }
+15953:         if (o < 0)
+15954:         {
+15955:             std::reverse(m.faces[f].begin(), m.faces[f].end());
+15956:             o = n; n = -1;
+15957:         }
+15958:         if (n >= 0 && o > n)
+15959:         {
+15960:             std::reverse(m.faces[f].begin(), m.faces[f].end());
+15961:             std::swap(o, n);
+15962:         }
+15963:         m.owner[f] = o;
+15964:         m.neighbour[f] = n;
+15965:         if (n >= 0) { internalIds.push_back(f); }
+15966:         else { boundaryIds.push_back(f); }
+15967:     }
+15968:     std::sort(internalIds.begin(), internalIds.end(), [&](label a, label b)
+15969:     {
+15970:         if (m.owner[a] != m.owner[b]) { return m.owner[a] < m.owner[b]; }
+15971:         return m.neighbour[a] < m.neighbour[b];
+15972:     });
+15973:     std::stable_sort(boundaryIds.begin(), boundaryIds.end(), [&](label a, label b)
+15974:     {
+15975:         return std::max(label(0), m.patch[a]) < std::max(label(0), m.patch[b]);
+15976:     });
+
+16005:             size_t j=i;
+16006:             while (j<boundaryIds.size() && std::max(label(0),m.patch[boundaryIds[j]])==p) { ++j; }
+16007:             if (p<patchTypes.size() && (patchTypes[p]=="processor" || patchTypes[p]=="processorCyclic"
+16008:                 || (patchTypes[p]=="cyclic" && getenv("DCCART_CONFORMING_CONES"))))
+16009:             {
+16010:                 // The optional cone path qualifies coincident coupled twins
+16011:                 // before subdivision. No transformed interface is inferred
+16012:                 // from a local world-coordinate ordering.
+16013:                 std::vector<std::pair<polygonKey,label>> keyed;keyed.reserve(j-i);
+16014:                 for (size_t k=i;k<j;++k) { keyed.emplace_back(keyOf(m.faces[boundaryIds[k]]),boundaryIds[k]); }
+16015:                 std::sort(keyed.begin(),keyed.end(),[](const std::pair<polygonKey,label>& a,const std::pair<polygonKey,label>& b)
+16016:                 { return a.first<b.first; });
+16017:                 for (size_t k=i;k<j;++k)
+16018:                 {
+16019:                     if (k>i && keyed[k-i].first==keyed[k-i-1].first)
+16020:                     { FatalErrorInFunction<<"duplicate exact coupled polygon in patch "<<patchNames[p]<<exit(FatalError); }
+16021:                     boundaryIds[k]=keyed[k-i].second;
+16022:                     auto& face=m.faces[boundaryIds[k]];size_t best=0;
+16023:                     for (size_t q=1;q<face.size();++q)
+16024:                     {
+16025:                         const point& a=m.points[face[q]];const point& b=m.points[face[best]];
+16026:                         if (coordinate(a.x(),a.y(),a.z())<coordinate(b.x(),b.y(),b.z())) { best=q; }
+16027:                     }
+16028:                     if (best) { std::rotate(face.begin(),face.begin()+best,face.end()); }
+16029:                 }
+
+16035:     // ---- points: keep only used ones -------------------------------------
+16036:     std::vector<label> newPoint(m.points.size(), -1);
+16037:     label nP = 0;
+16038:     auto usePoints = [&](label f)
+16039:     {
+16040:         for (label v : m.faces[f]) { if (newPoint[v] < 0) { newPoint[v] = nP++; } }
+16041:     };
+16042:     for (label f : internalIds) { usePoints(f); }
+16043:     for (label f : boundaryIds) { usePoints(f); }
+16044:     pointField pts(nP);
+16045:     for (label p = 0; p < label(m.points.size()); ++p)
+16046:     {
+16047:         if (newPoint[p] >= 0) { pts[newPoint[p]] = m.points[p]; }
+
+16186:         for (label f = nInt; f < nF; ++f)
+16187:         {
+16188:             const label p = finalPatch[f];
+16189:             if (p < 0 || p >= patchNames.size()) { continue; }
+16190:             if (indexOf[p] >= 0) { ++named[firstOf[std::string(patchNames[p])]]; }
+16191:             else { ++procTally[p]; }
+16192:         }
+16193:         if (nCommon > 0)
+16194:         {
+16195:             Pstream::listCombineGather(named, plusEqOp<label>());
+16196:             Pstream::listCombineScatter(named);
+16197:         }
+16198:         std::unordered_set<std::string> keepNames;
+16199:         forAll(patchNames, q)
+16200:         {
+
+16440:     mesh.addZones(pz, fz, cz);
+16441: 
+16442:     auto verifyWeightStage=[&](bool literalShell,bool capturePrefix)
+16443:     {
+16444:         if (baselineOnly || !m.weightUnionState) { return; }
+16445:         // All ranks have state, even disabled/no-candidate/expired ranks.
+16446:         // This is BEFORE point repair; its own installed baseline therefore
+16447:         // includes every new W-prefix passing role. Existing coupled oracle
+16448:         // remains earliest and runs after point repair without recapture.
+16449:         // Missing authority or an empty bounded pool retains the old path,
+16450:         // including callers that do not request typed final bindings.
+16451:         const label localWeightFailures=m.weightUnionState->committed.empty() ? 0
+16452:             : (bindings
+16453:                 ? dcCartWeightUnionPreview::verify
+16454:                     (*m.weightUnionState,m,mesh,*bindings,literalShell,capturePrefix):1);
+16455:         label weightEvidenceFailures=0;
+16456:         if (getenv("DCCART_CONE_EVIDENCE") || localWeightFailures)
+16457:         {
+
+16518:                 <<globalWeightFailures<<" packet(s); no mesh written"<<exit(FatalError);
+16519:         }
+16520:     };
+16521:     verifyWeightStage(true,true);
+16522:     if (!baselineOnly && remainingPointRepairSeconds)
+16523:     {
+16524:         // All ranks enter every gate, including false/empty ranks. The
+16525:         // default false proof cannot authorize singleton3 via empty zones.
+16526:         const label minimumSourceProof=returnReduce
+16527:             (label(singletonSourceRoleEligible),minOp<label>());
+
+16564:         dcCartFinitePointRepair::apply
+16565:             (mesh,remainingPointRepairSeconds,singletonSourceRoleContract);
+16566:     }
+16567:     // The ACTUAL final installed state, after any point-repair refresh.
+16568:     verifyWeightStage(false,false);
+16569:     if (!baselineOnly && m.writerBaseline)
+16570:     {
+16571:         clockTime verifyClock;
+16572:         // This is the REAL final polyMesh after point aliasing, compact
+16573:         // owner/face ordering, patch normalization and zone construction.
+16574:         // Every rank enters the same reduction, including empty/cert-zero ranks.
+16575:         label localFailures=bindings
+16576:             ? verifyWriterCoupled(m,mesh,*bindings,*m.writerBaseline) : 1;
+16577:         writerCoupledBaseline actual;
+16578:         actual.checkpoint=m.writerBaseline->checkpoint;
+16579:         actual.copySeconds=m.writerBaseline->copySeconds;
+16580:         actual.constructSeconds=m.writerBaseline->constructSeconds;
+16581:         actual.snapshotSeconds=m.writerBaseline->snapshotSeconds;
+16582:         actual.cutPayloadBytes=m.writerBaseline->cutPayloadBytes;
+16583:         // Evidence carries the REAL final compact bindings and installed
+16584:         // bytes, not a second serialization of expected baseline values.
+16585:         if (bindings) { localFailures+=snapshotWriterCoupled
+16586:             (*actual.checkpoint,mesh,*bindings,actual); }
+16587:         const scalar verifySeconds=verifyClock.elapsedTime();
+16588:         label ioFailures=0;
+16589:         if (getenv("DCCART_CONE_EVIDENCE") || localFailures)
+16590:         {
+16591:             const fileName output=runTime.path()/("conforming-writer-final-rank"+std::to_string(Pstream::myProcNo())+".json");
+16592:             if (!writeWriterCertificate(actual,output,
+16593:                 localFailures?"local-rejected":"local-pass-awaiting-global",localFailures,verifySeconds)) { ++ioFailures; }
+16594:         }
+16595:         const label globalFailures=returnReduce(localFailures+ioFailures,sumOp<label>());
+16596:         if (globalFailures)
+16597:         {
+16598:             // Preserve the raw PREOPERATOR input, never the altered candidate
+16599:             // polyMesh. APP has not called write() and obtains no result.
+16600:             const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
+
+FILE dcCartCutCells.H SHA256 d0d82632673fdf97e334c335f9123e33ee0b14b8aa6e731643aa9b7b3f9f3fee
+
+94:     struct writerBindings
+95:     {
+96:         // Native input slot -> the actual compact polyMesh slot.
+97:         std::vector<label> cell, face, point, alias;
+98:     };
+99: 
+100:     //- The mutable mesh the passes work on
+101:     struct cutMesh
+102:     {
+103:         std::vector<point> points;
+104:         std::vector<std::vector<label>> faces;
+105:         std::vector<label> owner;       // always >= 0 for a live face
+106:         std::vector<label> neighbour;   // -1 on a boundary face
+107:         std::vector<label> patch;       // boundary patch id, -1 internal
+108:         std::vector<label> zone;        // faceZone id, -1 none
+109:         std::vector<bool> faceAlive;
+110:         label nCells = 0;
+111:         std::vector<bool> cellAlive;
+112:         //- Assembled from the ORIGINAL carve (true) or added as a cut
+113:         //  candidate (false). Only original cells anchor the fluid side.
+114:         std::vector<bool> cellOrigAlive;
+115:         //- Hex volume and centre of the cell each mesh cell descends from
+116:         std::vector<scalar> cellRefVol;
+117:         std::vector<point> cellRefCentre;
+118:         //- Refinement level, kept for the merge heuristics
+119:         std::vector<label> cellLevel;
+120:         //- Rank that owns the cell; a cell of another rank in this rank's
+121:         //  halo is cut like any other and dropped at the end. One rank (a
+122:         //  run without -parallel) owns everything.
+123:         std::vector<label> cellRank;
+124:         //- Packed (i,j,k) of the octree leaf the cell descends from; with
+125:         //  cellLevel it names the leaf identically on every rank
+126:         std::vector<uint64_t> cellLeaf;
+127:         //- Which piece of that leaf: a hash of the split history (A half
+128:         //  and B half of every split). Splits are a pure function of the
+129:         //  cell and the surfaces, so every rank that holds the piece gives
+130:         //  it the same value; (level, leaf, piece) is the cell's global id.
+131:         std::vector<uint64_t> cellPiece;
+132:         //- Optional cone evidence only: input-stage parent/base labels.
+133:         //  Empty in the ordinary path; never used by geometry or ownership.
+134:         std::vector<label> coneEvidenceParent;
+135:         std::vector<label> coneEvidenceBase;
+136:         //- Points [0, nGridPoints) are octree grid corners, all further
+137:         //  apart than the coincident-point tolerance (0: not known)
+138:         label nGridPoints = 0;
+139:         // Empty unless the default-OFF literal experiment builds its one
+140:         // preoperator installed-writer oracle. Normal authorization never
+141:         // depends on optional TRACE files.
+142:         std::shared_ptr<writerCoupledBaseline> writerBaseline;
+143:         // Sparse normal W lineage. Independent of TRACE and the coupled baseline.
+144:         std::shared_ptr<writerWeightUnionState> weightUnionState;
+145:         // Normal pre-cone lineage: one bounded native-slot key per child.
+146:         // Empty when source authority is absent; no TRACE IDs or coordinates.
+147:         dcCartCompleteCavityOriginCore::Lineage<label> completeCavityLineage;
+148:     };
+
+163:     struct writerCoupledBaseline
+164:     {
+165:         // Earliest immutable preoperator inputs; never updated after a union.
+166:         std::shared_ptr<const cutMesh> checkpoint;
+167:         std::vector<writerCoupledFace> faces;
+168:         std::map<std::string,std::string> patchRoles;
+169:         std::map<std::string,label> patchSizes;
+170:         scalar copySeconds=0, constructSeconds=0, snapshotSeconds=0;
+171:         std::size_t cutPayloadBytes=0, writerGeometryBytes=0;
+172:     };
+173: 
+174:     struct settings
+175:     {
+176:         //- Points closer than this to a baffle sheet count as ON it
+177:         scalar onTolerance = 1e-6;
+178:         //- Points closer than this to a CARVING surface count as ON it.
+
+653:         static void mergeCoincidentPoints
+654:         (
+655:             cutMesh& m, const boundBox* within = nullptr,
+656:             std::vector<label>* flattenedAlias = nullptr
+657:         );
+658: 
+659:         //- Rewrite every live cell's cellPiece as a hash of its CURRENT
+660:         //  GEOMETRY (quantised centroid, bounding box and the sorted vertex
+661:         //  coordinates of every face), so the cell's global id (leaf, piece)
+662:         //  is a pure function of geometry again. The history hash the clip
+663:         //  passes stamp is NOT rank-invariant: the owner of an interface
+664:         //  cell and the rank holding it as halo can run the degenerate-split
+665:         //  and splice decisions in different orders (their reaches and
+666:         //  neighbourhoods are cut by the halo edge), arrive at the SAME
+667:         //  final polygons, and still carry different split histories. Every
+668:         //  gid-arbitrated round (mergeSmallCells, refineLongCells) must call
+669:         //  this at entry, before the first gidOf, or the ranks arbitrate on
+670:         //  names that do not denote the same cell.
+671:         static void rekeyPiecesByGeometry(cutMesh& m);
+672: 
+
+826:         //- Compact, order and build the polyMesh.
+827:         //- `patchNeighbours[p]` is the cyclic partner of patch p (null for
+828:         //  every other type) and `patchGroups[p]` the extra inGroups entry
+829:         //  createBaffles would have given it -- both are what makes a baffle
+830:         //  pair written here indistinguishable from one written by
+831:         //  createBaffles.
+832:         static autoPtr<polyMesh> toPolyMesh
+833:         (
+834:             cutMesh& m,
+835:             const Time& runTime,
+836:             const word& regionName,
+837:             const wordList& patchNames,
+838:             const wordList& patchTypes,
+839:             const wordList& faceZoneNames,
+840:             const wordList& patchNeighbours = wordList(),
+841:             const wordList& patchGroups = wordList(),
+842:             const bool baselineOnly = false,
+843:             writerBindings* bindings = nullptr,
+844:         // Empty disables the experimental installed-point repair stage.
+845:         const std::function<scalar()>& remainingPointRepairSeconds = std::function<scalar()>(),
+846:         // Runner source proof; absent/invalid contracts default to refusal.
+847:         const bool singletonSourceRoleEligible = false
+848:         );
+
+FILE dcCartWeightUnionPreview.H SHA256 58203e418cec2f210ab22896552fa40ae39c3d9958f22118031c3342155ed368
+
+67: inline scalar determinant(const polyMesh& mesh,label c) {
+68:     scalar area=0;label count=0;
+69:     for(label f:mesh.cells()[c]) if(f<mesh.nInternalFaces()||coupled(mesh,f))
+70:     { area+=mag(mesh.faceAreas()[f]);++count; }
+71:     if(!count||!finite(area)||area<=VSMALL) return -GREAT;
+72:     const scalar mean=area/count;symmTensor t(Zero);
+73:     for(label f:mesh.cells()[c]) if(f<mesh.nInternalFaces()||coupled(mesh,f))
+74:         t+=sqr(mesh.faceAreas()[f]/mean);
+75:     return mag(det(t))/8;
+76: }
+77: inline std::array<scalar,4> metrics(const polyMesh& mesh,label f) {
+78:     const vector sf=mesh.faceAreas()[f];const point fc=mesh.faceCentres()[f];
+79:     const auto& cc=mesh.cellCentres();const auto& vol=mesh.cellVolumes();
+80:     const label o=mesh.faceOwner()[f];const scalar a=mag(sf);
+81:     if(!finite(sf)||!finite(fc)||!finite(cc[o])||!finite(vol[o])
+82:        ||a<=1e-12||vol[o]<=VSMALL||coupled(mesh,f))
+83:         return {{-GREAT,-GREAT,GREAT,GREAT}};
+84:     std::array<scalar,4> q{{1,1,0,0}};vector delta;
+85:     if(f<mesh.nInternalFaces()) {
+86:         const label n=mesh.faceNeighbour()[f];
+87:         if(!finite(cc[n])||!finite(vol[n])||vol[n]<=VSMALL)
+88:             return {{-GREAT,-GREAT,GREAT,GREAT}};
+89:         const scalar x=mag(sf&(fc-cc[o])),y=mag(sf&(cc[n]-fc));
+90:         q[0]=min(x,y)/(x+y+VSMALL);
+91:         q[1]=min(vol[o],vol[n])/(max(vol[o],vol[n])+VSMALL);
+92:         delta=cc[n]-cc[o];
+93:         q[3]=std::acos(max(scalar(-1),min(scalar(1),
+94:           (sf&delta)/(a*mag(delta)+ROOTVSMALL))))*180/constant::mathematical::pi;
+95:     } else { const vector n=sf/a;delta=n*(n&(fc-cc[o])); }
+96:     const vector cpf=fc-cc[o],sv=cpf-((sf&cpf)/((sf&delta)+ROOTVSMALL))*delta;
+97:     const vector dir=sv/(mag(sv)+ROOTVSMALL);
+98:     scalar reach=(f<mesh.nInternalFaces()? .2:.4)*mag(delta)+ROOTVSMALL;
+99:     for(label p:mesh.faces()[f]) reach=max(reach,mag(dir&(mesh.points()[p]-fc)));
+100:     q[2]=mag(sv)/reach;
+101:     return q;
+102: }
+103: inline bool pass(scalar x,unsigned k) {
+104:     if(!finite(x)) return false;
+105:     static const scalar t[5]={.001,.05,.01,4,70};
+106:     return k<3?x>=t[k]:x<=t[k];
+107: }
+108: inline scalar severity(scalar x,unsigned k) {
+109:     if(!finite(x)) return GREAT;
+110:     static const scalar t[5]={.001,.05,.01,4,70};
+111:     return max(scalar(0),k<3?t[k]/max(x,VSMALL)-1:x/t[k]-1);
+112: }
+
+152: struct Packet {
+153:     SeedKind seedKind=SeedKind::W;
+154:     label nativeFace=-1,a=-1,b=-1,keep=-1,drop=-1;
+155:     scalar weight=1;
+156:     Key key;
+157:     std::array<Key,2> keeperKeys;
+158:     std::vector<Origin> origins;
+159:     std::vector<RawFace> faces;
+160:     std::vector<RawCell> cells;
+161:     std::map<label,std::pair<label,point>> aliases;
+162:     std::vector<label> outer;
+163:     std::size_t payload=0;
+164: };
+165: struct State {
+166:     bool enabled=false,poolRefused=false,dEnabled=false;
+167:     scalar discoveryCaptureSeconds=0;label crossClassRefused=0;
+168:     label examined=0,tried=0,accepted=0,dependencyRefused=0,guardRefused=0;
+169:     label protectedRefused=0,geometryRefused=0,qualityRefused=0;
+170:     std::vector<Packet> pool,committed;
+171:     std::map<label,std::vector<Origin>> survivorOrigins;
+172:     // Exact known cardinality remaps from the EXISTING authorized physical path.
+173:     std::map<label,label> authorizedPhysicalPruned;
+174:     std::map<label,scalar> installedPrefixCells;
+175:     std::map<label,std::array<scalar,4>> installedPrefixFaces;
+176:     Authority authority;
+177:     clockTime clock;
+178:     std::size_t payload=0;
+179:     bool available() const {
+180:         if(!enabled||!authority.remainingSeconds) return false;
+181:         const scalar r=authority.remainingSeconds();
+182:         return finite(r)&&r>1 && clock.elapsedTime()<4; // reserve 1 s local admission
+183:     }
+
+265:     std::sort(items.begin(),items.end(),[](const Seed& a,const Seed& b){
+266:         return a.w!=b.w?a.w<b.w:a.k<b.k;
+267:     });
+268:     for(const auto& seed:items) {
+269:         if(!state.available()) break;
+270:         if(state.pool.size()>=256) break;
+271:         if(multiplicity[seed.k]!=1) continue;
+272:         const label f=seed.face,a=oracle.faceOwner()[f],b=oracle.faceNeighbour()[f];
+273:         Packet p;p.seedKind=kind;p.nativeFace=nativeFaces[f];p.a=nativeCells[a];p.b=nativeCells[b];
+274:         p.key=seed.k;p.weight=kind==SeedKind::W?seed.w:actualPacketWeight(kind,seed.w,metrics(oracle,f)[0]);p.keeperKeys={{key(oracle,a),key(oracle,b)}};
+275:         if(p.keeperKeys[0]==p.keeperKeys[1]) continue;
+276:         bool valid=true;
+277:         for(label c:{p.a,p.b}) {
+278:             if(c<0||c>=label(parent.size())||parent[c]<0||!origin) {valid=false;break;}
+279:             const Origin source=origin(parent[c]);
+280:             if(source.nativeParent!=parent[c]||source.rank<0||source.region.empty()) {valid=false;break;}
+281:             p.origins.push_back(source);
+282:         }
+283:         if(!valid||p.origins.size()!=2||!state.authority.homogeneousOrigins(p.origins)) continue;
+284:         std::set<label> first{a,b},all,faceSet,pointSet;
+285:         for(label c:{a,b}) for(label x:cf[c]) {
+286:             if(x!=f) p.outer.push_back(nativeFaces[x]);
+
+420: inline bool dependency
+421: (
+422:     const Packet& p,const Cut& m,const std::vector<std::vector<label>>& cf
+423: ) {
+424:     for(const auto& c:p.cells) {
+425:         if(c.id<0||c.id>=m.nCells||!m.cellAlive[c.id]) return false;
+426:         auto faces=cf[c.id];std::sort(faces.begin(),faces.end());
+427:         if(faces!=c.rawFaces) return false;
+428:     }
+429:     for(const auto& f:p.faces) {
+430:         if(f.id<0||f.id>=label(m.faces.size())||!m.faceAlive[f.id]
+431:           ||m.owner[f.id]!=f.owner||m.neighbour[f.id]!=f.neighbour
+432:           ||m.patch[f.id]!=f.patch||m.zone[f.id]!=f.zone||m.faces[f.id]!=f.ring) return false;
+433:         for(std::size_t j=0;j<f.ring.size();++j)
+434:             if(!bits(m.points[f.ring[j]],f.rawCoordinates[j])) return false;
+435:     }
+436:     return true;
+437: }
+
+603:             const scalar d=determinant(mesh,dest);
+604:             if(pass(c.d,0)&&!pass(d,0)) refuse("passing-cell-determinant",c.id);
+605:             if(counted.insert(dest).second) next.add(d,0);
+606:         }
+607:         if(!pass(determinant(mesh,keep),0)) refuse("survivor-determinant",p.keep);
+608:         for(const auto& alias:p.aliases) {
+609:             const label n=alias.first;
+610:             if(n<0||n>=label(b.alias.size())||b.alias[n]!=alias.second.first
+611:               ||b.alias[n]<0||b.alias[n]>=label(raw.points.size())
+612:               ||(literalShell&&!bits(raw.points[b.alias[n]],alias.second.second))) {refuse("point-alias-or-coordinate",n);break;}
+613:         }
+
+630:             const label oldO=mappedCell(b,f.installedOwner==p.drop?p.keep:f.installedOwner);
+631:             const label oldN=f.installedNeighbour<0?-1:mappedCell(b,
+632:                 f.installedNeighbour==p.drop?p.keep:f.installedNeighbour);
+633:             const label nowO=mesh.faceOwner()[x],nowN=x<mesh.nInternalFaces()?mesh.faceNeighbour()[x]:-1;
+634:             const bool flip=oldN>=0&&oldO>oldN;
+635:             if(nowO!=(flip?oldN:oldO)||nowN!=(flip?oldO:oldN)) {refuse("canonical-owner-neighbour",f.id);break;}
+636:             auto expected=f.installedCoordinates;
+637:             if(flip) std::reverse(expected.begin()+1,expected.end()); // point0 remains explicit
+638:             const auto& ring=mesh.faces()[x];
+639:             if(ring.size()!=label(expected.size())) {refuse("ring-size",f.id);break;}
+640:             if(literalShell||f.patch>=0)
+641:                 forAll(ring,j) if(!bits(mesh.points()[ring[j]],expected[j])) refuse("ordered-ring-coordinate",f.id);
+
+685:         if(ok&&capturePrefix) {
+686:             for(const auto& c:p.cells) {
+687:                 const label native=c.id==p.drop?p.keep:c.id;
+688:                 const label compact=mappedCell(b,native);
+689:                 state.installedPrefixCells[native]=determinant(mesh,compact);
+690:             }
+691:             for(const auto& f:p.faces) if(f.id!=p.nativeFace)
+692:                 state.installedPrefixFaces[f.id]=metrics(mesh,b.face[f.id]);
+693:         }
+694:     }
+695:     if(!capturePrefix) {
+696:         // Point repair is allowed to reshape interior geometry, but every
+697:         // actually installed W-prefix passing role must survive its FINAL state.
+698:         for(const auto& row:state.installedPrefixCells) {
+699:             const label c=mappedCell(b,row.first);
+700:             if(c<0||(pass(row.second,0)&&!pass(determinant(mesh,c),0))) ++failures;
+701:         }
+702:         for(const auto& row:state.installedPrefixFaces) {
+703:             const label f=row.first>=0&&row.first<label(b.face.size())?b.face[row.first]:-1;
+704:             if(f<0) {++failures;continue;}
+705:             const auto q=metrics(mesh,f);
+706:             for(unsigned k=0;k<4;++k)
+707:                 if(pass(row.second[k],k+1)&&!pass(q[k],k+1)) ++failures;
+708:         }
+
+FILE dcCartFinitePointRepair.H SHA256 c9e1fe1b9654dc0fc355c208818b78a037d75d4386d0b2f46ba653762eb85003
+
+145: inline Search propose
+146: (
+147:     unsigned dimension,
+148:     const std::function<Evaluation(const Row&)>& evaluate,
+149:     const std::function<bool()>& available,
+150:     ObjectiveKind objectiveKind=ObjectiveKind::Ratio
+151: )
+152: {
+153:     Search out; out.parameters.assign(dimension,0);
+154:     if ((objectiveKind==ObjectiveKind::Ratio && dimension!=3 && dimension!=4)
+155:      || (objectiveKind==ObjectiveKind::DWeightCount && dimension!=3 && dimension!=9)) return out;
+156:     auto request=[&](const Row& q, Evaluation& e)
+157:     {
+158:         if (out.requests>=256)
+159:         { out.stoppedByBudget=true;out.stoppedByRequestCap=true;return false; }
+160:         if (!available())
+161:         { out.stoppedByBudget=true;out.stoppedByTimeBudget=true;return false; }
+162:         ++out.requests; e=evaluate(q);
+163:         return e.valid && std::isfinite(e.objective)
+164:             && !e.constraints.empty() && finite(e.constraints);
+165:     };
+166:     Row q(dimension,0); Evaluation current;
+167:     if (!request(q,current)) return out;
+168:     const double initialHardDW=current.hardDW;
+169:     for (unsigned iteration=0; iteration<32; ++iteration)
+170:     {
+171:         Matrix jac(current.constraints.size(),Row(dimension,0));
+172:         Row grad(dimension,0); bool valid=true;
+173:         for (unsigned k=0; k<dimension; ++k)
+174:         {
+175:             Row plus=q, minus=q; plus[k]+=1e-5; minus[k]-=1e-5;
+
+1367:         points
+1368:     );
+1369:     autoPtr<labelIOList> emptyTet;
+1370:     mesh.clearTetBasePtIs();
+1371:     mesh.updateGeomPoints(std::move(field),emptyTet);
+1372:     (void)mesh.faceAreas();(void)mesh.faceCentres();
+1373:     (void)mesh.cellCentres();(void)mesh.cellVolumes();
+1374:     // All ranks call together; tetBasePtIs can exchange boundary information.
+1375:     (void)mesh.tetBasePtIs();
+1376: }
+1377: 
+1378: inline Result apply
+1379: (
+1380:     polyMesh& mesh,const std::function<scalar()>& remainingStageBudget,
+1381:     const std::function<bool(const std::vector<label>&)>& singletonSourceRoleContract={}
+1382: )
+1383: {
+1384:     // Clock starts before any graph, geometry cache or census.
+1385:     const auto start=std::chrono::steady_clock::now();
+
+FILE dcCartCompleteCavityOriginCore.H SHA256 a09c0e89e7cf0a695f45a5ab7dedc6a9f6be35304a5a4f374c6abf693b02cd7e
+
+172:             std::size_t index=0;
+173:             for (;index<composite_.size();++index)
+174:             {
+175:                 if ((index&63u)==0 && !available())
+176:                 { refuse(Refusal::budget);invalidate();return false; }
+177:                 const auto& entry=composite_[index];
+178:                 if (entry.count==parents.size()
+179:                  && std::equal(parents.begin(),parents.end(),entry.parents.begin())) break;
+180:             }
+181:             if (index==composite_.size())
+182:             {
+183:                 const std::size_t limit=std::min(maxCompositeSets,maxCompositeBytes/sizeof(Composite));
+184:                 if (index>=limit)
+185:                 { refuse(Refusal::compositeCapacity);keys_[keep]=keys_[drop]=Label(-1);return false; }
+186:                 try
+187:                 {
+188:                     if (composite_.empty()) composite_.reserve(limit);
+189:                     Composite entry;entry.count=parents.size();
+190:                     std::copy(parents.begin(),parents.end(),entry.parents.begin());
+191:                     composite_.push_back(entry);
+192:                 }
+193:                 catch (const std::bad_alloc&)
+194:                 { refuse(Refusal::compositeCapacity);keys_[keep]=keys_[drop]=Label(-1);return false; }
+195:             }
+196:             key=Label(-2)-Label(index);
+197:         }
+198:         keys_[keep]=key;keys_[drop]=Label(-1);return true;
+199:     }
+200:     bool originsForCells(const std::vector<Label>& cells,std::vector<Label>& out) const
+201:     {
+202:         out.clear();
+203:         if (!active_ || cells.empty() || cells.size()>maxCavityCells) return false;
+204:         std::set<Label> uniqueCells;
+205:         for (Label cell:cells)
+206:             if (cell<0 || std::size_t(cell)>=keys_.size()
+207:              || !uniqueCells.insert(cell).second || !decode(keys_[cell],out))
+208:             { out.clear();return false; }
+209:         std::sort(out.begin(),out.end());out.erase(std::unique(out.begin(),out.end()),out.end());
+210:         if (out.empty() || out.size()>maxOrigins) { out.clear();return false; }
+211:         return true;
+212:     }
+213:     // The normal writer's real native->compact binding is required; no
+214:     // guessed identity mapping and no implicit duplicate survivor permission.
+215:     bool compactKeys(const std::vector<Label>& nativeToCompact,std::size_t count,
+216:                      std::vector<Label>& out) const
+217:     {
+218:         out.clear();
+219:         if (!active_ || nativeToCompact.size()!=keys_.size()
+220:          || count>maxKeyBytes/sizeof(Label)) return false;
+221:         out.assign(count,Label(-1));std::vector<unsigned char> seen(count,0);
+222:         for (std::size_t c=0;c<keys_.size();++c)
+223:         {
+224:             const Label compact=nativeToCompact[c];
+225:             if (compact==Label(-1)) continue;
+226:             if (compact<0 || std::size_t(compact)>=count || seen[compact])
+227:             { out.clear();return false; }
+228:             seen[compact]=1;out[compact]=keys_[c];
+229:         }
+230:         if (std::find(seen.begin(),seen.end(),0)!=seen.end()) { out.clear();return false; }
+231:         return true;
+
+FILE dcCartCompleteCavityAuthority.H SHA256 fb77d75e24728f70b9b48ad5a3472223366cfd6aec27aa08b6a1b5f7e36206fe
+
+87: // current live-cell -> immutable complete-origin permission, never geometry.
+88: inline bool collectCompleteOrigins
+89: (
+90:     const dcCartCutCells::cutMesh& mesh,
+91:     const dcCartCutCells::completeCavityAuthority& authority,
+92:     const std::vector<label>& cells,
+93:     std::vector<dcCartCutCells::weightUnionOrigin>& origins
+94: )
+95: {
+96:     origins.clear();
+97:     // Reject oversized/empty caller input before any clock/mesh/shape scan.
+98:     if (cells.empty() || cells.size()>dcCartCompleteCavityOriginCore::maxCavityCells) return false;
+99:     if (!authority.ready() || !available(authority.remainingSeconds)
+100:      || mesh.nCells<0 || mesh.cellAlive.size()!=std::size_t(mesh.nCells)
+101:      || mesh.completeCavityLineage.size()!=std::size_t(mesh.nCells)) return false;
+102:     for (label cell:cells)
+103:         if (cell<0 || cell>=mesh.nCells || !mesh.cellAlive[cell]) return false;
+104:     std::vector<label> parents;
+105:     if (!mesh.completeCavityLineage.originsForCells(cells,parents)) return false;
+106:     for (label parent:parents)
+107:     {
+108:         if (!available(authority.remainingSeconds) || !authority.recordedParent(parent))
+109:         { origins.clear();return false; }
+110:         origins.push_back(authority.normalOriginFromSnapshot(parent));
+111:     }
+112:     if (!authority.completeOrigins(origins)) { origins.clear();return false; }
+113:     return true;

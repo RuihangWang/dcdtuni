@@ -1,0 +1,44 @@
+3030:                 << " so this is the first thing to look at when eps runs away."
+3031:                 << endl;
+3032:         }
+3033: 
+3034:         surfaces.reportRegionQueryAudit();
+3035: 
+3036:         const label requestedPointRepair=dcCartPointRepairBudget::enabled
+3037:             (std::getenv("DCCART_SHARED_POINT_REPAIR"));
+3038:         const label minimumPointRepair=returnReduce(requestedPointRepair,minOp<label>());
+3039:         const label maximumPointRepair=returnReduce(requestedPointRepair,maxOp<label>());
+3040:         if (minimumPointRepair!=maximumPointRepair)
+3041:         {
+3042:             FatalErrorInFunction
+3043:                 << "DCCART_SHARED_POINT_REPAIR must agree on every rank; no mesh written"
+3044:                 << exit(FatalError);
+3045:         }
+3046:         std::function<scalar()> remainingPointRepairSeconds;
+3047:         if (maximumPointRepair)
+3048:         {
+3049:             // -timeLimit is the runner's remaining whole-job budget. The
+3050:             // prototype also caps its own total stage time. This reserve is
+3051:             // a refusal margin; the runner watchdog and full checkMesh remain
+3052:             // authoritative for the complete pipeline.
+3053:             remainingPointRepairSeconds=[&]() -> scalar
+3054:             {
+3055:                 return dcCartPointRepairBudget::allowance(timeLimit,timer.elapsedTime());
+3056:             };
+3057:         }
+3058:         // Always use this run's dcCartMeshDict, never the optional
+3059:         // snappy/geometry identitySource fallback. The enable gate above
+3060:         // makes this fixed gather/scatter sequence common to every rank.
+3061:         const bool singletonSourceRoleEligible=maximumPointRepair
+3062:             ? dcCartPointRepairSourceContract::readEligible(meshDict) : false;
+3063:         meshPtr = dcCartCutCells::toPolyMesh
+3064:         (
+3065:             m, runTime, polyMesh::defaultRegion,
+3066:             patchNames, patchTypes, surfaces.faceZoneNames(),
+3067:             patchNeighbours, patchGroups,false,nullptr,remainingPointRepairSeconds,
+3068:             singletonSourceRoleEligible,
+3069:             recordSourceRegions ? &sourcePatchAddressMap : nullptr
+3070:         );
+3071:         if (getenv("DCCART_CONE_LITERAL_UNIONS") || maximumPointRepair)
+3072:         { budgetCheck("conforming-final-installed-writer"); }
+3073:         const label nCellsAll = sumAll(meshPtr->nCells());

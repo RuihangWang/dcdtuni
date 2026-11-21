@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_oversized_json_integer_is_a_validation_error_not_an_overflow _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-integer-red/test_oversized_json_integer_is0')
+
+    def test_oversized_json_integer_is_a_validation_error_not_an_overflow(tmp_path):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=10**400)
+
+src/server/tests/test_ov_selected_frame.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/server/ov_result_dataset.py:280: in prepare_ensight
+    selection = _resolve_source(run, time_value)
+src/server/ov_result_dataset.py:177: in _resolve_source
+    return _selected_source(run, time_value)
+src/server/ov_result_dataset.py:157: in _selected_source
+    value = validate_frame_time(time_value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = 100000000000000000...0000000000000000000
+
+    def validate_frame_time(value):
+        """Explicit frames are positive finite JSON numbers, never coercions."""
+>       if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+E       OverflowError: int too large to convert to float
+
+src/server/ov_result_dataset.py:131: OverflowError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_ov_selected_frame.py::test_oversized_json_integer_is_a_validation_error_not_an_overflow
+1 failed, 21 deselected in 0.24s

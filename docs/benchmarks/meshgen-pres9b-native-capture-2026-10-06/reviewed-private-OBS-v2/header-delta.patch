@@ -1,0 +1,21 @@
+--- a/ProducerStateCapture.hpp
++++ b/ProducerStateCapture.hpp
+@@ -18,8 +18,8 @@
+  return value;
+ }
+ struct Writer {
+- int fd=-1;size_t bytes=0;bool good=true,retain=false;std::string path;
+- ~Writer(){if(fd>=0)::close(fd);if(!retain&&!path.empty())::unlink(path.c_str());}
++ int fd=-1;size_t bytes=0;bool good=true,retain=false,created=false;std::string path;
++ ~Writer(){if(fd>=0)::close(fd);if(created&&!retain&&!path.empty())::unlink(path.c_str());}
+  void raw(const void*p,size_t n)noexcept {
+   if(!good||n>kMaxBytes-bytes){good=false;return;}
+   const char*q=(const char*)p;
+@@ -57,6 +57,7 @@
+   const std::string path=std::string(dir)+tail;
+   Writer w;w.path=path;w.fd=::open(path.c_str(),O_WRONLY|O_CREAT|O_EXCL,0600);
+   if(w.fd<0){missing(o,"open_exclusive_failed");return;}
++  w.created=true;
+   const char magic[8]={'M','G','P','C','A','P','1',0};w.raw(magic,8);
+   w.u64(1);w.u64(0x0102030405060708ull);
+   const char sourceBase[]="4cd6aab4259fdc15339e35bf27f28de52b394d9949319f0b20cce3a5c74c0eed";

@@ -1,0 +1,7 @@
+# Scope and acceptance
+
+Accepted view identity comes from the scene acknowledged in this RendererControl session, not a UID match or an arbitrary current Kit reply. Ordinals must be safe nonnegative integers; hash is exact 64 lowercase hex; unknown/foreign receipts cannot supply camera or selection. The camera remains project-coordinate data and existing restoreRenderCamera/root-matrix conversion is untouched. A legitimate orbit from the accepted preceding scene can survive a same-project content edit without importing native old selection/time into the newly captured packet.
+
+A pending return may not replace the local view after its component/session/source/time changes. Canceling scene-sync also retires the awaiting callback's permission to issue loadScene. The UI uses the existing local-view fallback message on unverifiable readback. No displayed result is upgraded from diagnostic to accepted, no metadata becomes encoded frame/layout proof, and ordinary source selection is not gated by optional grid pixels.
+
+Not established: the origin of the historical low-angle update commands, full cross-tab write isolation, actual Three/OV camera/pixel parity, or live selector/Shift acceptance. Scene revision/hash coherence is not a new authorization mechanism or an encoded-video frame proof. Root must independently review/fresh-run and merge selection hunks before any normal source application.

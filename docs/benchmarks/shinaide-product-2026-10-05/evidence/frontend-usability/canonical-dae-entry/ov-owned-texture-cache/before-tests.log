@@ -1,0 +1,216 @@
+FFFFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+_ test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[None-/] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0')
+cwd = '/', inherited_cache = None
+
+    @pytest.mark.parametrize("cwd", ["/", str(ROOT)])
+    @pytest.mark.parametrize("inherited_cache", [None, "/tmp/legacy-render-textures"])
+    def test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env(tmp_path, cwd, inherited_cache):
+        """Observe the real supervisor child environment, not an assignment regex."""
+        runtime = tmp_path / "texture-runtime"
+        observed = tmp_path / "texture-environment.json"
+        code = ("import json,os,pathlib\n"
+                f"pathlib.Path({str(observed)!r}).write_text(json.dumps("
+                "{'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n")
+        environment = dict(os.environ)
+        environment.pop("DCDTUNI_RENDER_TEXTURE_CACHE", None)
+        if inherited_cache is not None:
+            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = inherited_cache
+        result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+            sys.executable, "-c", code], cwd=cwd, env=environment, capture_output=True, text=True, timeout=5)
+        assert result.returncode == 0, result.stdout + result.stderr
+        actual = json.loads(observed.read_text())["cache"]
+>       assert actual == str(runtime.resolve() / "render-textures")
+E       AssertionError: assert None == '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0/texture-runtime/render-textures'
+E        +  where '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0/texture-runtime/render-textures' = str((PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0/texture-runtime') / 'render-textures'))
+E        +    where PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0/texture-runtime') = resolve()
+E        +      where resolve = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache0/texture-runtime').resolve
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:558: AssertionError
+_ test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[None-/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1')
+cwd = '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration'
+inherited_cache = None
+
+    @pytest.mark.parametrize("cwd", ["/", str(ROOT)])
+    @pytest.mark.parametrize("inherited_cache", [None, "/tmp/legacy-render-textures"])
+    def test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env(tmp_path, cwd, inherited_cache):
+        """Observe the real supervisor child environment, not an assignment regex."""
+        runtime = tmp_path / "texture-runtime"
+        observed = tmp_path / "texture-environment.json"
+        code = ("import json,os,pathlib\n"
+                f"pathlib.Path({str(observed)!r}).write_text(json.dumps("
+                "{'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n")
+        environment = dict(os.environ)
+        environment.pop("DCDTUNI_RENDER_TEXTURE_CACHE", None)
+        if inherited_cache is not None:
+            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = inherited_cache
+        result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+            sys.executable, "-c", code], cwd=cwd, env=environment, capture_output=True, text=True, timeout=5)
+        assert result.returncode == 0, result.stdout + result.stderr
+        actual = json.loads(observed.read_text())["cache"]
+>       assert actual == str(runtime.resolve() / "render-textures")
+E       AssertionError: assert None == '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1/texture-runtime/render-textures'
+E        +  where '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1/texture-runtime/render-textures' = str((PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1/texture-runtime') / 'render-textures'))
+E        +    where PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1/texture-runtime') = resolve()
+E        +      where resolve = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache1/texture-runtime').resolve
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:558: AssertionError
+_ test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[/tmp/legacy-render-textures-/] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache2')
+cwd = '/', inherited_cache = '/tmp/legacy-render-textures'
+
+    @pytest.mark.parametrize("cwd", ["/", str(ROOT)])
+    @pytest.mark.parametrize("inherited_cache", [None, "/tmp/legacy-render-textures"])
+    def test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env(tmp_path, cwd, inherited_cache):
+        """Observe the real supervisor child environment, not an assignment regex."""
+        runtime = tmp_path / "texture-runtime"
+        observed = tmp_path / "texture-environment.json"
+        code = ("import json,os,pathlib\n"
+                f"pathlib.Path({str(observed)!r}).write_text(json.dumps("
+                "{'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n")
+        environment = dict(os.environ)
+        environment.pop("DCDTUNI_RENDER_TEXTURE_CACHE", None)
+        if inherited_cache is not None:
+            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = inherited_cache
+        result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+            sys.executable, "-c", code], cwd=cwd, env=environment, capture_output=True, text=True, timeout=5)
+        assert result.returncode == 0, result.stdout + result.stderr
+        actual = json.loads(observed.read_text())["cache"]
+>       assert actual == str(runtime.resolve() / "render-textures")
+E       AssertionError: assert '/tmp/legacy-render-textures' == '/mnt/lv/home...nder-textures'
+E         
+E         - /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache2/texture-runtime/render-textures
+E         + /tmp/legacy-render-textures
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:558: AssertionError
+_ test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[/tmp/legacy-render-textures-/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache3')
+cwd = '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration'
+inherited_cache = '/tmp/legacy-render-textures'
+
+    @pytest.mark.parametrize("cwd", ["/", str(ROOT)])
+    @pytest.mark.parametrize("inherited_cache", [None, "/tmp/legacy-render-textures"])
+    def test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env(tmp_path, cwd, inherited_cache):
+        """Observe the real supervisor child environment, not an assignment regex."""
+        runtime = tmp_path / "texture-runtime"
+        observed = tmp_path / "texture-environment.json"
+        code = ("import json,os,pathlib\n"
+                f"pathlib.Path({str(observed)!r}).write_text(json.dumps("
+                "{'cache':os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE')}))\n")
+        environment = dict(os.environ)
+        environment.pop("DCDTUNI_RENDER_TEXTURE_CACHE", None)
+        if inherited_cache is not None:
+            environment["DCDTUNI_RENDER_TEXTURE_CACHE"] = inherited_cache
+        result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+            sys.executable, "-c", code], cwd=cwd, env=environment, capture_output=True, text=True, timeout=5)
+        assert result.returncode == 0, result.stdout + result.stderr
+        actual = json.loads(observed.read_text())["cache"]
+>       assert actual == str(runtime.resolve() / "render-textures")
+E       AssertionError: assert '/tmp/legacy-render-textures' == '/mnt/lv/home...nder-textures'
+E         
+E         - /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_owned_child_texture_cache3/texture-runtime/render-textures
+E         + /tmp/legacy-render-textures
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:558: AssertionError
+_________ test_texture_cache_symlink_escape_rejects_before_child_spawn _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-before/test_texture_cache_symlink_esc0')
+
+    def test_texture_cache_symlink_escape_rejects_before_child_spawn(tmp_path):
+        runtime = tmp_path / "escaped-texture-runtime"
+        runtime.mkdir()
+        (runtime / "render-textures").symlink_to("/", target_is_directory=True)
+        child_marker = tmp_path / "escaped-child-started"
+        code = f"from pathlib import Path;Path({str(child_marker)!r}).write_text('unexpected')"
+        result = subprocess.run([sys.executable, str(SUPERVISOR), "--runtime", str(runtime), "--",
+            sys.executable, "-c", code], capture_output=True, text=True, timeout=5)
+>       assert result.returncode != 0
+E       assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/python', '/mnt/lv/home/litianyu/mycode/dcdtu...test_texture_cache_symlink_esc0/escaped-child-started').write_text('unexpected')"], returncode=0, stdout='', stderr='').returncode
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:572: AssertionError
+_______ test_bridge_rejects_missing_or_outside_cache_before_author[None] _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fab7233b2e0>
+cache = None
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+>       assert calls == []
+E       AssertionError: assert ['/tmp/dcdtun...der-textures'] == []
+E         
+E         Left contains one more item: '/tmp/dcdtuni-render-textures'
+E         Use -v to get more diff
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:50: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] render command loadRenderScene rejected: test reached the author with validated cache
+_ test_bridge_rejects_missing_or_outside_cache_before_author[relative-textures] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fab72323cd0>
+cache = 'relative-textures'
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+>       assert calls == []
+E       AssertionError: assert ['relative-textures'] == []
+E         
+E         Left contains one more item: 'relative-textures'
+E         Use -v to get more diff
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:50: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] render command loadRenderScene rejected: test reached the author with validated cache
+_ test_bridge_rejects_missing_or_outside_cache_before_author[/tmp/dcdtuni-render-textures] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fab722f2b30>
+cache = '/tmp/dcdtuni-render-textures'
+
+    @pytest.mark.parametrize("cache", [None, "relative-textures", "/tmp/dcdtuni-render-textures"])
+    def test_bridge_rejects_missing_or_outside_cache_before_author(monkeypatch, cache):
+        extension, acks, calls = bridge_route(monkeypatch)
+        if cache is None:
+            monkeypatch.delenv("DCDTUNI_RENDER_TEXTURE_CACHE", raising=False)
+        else:
+            monkeypatch.setenv("DCDTUNI_RENDER_TEXTURE_CACHE", cache)
+        extension._route_render_command("loadRenderScene", json.dumps({"requestId": "cache-boundary"}))
+>       assert calls == []
+E       AssertionError: assert ['/tmp/dcdtun...der-textures'] == []
+E         
+E         Left contains one more item: '/tmp/dcdtuni-render-textures'
+E         Use -v to get more diff
+
+src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py:50: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] render command loadRenderScene rejected: test reached the author with validated cache
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[None-/]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[None-/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[/tmp/legacy-render-textures-/]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_owned_child_texture_cache_is_absolute_and_overrides_inherited_env[/tmp/legacy-render-textures-/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_texture_cache_symlink_escape_rejects_before_child_spawn
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[None]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[relative-textures]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_owned_texture_cache.py::test_bridge_rejects_missing_or_outside_cache_before_author[/tmp/dcdtuni-render-textures]
+8 failed, 31 deselected in 2.43s

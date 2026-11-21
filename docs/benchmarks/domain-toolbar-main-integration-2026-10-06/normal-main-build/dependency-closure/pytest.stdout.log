@@ -1,0 +1,33 @@
+...............................................F........................ [ 48%]
+........................................................................ [ 96%]
+.....                                                                    [100%]
+=================================== FAILURES ===================================
+___________ test_snapshot_preflight_uses_real_original_stl_validator ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/toolbar-domain-normal-main-build-20261006/dependency-closure/pytest/test_snapshot_preflight_uses_r0')
+
+    def test_snapshot_preflight_uses_real_original_stl_validator(tmp_path):
+        raw = json.loads(FIXTURE.read_bytes())
+        stl = (b"solid sheet\nfacet normal 0 0 1\nouter loop\n"
+               b"vertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\n"
+               b"endloop\nendfacet\nendsolid sheet\n")
+        raw["geometryExport"]["stlFiles"] = {
+            "source": {"path": "sheet.stl", "contentHash": hashlib.sha256(stl).hexdigest()}}
+        raw["geometryExport"]["sourceSurfaces"] = {"source:sheet": {
+            "stlFileId": "source", "solidName": "sheet", "sourceObjectUid": "m_source",
+            "sourceFaceUid": "project/m_source/front", "representation": "surfaceFace"}}
+        runner, snapshot = ram_runner(tmp_path, raw)
+        runner.tri_surface_dir.mkdir(parents=True)
+        actual = runner.tri_surface_dir / "sheet.stl"
+        actual.write_bytes(stl)
+        runner._verify_hybrid_source_stls()
+        assert runner._verified_source_cfdrun_sha256 == snapshot.sha256
+>       assert runner._point_repair_source_receipt["rawSha256"] == snapshot.sha256
+E       AttributeError: 'STLGenRunner' object has no attribute '_point_repair_source_receipt'
+
+src/backend/tests/test_cfdrun_snapshot_runner.py:166: AttributeError
+----------------------------- Captured stderr call -----------------------------
+2026-10-06 01:13:51 | INFO | Source STL identity checked: 1 grouped files
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_cfdrun_snapshot_runner.py::test_snapshot_preflight_uses_real_original_stl_validator
+1 failed, 148 passed in 22.90s

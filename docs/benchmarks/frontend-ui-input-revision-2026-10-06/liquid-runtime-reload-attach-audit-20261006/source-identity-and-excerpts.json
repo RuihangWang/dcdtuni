@@ -1,0 +1,696 @@
+{
+  "sources": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidRuntimeClient.ts",
+      "bytes": 16352,
+      "sha256": "7503da2b9e34e7eda31380172a00a86c99e97b7f29885b7145ccb0f3f9d54881"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "bytes": 29512,
+      "sha256": "986e9a3c2641199d8465f3f0025c4315bc407a9d77bcb3af2aeb3fddd16f829a"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidPostprocessRightPanel.tsx",
+      "bytes": 4988,
+      "sha256": "12eae03540d949b93821d652aaa345aa7142293f07763ce364db267518a5a3ad"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidSession.ts",
+      "bytes": 7706,
+      "sha256": "3ff53eaaf0f54482f7bf471076482f7243e7b10f18dc81866e550aa024297ad1"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidRunFollow.ts",
+      "bytes": 2037,
+      "sha256": "9b3a282b0ca6786a40a8f7dd9a25534dd4c7f8635339849faf5e334c6f8f1ebb"
+    }
+  ],
+  "excerpts": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidRuntimeClient.ts",
+      "startLine": 35,
+      "endLine": 54,
+      "lines": [
+        {
+          "line": 35,
+          "text": "export interface RuntimeClientState {"
+        },
+        {
+          "line": 36,
+          "text": "  session:RuntimeSession|null; frames:RuntimeFrame[]; projectRevision:number|null;"
+        },
+        {
+          "line": 37,
+          "text": "  busy:boolean; error:string|null; connection:'idle'|'connected'|'reconnecting';"
+        },
+        {
+          "line": 38,
+          "text": "}"
+        },
+        {
+          "line": 39,
+          "text": "const EMPTY:RuntimeClientState = {session:null,frames:[],projectRevision:null,busy:false,error:null,connection:'idle'}"
+        },
+        {
+          "line": 40,
+          "text": "let state:RuntimeClientState = EMPTY"
+        },
+        {
+          "line": 41,
+          "text": "let generation=0"
+        },
+        {
+          "line": 42,
+          "text": "let frameCursor=-1"
+        },
+        {
+          "line": 43,
+          "text": "let lifecycleRevision=0"
+        },
+        {
+          "line": 44,
+          "text": "let refreshSerial=0"
+        },
+        {
+          "line": 45,
+          "text": "let appliedRefresh=0"
+        },
+        {
+          "line": 46,
+          "text": "let timer:ReturnType<typeof setTimeout>|null=null"
+        },
+        {
+          "line": 47,
+          "text": "let polling=false"
+        },
+        {
+          "line": 48,
+          "text": "const listeners = new Set<()=>void>()"
+        },
+        {
+          "line": 49,
+          "text": "export function subscribeRuntime(listener:()=>void) {listeners.add(listener);return ()=>{listeners.delete(listener)}}"
+        },
+        {
+          "line": 50,
+          "text": "export function runtimeState() {return state}"
+        },
+        {
+          "line": 51,
+          "text": "function update(patch:Partial<RuntimeClientState>) {state={...state,...patch};listeners.forEach(f=>f())}"
+        },
+        {
+          "line": 52,
+          "text": "function errorText(error:unknown) {return error instanceof Error?error.message:String(error)}"
+        },
+        {
+          "line": 53,
+          "text": "export function stopRuntimePolling() {polling=false;if(timer!==null)clearTimeout(timer);timer=null}"
+        },
+        {
+          "line": 54,
+          "text": "export function resetRuntimeClient() {stopRuntimePolling();generation++;frameCursor=-1;state=EMPTY;listeners.forEach(f=>f())}"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidRuntimeClient.ts",
+      "startLine": 87,
+      "endLine": 107,
+      "lines": [
+        {
+          "line": 87,
+          "text": "export async function createRuntimeSession(liquidrun:unknown,controllers:unknown[],projectRevision:number):Promise<RuntimeSession|null> {"
+        },
+        {
+          "line": 88,
+          "text": "  stopRuntimePolling()"
+        },
+        {
+          "line": 89,
+          "text": "  const token=++generation"
+        },
+        {
+          "line": 90,
+          "text": "  update({busy:true,error:null,connection:'idle'})"
+        },
+        {
+          "line": 91,
+          "text": "  try {"
+        },
+        {
+          "line": 92,
+          "text": "    const session=await request('/api/liquid/runs',{liquidrun,controllers,project_revision:projectRevision}) as RuntimeSession"
+        },
+        {
+          "line": 93,
+          "text": "    if(token!==generation)return null"
+        },
+        {
+          "line": 94,
+          "text": "    checkedFrame(session.frame,session.run_id,session.metadata)"
+        },
+        {
+          "line": 95,
+          "text": "    frameCursor=session.frame.seq===0?0:-1"
+        },
+        {
+          "line": 96,
+          "text": "    update({session,frames:[session.frame],projectRevision,busy:false,connection:'connected'})"
+        },
+        {
+          "line": 97,
+          "text": "    return session"
+        },
+        {
+          "line": 98,
+          "text": "  } catch(error) {"
+        },
+        {
+          "line": 99,
+          "text": "    if(token!==generation)return null"
+        },
+        {
+          "line": 100,
+          "text": "    update({busy:false,error:errorText(error)})"
+        },
+        {
+          "line": 101,
+          "text": "    throw error"
+        },
+        {
+          "line": 102,
+          "text": "  }"
+        },
+        {
+          "line": 103,
+          "text": "}"
+        },
+        {
+          "line": 104,
+          "text": ""
+        },
+        {
+          "line": 105,
+          "text": "export async function refreshRuntimeFrames():Promise<void> {"
+        },
+        {
+          "line": 106,
+          "text": "  const session=state.session"
+        },
+        {
+          "line": 107,
+          "text": "  if(!session)return"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "startLine": 21,
+      "endLine": 24,
+      "lines": [
+        {
+          "line": 21,
+          "text": "export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {"
+        },
+        {
+          "line": 22,
+          "text": "  const {t}=useTranslation()"
+        },
+        {
+          "line": 23,
+          "text": "  const state=useSyncExternalStore(runtime.subscribeRuntime,runtime.runtimeState)"
+        },
+        {
+          "line": 24,
+          "text": "  const revision=useSyncExternalStore(store.subscribe,store.documentInputRevision)"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "startLine": 158,
+      "endLine": 166,
+      "lines": [
+        {
+          "line": 158,
+          "text": "  async function create() {"
+        },
+        {
+          "line": 159,
+          "text": "    if(!project)return"
+        },
+        {
+          "line": 160,
+          "text": "    setError(null)"
+        },
+        {
+          "line": 161,
+          "text": "    setCreating(true)"
+        },
+        {
+          "line": 162,
+          "text": "    try {"
+        },
+        {
+          "line": 163,
+          "text": "      const scenario=compilePersistedScenario()"
+        },
+        {
+          "line": 164,
+          "text": "      await runtime.createRuntimeSession(scenario.liquidrun,scenario.controllers,store.documentInputRevision())"
+        },
+        {
+          "line": 165,
+          "text": "    }catch(e){setError(e instanceof Error?e.message:String(e))}"
+        },
+        {
+          "line": 166,
+          "text": "    finally {setCreating(false)}"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "startLine": 288,
+      "endLine": 296,
+      "lines": [
+        {
+          "line": 288,
+          "text": "    <label className=\"liquid-experiment-field\" htmlFor=\"lce-playback-speed\"><span>{t('lce.playback_speed')}</span><select id=\"lce-playback-speed\" aria-label={t('lce.playback_speed')} value={speed} disabled={status==='running'} onChange={e=>setSpeed(e.target.value)}><option value=\"1\">1\u00d7</option><option value=\"10\">10\u00d7</option><option value=\"fast\">{t('lce.fastest')}</option></select></label>"
+        },
+        {
+          "line": 289,
+          "text": "    <div className=\"liquid-experiment-actions\">"
+        },
+        {
+          "line": 290,
+          "text": "      <button className=\"btn\" onClick={downloadManifest} disabled={!project||state.busy}>{t('lce.export_manifest')}</button>"
+        },
+        {
+          "line": 291,
+          "text": "      <button className=\"btn\" aria-busy={creating||undefined} aria-live=\"polite\" onClick={()=>void create()} disabled={!project||state.busy||!!active}>{creating?t('lce.preparing_experiment'):state.session?t('lce.new_experiment'):t('lce.prepare_experiment')}</button>"
+        },
+        {
+          "line": 292,
+          "text": "      {status==='ready'&&hasNextStep&&<button className=\"btn success\" disabled={state.busy} onClick={()=>void action('start')}>{t('lce.start')}</button>}"
+        },
+        {
+          "line": 293,
+          "text": "      {status==='running'&&<button className=\"btn\" disabled={state.busy} onClick={()=>void action('pause')}>{t('lce.pause')}</button>}"
+        },
+        {
+          "line": 294,
+          "text": "      {status==='paused'&&<button className=\"btn success\" disabled={state.busy} onClick={()=>void action('resume')}>{t('lce.resume')}</button>}"
+        },
+        {
+          "line": 295,
+          "text": "      {(status==='paused'||status==='ready')&&hasNextStep&&<button className=\"btn\" disabled={state.busy} onClick={()=>void action('step')}>{t('lce.step')}</button>}"
+        },
+        {
+          "line": 296,
+          "text": "      {active&&<button className=\"btn\" disabled={state.busy} onClick={()=>void action('cancel')}>{t('lce.cancel')}</button>}"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidExperimentPanel.tsx",
+      "startLine": 338,
+      "endLine": 346,
+      "lines": [
+        {
+          "line": 338,
+          "text": "    {state.session&&<div aria-live=\"polite\" className=\"liquid-experiment-status\">"
+        },
+        {
+          "line": 339,
+          "text": "      <strong>{daeRun&&!hasNextStep&&state.session.metadata.total_sample_count===1?t('lce.steady_ready'):t(statusLabels[state.session.status])} \u00b7 {frame?.time_s.toFixed(1)} s</strong>"
+        },
+        {
+          "line": 340,
+          "text": "      <progress value={progress} max={1}/>"
+        },
+        {
+          "line": 341,
+          "text": "      <small>{t('lce.run_identity',{id:state.session.run_id.slice(0,12),hash:state.session.config_hash.slice(0,10)})}</small>"
+        },
+        {
+          "line": 342,
+          "text": "      {stale&&<p className=\"liquid-experiment-warning\">{t('lce.stale_project')}</p>}"
+        },
+        {
+          "line": 343,
+          "text": "      <div className=\"liquid-experiment-actions\"><button className=\"btn\" onClick={()=>void download('result')}>{t('lce.export_result')}</button><button className=\"btn\" onClick={()=>void download('checkpoint')}>{t('lce.save_checkpoint')}</button></div>"
+        },
+        {
+          "line": 344,
+          "text": "      {daeRun&&<><button className=\"btn\" disabled={state.busy} onClick={()=>void download('executed-input')}>{t('lce.export_executed')}</button>"
+        },
+        {
+          "line": 345,
+          "text": "        <p className=\"liquid-experiment-note\">{t('lce.executed_hint')}</p></>}"
+        },
+        {
+          "line": 346,
+          "text": "      {daeRun&&<button className=\"btn\" disabled={state.busy||!project?.uid} onClick={()=>void queryHeatAudit()}>{t('lce.heat_audit_button')}</button>}"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidPostprocessRightPanel.tsx",
+      "startLine": 40,
+      "endLine": 44,
+      "lines": [
+        {
+          "line": 40,
+          "text": "  // The list is a snapshot of the last case scan, so opening the tab refreshes"
+        },
+        {
+          "line": 41,
+          "text": "  // it: the solve that produced the run may have finished after the last scan."
+        },
+        {
+          "line": 42,
+          "text": "  useEffect(() => {"
+        },
+        {
+          "line": 43,
+          "text": "    void session.scanCaseStatus()"
+        },
+        {
+          "line": 44,
+          "text": "  }, [])"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidPostprocessRightPanel.tsx",
+      "startLine": 59,
+      "endLine": 74,
+      "lines": [
+        {
+          "line": 59,
+          "text": "  async function choose(value: string) {"
+        },
+        {
+          "line": 60,
+          "text": "    // Keep the displayed record paired with the last valid results while the"
+        },
+        {
+          "line": 61,
+          "text": "    // requested record is being read. Reject malformed documents before the"
+        },
+        {
+          "line": 62,
+          "text": "    // shared session publishes them, so a failed read cannot disturb playback."
+        },
+        {
+          "line": 63,
+          "text": "    setBusy(true)"
+        },
+        {
+          "line": 64,
+          "text": "    setStatus(null)"
+        },
+        {
+          "line": 65,
+          "text": "    const raw = await fetchLiquidResults(value || undefined, (data) => !!parseLiquidResults(data))"
+        },
+        {
+          "line": 66,
+          "text": "    if (parseLiquidResults(raw)) {"
+        },
+        {
+          "line": 67,
+          "text": "      setRun(value)"
+        },
+        {
+          "line": 68,
+          "text": "      setSelectedLiquidRun(value)"
+        },
+        {
+          "line": 69,
+          "text": "      setStatus(null)"
+        },
+        {
+          "line": 70,
+          "text": "    } else {"
+        },
+        {
+          "line": 71,
+          "text": "      setStatus(t('lsm.result_read_failed'))"
+        },
+        {
+          "line": 72,
+          "text": "    }"
+        },
+        {
+          "line": 73,
+          "text": "    setBusy(false)"
+        },
+        {
+          "line": 74,
+          "text": "  }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/LiquidPostprocessRightPanel.tsx",
+      "startLine": 89,
+      "endLine": 106,
+      "lines": [
+        {
+          "line": 89,
+          "text": "        <label htmlFor=\"lsm-pp-run-select\" style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>"
+        },
+        {
+          "line": 90,
+          "text": "          {t('label.solve_records')}"
+        },
+        {
+          "line": 91,
+          "text": "        </label>"
+        },
+        {
+          "line": 92,
+          "text": "        <div className=\"prop-row\">"
+        },
+        {
+          "line": 93,
+          "text": "          <select"
+        },
+        {
+          "line": 94,
+          "text": "            id=\"lsm-pp-run-select\""
+        },
+        {
+          "line": 95,
+          "text": "            style={{ flex: 1, width: '100%', minWidth: 0 }}"
+        },
+        {
+          "line": 96,
+          "text": "            title={options.find((o) => o.value === run)?.value || t('label.latest_result')}"
+        },
+        {
+          "line": 97,
+          "text": "            disabled={busy}"
+        },
+        {
+          "line": 98,
+          "text": "            value={options.some((o) => o.value === run) ? run : (options[0]?.value ?? '')}"
+        },
+        {
+          "line": 99,
+          "text": "            onChange={(e) => void choose(e.target.value)}"
+        },
+        {
+          "line": 100,
+          "text": "          >"
+        },
+        {
+          "line": 101,
+          "text": "            {options.map((o) => ("
+        },
+        {
+          "line": 102,
+          "text": "              <option key={o.value || '(latest)'} value={o.value} title={o.value || o.label}>"
+        },
+        {
+          "line": 103,
+          "text": "                {o.label}"
+        },
+        {
+          "line": 104,
+          "text": "              </option>"
+        },
+        {
+          "line": 105,
+          "text": "            ))}"
+        },
+        {
+          "line": 106,
+          "text": "          </select>"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidSession.ts",
+      "startLine": 228,
+      "endLine": 250,
+      "lines": [
+        {
+          "line": 228,
+          "text": "/**"
+        },
+        {
+          "line": 229,
+          "text": " * Fetch the results of a previous solve without running one."
+        },
+        {
+          "line": 230,
+          "text": " * Selectors may validate a document before it replaces the current result."
+        },
+        {
+          "line": 231,
+          "text": " */"
+        },
+        {
+          "line": 232,
+          "text": "export async function fetchLiquidResults("
+        },
+        {
+          "line": 233,
+          "text": "  runName?: string,"
+        },
+        {
+          "line": 234,
+          "text": "  acceptResult?: (data: unknown) => boolean,"
+        },
+        {
+          "line": 235,
+          "text": "): Promise<unknown | null> {"
+        },
+        {
+          "line": 236,
+          "text": "  const requestGeneration = ++resultRequestGeneration"
+        },
+        {
+          "line": 237,
+          "text": "  const url = runName"
+        },
+        {
+          "line": 238,
+          "text": "    ? `/api/liquid/results?run=${encodeURIComponent(runName)}`"
+        },
+        {
+          "line": 239,
+          "text": "    : '/api/liquid/results'"
+        },
+        {
+          "line": 240,
+          "text": "  try {"
+        },
+        {
+          "line": 241,
+          "text": "    const resp = await fetch(url)"
+        },
+        {
+          "line": 242,
+          "text": "    if (!resp.ok) return null"
+        },
+        {
+          "line": 243,
+          "text": "    const data: unknown = await resp.json()"
+        },
+        {
+          "line": 244,
+          "text": "    if (requestGeneration !== resultRequestGeneration) return null"
+        },
+        {
+          "line": 245,
+          "text": "    if (acceptResult && !acceptResult(data)) return null"
+        },
+        {
+          "line": 246,
+          "text": "    set({ results: data })"
+        },
+        {
+          "line": 247,
+          "text": "    return data"
+        },
+        {
+          "line": 248,
+          "text": "  } catch {"
+        },
+        {
+          "line": 249,
+          "text": "    return null"
+        },
+        {
+          "line": 250,
+          "text": "  }"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/liquid/liquidRunFollow.ts",
+      "startLine": 25,
+      "endLine": 37,
+      "lines": [
+        {
+          "line": 25,
+          "text": "function completedRun(): string | null {"
+        },
+        {
+          "line": 26,
+          "text": "  const session = runtime.runtimeState().session"
+        },
+        {
+          "line": 27,
+          "text": "  return session?.status === 'completed' ? session.run_id : null"
+        },
+        {
+          "line": 28,
+          "text": "}"
+        },
+        {
+          "line": 29,
+          "text": ""
+        },
+        {
+          "line": 30,
+          "text": "function onRuntime() {"
+        },
+        {
+          "line": 31,
+          "text": "  const run = completedRun()"
+        },
+        {
+          "line": 32,
+          "text": "  if (!run || run === followed) return"
+        },
+        {
+          "line": 33,
+          "text": "  followed = run"
+        },
+        {
+          "line": 34,
+          "text": "  const dir = `run-${run}`"
+        },
+        {
+          "line": 35,
+          "text": "  const selected = selectedLiquidRun()"
+        },
+        {
+          "line": 36,
+          "text": "  if (selected === '' || selected === dir) void fetchLiquidResults(dir)"
+        },
+        {
+          "line": 37,
+          "text": "}"
+        }
+      ]
+    }
+  ]
+}

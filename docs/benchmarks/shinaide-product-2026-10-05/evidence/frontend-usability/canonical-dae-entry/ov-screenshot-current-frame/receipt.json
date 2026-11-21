@@ -1,0 +1,123 @@
+{
+  "scope": "Displayed viewport screenshot usability; onlyLogPanel/helper/new semantic test. CPU24-31, CUDAempty.",
+  "head": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+  "sourceFiles": [
+    {
+      "path": "src/frontend/react/src/components/LogPanel.tsx",
+      "sha256": "e59faf1e7b9fde141854f7e5b4d52e12ded230d7c08f937c95e5cab08a82d30a",
+      "bytes": 9874,
+      "snapshot": "source/LogPanel.tsx"
+    },
+    {
+      "path": "src/frontend/react/src/ui/viewportScreenshot.ts",
+      "sha256": "c5a3303ee7e7a0524645f6ce2eab358ea06306d3a9ee7ddccef46c118fcf5e8a",
+      "bytes": 1720,
+      "snapshot": "source/viewportScreenshot.ts"
+    },
+    {
+      "path": "src/frontend/react/test/viewportScreenshot.test.tsx",
+      "sha256": "a5e3c7ac913a25714028126d785febccb0cdaa883562d1fa87017f552c6569d0",
+      "bytes": 6042,
+      "snapshot": "source/viewportScreenshot.test.tsx"
+    }
+  ],
+  "runs": {
+    "baseline": {
+      "command": [
+        "/usr/bin/node",
+        "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/vitest/vitest.mjs",
+        "run",
+        "test/viewportScreenshot.test.tsx",
+        "--minWorkers=1",
+        "--maxWorkers=2"
+      ],
+      "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",
+      "exitCode": 1,
+      "elapsedSeconds": 15.101843357086182,
+      "sourceHead": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+      "logSHA256": "8ba75fd748ae2f3977aeae9fbadc59f9b810d9faf9001488310abb6b11488b76"
+    },
+    "firstAfterTests": {
+      "command": [
+        "/usr/bin/node",
+        "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/vitest/vitest.mjs",
+        "run",
+        "test/viewportScreenshot.test.tsx",
+        "test/ovViewportInput.test.tsx",
+        "--minWorkers=1",
+        "--maxWorkers=2"
+      ],
+      "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",
+      "exitCode": 1,
+      "elapsedSeconds": 3.5256752967834473,
+      "sourceHead": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+      "logSHA256": "9a78c855090f4ee0743a7cc2f79701ce45813fdc59b5bbb6a48731fbc0a6b7cc"
+    },
+    "firstTypecheck": {
+      "command": [
+        "/usr/bin/node",
+        "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",
+      "exitCode": 2,
+      "elapsedSeconds": 23.996628999710083,
+      "sourceHead": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+      "logSHA256": "d389c61e7d1e20ba790a27f60529834572c385b8c8e38c31dc05349fd23caae2"
+    },
+    "focused": {
+      "command": [
+        "/usr/bin/node",
+        "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/vitest/vitest.mjs",
+        "run",
+        "test/viewportScreenshot.test.tsx",
+        "test/ovViewportInput.test.tsx",
+        "--minWorkers=1",
+        "--maxWorkers=2"
+      ],
+      "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",
+      "exitCode": 0,
+      "elapsedSeconds": 2.9659838676452637,
+      "sourceHead": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+      "logSHA256": "90cbbf7b7e09999ca0de11b9a6c9484679a869a9f7e59b879e38c5fb7321d009"
+    },
+    "typecheck": {
+      "command": [
+        "/usr/bin/node",
+        "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react",
+      "exitCode": 0,
+      "elapsedSeconds": 16.795161962509155,
+      "sourceHead": "a48b75dbd74fcfd9726abb784739ba6badf2163a",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "focusedTestCount": 8,
+  "newScreenshotButtonTests": 7,
+  "priorSourceRegressions": {
+    "failed": 5,
+    "passed": 2,
+    "reason": "OV screenshot used retained hidden Three canvas and silently posted that frame, including unready/empty/missing OV video."
+  },
+  "testRepairs": "First post-implementation run used an unsupported Vitest2 ExactlyOnceWith matcher; replaced with the equivalent Times(1)+With. Strict test-only indexed-access assertions corrected. Original failure logs retained.",
+  "behavior": {
+    "ovSource": ".ov-render-viewport video",
+    "frameGate": "readyState >= HAVE_CURRENT_DATA and positive native videoWidth/videoHeight",
+    "nativeDimensionsUsed": true,
+    "noOVFallbackToThree": true,
+    "threeImmediateRenderHookPreserved": true,
+    "errorsVisibleInOperationLog": true
+  },
+  "validationLimitations": [
+    "jsdom drawImage and PNG serialization are stubbed; these tests verify real button routing and exact canvas dimensions/drawImage arguments/POST payload, not live decoded pixels. Root owns real browser camera-button verification.",
+    "The pre-existing ovViewportInput test SDK mock lacks StreamStatus and logs a connection failure; its focusability assertion passes. No live OV connection was exercised or modified here."
+  ],
+  "noProductionBuild": true,
+  "noCommit": true,
+  "noIndexMutation": true,
+  "noBrowser": true,
+  "noServiceChanges": true,
+  "noCaseChanges": true
+}

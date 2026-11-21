@@ -1,0 +1,15 @@
+# Two-lobe normal-source and finite-proposal plan
+
+The frozen P12 two-lobe candidate is locally hard-green in real installed OpenFOAM arithmetic (5 bad determinants become 0). This folder adds read-only source/material/P13 binding and a bounded finite-replay plan. It does not change that frozen result or authorize native product integration.
+
+The actual P12 dictionary carries the fresh single-phase-air material key, raw/roles/producer digests, and normal material gate. The normal post-carve snapshot completed on rank0. All53 captured core internal facets have sourceZone -1. Eight literal physical baffle facets have sourceZone3 and stay on the external shell. These are evidence of single-air physics and protected boundary sheets; sourceZone is face provenance, not a cell material ID.
+
+The remaining authority gap is concrete: the frozen source export records alive parent shapes and complete facets but not normal rank/level/leaf/piece. The five parent origins therefore cannot yet be presented to the actual snapshot ownership callback. Existing dcCartWeightUnionSourceContract.H also deliberately accepts exactly two distinct parent origins, so it cannot authorize this five-origin cavity without a separate bounded producer/consumer gate. IO defaultRegion, empty written zones, coordinate labels, or a global boolean would not fill that gap.
+
+P12-to-P13 binding now succeeds for all81 points,101 complete cells and288 faces through unique normal native handles: DP coordinates, full incident facets, ordered outward rings/point0 and incidence are unchanged. The whole rank0 boundary/cellZone/faceZone/pointZone payloads have identical original P12 and actual P13 SHA/size; recovered boundary bytes also match. This establishes local geometry and role compatibility. It does not establish the missing origin callback or final writer acceptance. P13 remains Failed2 D831/W82/R0.
+
+The next diagnostic keeps exactly this template. Enumerating bounded four-plane/radius bases can derive both seeds without SciPy. The fixed right seed is already hard-green; if actual installed initial metrics identify exactly one bad lobe, only that lobe uses the unchanged finite3 DWeightCount kernel. The production kernel supports3/9 DW dimensions, not6; the former49-request SciPy6 result is not treated as a portable selector. No success coordinates enter the proposal.
+
+The same256-request/32-iteration/384-projection finite budget and final fractions are retained. Every replacement must meet inherited hard-D roles; all W/R/S passing roles, complete halo, strict visibility/positive pyramids/tets and exact shell/coverage conservation remain authoritative. A finite failure will be preserved as a local grammar refusal. No new cavity/separator pool or business run is authorized here.
+
+Source hooks and exact identities are in source-evidence.json. The natural later insertion is near the existing decompose tail after earliest writer capture, with locally rebuilt adjacency/cache and all-rank atomic commit/refusal; the full installed writer certificate remains last. This is a design, not a source patch or a300-second guarantee.

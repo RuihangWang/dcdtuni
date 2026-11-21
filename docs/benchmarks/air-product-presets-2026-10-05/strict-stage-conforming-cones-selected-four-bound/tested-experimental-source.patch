@@ -1,0 +1,1622 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+index e337b2af..b7270158 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -547,7 +547,7 @@ static void dbgDumpCells
+             {
+                 const Foam::point& x = m.points[p];
+                 char buf[96];
+-                snprintf(buf, sizeof(buf), "(%.9g %.9g %.9g)", x.x(), x.y(), x.z());
++                snprintf(buf, sizeof(buf), "(%.17g %.17g %.17g)", x.x(), x.y(), x.z());
+                 pts.emplace_back(buf);
+             }
+             std::sort(pts.begin(), pts.end());
+@@ -1517,7 +1517,16 @@ int main(int argc, char *argv[])
+         // ON means exactly on the surface (a grid-aligned face): a looser
+         // band would bend cut faces out of plane; slivers are merged instead.
+         cutSettings.onTolerance = meshDict.getOrDefault<scalar>("onToleranceFraction", 0.1) * finest;
+-        cutSettings.onToleranceCarve = meshDict.getOrDefault<scalar>("onToleranceCarveFraction", 0.01) * finest;
++        scalar carveOnFraction=meshDict.getOrDefault<scalar>("onToleranceCarveFraction", 0.01);
++        if (const char* env=getenv("DCCART_CARVE_ON_FRACTION"))
++        {
++            char* end=nullptr;const scalar requested=std::strtod(env,&end);
++            if (!end || *end || !std::isfinite(requested) || requested<=0 || requested>carveOnFraction)
++            { FatalErrorInFunction<<"invalid diagnostic carve ON fraction (must be finite, positive and no larger than configured)"<<exit(FatalError); }
++            carveOnFraction=requested;
++            Info<<"Diagnostic carve ON fraction "<<carveOnFraction<<", tolerance "<<(carveOnFraction*finest)<<" m"<<endl;
++        }
++        cutSettings.onToleranceCarve = carveOnFraction * finest;
+         Info<< "Cut cells: finest cell ~" << finest << " m, ON tolerance "
+             << cutSettings.onTolerance << " m" << nl;
+ 
+@@ -2794,6 +2803,12 @@ int main(int argc, char *argv[])
+             budgetCheck("transition-roof-readonly-audit");
+         }
+ 
++        if (getenv("DCCART_CONFORMING_CONES") != nullptr)
++        {
++            dcCartCutCells::decomposeConformingCones(m,patchNames,patchTypes,patchNeighbours,myProc);
++            budgetCheck("conforming-mixed-cone-experiment");
++        }
++
+         // The census: the three numbers that separate a mesh the steady RAS
+         // solve converges on from one it does not, printed on every run so a
+         // regression shows up at mesh time instead of three days later at
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index fe15c0ee..78071420 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -29,6 +29,8 @@
+ #include <map>
+ #include <set>
+ #include <tuple>
++#include <numeric>
++#include <limits>
+ 
+ // * * * * * * * * * * * * * * * Local helpers * * * * * * * * * * * * * * * //
+ 
+@@ -11760,6 +11762,1507 @@ void Foam::dcCartCutCells::coalesceCoplanarFaces
+ 
+ 
+ 
++Foam::label Foam::dcCartCutCells::decomposeConformingCones
++(
++    cutMesh& m, const wordList& patchNames, const wordList& patchTypes,
++    const wordList& patchNeighbours, label myRank
++)
++{
++    // Optional conservative final subdivision. No original coordinate moves.
++    // All unsupported inputs fail before writer authorization. Coupled bases
++    // use exact coordinate-canonical cycles and collective closure.
++    const label oldCells=m.nCells,oldFaces=label(m.faces.size());
++    std::vector<std::vector<label>> cf;buildCellFaces(m,cf);
++    std::vector<vector> areas(oldFaces,vector::zero);
++    std::vector<point> centres(oldFaces,point::zero),apex(oldCells,point::zero);
++    std::vector<scalar> parentVolume(oldCells,0);
++    std::vector<bool> marked(oldCells,false),splitFace(oldFaces,false),coupled(oldFaces,false),badFace(oldFaces,false);
++    std::vector<std::vector<label>> canonical(oldFaces);
++    std::vector<label> badReason(oldFaces,0);std::vector<scalar> offPlane(oldFaces,0);
++    std::vector<std::string> keys(oldFaces);
++    label unsupportedFaces=0,seeded=0,closureWaves=0;
++    auto lessPoint=[&](label a,label b)
++    {
++        const point& x=m.points[a];const point& y=m.points[b];
++        if (x.x()!=y.x()) { return x.x()<y.x(); }
++        if (x.y()!=y.y()) { return x.y()<y.y(); }
++        return x.z()<y.z();
++    };
++    auto canonicalCycle=[&](const std::vector<label>& poly)
++    {
++        std::vector<label> best;
++        for (label direction:{label(1),label(-1)}) for (label start=0;start<label(poly.size());++start)
++        {
++            std::vector<label> candidate;candidate.reserve(poly.size());
++            for (label j=0;j<label(poly.size());++j)
++            { candidate.push_back(poly[(start+direction*j+label(poly.size())*2)%poly.size()]); }
++            if (best.empty() || std::lexicographical_compare(candidate.begin(),candidate.end(),best.begin(),best.end(),lessPoint))
++            { best=std::move(candidate); }
++        }
++        return best;
++    };
++    auto exactKey=[&](const std::vector<label>& poly)
++    {
++        std::ostringstream out;out<<std::hexfloat;
++        for (label p:poly) { out<<m.points[p].x()<<','<<m.points[p].y()<<','<<m.points[p].z()<<';'; }
++        return out.str();
++    };
++    auto gatherKeys=[&](const std::vector<std::string>& local)
++    {
++        List<List<string>> byRank(Pstream::nProcs());
++        List<string>& row=byRank[Pstream::myProcNo()];row.setSize(local.size());
++        forAll(row,i) { row[i]=string(local[i]); }
++        if (Pstream::parRun()) { Pstream::gatherList(byRank);Pstream::scatterList(byRank); }
++        std::vector<std::string> all;
++        forAll(byRank,rank) forAll(byRank[rank],i) { all.emplace_back(byRank[rank][i]); }
++        return all;
++    };
++    std::vector<std::string> localCoupled;
++    for (label f=0;f<oldFaces;++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        const auto& poly=m.faces[f];canonical[f]=canonicalCycle(poly);
++        faceAreaCentreOF(m.points,canonical[f],areas[f],centres[f]);
++        vector original;point originalCentre;faceAreaCentreOF(m.points,poly,original,originalCentre);
++        if ((areas[f]&original)<0) { areas[f]=-areas[f]; }
++        const scalar ar=mag(areas[f]);scalar span=0;
++        for (label p:poly) { span=max(span,mag(m.points[p]-centres[f])); }
++        if (poly.size()<3 || !std::isfinite(ar) || ar<=VSMALL || span<=VSMALL
++         || !std::isfinite(centres[f].x()) || !std::isfinite(centres[f].y()) || !std::isfinite(centres[f].z()))
++        { badFace[f]=true;badReason[f]|=1;++unsupportedFaces;continue; }
++        const vector normal=areas[f]/ar;
++        bool convex=true,collinear=false,planar=true;
++        std::set<std::tuple<scalar,scalar,scalar>> unique;
++        for (size_t j=0;j<poly.size();++j)
++        {
++            const label q=poly[j],a=poly[(j+poly.size()-1)%poly.size()],b=poly[(j+1)%poly.size()];
++            const point& x=m.points[q];unique.emplace(x.x(),x.y(),x.z());
++            offPlane[f]=max(offPlane[f],mag((x-centres[f])&normal));
++            if (!std::isfinite(x.x()) || !std::isfinite(x.y()) || !std::isfinite(x.z())
++             || mag((x-centres[f])&normal)>1e-10*span) { planar=false; }
++            const vector edge=m.points[b]-x;const scalar len=mag(edge);
++            if (len<=VSMALL) { planar=false;break; }
++            for (label v:poly)
++            { if ((((edge^(m.points[v]-x))&normal)/len)<-1e-12*span) { convex=false; } }
++            const vector da=m.points[a]-x,db=m.points[b]-x;
++            if ((da&db)<0 && mag(da^db)<=1e-12*mag(da)*mag(db)) { collinear=true; }
++        }
++        splitFace[f]=collinear || !convex;
++        if (!planar) { badReason[f]|=2; }
++        if (unique.size()!=poly.size()) { badReason[f]|=4; }
++        if (mag(original-areas[f])/ar>1e-10 || mag(originalCentre-centres[f])/span>1e-10) { badReason[f]|=8; }
++        // Keeping one original warped base changes neither its discrete
++        // polygon nor its area/centre. Only split warped bases are refused.
++        const bool keepWarped=getenv("DCCART_CONES_KEEP_UNSPLIT_WARPED")!=nullptr && !splitFace[f];
++        if ((!planar && !keepWarped) || unique.size()!=poly.size() || (badReason[f]&8))
++        { badFace[f]=true;++unsupportedFaces; }
++        const label patch=m.patch[f];
++        if (patch>=0 && patch<patchTypes.size())
++        {
++            const word& type=patchTypes[patch];
++            coupled[f]=type=="processor" || type=="processorCyclic" || type=="cyclic";
++            if (coupled[f])
++            {
++                // Bind geometry to the actual generated patch pair and ranks,
++                // so an unrelated coincident coupled face cannot be its twin.
++                auto cyclePair=[&](const std::string& name) -> std::string
++                {
++                    label index=-1;forAll(patchNames,i) if (patchNames[i]==name) { index=i;break; }
++                    if (index<0 || index>=patchNeighbours.size() || patchTypes[index]!="cyclic") { return {}; }
++                    const std::string other=patchNeighbours[index];label partner=-1;
++                    forAll(patchNames,i) if (patchNames[i]==other) { partner=i;break; }
++                    if (partner<0 || partner>=patchNeighbours.size() || patchTypes[partner]!="cyclic"
++                     || patchNeighbours[partner]!=name) { return {}; }
++                    return min(name,other)+":"+max(name,other);
++                };
++                std::string identity;
++                if (type=="cyclic")
++                {
++                    const auto pair=cyclePair(patchNames[patch]);
++                    if (!pair.empty()) { identity="local-cycle:"+std::to_string(myRank)+":"+pair; }
++                }
++                else
++                {
++                    const std::string name=patchNames[patch];
++                    const std::string prefix="procBoundary"+std::to_string(myRank)+"to";
++                    if (name.compare(0,prefix.size(),prefix)==0)
++                    {
++                        size_t end=prefix.size();while (end<name.size() && name[end]>='0' && name[end]<='9') { ++end; }
++                        if (end>prefix.size())
++                        {
++                            const long neighbourRank=std::stol(name.substr(prefix.size(),end-prefix.size()));
++                            if (neighbourRank>=0 && neighbourRank<Pstream::nProcs() && neighbourRank!=myRank)
++                            {
++                                const std::string ranks=std::to_string(min(long(myRank),neighbourRank))+":"+std::to_string(max(long(myRank),neighbourRank));
++                                if (type=="processor" && end==name.size()) { identity="processor:"+ranks; }
++                                else if (type=="processorCyclic" && name.compare(end,7,"through")==0)
++                                {
++                                    const auto pair=cyclePair(name.substr(end+7));
++                                    if (!pair.empty()) { identity="processor-cycle:"+ranks+":"+pair; }
++                                }
++                            }
++                        }
++                    }
++                }
++                if (identity.empty()) { badFace[f]=true;badReason[f]|=16;++unsupportedFaces; }
++                else
++                {
++                    keys[f]=identity+":"+exactKey(canonical[f]);
++                    // Geometry alone must not let two copies on one side
++                    // impersonate a missing twin. Preserve rank, actual
++                    // patch role and outward orientation in the same gather.
++                    vector sharedArea;point sharedCentre;
++                    faceAreaCentreOF(m.points,canonical[f],sharedArea,sharedCentre);
++                    const int sense=(sharedArea&original)>0 ? 1 : -1;
++                    localCoupled.push_back(keys[f]+"\t"+std::to_string(myRank)
++                        +"\t"+std::string(patchNames[patch])+"\t"+std::to_string(sense));
++                }
++            }
++            else if (type.find("cyclic")==0 || type.find("mapped")==0 || type.find("AMI")!=std::string::npos)
++            { badFace[f]=true;badReason[f]|=16;++unsupportedFaces; }
++        }
++    }
++    struct coupledRole { label rank;std::string patch;int sense; };
++    std::map<std::string,std::vector<coupledRole>> coupledRoles;
++    for (const auto& record:gatherKeys(localCoupled))
++    {
++        const auto c=record.rfind('\t'),b=record.rfind('\t',c-1),a=record.rfind('\t',b-1);
++        const std::string key=record.substr(0,a);
++        coupledRoles[key].push_back(coupledRole{label(std::stol(record.substr(a+1,b-a-1))),
++            record.substr(b+1,c-b-1),std::stoi(record.substr(c+1))});
++    }
++    auto qualifiedTwin=[&](const std::string& key)
++    {
++        const auto found=coupledRoles.find(key);
++        if (found==coupledRoles.end() || found->second.size()!=2) { return false; }
++        const auto& a=found->second[0];const auto& b=found->second[1];
++        if (a.sense!=-b.sense) { return false; }
++        if (key.compare(0,12,"local-cycle:")==0) { return a.rank==b.rank && a.patch!=b.patch; }
++        if (a.rank==b.rank) { return false; }
++        if (key.compare(0,16,"processor-cycle:")==0)
++        {
++            const auto ia=a.patch.find("through"),ib=b.patch.find("through");
++            return ia!=std::string::npos && ib!=std::string::npos && a.patch.substr(ia+7)!=b.patch.substr(ib+7);
++        }
++        return true;
++    };
++    for (label c=0;c<oldCells;++c)
++    {
++        if (!m.cellAlive[c] || m.cellRank[c]!=myRank || cf[c].empty()) { continue; }
++        point estimate(point::zero);for (label f:cf[c]) { estimate+=centres[f]; }estimate/=cf[c].size();
++        scalar volume3=0;point moment(point::zero);
++        for (label f:cf[c])
++        {
++            const vector a=m.owner[f]==c ? areas[f] : -areas[f];
++            const scalar v=a&(centres[f]-estimate);volume3+=v;moment+=v*(.75*centres[f]+.25*estimate);
++        }
++        parentVolume[c]=volume3/3;apex[c]=moment/max(volume3,VSMALL);
++        bool flag=false;
++        for (label f:cf[c])
++        {
++            if (splitFace[f] || badFace[f]) { flag=true;break; }
++            vector normal=areas[f]/max(mag(areas[f]),VSMALL);if (m.owner[f]!=c) { normal=-normal; }
++            for (label other:cf[c]) if (other!=f)
++            {
++                const vector d=centres[other]-centres[f];
++                if ((d&normal)/max(mag(d),VSMALL)>-1e-6) { flag=true;break; }
++            }
++            if (flag) { break; }
++        }
++        if (flag) { marked[c]=true;++seeded; }
++    }
++    // Sharing a split base creates mandatory neighbour closure, including
++    // exact-coordinate coupled counterparts. No rank-local ID enters it.
++    while (true)
++    {
++        label changed=0;std::vector<std::string> selected;
++        for (label f=0;f<oldFaces;++f)
++        {
++            if (!m.faceAlive[f] || !splitFace[f]) { continue; }
++            const label o=m.owner[f],n=m.neighbour[f];
++            if (n>=0 && (marked[o] || marked[n]))
++            {
++                if (!marked[o]) { marked[o]=true;++changed; }
++                if (!marked[n]) { marked[n]=true;++changed; }
++            }
++            if (coupled[f] && marked[o]) { selected.push_back(keys[f]); }
++        }
++        std::set<std::string> global;
++        for (const auto& key:gatherKeys(selected)) { global.insert(key); }
++        for (label f=0;f<oldFaces;++f)
++        {
++            if (m.faceAlive[f] && coupled[f] && splitFace[f] && global.count(keys[f]) && !marked[m.owner[f]])
++            { marked[m.owner[f]]=true;++changed; }
++        }
++        if (!returnReduce(changed,sumOp<label>())) { break; }
++        ++closureWaves;
++    }
++    label selectedCells=0,badKernel=0,badBases=0,badCoupled=0,badClosure=0;
++    for (label c=0;c<oldCells;++c)
++    {
++        if (!marked[c]) { continue; }++selectedCells;
++        const point& cc=apex[c];
++        if (!std::isfinite(parentVolume[c]) || parentVolume[c]<=VSMALL
++         || !std::isfinite(cc.x()) || !std::isfinite(cc.y()) || !std::isfinite(cc.z())) { ++badKernel;continue; }
++        std::map<std::pair<label,label>,std::pair<label,label>> edgeCounts;
++        for (label f:cf[c])
++        {
++            if (badFace[f]) { ++badBases; }
++            const vector a=m.owner[f]==c ? areas[f] : -areas[f];
++            const scalar margin=(a&(centres[f]-cc))/max(mag(a),VSMALL);
++            if (!std::isfinite(margin) || margin<=3e-6) { ++badKernel; }
++            if (coupled[f] && splitFace[f] && !qualifiedTwin(keys[f])) { ++badCoupled; }
++            const auto& poly=m.faces[f];
++            for (size_t j=0;j<poly.size();++j)
++            {
++                label a=poly[j],b=poly[(j+1)%poly.size()];if (m.owner[f]!=c) { std::swap(a,b); }
++                auto& row=edgeCounts[std::minmax(a,b)];++row.first;row.second+=a<b ? 1 : -1;
++            }
++        }
++        for (const auto& edge:edgeCounts) if (edge.second.first!=2 || edge.second.second!=0) { ++badClosure; }
++    }
++    if (getenv("DCCART_CONE_EVIDENCE")!=nullptr)
++    {
++        std::ofstream out("conforming-cone-preflight-rank"+std::to_string(Pstream::myProcNo())+".json");out<<std::setprecision(17);
++        auto xyz=[&](const vector& p) { out<<'['<<p.x()<<','<<p.y()<<','<<p.z()<<']'; };
++        out<<"{\"rank\":"<<Pstream::myProcNo()<<",\"badBaseFaces\":[";bool first=true;
++        for (label f=0;f<oldFaces;++f)
++        {
++            if (!m.faceAlive[f] || !badFace[f]) { continue; }
++            const label o=m.owner[f],n=m.neighbour[f];if (!marked[o] && !(n>=0 && marked[n])) { continue; }
++            if (!first) { out<<','; }first=false;
++            vector originalArea;point originalCentre;faceAreaCentreOF(m.points,m.faces[f],originalArea,originalCentre);
++            out<<"{\"face\":"<<f<<",\"owner\":"<<o<<",\"neighbour\":"<<n<<",\"patch\":"<<m.patch[f]
++                <<",\"zone\":"<<m.zone[f]<<",\"reasonMask\":"<<badReason[f]<<",\"splitRequired\":"<<(splitFace[f] ? "true" : "false")
++                <<",\"maxOffPlane\":"<<offPlane[f]<<",\"originalCentre\":";xyz(originalCentre);
++            out<<",\"canonicalCentre\":";xyz(centres[f]);out<<",\"originalArea\":";xyz(originalArea);
++            out<<",\"canonicalOrientedArea\":";xyz(areas[f]);out<<",\"ownerApex\":";xyz(apex[o]);
++            if (n>=0) { out<<",\"neighbourApex\":";xyz(apex[n]); }
++            out<<",\"points\":[";
++            for (size_t j=0;j<m.faces[f].size();++j) { if (j) { out<<','; }xyz(m.points[m.faces[f][j]]); }
++            out<<"]}";
++        }
++        out<<"]}\n";
++    }
++    selectedCells=returnReduce(selectedCells,sumOp<label>());seeded=returnReduce(seeded,sumOp<label>());
++    badKernel=returnReduce(badKernel,sumOp<label>());badBases=returnReduce(badBases,sumOp<label>());
++    badCoupled=returnReduce(badCoupled,sumOp<label>());badClosure=returnReduce(badClosure,sumOp<label>());
++    Pout<<"Conforming cone synchronized preflight: rank "<<Pstream::myProcNo()<<", global selection "<<selectedCells
++        <<", bad kernel/base/coupled/closure "<<badKernel<<' '<<badBases<<' '<<badCoupled<<' '<<badClosure<<endl;
++    Info<<"Conforming cone preflight: seed cells "<<seeded<<", closed selection "<<selectedCells
++        <<", closure waves "<<closureWaves<<"; unsupported [kernel,base,coupled,closure] "
++        <<badKernel<<' '<<badBases<<' '<<badCoupled<<' '<<badClosure<<endl;
++    Pstream::barrier(Pstream::worldComm);
++    if (badKernel || badBases || badCoupled || badClosure)
++    { FatalErrorInFunction<<"conforming cone unsupported geometry; source coordinates preserved; no mesh authorization"<<exit(FatalError); }
++    // Spatial guard includes every existing AND every newly inserted point.
++    // This prevents the writer's 1-micrometre canonicalization changing bases.
++    struct gridKey { long long x,y,z;bool operator==(const gridKey& b) const { return x==b.x&&y==b.y&&z==b.z; } };
++    struct gridHash { size_t operator()(const gridKey& q) const { return splitMix64(uint64_t(q.x)^splitMix64(uint64_t(q.y))^splitMix64(uint64_t(q.z))); } };
++    std::unordered_map<gridKey,std::vector<label>,gridHash> pointGrid;
++    auto gridOf=[](const point& p) { return gridKey{(long long)std::floor(p.x()/3e-6),(long long)std::floor(p.y()/3e-6),(long long)std::floor(p.z()/3e-6)}; };
++    for (label p=0;p<label(m.points.size());++p) { pointGrid[gridOf(m.points[p])].push_back(p); }
++    auto insertPoint=[&](const point& p,bool allowExact) -> label
++    {
++        const gridKey q=gridOf(p);label exact=-1;
++        for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)
++        {
++            auto found=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (found==pointGrid.end()) { continue; }
++            for (label old:found->second)
++            {
++                const scalar d=magSqr(p-m.points[old]);
++                if (d<=9e-12)
++                {
++                    if (allowExact && d==0) { exact=old; }
++                    else { return -1; }
++                }
++            }
++        }
++        if (exact>=0) { return exact; }
++        const label id=m.points.size();m.points.push_back(p);pointGrid[q].push_back(id);return id;
++    };
++    const bool traceCones=getenv("DCCART_CONE_EVIDENCE")!=nullptr;
++    if (traceCones)
++    {
++        m.coneEvidenceParent.resize(oldCells);m.coneEvidenceBase.resize(oldFaces);
++        for (label c=0;c<oldCells;++c) { m.coneEvidenceParent[c]=c; }
++        for (label f=0;f<oldFaces;++f) { m.coneEvidenceBase[f]=f; }
++        const std::string prefix="conforming-source-rank"+std::to_string(myRank)+"-";
++        auto writeRaw=[&](const std::string& name,const char* data,size_t bytes)
++        {
++            std::ofstream out(prefix+name,std::ios::binary);out.write(data,bytes);
++            if (!out) { FatalErrorInFunction<<"could not write optional cone source evidence "<<name<<exit(FatalError); }
++        };
++        writeRaw("points.f64",reinterpret_cast<const char*>(m.points.data()),m.points.size()*sizeof(point));
++        writeRaw("owner.i32",reinterpret_cast<const char*>(m.owner.data()),oldFaces*sizeof(label));
++        writeRaw("neighbour.i32",reinterpret_cast<const char*>(m.neighbour.data()),oldFaces*sizeof(label));
++        writeRaw("patch.i32",reinterpret_cast<const char*>(m.patch.data()),oldFaces*sizeof(label));
++        writeRaw("zone.i32",reinterpret_cast<const char*>(m.zone.data()),oldFaces*sizeof(label));
++        writeRaw("apex.f64",reinterpret_cast<const char*>(apex.data()),oldCells*sizeof(point));
++        writeRaw("parent-volume.f64",reinterpret_cast<const char*>(parentVolume.data()),oldCells*sizeof(scalar));
++        std::vector<uint64_t> offsets(oldFaces+1,0);
++        for (label f=0;f<oldFaces;++f) { offsets[f+1]=offsets[f]+m.faces[f].size(); }
++        writeRaw("face-offsets.u64",reinterpret_cast<const char*>(offsets.data()),offsets.size()*sizeof(uint64_t));
++        std::ofstream pointsFile(prefix+"face-points.i32",std::ios::binary);
++        for (label f=0;f<oldFaces;++f) { pointsFile.write(reinterpret_cast<const char*>(m.faces[f].data()),m.faces[f].size()*sizeof(label)); }
++        std::vector<unsigned char> faceAlive(oldFaces,0),cellAlive(oldCells,0);
++        for (label f=0;f<oldFaces;++f) { faceAlive[f]=m.faceAlive[f]; }
++        for (label c=0;c<oldCells;++c) { cellAlive[c]=m.cellAlive[c]; }
++        writeRaw("face-alive.u8",reinterpret_cast<const char*>(faceAlive.data()),faceAlive.size());
++        writeRaw("cell-alive.u8",reinterpret_cast<const char*>(cellAlive.data()),cellAlive.size());
++        if (!pointsFile) { FatalErrorInFunction<<"could not write optional cone face evidence"<<exit(FatalError); }
++        const uint16_t endianMarker=1;
++        std::ofstream meta(prefix+"manifest.json");meta<<"{\"format\":\"conforming-input-stage/v1\",\"rank\":"<<myRank
++            <<",\"points\":"<<m.points.size()<<",\"faces\":"<<oldFaces<<",\"cells\":"<<oldCells
++            <<",\"facePointLabels\":"<<offsets.back()<<",\"labelBytes\":"<<sizeof(label)
++            <<",\"scalarBytes\":"<<sizeof(scalar)<<",\"pointStrideBytes\":"<<sizeof(point)
++            <<",\"littleEndian\":"<<(reinterpret_cast<const char*>(&endianMarker)[0]==1 ? "true":"false")
++            <<",\"parentScope\":\"local alive cell immediately before this optional decomposition; not a surface or octree ancestor\"}\n";
++        if (!meta) { FatalErrorInFunction<<"could not write optional cone manifest"<<exit(FatalError); }
++    }
++    // Explicit diagnostic candidate only. The original input-stage snapshot
++    // above remains unchanged; the final stock checker is still mandatory.
++    // No case coordinates or selection are part of the default algorithm.
++    if (const char* kernelTest=getenv("DCCART_CONE_KERNEL_TEST"))
++    {
++        label rank=-1,parent=-1;point candidate(point::zero);std::string extra;
++        std::istringstream input(kernelTest);
++        bool parse=bool(input>>rank>>parent>>candidate.x()>>candidate.y()>>candidate.z());
++        parse=parse && !(input>>extra) && rank>=0 && rank<Pstream::nProcs()
++            && parent>=0 && std::isfinite(candidate.x()) && std::isfinite(candidate.y()) && std::isfinite(candidate.z());
++        label applied=0,invalid=parse ? 0 : 1;
++        if (parse && rank==myRank)
++        {
++            if (parent>=oldCells || !m.cellAlive[parent] || !marked[parent]) { ++invalid; }
++            else
++            {
++                scalar margin=GREAT;
++                for (label f:cf[parent])
++                {
++                    const vector a=m.owner[f]==parent ? areas[f] : -areas[f];
++                    const scalar d=(a&(centres[f]-candidate))/max(mag(a),VSMALL);
++                    if (!std::isfinite(d)) { ++invalid; }margin=min(margin,d);
++                }
++                if (!std::isfinite(margin) || margin<=3e-6) { ++invalid; }
++                if (!invalid)
++                {
++                    Pout.precision(17);Pout<<"Conforming kernel test: rank "<<myRank<<", parent "<<parent
++                        <<", original "<<apex[parent]<<", candidate "<<candidate<<", minimum plane margin "<<margin<<endl;
++                    apex[parent]=candidate;++applied;
++                }
++            }
++        }
++        invalid=returnReduce(invalid,sumOp<label>());applied=returnReduce(applied,sumOp<label>());
++        if (invalid || applied!=1)
++        { FatalErrorInFunction<<"explicit kernel diagnostic refused: invalid "<<invalid<<", applied "<<applied<<exit(FatalError); }
++    }
++    std::vector<std::vector<label>> piecesOf(oldFaces);
++    label partitioned=0,faceFan=0,anchorFan=0,partitionFailures=0,closePoints=0,momentCorrections=0;
++    std::ofstream partitionAudit;
++    bool firstPartitionWitness=true;
++    if (getenv("DCCART_CONE_EVIDENCE"))
++    {
++        partitionAudit.open("conforming-cone-partition-rank"+std::to_string(myRank)+".json");
++        partitionAudit<<std::setprecision(17)<<"[";
++    }
++    // Match the writer's absolute area gate, as well as the signed fan
++    // criterion. Roundoff-positive collinear triangles would otherwise be
++    // discarded by toPolyMesh, leaving a three-faced open tetrahedron.
++    auto writablePolygon=[&](const std::vector<label>& poly)
++    {
++        vector n;point c;polygonNormalCentre(m.points,poly,n,c);
++        return std::isfinite(n.x()) && std::isfinite(n.y()) && std::isfinite(n.z())
++            && std::isfinite(c.x()) && std::isfinite(c.y()) && std::isfinite(c.z())
++            && mag(n)>1e-12;
++    };
++    label qualityFanTriggered=0,qualityFanChanged=0,qualityFanUnsupported=0;
++    struct fanQuality
++    {
++        bool geometry=true,possible=true;
++        scalar weight=.5,ratio=1,shape=GREAT,triangleBound=GREAT;
++    };
++    const bool strongTriangleBound=getenv("DCCART_CONES_STRONG_TRIANGLE_BOUND")!=nullptr;
++    const bool selectedFourTriangleBound=getenv("DCCART_CONES_SELECTED_FOUR_TRIANGLE_BOUND")!=nullptr;
++    std::map<std::array<label,4>,scalar> triangleBoundCache;
++    // Directed, enclosing long-double operations give an upper bound from
++    // the exact binary input coordinates. A low upper bound proves only that
++    // this physical TRIANGLE cannot be the base of an accepted tetrahedron.
++    // It does not exclude preserving that triangle on a larger polyhedron.
++    auto perimeterTriangleUpperBound=[&](const std::vector<label>& poly,label coefficient) -> scalar
++    {
++        struct interval { long double lo,hi; };
++        const long double inf=std::numeric_limits<long double>::infinity();
++        auto down=[&](long double x) { return std::nextafter(x,-inf); };
++        auto up=[&](long double x) { return std::nextafter(x,inf); };
++        auto sub=[&](interval a,interval b) { return interval{down(a.lo-b.hi),up(a.hi-b.lo)}; };
++        auto add=[&](interval a,interval b) { return interval{down(a.lo+b.lo),up(a.hi+b.hi)}; };
++        auto mul=[&](interval a,interval b)
++        {
++            const std::array<long double,4> v{{a.lo*b.lo,a.lo*b.hi,a.hi*b.lo,a.hi*b.hi}};
++            return interval{down(*std::min_element(v.begin(),v.end())),up(*std::max_element(v.begin(),v.end()))};
++        };
++        auto sq=[&](interval a)
++        {
++            const long double low=a.lo<=0 && a.hi>=0 ? 0 : std::min(a.lo*a.lo,a.hi*a.hi);
++            return interval{std::max(0.L,down(low)),up(std::max(a.lo*a.lo,a.hi*a.hi))};
++        };
++        auto difference=[&](label a,label b)
++        {
++            std::array<interval,3> d;
++            for (label axis=0;axis<3;++axis)
++            {
++                const long double x=m.points[a][axis],y=m.points[b][axis];
++                d[axis]=sub(interval{x,x},interval{y,y});
++            }
++            return d;
++        };
++        if (poly.size()!=3) { return GREAT; }
++        std::array<label,4> key{{poly[0],poly[1],poly[2],coefficient}};std::sort(key.begin(),key.begin()+3);
++        auto found=triangleBoundCache.find(key);if (found!=triangleBoundCache.end()) { return found->second; }
++        // Memoization cannot make a shared decision depend on which local
++        // rotated triangle happened to fill the cache first. Compute every
++        // interval from the same exact coordinate order on either side.
++        std::array<label,3> triangle{{poly[0],poly[1],poly[2]}};
++        std::sort(triangle.begin(),triangle.end(),[&](label a,label b)
++        {
++            const point& x=m.points[a];const point& y=m.points[b];
++            return std::make_tuple(x.x(),x.y(),x.z())<std::make_tuple(y.x(),y.y(),y.z());
++        });
++        const auto a=difference(triangle[1],triangle[0]),b=difference(triangle[2],triangle[0]);
++        std::array<interval,3> cross;
++        for (label axis=0;axis<3;++axis)
++        { const label i=(axis+1)%3,j=(axis+2)%3;cross[axis]=sub(mul(a[i],b[j]),mul(a[j],b[i])); }
++        interval crossSqr{0,0};for (const auto& x:cross) { crossSqr=add(crossSqr,sq(x)); }
++        const long double areaSqrUpper=up(crossSqr.hi/4);
++        long double perimeterLower=0;
++        for (label edge=0;edge<3;++edge)
++        {
++            const auto d=difference(triangle[(edge+1)%3],triangle[edge]);interval lengthSqr{0,0};
++            for (const auto& x:d) { lengthSqr=add(lengthSqr,sq(x)); }
++            if (!std::isfinite(lengthSqr.lo) || lengthSqr.lo<=0) { return GREAT; }
++            perimeterLower=down(perimeterLower+down(std::sqrt(lengthSqr.lo)));
++        }
++        const long double p2=down(perimeterLower*perimeterLower),p4=down(p2*p2);
++        const long double bound=up(up(static_cast<long double>(coefficient)*areaSqrUpper)/p4);
++        if (!std::isfinite(bound) || bound<=0 || p4<=0) { return GREAT; }
++        scalar out=scalar(bound);
++        if (static_cast<long double>(out)<bound) { out=std::nextafter(out,std::numeric_limits<scalar>::infinity()); }
++        triangleBoundCache.emplace(key,out);return out;
++    };
++    auto fanScore=[&](const std::vector<std::vector<label>>& pieces,const vector& normal,bool physical)
++    {
++        fanQuality out;
++        struct edgeGeometry { size_t piece;label a,b; };
++        std::map<std::pair<label,label>,std::vector<edgeGeometry>> edges;
++        std::vector<scalar> amounts;std::vector<point> fcs;
++        for (size_t k=0;k<pieces.size();++k)
++        {
++            const auto& poly=pieces[k];vector a;point fc;faceAreaCentreOF(m.points,poly,a,fc);
++            const scalar amount=mag(a);scalar perimeter=0,maxEdge=0;
++            if (poly.size()<3 || !writablePolygon(poly) || !std::isfinite(amount) || amount<=VSMALL || (a&normal)<=0)
++            { out.geometry=false; }
++            for (size_t j=0;j<poly.size();++j)
++            {
++                const point& pa=m.points[poly[j]];const point& pb=m.points[poly[(j+1)%poly.size()]];
++                const point& pc=m.points[poly[(j+2)%poly.size()]];
++                const vector edge=pb-pa;const scalar length=mag(edge);
++                perimeter+=length;maxEdge=max(maxEdge,length);
++                // Every retained edge node is essential: collinear adjacent
++                // edges create coplanar cone sides in the stock cell check.
++                const scalar turn=((edge^(pc-pb))&normal);
++                if (!std::isfinite(turn) || turn<=1e-12*amount || length<=VSMALL) { out.geometry=false; }
++                for (label q:poly)
++                { if ((((edge^(m.points[q]-pa))&normal)/max(length,VSMALL)) < -1e-12*std::sqrt(amount)) { out.geometry=false; } }
++                edges[std::minmax(poly[j],poly[(j+1)%poly.size()])].push_back(edgeGeometry{k,poly[j],poly[(j+1)%poly.size()]});
++            }
++            const scalar shape=2*amount/max(sqr(perimeter),VSMALL);
++            if (!std::isfinite(shape) || shape<=0) { out.geometry=false; }out.shape=min(out.shape,shape);
++            if (poly.size()==3 && (physical || selectedFourTriangleBound))
++            {
++                // Proven any-apex upper bound for a tetrahedron with this
++                // fixed physical base and three selected internal side faces.
++                // It only rejects impossibility; a larger bound is not proof.
++                // S >= sqrt(A^2+h^2 P^2/4) and max x^2/(1+x)^3=4/27
++                // imply D <= 54 A^2/P^4, independently of the apex.
++                // All four internal/coupled Sf yield the separate bound
++                // D <= 128 A^2/P^4 (average area uses four faces). A physical
++                // base is excluded by OF and retains the three-side bound 54.
++                const scalar bound=(strongTriangleBound || !physical)
++                    ? perimeterTriangleUpperBound(poly,physical ? 54 : 128)
++                    : scalar(729)*sqr(amount)/(32*max(sqr(sqr(maxEdge)),VSMALL));
++                out.triangleBound=min(out.triangleBound,bound);
++                if (!std::isfinite(bound) || bound<.001) { out.possible=false; }
++            }
++            amounts.push_back(amount);fcs.push_back(fc);
++        }
++        for (const auto& row:edges)
++        {
++            const auto& use=row.second;if (use.size()==1) { continue; }
++            if (use.size()!=2 || use[0].a!=use[1].b || use[0].b!=use[1].a || use[0].piece==use[1].piece)
++            { out.geometry=false;continue; }
++            const vector edge=m.points[use[0].b]-m.points[use[0].a];
++            const point& origin=m.points[use[0].a];
++            const scalar da=mag((edge^(fcs[use[0].piece]-origin))&normal);
++            const scalar db=mag((edge^(fcs[use[1].piece]-origin))&normal);
++            const scalar weight=min(da,db)/max(da+db,VSMALL);
++            const scalar ratio=min(amounts[use[0].piece],amounts[use[1].piece])/max(amounts[use[0].piece],amounts[use[1].piece]);
++            out.weight=min(out.weight,weight);out.ratio=min(out.ratio,ratio);
++        }
++        if (!std::isfinite(out.weight) || !std::isfinite(out.ratio) || out.weight<.05 || out.ratio<.01) { out.possible=false; }
++        return out;
++    };
++    auto improveCanonicalFan=[&](const std::vector<label>& poly,const vector& normal,bool physical,
++                                  std::vector<std::vector<label>>& pieces)
++    {
++        if (poly.size()>8 || pieces.size()<2) { return; }
++        const fanQuality old=fanScore(pieces,normal,physical);
++        if (old.geometry && old.possible) { return; }++qualityFanTriggered;
++        std::vector<std::vector<label>> best;std::array<scalar,4> bestScore{{-GREAT,-GREAT,-GREAT,-GREAT}};
++        const size_t n=poly.size();scalar faceArea=0;vector av;point fc;
++        faceAreaCentreOF(m.points,poly,av,fc);faceArea=mag(av);
++        for (size_t anchor=0;anchor<n;++anchor)
++        {
++            bool positive=true;
++            for (size_t j=1;j+1<n;++j)
++            {
++                const scalar a=(((m.points[poly[(anchor+j)%n]]-m.points[poly[anchor]])
++                    ^(m.points[poly[(anchor+j+1)%n]]-m.points[poly[anchor]]))&normal)*.5;
++                if (!std::isfinite(a) || a<=1e-15*faceArea
++                 || !writablePolygon({poly[anchor],poly[(anchor+j)%n],poly[(anchor+j+1)%n]})) { positive=false;break; }
++            }
++            if (!positive) { continue; }
++            std::vector<std::vector<label>> trial;
++            std::function<void(size_t)> walk=[&](size_t first)
++            {
++                if (first==n-1)
++                {
++                    const fanQuality score=fanScore(trial,normal,physical);
++                    if (!score.geometry || !score.possible) { return; }
++                    const std::array<scalar,4> key{{score.shape,score.weight,score.ratio,-scalar(trial.size())}};
++                    // Canonical coordinate order, anchor order and recursion
++                    // order resolve exact ties identically on both sides.
++                    if (best.empty() || key>bestScore) { bestScore=key;best=trial; }return;
++                }
++                for (size_t count=1;count<=3 && first+count<=n-1;++count)
++                {
++                    std::vector<label> merged{poly[anchor]};
++                    for (size_t j=first;j<=first+count;++j) { merged.push_back(poly[(anchor+j)%n]); }
++                    const fanQuality local=fanScore({merged},normal,physical);
++                    if (!local.geometry || !local.possible) { continue; }
++                    trial.push_back(std::move(merged));walk(first+count);trial.pop_back();
++                }
++            };
++            walk(1);
++        }
++        if (getenv("DCCART_CONES_EAR_REFAN"))
++        {
++            // The canonical indices, not rank-local point labels, define every
++            // diagonal, triangle, merge and tie. Enumerate only n<=8 outlines:
++            // at most 132 triangulations and 32 connected merge subsets each.
++            // A visible diagonal cannot touch any other original boundary node.
++            // Consequently all original outline nodes remain on the boundary.
++            const scalar span=max(std::sqrt(faceArea),scalar(1e-6));
++            const scalar areaTol=1e-12*faceArea;
++            auto at=[&](size_t i) -> const point& { return m.points[poly[i]]; };
++            auto crossAt=[&](const point& a,const point& b,const point& c)
++            { return (((b-a)^(c-a))&normal); };
++            auto onSegment=[&](const point& a,const point& b,const point& q)
++            {
++                const vector e=b-a;const scalar l=mag(e),t=((q-a)&e)/max(magSqr(e),VSMALL);
++                return mag(crossAt(a,b,q))<=areaTol && t>=-1e-12 && t<=1+1e-12 && l>1e-12*span;
++            };
++            label drop=0;for (label axis=1;axis<3;++axis) if (mag(normal[axis])>mag(normal[drop])) { drop=axis; }
++            const label xAxis=(drop+1)%3,yAxis=(drop+2)%3;
++            auto inside=[&](const point& q)
++            {
++                bool hit=false;
++                for (size_t i=0;i<n;++i)
++                {
++                    const point& a=at(i);const point& b=at((i+1)%n);
++                    if (onSegment(a,b,q)) { return false; }
++                    if ((a[yAxis]>q[yAxis])!=(b[yAxis]>q[yAxis]))
++                    {
++                        const scalar x=a[xAxis]+(q[yAxis]-a[yAxis])*(b[xAxis]-a[xAxis])/(b[yAxis]-a[yAxis]);
++                        if (q[xAxis]<x) { hit=!hit; }
++                    }
++                }
++                return hit;
++            };
++            std::vector<std::vector<bool>> diagonal(n,std::vector<bool>(n,false));
++            for (size_t i=0;i<n;++i) for (size_t j=i+1;j<n;++j)
++            {
++                bool valid=j==i+1 || (i==0 && j+1==n);
++                if (!valid)
++                {
++                    valid=true;const point& a=at(i);const point& b=at(j);
++                    for (size_t k=0;k<n;++k)
++                    { if (k!=i && k!=j && onSegment(a,b,at(k))) { valid=false;break; } }
++                    for (size_t k=0;valid && k<n;++k)
++                    {
++                        const size_t next=(k+1)%n;
++                        if (k==i || k==j || next==i || next==j) { continue; }
++                        const point& c=at(k);const point& d=at(next);
++                        const scalar s1=crossAt(a,b,c),s2=crossAt(a,b,d),t1=crossAt(c,d,a),t2=crossAt(c,d,b);
++                        if ((s1*s2<0 && t1*t2<0) || onSegment(a,b,c) || onSegment(a,b,d)
++                         || onSegment(c,d,a) || onSegment(c,d,b)) { valid=false; }
++                    }
++                    if (valid && !inside(.5*(a+b))) { valid=false; }
++                }
++                diagonal[i][j]=diagonal[j][i]=valid;
++            }
++            using triangleIndices=std::array<size_t,3>;
++            using triangulation=std::vector<triangleIndices>;
++            std::map<std::pair<size_t,size_t>,std::vector<triangulation>> cache;
++            std::function<const std::vector<triangulation>&(size_t,size_t)> triangulate;
++            triangulate=[&](size_t first,size_t last) -> const std::vector<triangulation>&
++            {
++                const auto key=std::make_pair(first,last);auto found=cache.find(key);
++                if (found!=cache.end()) { return found->second; }
++                auto& out=cache[key];
++                if (last<=first+1) { out.push_back({});return out; }
++                for (size_t middle=first+1;middle<last;++middle)
++                {
++                    if (!diagonal[first][middle] || !diagonal[middle][last] || !diagonal[first][last]) { continue; }
++                    const scalar amount=.5*crossAt(at(first),at(middle),at(last));
++                    if (!std::isfinite(amount) || amount<=1e-15*faceArea
++                     || !writablePolygon({poly[first],poly[middle],poly[last]})) { continue; }
++                    const auto& left=triangulate(first,middle);const auto& right=triangulate(middle,last);
++                    for (const auto& a:left) for (const auto& b:right)
++                    {
++                        triangulation trial=a;trial.insert(trial.end(),b.begin(),b.end());
++                        trial.push_back(triangleIndices{{first,middle,last}});out.push_back(std::move(trial));
++                    }
++                }
++                return out;
++            };
++            const auto& all=triangulate(0,n-1);
++            std::set<std::vector<std::vector<size_t>>> seen;
++            for (const auto& triangles:all)
++            {
++                if (triangles.size()!=n-2) { continue; }
++                std::map<std::pair<size_t,size_t>,std::vector<size_t>> edgeUses;
++                for (size_t i=0;i<triangles.size();++i) for (size_t e=0;e<3;++e)
++                { edgeUses[std::minmax(triangles[i][e],triangles[i][(e+1)%3])].push_back(i); }
++                std::vector<std::pair<size_t,size_t>> joins;bool legal=true;
++                for (const auto& edge:edgeUses)
++                {
++                    if (edge.second.size()==2) { joins.emplace_back(edge.second[0],edge.second[1]); }
++                    else if (edge.second.size()!=1) { legal=false; }
++                }
++                if (!legal || joins.size()!=n-3) { continue; }
++                for (size_t mask=0;mask<(size_t(1)<<joins.size());++mask)
++                {
++                    std::vector<size_t> parent(triangles.size());std::iota(parent.begin(),parent.end(),size_t(0));
++                    auto root=[&](size_t a) { while (parent[a]!=a) { a=parent[a]; }return a; };
++                    for (size_t e=0;e<joins.size();++e) if (mask&(size_t(1)<<e))
++                    { const size_t a=root(joins[e].first),b=root(joins[e].second);parent[max(a,b)]=min(a,b); }
++                    std::map<size_t,std::vector<size_t>> groups;
++                    for (size_t i=0;i<triangles.size();++i) { groups[root(i)].push_back(i); }
++                    std::vector<std::vector<size_t>> cycles;bool closed=true;
++                    for (const auto& group:groups)
++                    {
++                        std::map<std::pair<size_t,size_t>,std::vector<std::pair<size_t,size_t>>> boundary;
++                        for (size_t i:group.second) for (size_t e=0;e<3;++e)
++                        {
++                            const size_t a=triangles[i][e],b=triangles[i][(e+1)%3];
++                            boundary[std::minmax(a,b)].emplace_back(a,b);
++                        }
++                        std::map<size_t,size_t> next;std::map<size_t,label> incoming;
++                        for (const auto& edge:boundary)
++                        {
++                            const auto& use=edge.second;
++                            if (use.size()==2)
++                            { if (use[0].first!=use[1].second || use[0].second!=use[1].first) { closed=false; }continue; }
++                            if (use.size()!=1 || !next.emplace(use[0].first,use[0].second).second) { closed=false;break; }
++                            ++incoming[use[0].second];
++                        }
++                        if (!closed || next.size()<3) { closed=false;break; }
++                        for (const auto& edge:next) if (incoming[edge.first]!=1) { closed=false; }
++                        if (!closed) { break; }
++                        const size_t first=next.begin()->first;size_t current=first;std::vector<size_t> cycle;
++                        do
++                        {
++                            if (cycle.size()>=next.size() || !next.count(current)) { closed=false;break; }
++                            cycle.push_back(current);current=next[current];
++                        } while (current!=first);
++                        if (!closed || cycle.size()!=next.size()) { closed=false;break; }
++                        cycles.push_back(std::move(cycle));
++                    }
++                    if (!closed) { continue; }std::sort(cycles.begin(),cycles.end());
++                    if (!seen.insert(cycles).second) { continue; }
++                    std::vector<std::vector<label>> trial;std::set<size_t> retained;
++                    for (const auto& cycle:cycles)
++                    {
++                        std::vector<label> face;for (size_t index:cycle) { face.push_back(poly[index]);retained.insert(index); }
++                        trial.push_back(std::move(face));
++                    }
++                    if (retained.size()!=n) { continue; }
++                    const fanQuality score=fanScore(trial,normal,physical);
++                    if (!score.geometry || !score.possible) { continue; }
++                    const std::array<scalar,4> key{{score.shape,score.weight,score.ratio,-scalar(trial.size())}};
++                    if (best.empty() || key>bestScore) { bestScore=key;best=std::move(trial); }
++                }
++            }
++        }
++        if (best.empty()) { ++qualityFanUnsupported;return; }
++        if (best!=pieces) { pieces=std::move(best);++qualityFanChanged; }
++    };
++    // Plan every base in coordinate-canonical order before changing incidence.
++    for (label f=0;f<oldFaces;++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        const label o=m.owner[f],n=m.neighbour[f];
++        const bool used=marked[o] || (n>=0 && marked[n]);
++        if (!used || !splitFace[f]) { piecesOf[f].push_back(f);continue; }
++        std::vector<label> poly=canonical[f];vector av;point fc;faceAreaCentreOF(m.points,poly,av,fc);
++        const vector normal=av/mag(av);bool convex=true;
++        for (size_t j=0;j<poly.size();++j)
++        {
++            const vector edge=m.points[poly[(j+1)%poly.size()]]-m.points[poly[j]];
++            const scalar len=mag(edge);
++            for (label q:poly) if ((((edge^(m.points[q]-m.points[poly[j]]))&normal)/len)<-1e-12*std::sqrt(mag(av))) { convex=false; }
++        }
++        std::vector<std::vector<label>> pieces;
++        if (convex)
++        {
++            if (getenv("DCCART_CONES_PREFER_VERTEX_FAN")!=nullptr) for (size_t k=0;k<poly.size();++k)
++            {
++                std::vector<std::vector<label>> trial;bool positive=true;
++                for (size_t j=1;j+1<poly.size();++j)
++                {
++                    const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];
++                    const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;
++                    if (!std::isfinite(area) || area<=1e-15*mag(av)
++                     || !writablePolygon({a,b,c})) { positive=false;break; }trial.push_back({a,b,c});
++                }
++                if (positive) { pieces=std::move(trial);break; }
++            }
++            if (!pieces.empty()) { ++anchorFan; }
++            else
++            {
++                const label q=insertPoint(fc,true);if (q<0) { ++closePoints;continue; }
++                for (size_t j=0;j<poly.size();++j) { pieces.push_back({poly[j],poly[(j+1)%poly.size()],q}); }
++                ++faceFan;
++            }
++        }
++        else
++        {
++            // A simple, planar star polygon may have a strictly positive
++            // original-vertex fan. Otherwise refuse; never overlap triangles.
++            bool simple=true;
++            auto onSegment=[&](const point& a,const point& b,const point& p)
++            {
++                const vector edge=b-a;const scalar length=mag(edge);
++                const scalar support=mag((edge^(p-a))&normal);
++                const scalar along=((p-a)&edge)/max(magSqr(edge),VSMALL);
++                return support<=1e-12*length*std::sqrt(mag(av)) && along>=-1e-12 && along<=1+1e-12;
++            };
++            for (size_t i=0;i<poly.size();++i) for (size_t j=i+1;j<poly.size();++j)
++            {
++                const size_t in=(i+1)%poly.size(),jn=(j+1)%poly.size();
++                if (i==j || in==j || jn==i) { continue; }
++                const point& a=m.points[poly[i]];const point& b=m.points[poly[in]];
++                const point& c=m.points[poly[j]];const point& d=m.points[poly[jn]];
++                const scalar s1=((b-a)^(c-a))&normal,s2=((b-a)^(d-a))&normal;
++                const scalar t1=((d-c)^(a-c))&normal,t2=((d-c)^(b-c))&normal;
++                if ((s1*s2<0 && t1*t2<0) || onSegment(a,b,c) || onSegment(a,b,d)
++                 || onSegment(c,d,a) || onSegment(c,d,b)) { simple=false; }
++            }
++            if (simple) for (size_t k=0;k<poly.size();++k)
++            {
++                std::vector<std::vector<label>> trial;bool positive=true;
++                for (size_t j=1;j+1<poly.size();++j)
++                {
++                    const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];
++                    const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;
++                    if (!std::isfinite(area) || area<=1e-15*mag(av)
++                     || !writablePolygon({a,b,c})) { positive=false;break; }
++                    trial.push_back({a,b,c});
++                }
++                if (positive) { pieces=std::move(trial);break; }
++            }
++            if (pieces.empty()) { ++partitionFailures;continue; }++anchorFan;
++        }
++        const label priorQualityFanChanges=qualityFanChanged;
++        if (getenv("DCCART_CONES_REFAN_QUALITY"))
++        { improveCanonicalFan(poly,normal,n<0 && !coupled[f],pieces); }
++        const bool qualityRefanSelected=qualityFanChanged>priorQualityFanChanges;
++        scalar totalArea=0;point areaMoment(point::zero);vector totalVector(vector::zero);
++        for (const auto& p:pieces)
++        {
++            vector a;point c;faceAreaCentreOF(m.points,p,a,c);const scalar amount=mag(a);
++            if (!std::isfinite(amount) || !std::isfinite(c.x()) || !std::isfinite(c.y()) || !std::isfinite(c.z())
++             || !std::isfinite(a&av) || (a&av)<=0 || amount<=VSMALL || !writablePolygon(p)) { ++partitionFailures; }
++            totalArea+=amount;areaMoment+=amount*c;totalVector+=a;
++        }
++        point geometricCentre=fc;bool signedReference=false;
++        if (!convex && getenv("DCCART_CONES_SIGNED_MOMENT"))
++        {
++            // Preflight requires this split base to be planar. The simple
++            // boundary and positive fan have already been checked above.
++            // OpenFOAM's absolute fan weights can give a nonconvex polygon
++            // a biased in-plane centre; conserve the signed outline moment.
++            scalar signedArea=0;point signedMoment(point::zero);
++            const point& origin=m.points[poly[0]];
++            for (size_t j=1;j+1<poly.size();++j)
++            {
++                const point& b=m.points[poly[j]];const point& c=m.points[poly[j+1]];
++                const scalar weight=(((b-origin)^(c-origin))&normal)*.5;
++                signedArea+=weight;signedMoment+=weight*(origin+b+c)/3;
++            }
++            if (!std::isfinite(signedArea) || signedArea<=VSMALL || mag(signedArea-mag(av))/mag(av)>1e-10)
++            { ++partitionFailures;continue; }
++            geometricCentre=signedMoment/signedArea;
++            if (!std::isfinite(geometricCentre.x()) || !std::isfinite(geometricCentre.y()) || !std::isfinite(geometricCentre.z()))
++            { ++partitionFailures;continue; }
++            signedReference=true;++momentCorrections;
++        }
++        const scalar vectorError=mag(totalVector-av)/mag(av);
++        const scalar areaError=mag(totalArea-mag(av))/mag(av);
++        const scalar centreScale=max(std::sqrt(mag(av)),scalar(1e-6));
++        const scalar oldOFCentreError=mag(areaMoment/max(totalArea,VSMALL)-fc)/centreScale;
++        const scalar centreError=mag(areaMoment/max(totalArea,VSMALL)-geometricCentre)/centreScale;
++        const bool conservationFailure=!std::isfinite(vectorError) || !std::isfinite(areaError)
++            || !std::isfinite(centreError) || !std::isfinite(totalArea)
++            || !std::isfinite(totalVector.x()) || !std::isfinite(totalVector.y()) || !std::isfinite(totalVector.z())
++            || !std::isfinite(areaMoment.x()) || !std::isfinite(areaMoment.y()) || !std::isfinite(areaMoment.z())
++            || vectorError>1e-10 || areaError>1e-10 || centreError>1e-10;
++        if (conservationFailure || signedReference || qualityRefanSelected)
++        {
++            if (conservationFailure) { ++partitionFailures; }
++            if (partitionAudit.is_open())
++            {
++                scalar signedArea=0;point signedMoment(point::zero);
++                const point& origin=m.points[poly[0]];
++                for (size_t j=1;j+1<poly.size();++j)
++                {
++                    const point& b=m.points[poly[j]];const point& c=m.points[poly[j+1]];
++                    const scalar weight=((b-origin)^(c-origin))&normal;
++                    signedArea+=weight;signedMoment+=weight*(origin+b+c)/3;
++                }
++                auto outPoint=[&](const point& p)
++                { partitionAudit<<"["<<p.x()<<","<<p.y()<<","<<p.z()<<"]"; };
++                if (!firstPartitionWitness) { partitionAudit<<","; }firstPartitionWitness=false;
++                partitionAudit<<"{\"face\":"<<f<<",\"owner\":"<<o<<",\"neighbour\":"<<n
++                  <<",\"patch\":"<<m.patch[f]<<",\"zone\":"<<m.zone[f]
++                  <<",\"projectedConvex\":"<<(convex ? "true":"false")
++                  <<",\"vectorError\":"<<vectorError<<",\"areaError\":"<<areaError
++                  <<",\"centreError\":"<<centreError<<",\"oldOFCentreError\":"<<oldOFCentreError
++                  <<",\"signedReference\":"<<(signedReference ? "true":"false")
++                  <<",\"qualityRefanSelected\":"<<(qualityRefanSelected ? "true":"false")
++                  <<",\"conservationFailure\":"<<(conservationFailure ? "true":"false")
++                  <<",\"oldOFcentre\":";outPoint(fc);
++                partitionAudit<<",\"geometricReference\":";outPoint(geometricCentre);
++                partitionAudit<<",\"pieceCentre\":";outPoint(areaMoment/max(totalArea,VSMALL));
++                partitionAudit<<",\"signedCentre\":";outPoint(signedMoment/max(signedArea,VSMALL));
++                partitionAudit<<",\"area\":";outPoint(av);
++                partitionAudit<<",\"ownerApex\":";outPoint(apex[o]);
++                partitionAudit<<",\"neighbourApex\":";outPoint(n>=0 ? apex[n] : point::zero);
++                partitionAudit<<",\"points\":[";
++                for (size_t j=0;j<poly.size();++j) { if (j) { partitionAudit<<","; }outPoint(m.points[poly[j]]); }
++                partitionAudit<<"],\"pieces\":[";
++                for (size_t j=0;j<pieces.size();++j)
++                {
++                    if (j) { partitionAudit<<","; }partitionAudit<<"[";
++                    for (size_t k=0;k<pieces[j].size();++k)
++                    { if (k) { partitionAudit<<","; }outPoint(m.points[pieces[j][k]]); }
++                    partitionAudit<<"]";
++                }
++                partitionAudit<<"]}";
++            }
++            if (conservationFailure) { continue; }
++        }
++        const bool reverse=(av&areas[f])<0;
++        for (size_t j=0;j<pieces.size();++j)
++        {
++            // Keep the shared canonical vertex zero when flipping outward
++            // orientation; cyclic addressing reverses the remaining cycle.
++            if (reverse) { std::reverse(pieces[j].begin()+1,pieces[j].end()); }
++            label id=f;
++            if (j)
++            {
++                id=m.faces.size();m.faces.push_back(pieces[j]);m.owner.push_back(o);m.neighbour.push_back(n);
++                m.patch.push_back(m.patch[f]);m.zone.push_back(m.zone[f]);m.faceAlive.push_back(true);
++                if (traceCones) { m.coneEvidenceBase.push_back(f); }
++            }
++            else { m.faces[f]=pieces[j]; }
++            piecesOf[f].push_back(id);
++        }
++        ++partitioned;
++    }
++    if (partitionAudit.is_open()) { partitionAudit<<"]\n";partitionAudit.flush(); }
++    if (getenv("DCCART_CONES_REFAN_QUALITY"))
++    {
++        qualityFanTriggered=returnReduce(qualityFanTriggered,sumOp<label>());
++        qualityFanChanged=returnReduce(qualityFanChanged,sumOp<label>());
++        qualityFanUnsupported=returnReduce(qualityFanUnsupported,sumOp<label>());
++        Info<<"Conforming canonical quality re-fan experiment: triggered "<<qualityFanTriggered
++            <<", changed "<<qualityFanChanged<<", unsupported "<<qualityFanUnsupported
++            <<"; all outline nodes retained, shared partition geometry-only; full stock checker required"<<endl;
++    }
++    partitionFailures=returnReduce(partitionFailures,sumOp<label>());closePoints=returnReduce(closePoints,sumOp<label>());
++    momentCorrections=returnReduce(momentCorrections,sumOp<label>());
++    Info<<"Conforming planar signed-moment references "<<momentCorrections<<" (all original coordinates retained)"<<endl;
++    if (partitionFailures || closePoints)
++    { FatalErrorInFunction<<"conforming base partition refused: invalid fans "<<partitionFailures<<", near-coincident new points "<<closePoints<<exit(FatalError); }
++    std::vector<std::vector<label>> bases(oldCells);
++    for (label c=0;c<oldCells;++c) if (marked[c]) for (label f:cf[c])
++    { bases[c].insert(bases[c].end(),piecesOf[f].begin(),piecesOf[f].end()); }
++    if (getenv("DCCART_CONE_AXIS_KERNEL_CENTRE"))
++    {
++        // Optional exploration only: evaluate the actual planned cones after
++        // shared face partitioning, before changing any owner/neighbour IDs.
++        // The final unmodified full stock checker remains the authorization.
++        const bool pareto=getenv("DCCART_CONE_AXIS_KERNEL_PARETO")!=nullptr;
++        const bool axisCandidates=getenv("DCCART_CONE_KERNEL_AXIS_CANDIDATES")!=nullptr && pareto;
++        struct coneProfile
++        {
++            bool valid=true;
++            std::array<std::vector<scalar>,5> metrics;
++            scalar volume=0;point moment=point::zero;
++        };
++        struct childGeometry
++        {
++            label base;point centre;scalar volume;
++            std::vector<vector> areas;std::vector<point> centres;
++            std::vector<std::vector<point>> polygons;
++        };
++        struct profileEdge { size_t child;label a,b; };
++        auto finitePoint=[](const point& p)
++        { return std::isfinite(p.x()) && std::isfinite(p.y()) && std::isfinite(p.z()); };
++        const bool qualityKernelCandidates=getenv("DCCART_CONE_QUALITY_KERNEL_CANDIDATES")!=nullptr && pareto;
++        // Proposal construction only. Planar cone moments give affine signed
++        // face distances and volumes. Near-planar floating input is sampled
++        // numerically; no feasibility certificate or quality authorization is
++        // inferred from this fit. Every proposal still passes the original
++        // geometry, actual-neighbour profile, Pareto and final stock checker.
++        auto qualityValues=[&](label parent,const point& proposed)
++        {
++            struct qualityChild { point centre;scalar volume; };
++            std::vector<qualityChild> children;std::vector<scalar> out;
++            std::map<std::pair<label,label>,std::vector<profileEdge>> edges;
++            auto interface=[&](const vector& a,const point& fc,const qualityChild& own,const qualityChild& nei)
++            {
++                const scalar dOwn=a&(fc-own.centre),dNei=a&(nei.centre-fc);
++                out.insert(out.end(),{dOwn,dNei,own.volume,nei.volume,
++                    19*dOwn-dNei,19*dNei-dOwn,100*own.volume-nei.volume,100*nei.volume-own.volume});
++            };
++            for (label f:bases[parent])
++            {
++                const bool own=m.owner[f]==parent;vector area;point centre;
++                faceAreaCentreOF(m.points,m.faces[f],area,centre);if (!own) { area=-area; }
++                const qualityChild child{.75*centre+.25*proposed,(area&(centre-proposed))/3};
++                const label other=own ? m.neighbour[f] : m.owner[f];
++                if (other>=0)
++                {
++                    const qualityChild nei{marked[other] ? .75*centre+.25*apex[other] : apex[other],
++                        marked[other] ? ((-area)&(centre-apex[other]))/3 : parentVolume[other]};
++                    interface(area,centre,child,nei);
++                }
++                std::vector<label> poly=m.faces[f];if (!own) { std::reverse(poly.begin()+1,poly.end()); }
++                for (size_t j=0;j<poly.size();++j)
++                { const label a=poly[j],b=poly[(j+1)%poly.size()];edges[std::minmax(a,b)].push_back(profileEdge{children.size(),a,b}); }
++                children.push_back(child);
++            }
++            for (const auto& row:edges)
++            {
++                const auto& use=row.second;
++                if (use.size()!=2 || use[0].a!=use[1].b || use[0].b!=use[1].a || use[0].child==use[1].child)
++                { return std::vector<scalar>{std::numeric_limits<scalar>::quiet_NaN()}; }
++                const point& a=m.points[use[0].a];const point& b=m.points[use[0].b];
++                interface(.5*((a-b)^(proposed-b)),(a+b+proposed)/3,children[use[0].child],children[use[1].child]);
++            }
++            return out;
++        };
++        auto qualityProposals=[&](label parent,const point& lo,const point& hi)
++        {
++            struct halfplane { vector a;scalar b; };
++            std::vector<point> proposals;std::vector<halfplane> planes;
++            const vector size=hi-lo;const point mid=.5*(lo+hi);
++            const auto centreValues=qualityValues(parent,mid);std::array<std::vector<scalar>,3> samples;
++            for (label axis=0;axis<3;++axis)
++            { point q=mid;q[axis]+=.25*size[axis];samples[axis]=qualityValues(parent,q); }
++            for (const auto& row:samples) if (row.size()!=centreValues.size()) { return proposals; }
++            for (size_t i=0;i<centreValues.size();++i)
++            {
++                vector a;scalar scale=mag(centreValues[i]);
++                if (!std::isfinite(centreValues[i])) { return proposals; }
++                for (label axis=0;axis<3;++axis)
++                {
++                    if (!std::isfinite(samples[axis][i])) { return proposals; }
++                    a[axis]=4*(samples[axis][i]-centreValues[i]);scale=max(scale,mag(samples[axis][i]));
++                }
++                const scalar norm=mag(a),b=centreValues[i]-.5*(a.x()+a.y()+a.z());
++                if (!std::isfinite(norm) || !std::isfinite(b)) { return proposals; }
++                if (norm<=1e-12*max(scale,VSMALL))
++                { if (centreValues[i]<-1e-12*max(scale,VSMALL)) { return proposals; }continue; }
++                planes.push_back(halfplane{a/norm,b/norm});
++            }
++            point l,h;
++            for (label axis=0;axis<3;++axis)
++            { l[axis]=3.00001e-6/size[axis];h[axis]=1-l[axis];if (!std::isfinite(l[axis]) || l[axis]>=h[axis]) { return proposals; } }
++            for (label axis=0;axis<3;++axis)
++            {
++                vector a(vector::zero);a[axis]=1;planes.push_back(halfplane{a,-l[axis]});
++                a[axis]=-1;planes.push_back(halfplane{a,h[axis]});
++            }
++            const point p000(l.x(),l.y(),l.z()),p100(h.x(),l.y(),l.z()),p110(h.x(),h.y(),l.z()),p010(l.x(),h.y(),l.z());
++            const point p001(l.x(),l.y(),h.z()),p101(h.x(),l.y(),h.z()),p111(h.x(),h.y(),h.z()),p011(l.x(),h.y(),h.z());
++            std::vector<std::vector<point>> faces{{p000,p010,p110,p100},{p001,p101,p111,p011},
++                {p000,p100,p101,p001},{p010,p011,p111,p110},{p000,p001,p011,p010},{p100,p110,p111,p101}};
++            auto uniquePoint=[](std::vector<point>& out,const point& q)
++            { for (const point& p:out) if (magSqr(p-q)<=1e-24) { return; }out.push_back(q); };
++            for (const halfplane& plane:planes)
++            {
++                std::vector<std::vector<point>> next;std::vector<point> cap;
++                for (const auto& face:faces)
++                {
++                    std::vector<point> cut;
++                    for (size_t i=0;i<face.size();++i)
++                    {
++                        const point& a=face[i];const point& b=face[(i+1)%face.size()];
++                        const scalar da=(plane.a&a)+plane.b,db=(plane.a&b)+plane.b;
++                        if (!std::isfinite(da) || !std::isfinite(db)) { return proposals; }
++                        const bool inA=da>=0,inB=db>=0;
++                        if (inA!=inB)
++                        {
++                            const scalar t=da/(da-db);const point q=a+t*(b-a);
++                            if (!finitePoint(q)) { return proposals; }uniquePoint(cut,q);uniquePoint(cap,q);
++                        }
++                        if (inB) { uniquePoint(cut,b); }
++                    }
++                    if (cut.size()>=3) { next.push_back(std::move(cut)); }
++                }
++                if (cap.size()>=3)
++                {
++                    point centre(point::zero);for (const point& q:cap) { centre+=q; }centre/=cap.size();
++                    label axis=0;for (label i=1;i<3;++i) if (mag(plane.a[i])<mag(plane.a[axis])) { axis=i; }
++                    vector reference(vector::zero);reference[axis]=1;
++                    vector u=plane.a^reference;u/=max(mag(u),VSMALL);const vector v=plane.a^u;
++                    std::sort(cap.begin(),cap.end(),[&](const point& a,const point& b)
++                    {
++                        const vector da=a-centre,db=b-centre;
++                        const scalar aa=std::atan2(da&v,da&u),bb=std::atan2(db&v,db&u);
++                        if (aa!=bb) { return aa<bb; }
++                        return std::make_tuple(a.x(),a.y(),a.z())<std::make_tuple(b.x(),b.y(),b.z());
++                    });next.push_back(std::move(cap));
++                }
++                faces=std::move(next);if (faces.empty()) { return proposals; }
++            }
++            std::vector<point> vertices;for (const auto& face:faces) for (const point& q:face) { uniquePoint(vertices,q); }
++            if (vertices.size()<4) { return proposals; }
++            point mean(point::zero),boxLo(GREAT,GREAT,GREAT),boxHi(-GREAT,-GREAT,-GREAT);
++            for (const point& q:vertices) { mean+=q;boxLo=min(boxLo,q);boxHi=max(boxHi,q); }mean/=vertices.size();
++            point near;
++            for (label axis=0;axis<3;++axis) { near[axis]=(apex[parent][axis]-lo[axis])/size[axis]; }
++            // Bounded cyclic projection proposes a point near the current AP.
++            // Its convergence is not an acceptance test; the full profile is.
++            for (label sweep=0;sweep<256;++sweep)
++            {
++                scalar worst=0;
++                for (const halfplane& plane:planes)
++                {
++                    const scalar distance=(plane.a&near)+plane.b;
++                    if (distance<0) { near-=distance*plane.a;worst=max(worst,-distance); }
++                }
++                if (!finitePoint(near)) { return proposals; }if (worst<1e-12) { break; }
++            }
++            std::vector<point> normalized{mean,.5*(boxLo+boxHi),near,.75*near+.25*mean,.5*(near+mean),.25*near+.75*mean};
++            for (const point& q:normalized)
++            {
++                point actual;for (label axis=0;axis<3;++axis) { actual[axis]=lo[axis]+q[axis]*size[axis]; }
++                if (finitePoint(actual)) { uniquePoint(proposals,actual); }
++            }
++            return proposals;
++        };
++        auto profile=[&](label parent,const point& proposed)
++        {
++            coneProfile out;std::vector<childGeometry> children;
++            std::map<std::pair<label,label>,std::vector<profileEdge>> edges;
++            auto addInterface=[&](const vector& area,const point& centre,const std::vector<point>& polygon,
++                                  const point& own,scalar ownV,const point& nei,scalar neiV,bool internal)
++            {
++                const scalar amount=mag(area);vector d;
++                if (internal)
++                {
++                    const scalar a=mag(area&(centre-own)),b=mag(area&(nei-centre));
++                    out.metrics[1].push_back(min(a,b)/max(a+b,VSMALL));
++                    out.metrics[2].push_back(min(ownV,neiV)/max(ownV,neiV));d=nei-own;
++                    const scalar cosine=(area&d)/max(amount*mag(d),VSMALL);
++                    out.metrics[4].push_back(std::acos(max(scalar(-1),min(scalar(1),cosine)))*180/constant::mathematical::pi);
++                }
++                else { const vector n=area/max(amount,VSMALL);d=n*(n&(centre-own)); }
++                const vector cpf=centre-own;
++                const vector skew=cpf-((area&cpf)/((area&d)+ROOTVSMALL))*d;
++                const vector direction=skew/(mag(skew)+ROOTVSMALL);
++                scalar reach=(internal ? .2 : .4)*mag(d)+ROOTVSMALL;
++                for (const point& p:polygon) { reach=max(reach,mag(direction&(p-centre))); }
++                out.metrics[3].push_back(mag(skew)/reach);
++                // Both real adjacent centres must pass the same face-tet fans.
++                bool anchorFound=false;
++                for (size_t k=0;k<polygon.size();++k)
++                {
++                    const scalar oq=tetPointRef(polygon[k],polygon[(k+1)%polygon.size()],centre,own).quality();
++                    const scalar nq=internal ? tetPointRef(polygon[k],polygon[(k+1)%polygon.size()],centre,nei).quality() : 1;
++                    if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { out.valid=false; }
++                }
++                for (size_t anchor=0;anchor<polygon.size() && !anchorFound;++anchor)
++                {
++                    bool good=true;
++                    for (size_t j=1;j+1<polygon.size();++j)
++                    {
++                        const point& a=polygon[anchor];const point& b=polygon[(anchor+j)%polygon.size()];
++                        const point& c=polygon[(anchor+j+1)%polygon.size()];
++                        const scalar oq=tetPointRef(a,b,c,own).quality();
++                        const scalar nq=internal ? tetPointRef(a,b,c,nei).quality() : 1;
++                        if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { good=false;break; }
++                    }
++                    anchorFound=good;
++                }
++                if (!anchorFound) { out.valid=false; }
++            };
++            for (label f:bases[parent])
++            {
++                const bool own=m.owner[f]==parent;vector area;point centre;
++                faceAreaCentreOF(m.points,m.faces[f],area,centre);if (!own) { area=-area; }
++                childGeometry child;child.base=f;child.centre=.75*centre+.25*proposed;
++                child.volume=(area&(centre-proposed))/3;
++                if (!finitePoint(child.centre) || !std::isfinite(child.volume) || child.volume<=VSMALL) { out.valid=false; }
++                child.areas.push_back(area);child.centres.push_back(centre);
++                std::vector<label> poly=m.faces[f];if (!own) { std::reverse(poly.begin()+1,poly.end()); }
++                std::vector<point> base;for (label q:poly) { base.push_back(m.points[q]); }
++                child.polygons.push_back(base);
++                for (size_t j=0;j<poly.size();++j)
++                {
++                    const label a=poly[j],b=poly[(j+1)%poly.size()];
++                    const point& pa=m.points[a];const point& pb=m.points[b];
++                    const vector sf=.5*((pa-pb)^(proposed-pb));
++                    child.areas.push_back(sf);child.centres.push_back((pa+pb+proposed)/3);
++                    child.polygons.push_back({pb,pa,proposed});
++                    edges[std::minmax(a,b)].push_back(profileEdge{children.size(),a,b});
++                }
++                scalar internalArea=0,allArea=0;label nInternal=0;vector closure(vector::zero);
++                scalar span=0;for (const point& q:base) { span=max(span,mag(q-proposed)); }
++                const label other=own ? m.neighbour[f] : m.owner[f];
++                for (size_t j=0;j<child.areas.size();++j)
++                {
++                    const vector& a=child.areas[j];const scalar ar=mag(a);const point& fc=child.centres[j];
++                    if (!finitePoint(a) || !finitePoint(fc) || ar<=1e-12) { out.valid=false; }
++                    const scalar pyramid=(a&(fc-child.centre))/3;
++                    if (!std::isfinite(pyramid) || pyramid<=1e-15*child.volume) { out.valid=false; }
++                    closure+=a;allArea+=ar;
++                    if (j || other>=0) { internalArea+=ar;++nInternal; }
++                    const vector normal=a/max(ar,VSMALL);
++                    for (const auto& face:child.polygons) for (const point& q:face)
++                    { if (((q-fc)&normal)>1e-10*max(span,scalar(1e-6))) { out.valid=false; } }
++                    for (size_t k=0;k<child.centres.size();++k) if (k!=j)
++                    {
++                        const vector delta=child.centres[k]-fc;
++                        const scalar cosine=(normal&delta)/max(mag(delta),VSMALL);
++                        if (!std::isfinite(cosine) || cosine>=-1.0001e-6) { out.valid=false; }
++                    }
++                }
++                if (mag(closure)/max(allArea,VSMALL)>1e-12 || !nInternal || internalArea<=VSMALL) { out.valid=false; }
++                const scalar mean=internalArea/max(nInternal,label(1));symmTensor tensor(Zero);
++                for (size_t j=0;j<child.areas.size();++j) if (j || other>=0) { tensor+=sqr(child.areas[j]/max(mean,VSMALL)); }
++                out.metrics[0].push_back(mag(det(tensor))/8);
++                out.volume+=child.volume;out.moment+=child.volume*child.centre;
++                point neighbour=child.centre;scalar neighbourV=child.volume;
++                if (other>=0)
++                {
++                    neighbour=marked[other] ? .75*centre+.25*apex[other] : apex[other];
++                    neighbourV=marked[other] ? ((-area)&(centre-apex[other]))/3 : parentVolume[other];
++                    if (!finitePoint(neighbour) || !std::isfinite(neighbourV) || neighbourV<=VSMALL) { out.valid=false; }
++                }
++                addInterface(area,centre,base,child.centre,child.volume,neighbour,neighbourV,other>=0);
++                children.push_back(std::move(child));
++            }
++            for (const auto& row:edges)
++            {
++                const auto& use=row.second;
++                if (use.size()!=2 || use[0].a!=use[1].b || use[0].b!=use[1].a || use[0].child==use[1].child)
++                { out.valid=false;continue; }
++                const point& a=m.points[use[0].a];const point& b=m.points[use[0].b];
++                const vector sf=.5*((a-b)^(proposed-b));const point fc=(a+b+proposed)/3;
++                const auto& own=children[use[0].child];const auto& nei=children[use[1].child];
++                addInterface(sf,fc,{b,a,proposed},own.centre,own.volume,nei.centre,nei.volume,true);
++            }
++            if (!std::isfinite(out.volume) || out.volume<=VSMALL || !finitePoint(out.moment)) { out.valid=false; }
++            for (const auto& metric:out.metrics) for (scalar value:metric) if (!std::isfinite(value)) { out.valid=false; }
++            return out;
++        };
++        auto improvesWithoutRegression=[](const coneProfile& old,const coneProfile& next)
++        {
++            const std::array<scalar,5> threshold{{.001,.05,.01,4-1e-8,70}};bool improved=false;
++            if (!old.valid || !next.valid) { return false; }
++            for (size_t k=0;k<threshold.size();++k)
++            {
++                if (old.metrics[k].size()!=next.metrics[k].size()) { return false; }
++                label oldBad=0,newBad=0;scalar oldWorst=k<3 ? GREAT : 0,newWorst=oldWorst;
++                for (size_t j=0;j<old.metrics[k].size();++j)
++                {
++                    const scalar a=old.metrics[k][j],b=next.metrics[k][j];
++                    const bool badA=k<3 ? a<threshold[k] : a>threshold[k];
++                    const bool badB=k<3 ? b<threshold[k] : b>threshold[k];
++                    if (!badA && badB) { return false; }oldBad+=badA;newBad+=badB;
++                    if (k<3) { oldWorst=min(oldWorst,a);newWorst=min(newWorst,b); }
++                    else { oldWorst=max(oldWorst,a);newWorst=max(newWorst,b); }
++                }
++                if (newBad>oldBad) { return false; }
++                if (oldBad && (k<3 ? newWorst<oldWorst*(1-1e-10) : newWorst>oldWorst*(1+1e-10))) { return false; }
++                improved=improved || newBad<oldBad || (oldBad && (k<3 ? newWorst>oldWorst*(1+1e-10) : newWorst<oldWorst*(1-1e-10)));
++            }
++            return improved;
++        };
++        std::ofstream kernelAudit;
++        if (traceCones && pareto)
++        { kernelAudit.open("conforming-kernel-candidates-rank"+std::to_string(myRank)+".jsonl");kernelAudit<<std::setprecision(17); }
++        auto auditCandidate=[&](label c,const point& candidate,const char* decision,const coneProfile& old,const coneProfile& next)
++        {
++            if (!kernelAudit.is_open()) { return; }
++            auto xyz=[&](const point& p) { kernelAudit<<'['<<p.x()<<','<<p.y()<<','<<p.z()<<']'; };
++            auto scalarOut=[&](scalar v) { if (std::isfinite(v)) { kernelAudit<<v; }else { kernelAudit<<"null"; } };
++            auto metricOut=[&](const coneProfile& p)
++            {
++                kernelAudit<<"{\"valid\":"<<(p.valid ? "true" : "false")<<",\"volume\":";scalarOut(p.volume);
++                kernelAudit<<",\"moment\":";xyz(p.moment);kernelAudit<<",\"metrics\":[";
++                for (size_t k=0;k<p.metrics.size();++k)
++                {
++                    if (k) { kernelAudit<<','; }kernelAudit<<'[';
++                    for (size_t j=0;j<p.metrics[k].size();++j) { if (j) { kernelAudit<<','; }scalarOut(p.metrics[k][j]); }
++                    kernelAudit<<']';
++                }
++                kernelAudit<<"]}";
++            };
++            kernelAudit<<"{\"rank\":"<<myRank<<",\"parent\":"<<c<<",\"decision\":\""<<decision
++                <<"\",\"metricOrder\":[\"determinant\",\"weight\",\"volumeRatio\",\"skew\",\"nonOrthDegrees\"]"
++                <<",\"original\":";xyz(apex[c]);kernelAudit<<",\"candidate\":";xyz(candidate);
++            kernelAudit<<",\"baseOrder\":[";
++            for (size_t j=0;j<bases[c].size();++j) { if (j) { kernelAudit<<','; }kernelAudit<<bases[c][j]; }
++            kernelAudit<<"],\"old\":";metricOut(old);kernelAudit<<",\"next\":";metricOut(next);kernelAudit<<"}\n";
++        };
++        // Cheap determinant screen only. Full geometry profiles are never
++        // swept over every marked parent. This permits testing unchanged
++        // kernel centres only when an actual planned child needs repair.
++        auto hasBadPlannedDeterminant=[&](label c)
++        {
++            for (label f:bases[c])
++            {
++                vector a;point centre;faceAreaCentreOF(m.points,m.faces[f],a,centre);
++                const bool own=m.owner[f]==c;const label other=own ? m.neighbour[f] : m.owner[f];
++                std::vector<vector> selected;
++                if (other>=0) { selected.push_back(a); }
++                scalar total=other>=0 ? mag(a) : 0;
++                const auto& poly=m.faces[f];
++                for (size_t j=0;j<poly.size();++j)
++                {
++                    const vector sf=.5*((m.points[poly[j]]-m.points[poly[(j+1)%poly.size()]])
++                        ^(apex[c]-m.points[poly[(j+1)%poly.size()]]));
++                    selected.push_back(sf);total+=mag(sf);
++                }
++                const scalar mean=total/max(label(selected.size()),label(1));symmTensor tensor(Zero);
++                for (const vector& sf:selected) { tensor+=sqr(sf/max(mean,VSMALL)); }
++                const scalar d=mag(det(tensor))/8;
++                if (!std::isfinite(d) || d<.001) { return true; }
++            }
++            return false;
++        };
++        auto profileKey=[](const coneProfile& p)
++        {
++            const std::array<scalar,5> threshold{{.001,.05,.01,4-1e-8,70}};
++            std::array<label,5> bad{{0,0,0,0,0}};
++            std::array<scalar,5> worst{{GREAT,GREAT,GREAT,0,0}};label total=0;
++            for (size_t k=0;k<5;++k)
++            {
++                for (scalar v:p.metrics[k])
++                {
++                    bad[k]+=(k<3 ? v<threshold[k] : v>threshold[k]);
++                    worst[k]=k<3 ? min(worst[k],v) : max(worst[k],v);
++                }
++                total+=bad[k];if (!bad[k]) { worst[k]=threshold[k]; }
++            }
++            return std::array<scalar,7>{{-scalar(total),-scalar(bad[0]),worst[0],worst[1],worst[2],-worst[3],-worst[4]}};
++        };
++        label moved=0,nonAxis=0,unsupported=0,nearExisting=0,unchanged=0,coupledSkip=0,geometryVeto=0,qualityVeto=0;
++        label screenedBadParents=0,evaluatedCandidates=0,screenedQualityParents=0,qualityProposalCount=0;
++        scalar maxMove=0;
++        for (label c=0;c<oldCells;++c)
++        {
++            if (!marked[c]) { continue; }
++            point lo(-GREAT,-GREAT,-GREAT),hi(GREAT,GREAT,GREAT);bool axisOnly=true,hasCoupled=false;
++            for (label f:cf[c])
++            {
++                hasCoupled=hasCoupled || coupled[f];
++                const vector a=m.owner[f]==c ? areas[f] : -areas[f];const scalar amount=mag(a);
++                label d=0;if (mag(a.y())>mag(a[d])) { d=1; }if (mag(a.z())>mag(a[d])) { d=2; }
++                for (label j=0;j<3;++j) if (j!=d && mag(a[j])>1e-12*amount) { axisOnly=false; }
++                if (!std::isfinite(amount) || amount<=VSMALL || !std::isfinite(centres[f][d])) { axisOnly=false; }
++                const scalar plane=centres[f][d];scalar scale=0;
++                for (label q:m.faces[f]) { scale=max(scale,mag(m.points[q]-centres[f])); }
++                for (label q:m.faces[f]) if (mag(m.points[q][d]-plane)>1e-10*max(scale,scalar(1e-6))) { axisOnly=false; }
++                if (a[d]>0) { hi[d]=min(hi[d],plane); }else { lo[d]=max(lo[d],plane); }
++            }
++            if (!axisOnly) { ++nonAxis;continue; }
++            const point candidate=.5*(lo+hi);bool valid=true;
++            for (label d=0;d<3;++d)
++            { if (!std::isfinite(lo[d]) || !std::isfinite(hi[d]) || mag(lo[d])>=GREAT/2 || mag(hi[d])>=GREAT/2 || lo[d]>=hi[d]) { valid=false; } }
++            for (label f:cf[c])
++            {
++                const vector a=m.owner[f]==c ? areas[f] : -areas[f];
++                const scalar value=(a&(centres[f]-candidate))/max(mag(a),VSMALL);
++                if (!std::isfinite(value) || value<=3e-6) { valid=false; }
++            }
++            if (!valid) { ++unsupported;continue; }
++            const bool needsRepair=axisCandidates && !hasCoupled && hasBadPlannedDeterminant(c);
++            bool needsQualityRepair=false;
++            if (qualityKernelCandidates && !hasCoupled)
++            {
++                const auto values=qualityValues(c,apex[c]);
++                for (scalar v:values) if (std::isfinite(v) && v<0) { needsQualityRepair=true;break; }
++                if (needsQualityRepair) { ++screenedQualityParents; }
++            }
++            if (needsRepair) { ++screenedBadParents; }
++            const scalar displacement=mag(candidate-apex[c]);
++            if (displacement<=1e-12*max(mag(hi-lo),scalar(1e-6)) && !needsRepair && !needsQualityRepair) { ++unchanged;continue; }
++            if (pareto && hasCoupled) { ++coupledSkip;continue; }
++            auto tooNear=[&](const point& trial)
++            {
++                const gridKey q=gridOf(trial);
++                for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)
++                {
++                    auto bucket=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (bucket==pointGrid.end()) { continue; }
++                    for (label old:bucket->second) if (magSqr(trial-m.points[old])<=9e-12) { return true; }
++                }
++                return false;
++            };
++            if (!pareto)
++            {
++                if (tooNear(candidate)) { ++nearExisting;continue; }
++                apex[c]=candidate;++moved;maxMove=max(maxMove,displacement);continue;
++            }
++            const coneProfile old=profile(c,apex[c]);
++            if (!old.valid) { auditCandidate(c,candidate,"geometry-refused",old,old);++geometryVeto;continue; }
++            std::vector<point> proposals{candidate};
++            if (needsRepair)
++            {
++                // Fixed, bounded, geometry-normalized exploration. No mesh
++                // IDs or case coordinates; at most thirteen candidates for
++                // parents selected by the cheap actual child determinant.
++                for (label axis=0;axis<3;++axis) for (scalar fraction:{scalar(.125),scalar(.25),scalar(.75),scalar(.875)})
++                {
++                    point q=candidate;q[axis]=lo[axis]+fraction*(hi[axis]-lo[axis]);proposals.push_back(q);
++                }
++            }
++            if (qualityKernelCandidates && (needsRepair || needsQualityRepair))
++            {
++                const auto derived=qualityProposals(c,lo,hi);qualityProposalCount+=derived.size();
++                proposals.insert(proposals.end(),derived.begin(),derived.end());
++            }
++            point best=apex[c];coneProfile bestProfile=old,last=old;point lastPoint=candidate;
++            auto bestKey=profileKey(old);bool accepted=false,anyGeometry=false;
++            for (const point& trial:proposals)
++            {
++                if (mag(trial-apex[c])<=1e-12*max(mag(hi-lo),scalar(1e-6)) || tooNear(trial)) { continue; }
++                bool inKernel=true;
++                for (label f:cf[c])
++                {
++                    const vector a=m.owner[f]==c ? areas[f] : -areas[f];
++                    const scalar margin=(a&(centres[f]-trial))/max(mag(a),VSMALL);
++                    if (!std::isfinite(margin) || margin<=3e-6) { inKernel=false;break; }
++                }
++                if (!inKernel) { continue; }++evaluatedCandidates;
++                const coneProfile next=profile(c,trial);last=next;lastPoint=trial;
++                if (!next.valid || mag(next.volume-old.volume)/max(old.volume,VSMALL)>1e-10
++                 || mag(next.moment-old.moment)/(max(old.volume,VSMALL)*max(mag(hi-lo),scalar(1e-6)))>1e-10) { continue; }
++                anyGeometry=true;if (!improvesWithoutRegression(old,next)) { continue; }
++                const auto key=profileKey(next);
++                if (!accepted || key>bestKey) { best=trial;bestProfile=next;bestKey=key;accepted=true; }
++            }
++            if (!accepted)
++            {
++                if (!anyGeometry) { auditCandidate(c,lastPoint,"geometry-refused",old,last);++geometryVeto; }
++                else { auditCandidate(c,lastPoint,"quality-refused",old,last);++qualityVeto; }continue;
++            }
++            auditCandidate(c,best,"selected-off-experiment",old,bestProfile);
++            maxMove=max(maxMove,mag(best-apex[c]));apex[c]=best;++moved;
++        }
++        moved=returnReduce(moved,sumOp<label>());nonAxis=returnReduce(nonAxis,sumOp<label>());
++        unsupported=returnReduce(unsupported,sumOp<label>());nearExisting=returnReduce(nearExisting,sumOp<label>());
++        unchanged=returnReduce(unchanged,sumOp<label>());coupledSkip=returnReduce(coupledSkip,sumOp<label>());
++        geometryVeto=returnReduce(geometryVeto,sumOp<label>());qualityVeto=returnReduce(qualityVeto,sumOp<label>());
++        maxMove=returnReduce(maxMove,maxOp<scalar>());
++        screenedBadParents=returnReduce(screenedBadParents,sumOp<label>());
++        evaluatedCandidates=returnReduce(evaluatedCandidates,sumOp<label>());
++        screenedQualityParents=returnReduce(screenedQualityParents,sumOp<label>());
++        qualityProposalCount=returnReduce(qualityProposalCount,sumOp<label>());
++        Info<<"Conforming axis-plane kernel centre experiment: moved "<<moved<<", non-axis "<<nonAxis
++            <<", unsupported "<<unsupported<<", near old points "<<nearExisting<<", unchanged "<<unchanged
++            <<", coupled skipped "<<coupledSkip<<", geometry veto "<<geometryVeto<<", Pareto veto "<<qualityVeto
++            <<", screened bad parents "<<screenedBadParents<<", evaluated candidates "<<evaluatedCandidates
++            <<", screened quality parents "<<screenedQualityParents<<", approximate quality-kernel proposals "<<qualityProposalCount
++            <<", max displacement "<<maxMove<<"; original bases retained; full checkMesh required"<<endl;
++    }
++    label added=0,decomposed=0,volumeFailures=0,edgeFailures=0;
++    for (label c=0;c<oldCells;++c)
++    {
++        if (!marked[c]) { continue; }
++        const label ap=insertPoint(apex[c],false);if (ap<0) { ++closePoints;continue; }
++        struct edgeUse { label child,a,b; };
++        std::map<std::pair<label,label>,std::vector<edgeUse>> edges;
++        const bool orig=m.cellOrigAlive[c];const scalar refV=m.cellRefVol[c];const point refC=m.cellRefCentre[c];
++        const label level=m.cellLevel[c],rank=m.cellRank[c];const uint64_t leaf=m.cellLeaf[c],piece=m.cellPiece[c];
++        scalar childVolume=0;bool first=true;
++        for (label f:bases[c])
++        {
++            const bool own=m.owner[f]==c;
++            if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<"conforming base lost parent incidence"<<exit(FatalError); }
++            vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);
++            const scalar v=((own ? area : -area)&(centre-apex[c]))/3;
++            if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;
++            const label child=first ? c : m.nCells++;
++            if (!first)
++            {
++                m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
++                m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
++                if (traceCones) { m.coneEvidenceParent.push_back(c); }
++            }
++            first=false;
++            const auto& poly=m.faces[f];
++            for (size_t j=0;j<poly.size();++j)
++            {
++                label a=poly[j],b=poly[(j+1)%poly.size()];if (!own) { std::swap(a,b); }
++                edges[std::minmax(a,b)].push_back(edgeUse{child,a,b});
++            }
++            if (own) { m.owner[f]=child; }else { m.neighbour[f]=child; }
++        }
++        if (!std::isfinite(childVolume) || mag(childVolume-parentVolume[c])/parentVolume[c]>1e-10) { ++volumeFailures; }
++        for (const auto& row:edges)
++        {
++            const auto& e=row.second;
++            if (e.size()!=2 || e[0].a!=e[1].b || e[0].b!=e[1].a || e[0].child==e[1].child)
++            { ++edgeFailures;continue; }
++            const std::vector<label> side{e[0].b,e[0].a,ap};
++            if (!writablePolygon(side)) { ++edgeFailures;continue; }
++            m.faces.push_back(side);m.owner.push_back(e[0].child);m.neighbour.push_back(e[1].child);
++            m.patch.push_back(-1);m.zone.push_back(-1);m.faceAlive.push_back(true);
++            if (traceCones) { m.coneEvidenceBase.push_back(-1); }
++        }
++        ++decomposed;
++    }
++    closePoints=returnReduce(closePoints,sumOp<label>());volumeFailures=returnReduce(volumeFailures,sumOp<label>());
++    edgeFailures=returnReduce(edgeFailures,sumOp<label>());
++    if (closePoints || volumeFailures || edgeFailures)
++    { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
++    rekeyPiecesByGeometry(m);
++    decomposed=returnReduce(decomposed,sumOp<label>());added=returnReduce(added,sumOp<label>());
++    partitioned=returnReduce(partitioned,sumOp<label>());faceFan=returnReduce(faceFan,sumOp<label>());anchorFan=returnReduce(anchorFan,sumOp<label>());
++    Info<<"Conforming mixed cone experiment: decomposed "<<decomposed<<", added cells "<<added
++        <<", partitioned bases "<<partitioned<<", convex centre fans "<<faceFan<<", original-vertex fans "<<anchorFan
++        <<"; exact original coordinates retained; full checkMesh still required"<<nl;
++    return decomposed;
++}
++
++
+ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+ (
+     cutMesh& m, const boolList& coupledPatch
+@@ -12842,6 +14345,32 @@ Foam::autoPtr<Foam::polyMesh> Foam::dcCartCutCells::toPolyMesh
+         ++i;
+     }
+ 
++    if (!m.coneEvidenceParent.empty())
++    {
++        if (m.coneEvidenceParent.size()!=size_t(m.nCells) || m.coneEvidenceBase.size()!=m.faces.size())
++        { FatalErrorInFunction<<"inconsistent optional cone evidence addressing"<<exit(FatalError); }
++        const std::string prefix="conforming-written-rank"+std::to_string(Pstream::myProcNo())+"-";
++        auto writeLabels=[&](const std::string& name,const std::vector<label>& values)
++        {
++            std::ofstream out(prefix+name,std::ios::binary);
++            out.write(reinterpret_cast<const char*>(values.data()),values.size()*sizeof(label));
++            if (!out) { FatalErrorInFunction<<"could not write optional cone compact map "<<name<<exit(FatalError); }
++        };
++        std::vector<label> parent(nC,-1),nativeCell(nC,-1),base(nF,-1),nativeFace(nF,-1),nativePoint(nP,-1);
++        for (label c=0;c<m.nCells;++c) if (newCell[c]>=0)
++        { parent[newCell[c]]=m.coneEvidenceParent[c];nativeCell[newCell[c]]=c; }
++        label q=0;
++        for (label f:internalIds) { base[q]=m.coneEvidenceBase[f];nativeFace[q++]=f; }
++        for (label f:boundaryIds) { base[q]=m.coneEvidenceBase[f];nativeFace[q++]=f; }
++        for (label p=0;p<label(newPoint.size());++p) if (newPoint[p]>=0) { nativePoint[newPoint[p]]=p; }
++        writeLabels("cell-parent.i32",parent);writeLabels("cell-native.i32",nativeCell);
++        writeLabels("face-base.i32",base);writeLabels("face-native.i32",nativeFace);writeLabels("point-native.i32",nativePoint);
++        std::ofstream meta(prefix+"manifest.json");meta<<"{\"format\":\"conforming-written-stage/v1\",\"rank\":"<<Pstream::myProcNo()
++            <<",\"cells\":"<<nC<<",\"faces\":"<<nF<<",\"points\":"<<nP<<",\"labelBytes\":"<<sizeof(label)
++            <<",\"mappingScope\":\"indices follow actual compact polyMesh cell/face/point order; -1 face-base marks new cone side\"}\n";
++        if (!meta) { FatalErrorInFunction<<"could not write optional cone written map manifest"<<exit(FatalError); }
++    }
++
+     // ---- drop the patch names no rank put a face in ----------------------
+     // The mesher names a patch for every solid in every STL, for the six
+     // domain sides, and for every baffle pair. Most of those never receive a
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+index 0e5096e2..7de1224a 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -80,6 +80,10 @@ public:
+         //  cell and the surfaces, so every rank that holds the piece gives
+         //  it the same value; (level, leaf, piece) is the cell's global id.
+         std::vector<uint64_t> cellPiece;
++        //- Optional cone evidence only: input-stage parent/base labels.
++        //  Empty in the ordinary path; never used by geometry or ownership.
++        std::vector<label> coneEvidenceParent;
++        std::vector<label> coneEvidenceBase;
+         //- Points [0, nGridPoints) are octree grid corners, all further
+         //  apart than the coincident-point tolerance (0: not known)
+         label nGridPoints = 0;
+@@ -695,6 +699,8 @@ public:
+         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
+         //- Opt-in exact-outline cleanup with all-incidence and coupled veto.
+         //- Read-only, opt-in regular transition candidate audit.
++        static label decomposeConformingCones(cutMesh& m, const wordList& patchNames, const wordList& patchTypes, const wordList& patchNeighbours, label myRank);
++
+         static label auditRegularTransitionRoofs(cutMesh& m, const boolList& coupledPatch);
+ 
+         static label removeRedundantEdgePoints(cutMesh& m, const boolList& coupledPatch);

@@ -1,0 +1,47 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/domainCodecRegression.test.ts --minWorkers=1 --maxWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/domainCodecRegression.test.ts (2 tests | 1 failed) 55ms
+   × domain document codec on real load/save/store paths > retains a document extension across canonical save and actual file parse 46ms
+     → expected undefined to deeply equal { revision: 7, nested: [ 'retained' ] }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/domainCodecRegression.test.ts > domain document codec on real load/save/store paths > retains a document extension across canonical save and actual file parse
+AssertionError: expected undefined to deeply equal { revision: 7, nested: [ 'retained' ] }
+
+- Expected: 
+Object {
+  "nested": Array [
+    "retained",
+  ],
+  "revision": 7,
+}
+
++ Received: 
+undefined
+
+ ❯ test/domainCodecRegression.test.ts:18:34
+     16|   it('retains a document extension across canonical save and actual fi…
+     17|     const saved = projectForSave(project())
+     18|     expect(saved.futureDocument).toEqual({ revision: 7, nested: ['reta…
+       |                                  ^
+     19|     const loaded = readProjectFileText(serializeProjectState(project()…
+     20|     expect(loaded.ok).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  20:00:29
+   Duration  12.82s (transform 754ms, setup 0ms, collect 1.13s, tests 55ms, environment 10.92s, prepare 389ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -1,0 +1,103 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2406                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    Small_ACU_Front_patch
+    {
+        type            flowRateInletVelocity;
+        volumetricFlowRate 0.0;
+    }
+    Small_ACU_Back
+    {
+        type            noSlip;
+    }
+    Small_ACU_Left
+    {
+        type            noSlip;
+    }
+    Small_ACU_Right
+    {
+        type            noSlip;
+    }
+    Small_ACU_Top_patch
+    {
+        type            pressureInletOutletVelocity;
+        value           uniform (0 0 0);
+    }
+    Small_ACU_Bottom
+    {
+        type            noSlip;
+    }
+    Thermal_block_Front
+    {
+        type            noSlip;
+    }
+    Thermal_block_Back
+    {
+        type            noSlip;
+    }
+    Thermal_block_Left
+    {
+        type            noSlip;
+    }
+    Thermal_block_Right
+    {
+        type            noSlip;
+    }
+    Thermal_block_Top
+    {
+        type            noSlip;
+    }
+    Thermal_block_Bottom
+    {
+        type            noSlip;
+    }
+    Room_Floor
+    {
+        type            noSlip;
+    }
+    Room_Ceiling
+    {
+        type            noSlip;
+    }
+    Room_Wall_1_patch
+    {
+        type            noSlip;
+    }
+    Room_Wall_2
+    {
+        type            noSlip;
+    }
+    Room_Wall_3
+    {
+        type            noSlip;
+    }
+    Room_Wall_4
+    {
+        type            noSlip;
+    }
+    procBoundary1to0
+    {
+        type            processor;
+    }
+}
+
+// ************************************************************************* //

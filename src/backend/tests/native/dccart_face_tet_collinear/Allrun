@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+scratch=${1:?Pass a new scratch directory}
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <new-scratch-directory>" >&2
+    exit 2
+fi
+if [ -e "$scratch" ]; then
+    echo "Refusing existing scratch directory: $scratch" >&2
+    exit 2
+fi
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+
+# Source the caller-selected v2412 environment. This test never selects an
+# unrelated conda installation merely because a checkMesh binary is on PATH.
+: "${FOAM_BASHRC:?Set FOAM_BASHRC to OpenFOAM v2412 etc/bashrc}"
+if [ -z "${WM_OPTIONS:-}" ]; then
+    source "$FOAM_BASHRC"
+fi
+command -v checkMesh >/dev/null || { echo "checkMesh is unavailable" >&2; exit 2; }
+
+mkdir -p "$scratch"
+python3 "$here/generate_case.py" --output "$scratch/collinear" --collinear
+python3 "$here/generate_case.py" --output "$scratch/plain" --plain
+
+for variant in collinear plain; do
+    CUDA_VISIBLE_DEVICES=-1 NVIDIA_VISIBLE_DEVICES=none \
+        OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+        nice -n 10 timeout 30 checkMesh \
+        -case "$scratch/$variant" -allTopology -allGeometry \
+        > "$scratch/$variant.checkMesh.log" 2>&1
+done
+
+python3 - "$scratch" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+scratch = Path(sys.argv[1])
+logs = {name: (scratch / f"{name}.checkMesh.log").read_text()
+        for name in ("collinear", "plain")}
+
+for name, log in logs.items():
+    assert "Version:  2412" in log, f"{name}: OpenFOAM v2412 is required"
+    for label, expected in (("faces", 11), ("cells", 2)):
+        match = re.search(rf"^\s*{label}:\s+(\d+)\s*$", log, re.M)
+        assert match and int(match.group(1)) == expected, (name, label, match)
+    points = 24 if name == "collinear" else 12
+    match = re.search(r"^\s*points:\s+(\d+)\s*$", log, re.M)
+    assert match and int(match.group(1)) == points, (name, "points", match)
+    match = re.search(
+        r"Min volume = ([\d.eE+-]+)\. Max volume = ([\d.eE+-]+)\.  Total volume = ([\d.eE+-]+)\.",
+        log,
+    )
+    assert match and all(abs(float(got) - want) < 1e-12 for got, want in zip(
+        match.groups(), (1.6e-5, 1.6e-5, 3.2e-5)
+    )), (name, "volume", match)
+    for required in (
+        "Topological cell zip-up check OK.",
+        "Face-face connectivity OK.",
+        "Max cell openness =",
+        "Cell volumes OK.",
+        "Face pyramids OK.",
+        "Concave cell check OK.",
+        "***Cells with small determinant (< 0.001) found, number of cells: 2",
+    ):
+        assert required in log, (name, required)
+
+red = logs["collinear"]
+plain = logs["plain"]
+assert "***Error in face tets: 7 faces with low quality or negative volume decomposition tets." in red
+assert "<<Writing 7 faces with low quality or negative volume decomposition tets to set lowQualityTetFaces" in red
+assert "Failed 2 mesh checks." in red
+assert " Face tets OK." in plain
+assert "Failed 1 mesh checks." in plain
+
+bad_faces = (scratch / "collinear" / "constant" / "polyMesh" / "sets" / "lowQualityTetFaces").read_text()
+match = re.search(r"\n7\(([^)]*)\)", bad_faces)
+assert match and sorted(map(int, match.group(1).split())) == [0, 1, 2, 3, 6, 7, 8]
+print("RED reproduced: seven collinear-polygon face tets fail, including shared face 0")
+print("Control passes face-tet check; both cases retain two equal-volume cells and the same low-determinant background")
+print(f"Logs: {scratch}/collinear.checkMesh.log, {scratch}/plain.checkMesh.log")
+PY

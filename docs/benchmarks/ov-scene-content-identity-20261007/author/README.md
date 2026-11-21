@@ -1,0 +1,1 @@
+PRIVATE exact-source packet. Read REPORT.md and APPLY-MAP.json. REPRO.py performs only CPU before/candidate tests in a fresh B-owned output; AUDIT_PACKETS.py performs only bounded readonly original-prefix hash reconstruction. No normal apply helper, service action, browser/API command, native execution, or build is included.

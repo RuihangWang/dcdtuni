@@ -1,0 +1,48 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/ppLog.test.ts (5 tests | 2 failed) 14ms
+   × volumeSummary > survives a header that reported fewer than three dimensions 9ms
+     → expected '64x0x0, p: -1.5~2.3' to be '64x0x0, p: -1.50~2.25' // Object.is equality
+   × keeps a small velocity range distinct in the completed volume log 3ms
+     → expected '64x64x64, Umag: 0.0~0.0' to be '64x64x64, Umag: 0.00200~0.00578' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ppLog.test.ts > volumeSummary > survives a header that reported fewer than three dimensions
+AssertionError: expected '64x0x0, p: -1.5~2.3' to be '64x0x0, p: -1.50~2.25' // Object.is equality
+
+Expected: "64x0x0, p: -1.50~2.25"
+Received: "64x0x0, p: -1.5~2.3"
+
+ ❯ test/ppLog.test.ts:37:50
+     35|     // A malformed header must not take the whole render down with it …
+     36|     // grid is already built and drawable by the time this line is com…
+     37|     expect(volumeSummary([64], 'p', -1.5, 2.25)).toBe('64x0x0, p: -1.5…
+       |                                                  ^
+     38|   })
+     39| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/ppLog.test.ts > keeps a small velocity range distinct in the completed volume log
+AssertionError: expected '64x64x64, Umag: 0.0~0.0' to be '64x64x64, Umag: 0.00200~0.00578' // Object.is equality
+
+Expected: "64x64x64, Umag: 0.00200~0.00578"
+Received: "64x64x64, Umag: 0.0~0.0"
+
+ ❯ test/ppLog.test.ts:43:6
+     41| it('keeps a small velocity range distinct in the completed volume log'…
+     42|   expect(volumeSummary([64, 64, 64], 'Umag', 0.002, 0.0057801157236099…
+     43|     .toBe('64x64x64, Umag: 0.00200~0.00578')
+       |      ^
+     44| })
+     45| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+   Start at  00:59:20
+   Duration  1.92s (transform 323ms, setup 0ms, collect 518ms, tests 14ms, environment 935ms, prepare 117ms)
+

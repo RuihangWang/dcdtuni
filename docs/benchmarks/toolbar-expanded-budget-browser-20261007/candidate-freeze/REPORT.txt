@@ -1,0 +1,20 @@
+PRIVATE expanded-toolbar height candidate; 2026-10-07
+
+Problem and actual input
+Root's ordinary Windows1280x720 DOM reports toolbar675.2x201.6; scrolling body58.2px/scroll123 with65px range, section123px, slider bottom187.8 beyond body bottom154. Thus scrolling works; automatic .28-window cap makes the expanded ViewTools initially crop the grid-spacing row. ACTUAL-ROOT-DOM-INPUT is a bounded transcript of Root's collaboration message, not a complete raw CUA capture.
+
+Resulting behavior and exact scope
+Only two production paths: PanelResizers and layoutMetrics. Explicitly expanded, existing nonhidden toolbar-body (and noncollapsed toolbar) chooses the existing half-window cap for automatic natural-height fit. Missing/closed body and whole-toolbar collapse keep original .28 default. The original natural-height, remembered manual, reservation and cap calculations remain; half-window remains hardmaximum. Controls exceeding it remain independently scrollable. Header and timeline stay outside body. No CSS, renderer/OV handshake, geometry, selection, cube or service change.
+
+Controls and actual results
+- Six new controls exercise real mounted Toolbar/PanelResizers with controlled DOM dimensions. Outer675.2 and body123 are actual Root observations; header70/footer37.4 are explicitly only a controlled decomposition. Source-before run2PASS4expectedFAIL, RC1/8.5869s. The budget reproduces201.6 versus desired266.4, which must not be reported as actual browser266.4.
+- First related seven-file candidate run65PASS5FAIL0skip, RC1/14.0533s. Five failures were old expanded .28/inlinepin expectations or insufficient number of shrink presses from the higher starting height; all raw preserved.
+- Two old files intentionally changed: shrink4/3 to20 reaches the same original232/152 boundary; explicit expanded oversized footer expects existing .5 ceiling; naturally fitting300px tools expect no pinned height and scrollablefalse. Header/footer reservation, manual preference, narrow/wide transitions, keyboard bounds and .28 absent-body checks remain. These are new contract assertions, not quality tolerance changes.
+- Final seven-file70PASS0FAIL0skip, RC0/19.5619s CPU34-35/CUDAempty/120s cap. New controls include half-window360 oversize cap, manual256.4 close/reopen, closed-group201.6 cap and unchanged manual/reservation/natural limits.
+- Private full FE tsc first RC2/26.2934s because sparse reviewtree omitted tools relative imports used by three unchanged tests. Restoring a symlink to immutable original tools, no source/test changes, yielded RC0/23.8864s.915 private FE files unchanged by compile. This type context is original public2b plus UI delta, not Root's newest carrier tree; Root integrated replay remains required. No production bundle build, fullsuite or native run.
+
+Evidence and guard
+production.patch3146B plus tests.patch contains exactly five promotion paths:2production,2modified oldtests,1newtest. Before guards held at freeze; newtest absent in normal. Do not copy unrelated original private FE/carrier sources, nor overwrite Root's current shinaide type fix. D public checkout remains2b/stash original preserved; normal I source/Git/service/browser untouched by author. Harness folder collision and overstrict edit count stopped before additional tests; correction record and first type refusal retained.
+
+Remaining actual acceptance
+Root review/fresh current-source70 and type replay, then ordinary Windows1280x720 open ViewTools: whole natural body initially visible when within360px, aligned controls, pinned transient row, larger groups still scroll, manual drag/reopen remembered; Three/OV same layout and cube visible. No pixel or deployment success is claimed by this private controlled-DOM package.

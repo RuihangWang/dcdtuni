@@ -1,0 +1,598 @@
+--- a/src/frontend/shared/js/geometry_scene.js
++++ b/src/frontend/shared/js/geometry_scene.js
+@@ -293,6 +293,239 @@
+             return text;
+         }
+ 
++
++        // Liquid transport is authored in project/world coordinates. It does not
++        // use render roots, rack manifolds, valves, collars or other display meshes.
++        // Each connected solid carrier is a union; exterior polygon provenance
++        // remains the producing pipe/junction UID. Individual source regions need
++        // not close: dcCart loads the entire multi-region carrier as one surface.
++        function buildLiquidTransportProduct(modelIds) {
++            const ids = new Set(modelIds), sources = _allModels().filter(model =>
++                ids.has(model.uid) && (model.kind === 'pipe_segment' || model.kind === 'pipe_junction'));
++            if (!sources.length) return null;
++            const CSG = window.ThreeCSG && window.ThreeCSG.CSG;
++            if (!CSG) throw new Error('Liquid transport STL needs the shared solid boolean engine');
++            const current = new Map(_allModels().map(model => [model.uid, model]));
++            const dependencies = new Map(), sourceNames = new Set(), parts = [];
++            const vector = (value, label) => {
++                if (!value || !['x','y','z'].every(k => Number.isFinite(value[k])))
++                    throw new Error('Liquid transport has an invalid ' + label);
++                return new THREE.Vector3(value.x, value.y, value.z);
++            };
++            const diameter = (value, label) => {
++                if (!Number.isFinite(value) || value < 0.001 || value > 2)
++                    throw new Error('Liquid transport has an invalid ' + label);
++                return value;
++            };
++            const dependency = model => {
++                if (!model || current.get(model.uid) !== model) throw new Error('Liquid transport has no current dependency owner');
++                dependencies.set(model.uid, JSON.stringify(model));
++            };
++            const portPoint = token => {
++                if (typeof token !== 'string' || !token) return null;
++                const split = token.lastIndexOf('.');
++                if (split < 1) throw new Error('Liquid transport has an invalid equipment port');
++                const model = current.get(token.slice(0,split)), port = token.slice(split+1);
++                if (!model || !['rack','cdu','pipe_junction'].includes(model.kind))
++                    throw new Error('Liquid transport has an absent equipment port owner');
++                vector(model.geometry?.location,'equipment location');
++                const quaternion=model.kind==='pipe_junction'?(model.cooling?.quaternion || model.geometry?.quaternion):model.geometry?.quaternion;
++                if(quaternion && (!['x','y','z','w'].every(k=>Number.isFinite(quaternion[k])) || Math.hypot(quaternion.x,quaternion.y,quaternion.z,quaternion.w)<1e-9))
++                    throw new Error('Liquid transport has an invalid equipment quaternion');
++                const scale=model.geometry?.scale;
++                if(scale && !['x','y','z'].every(k=>Number.isFinite(scale[k]) && Math.abs(scale[k])>1e-9))
++                    throw new Error('Liquid transport has an invalid equipment scale');
++                const frame = _pure().liquidEquipmentPortFrame(model, port, 'top');
++                if (!frame) throw new Error('Liquid transport has an absent equipment port');
++                dependency(model);
++                return vector(frame.position, 'equipment port');
++            };
++            const sweep = (raw, radius, owner) => {
++                if (!Array.isArray(raw) || raw.length < 2 || raw.length > 256)
++                    throw new Error('Liquid transport needs a bounded path');
++                const points = raw.map(p => vector(p, 'waypoint'));
++                const tangents = points.slice(1).map((p,i) => {
++                    const edge = p.clone().sub(points[i]);
++                    if (edge.length() < 1e-6) throw new Error('Liquid transport has a zero length segment');
++                    return edge.normalize();
++                });
++                const radial = 16, vertices = [], indices = [];
++                const seed = Math.abs(tangents[0].y) < 0.9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
++                let u = seed.cross(tangents[0]).normalize();
++                for (let i=0;i<points.length;i++) {
++                    const incoming=tangents[Math.max(0,i-1)], outgoing=tangents[Math.min(tangents.length-1,i)];
++                    const plane=incoming.clone().add(outgoing).normalize(), divisor=plane.dot(incoming);
++                    if (divisor < 0.1) throw new Error('Liquid transport has an unsupported reversing bend');
++                    const v=incoming.clone().cross(u).normalize();
++                    for(let j=0;j<radial;j++) {
++                        const offset=u.clone().multiplyScalar(Math.cos(j*2*Math.PI/radial)*radius)
++                            .addScaledVector(v,Math.sin(j*2*Math.PI/radial)*radius);
++                        // A shared bisector ring makes a closed mitered elbow.
++                        const point=points[i].clone().add(offset).addScaledVector(incoming,-plane.dot(offset)/divisor);
++                        vertices.push(point.x,point.y,point.z);
++                    }
++                    if(i<points.length-1) u.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(incoming,outgoing)).normalize();
++                }
++                for(let i=0;i<points.length-1;i++) for(let j=0;j<radial;j++) {
++                    const a=i*radial+j,b=i*radial+(j+1)%radial,c=(i+1)*radial+j,d=(i+1)*radial+(j+1)%radial;
++                    indices.push(a,b,c,b,d,c);
++                }
++                const start=vertices.length/3;
++                vertices.push(points[0].x,points[0].y,points[0].z,points.at(-1).x,points.at(-1).y,points.at(-1).z);
++                for(let j=0;j<radial;j++) {
++                    indices.push(start,(j+1)%radial,j);
++                    indices.push(start+1,(points.length-1)*radial+j,(points.length-1)*radial+(j+1)%radial);
++                }
++                const geometry=new THREE.BufferGeometry();
++                // CPU-only boolean input: Float32 world coordinates open sub-micron
++                // seams at exact tee interfaces. No Float64 buffer is sent to WebGL.
++                geometry.setAttribute('position',new THREE.BufferAttribute(new Float64Array(vertices),3));
++                geometry.setIndex(indices); geometry.computeVertexNormals();
++                const mesh=new THREE.Mesh(geometry); mesh.updateMatrix();
++                const result=CSG.fromMesh(mesh,owner); geometry.dispose();
++                return result;
++            };
++            sources.forEach((model,owner) => {
++                const bucket=model.kind==='pipe_segment'?'pipeSegments':'pipeJunctions';
++                if(ctx.state.constructions?.[bucket]?.[model.uid]!==model || !model.uid || sourceNames.has(model.uid))
++                    throw new Error('Liquid transport has an ambiguous construction owner');
++                if(model.customSTLBase64 || (model.solidRegions || []).length || model.customMesh?.stlBase64)
++                    throw new Error('Liquid transport custom solids need their own reviewed producer');
++                sourceNames.add(model.uid); dependency(model);
++                if(model.kind==='pipe_segment') {
++                    const radius=diameter(model.geometry?.diameterM,'pipe diameter')/2;
++                    const points=(model.geometry?.waypoints || []).map(p=>vector(p,'waypoint'));
++                    if(points.length<2) throw new Error('Liquid transport pipe has no path');
++                    const connection=model.cooling?.connection || {};
++                    const start=portPoint(connection.startPortId),end=portPoint(connection.endPortId);
++                    if(start) points[0]=start; if(end) points[points.length-1]=end;
++                    parts.push(sweep(points,radius,owner));
++                    const branchIds=new Set();
++                    for(const valve of model.cooling?.valves || []) {
++                        const hasRoute=valve.branchWaypoints!==undefined;
++                        const rackBranch=Boolean(valve.connectedRackId && valve.connectedManifoldPortId);
++                        if(valve.seriesWithValveId) {
++                            if(hasRoute || rackBranch)throw new Error('Liquid transport inline control declares a second physical branch');
++                            continue;
++                        }
++                        if(!hasRoute && !rackBranch)continue;
++                        if(!valve.id || branchIds.has(valve.id)) throw new Error('Liquid transport has an ambiguous branch');
++                        branchIds.add(valve.id);
++                        const authored=vector(valve.position,'branch point');
++                        const candidates=points.slice(1).map((end,i)=>new THREE.Line3(points[i],end).closestPointToPoint(authored,true,new THREE.Vector3()));
++                        candidates.sort((a,b)=>a.distanceToSquared(authored)-b.distanceToSquared(authored));
++                        const base=candidates[0];
++                        if(!base || base.distanceTo(authored)>1e-6)throw new Error('Liquid transport branch is detached from its main route');
++                        const attachment=portPoint(valve.connectedManifoldPortId);
++                        if(rackBranch && !valve.connectedManifoldPortId.startsWith(valve.connectedRackId+'.'))
++                            throw new Error('Liquid transport branch has conflicting rack port ownership');
++                        // Legacy graphgen explicitly defines an absent branch path
++                        // as its centreline fitting -> actual manifold port chord.
++                        // Keep that physical convention; do not copy display hoses.
++                        let branch;
++                        if(hasRoute) {
++                            if(!Array.isArray(valve.branchWaypoints) || valve.branchWaypoints.length<2)
++                                throw new Error('Liquid transport tee has no physical branch path');
++                            branch=valve.branchWaypoints.map(p=>vector(p,'branch waypoint'));
++                            if(authored.distanceTo(branch[0])>1e-6)throw new Error('Liquid transport branch is detached from its tee');
++                            branch[0]=base;
++                            if(attachment)branch[branch.length-1]=attachment;
++                        } else {
++                            if(!attachment)throw new Error('Liquid transport legacy branch has no current equipment port');
++                            branch=[base,attachment];
++                        }
++                        parts.push(sweep(branch,diameter(valve.branchDiameterM ?? model.geometry.diameterM,'branch diameter')/2,owner));
++                    }
++                } else {
++                    const ports=model.cooling?.ports;
++                    if(model.cooling?.type!=='T_branch' || !Array.isArray(ports) || ports.length!==3)
++                        throw new Error('Liquid transport currently needs an explicit three-port T fitting');
++                    const radius=diameter(model.cooling.fittingDiameterM,'fitting diameter')/2;
++                    const centre=vector(model.geometry?.location,'junction location');
++                    const endpoints=ports.map(port=>portPoint(model.uid+'.'+port.id));
++                    const scale=model.geometry?.scale || {x:1,y:1,z:1};
++                    if(!['x','y','z'].every(k=>Number.isFinite(scale[k]) && Math.abs(Math.abs(scale[k])-Math.abs(scale.x))<1e-9) || Math.abs(scale.x)<1e-9)
++                        throw new Error('Liquid transport junction needs uniform physical scale');
++                    const r=radius*Math.abs(scale.x);
++                    parts.push(sweep([endpoints[0],centre,endpoints[1]],r,owner));
++                    parts.push(sweep([centre,endpoints[2]],r,owner));
++                }
++            });
++            if(parts.length>256) throw new Error('Liquid transport solid export exceeds its bounded part budget');
++            const started=performance.now(); let union=parts[0];
++            for(const part of parts.slice(1)) {
++                union=union.union(part);
++                if(union.polygons.length>250000 || performance.now()-started>60000)
++                    throw new Error('Liquid transport solid export exceeds its bounded boolean budget');
++            }
++            const epsilon=1e-8, pointMap=new Map(), points=[];
++            const pointIndex=pos=>{
++                const values=[pos.x,pos.y,pos.z].map(x=>Math.round(x/epsilon));
++                if(values.some(x=>!Number.isSafeInteger(x))) throw new Error('Liquid transport coordinate exceeds its finite precision domain');
++                const key=values.join(','); let id=pointMap.get(key);
++                if(id===undefined){id=points.length;points.push(values.map(x=>x*epsilon));pointMap.set(key,id);} return id;
++            };
++            const polygons=union.polygons.map(p=>({ids:p.vertices.map(v=>pointIndex(v.pos)),owner:p.shared}));
++            const sorted=points.map((p,i)=>[p[0],i]).sort((a,b)=>a[0]-b[0]);
++            const lower=x=>{let a=0,b=sorted.length;while(a<b){const m=(a+b)>>1;if(sorted[m][0]<x)a=m+1;else b=m;}return a;};
++            const triangles=[], owners=[];
++            // BSP splits leave T-junctions. Insert already-existing collinear
++            // boundary vertices and triangulate convex polygons; never fill holes.
++            for(const polygon of polygons) {
++                if(!Number.isInteger(polygon.owner) || !sources[polygon.owner]) throw new Error('Liquid transport boolean lost its source owner');
++                const ring=[];
++                for(let j=0;j<polygon.ids.length;j++) {
++                    const ia=polygon.ids[j],ib=polygon.ids[(j+1)%polygon.ids.length]; if(ia===ib) continue;
++                    const a=points[ia],b=points[ib],ab=b.map((v,i)=>v-a[i]),l2=ab.reduce((s,v)=>s+v*v,0),len=Math.sqrt(l2),tol=epsilon*2;
++                    const found=[[0,ia]];
++                    for(let k=lower(Math.min(a[0],b[0])-tol);k<sorted.length && sorted[k][0]<=Math.max(a[0],b[0])+tol;k++) {
++                        const id=sorted[k][1],p=points[id]; if(id===ia || id===ib)continue;
++                        if(p[1]<Math.min(a[1],b[1])-tol || p[1]>Math.max(a[1],b[1])+tol || p[2]<Math.min(a[2],b[2])-tol || p[2]>Math.max(a[2],b[2])+tol)continue;
++                        const ap=p.map((v,i)=>v-a[i]),t=ap.reduce((s,v,i)=>s+v*ab[i],0)/l2;
++                        if(t<=tol/len || t>=1-tol/len)continue;
++                        if(ap.reduce((s,v,i)=>s+(v-t*ab[i])**2,0)<=tol*tol)found.push([t,id]);
++                    }
++                    found.sort((a,b)=>a[0]-b[0]); for(const [,id] of found) if(ring.at(-1)!==id)ring.push(id);
++                }
++                if(ring.length<3) throw new Error('Liquid transport boolean emitted a degenerate polygon');
++                const centre=ring.reduce((s,id)=>s.map((v,i)=>v+points[id][i]/ring.length),[0,0,0]);
++                const ci=points.length;points.push(centre);
++                for(let j=0;j<ring.length;j++){triangles.push([ci,ring[j],ring[(j+1)%ring.length]]);owners.push(polygon.owner);}
++            }
++            const edgeUses=new Map();let volume=0;
++            triangles.forEach(([a,b,c])=>{
++                const av=new THREE.Vector3(...points[a]),bv=new THREE.Vector3(...points[b]),cv=new THREE.Vector3(...points[c]);
++                const area=bv.clone().sub(av).cross(cv.clone().sub(av)).length()/2;
++                if(!Number.isFinite(area) || area<=1e-20)throw new Error('Liquid transport solid has a degenerate exterior triangle');
++                volume+=av.dot(bv.cross(cv))/6;
++                for(const [x,y] of [[a,b],[b,c],[c,a]]){
++                    const key=Math.min(x,y)+':'+Math.max(x,y),row=edgeUses.get(key) || [0,0];
++                    row[x<y?0:1]++;edgeUses.set(key,row);
++                }
++            });
++            if(!triangles.length || !Number.isFinite(volume) || volume<=1e-12 || [...edgeUses.values()].some(([a,b])=>a!==1 || b!==1))
++                throw new Error('Liquid transport union is not a closed oriented solid carrier');
++            const matrix=ctx.globalGroup.matrixWorld;
++            if(!matrix || matrix.elements.some(n=>!Number.isFinite(n)) || Math.abs(matrix.determinant())<1e-12)
++                throw new Error('Liquid transport has an invalid export world transform');
++            const world=points.map(p=>new THREE.Vector3(...p).applyMatrix4(matrix));
++            const mirrored=matrix.determinant()<0, regions=sources.map((model,owner)=>({model,owner,
++                solidName:'liquid_transport_'+Array.from(model.uid).map(c=>c.codePointAt(0).toString(16)).join('_'),facets:[]}));
++            triangles.forEach((face,i)=>{
++                const ids=mirrored?[face[0],face[2],face[1]]:face;
++                const [a,b,c]=ids.map(id=>world[id]),normal=b.clone().sub(a).cross(c.clone().sub(a)).normalize();
++                if([a,b,c,normal].some(p=>!['x','y','z'].every(k=>Number.isFinite(p[k]))))throw new Error('Liquid transport has a nonfinite exported facet');
++                const xyz=p=>`${p.x.toFixed(9)} ${p.y.toFixed(9)} ${p.z.toFixed(9)}`;
++                regions[owners[i]].facets.push(`  facet normal ${xyz(normal)}\n    outer loop\n      vertex ${xyz(a)}\n      vertex ${xyz(b)}\n      vertex ${xyz(c)}\n    endloop\n  endfacet\n`);
++            });
++            const emitted=regions.filter(row=>row.facets.length).map(row=>({model:row.model,solidName:row.solidName,
++                block:`solid ${row.solidName}\n${row.facets.join('')}endsolid ${row.solidName}\n`}));
++            const contributors=sources.map(model=>model.uid).sort();
++            return {filename:'merged_liquid_transport.stl',carrierUid:ctx.state.uid+'/liquid-transport/carrier/v1',
++                contributors,dependencies:[...dependencies].sort(([a],[b])=>a.localeCompare(b)),regions:emitted,
++                triangleCount:triangles.length,volumeM3:volume,stl:emitted.map(row=>row.block).join('')};
++        }
++
+         function buildGroupedStlMap(modelIds, includeLeakage) {
+             // Returns { filename: stl_content } for each non-empty group.
+             // Handles disabled models that are explicitly included in modelIds.
+@@ -301,6 +534,7 @@
+             const disabledExtras = _allModels().filter(m => idSet.has(m.uid) && !isModelEnabled(m));
+             const result = {};
+             const emissions = new Map();
++            let liquidTransport = null;
+             const previousEmission = activeSourceEmission;
+             activeSourceEmission = emissions;
+             try {
+@@ -388,6 +622,11 @@
+                     if (groupStl.trim()) result[group.filename] = groupStl;
+                 });
+                 console.timeEnd('[STLExport] groups');
++                liquidTransport = buildLiquidTransportProduct(modelIds);
++                if(liquidTransport) {
++                    result[liquidTransport.filename]=liquidTransport.stl;
++                    liquidTransport.regions.forEach(row=>recordSourceEmission(row.model,row.block,'liquidTransportUnionBoundary'));
++                }
+         
+                 // 2026-04-17 redesign: rack-internal per-bucket STLs.
+                 console.time('[STLExport] buckets');
+@@ -463,11 +702,16 @@
+                     if (solidName !== match[3].trim()) throw new Error('STL source region has inconsistent delimiters');
+                     const owners = [...emissions.values()].filter(row => row.solidName === solidName && row.block === match[0]);
+                     if (owners.length !== 1) throw new Error('STL source region has no unambiguous emitted OO entity: ' + filename + ':' + solidName);
+-                    regions.push(Object.freeze({...owners[0], filename}));
++                    const liquid = liquidTransport && filename === liquidTransport.filename;
++                    regions.push(Object.freeze({...owners[0], filename, ...(liquid ? {carrierUid:liquidTransport.carrierUid,
++                        carrierContributorUids:Object.freeze([...liquidTransport.contributors])} : {})}));
+                 });
+             });
+             groupedSourceCatalogues.set(result, Object.freeze({schema:'dcdtuni.stl-source-emission/v1',
+-                projectUid:ctx.state.uid, files:Object.freeze({...result}), regions:Object.freeze(regions)}));
++                projectUid:ctx.state.uid, files:Object.freeze({...result}), regions:Object.freeze(regions),
++                ...(liquidTransport ? {liquidTransport:Object.freeze({filename:liquidTransport.filename,
++                    carrierUid:liquidTransport.carrierUid,contributors:Object.freeze([...liquidTransport.contributors]),
++                    dependencies:Object.freeze(liquidTransport.dependencies.map(([uid,snapshot])=>Object.freeze({uid,snapshot})))})} : {})}));
+             return result;
+             } finally { activeSourceEmission = previousEmission; }
+         }
+@@ -3384,6 +3628,7 @@
+             loadPhotoTextureSet: loadPhotoTextureSet,
+             exportBoxModel: exportBoxModel,
+             buildGroupedStlMap: buildGroupedStlMap,
++            buildLiquidTransportProduct: buildLiquidTransportProduct,
+             _buildSingleDoorStl: _buildSingleDoorStl,
+             _withUnmergedModels: _withUnmergedModels,
+             applyModelSolidOrientationOverrides: applyModelSolidOrientationOverrides,
+--- a/src/frontend/shared/js/cfdrun_build.js
++++ b/src/frontend/shared/js/cfdrun_build.js
+@@ -1464,6 +1464,50 @@
+                 });
+             }
+ 
++
++            // Dedicated liquid transport producer. Do not widen the BOX/CDU
++            // structural-body fence or infer source UIDs from names/coordinates.
++            const transportCatalogue=window.geometryScene?.getGroupedStlSourceCatalogue?.(groupedMap);
++            if(groupedMap['merged_liquid_transport.stl']) {
++                const carrier=transportCatalogue?.liquidTransport;
++                const names=Object.keys(groupedMap).sort(),files=new Map(names.map((name,i)=>[name,'stl_'+String(i).padStart(3,'0')]));
++                const models=new Map(window.allModels().map(model=>[model.uid,model]));
++                if(!carrier || carrier.filename!=='merged_liquid_transport.stl'
++                    || carrier.carrierUid!==ctx.state.uid+'/liquid-transport/carrier/v1'
++                    || transportCatalogue.projectUid!==ctx.state.uid
++                    || Object.keys(transportCatalogue.files).sort().join('\0')!==names.join('\0')
++                    || names.some(name=>transportCatalogue.files[name]!==groupedMap[name])
++                    || carrier.dependencies.some(row=>JSON.stringify(models.get(row.uid))!==row.snapshot))
++                    throw new Error('liquid transport lacks exact current carrier emission');
++                const contributors=carrier.contributors;
++                if(!Array.isArray(contributors) || !contributors.length || new Set(contributors).size!==contributors.length
++                    || contributors.some(uid=>!['pipe_segment','pipe_junction'].includes(models.get(uid)?.kind)))
++                    throw new Error('liquid transport has invalid carrier contributors');
++                const blocks=new Map([...groupedMap[carrier.filename].matchAll(/^solid[ \t]+([^\r\n]+)\r?\n([\s\S]*?)^endsolid[ \t]+([^\r\n]+)[ \t]*\r?\n?/gm)]
++                    .map(match=>{if(match[1].trim()!==match[3].trim())throw new Error('liquid transport has invalid solid delimiters');return [match[1].trim(),match[0]];}));
++                const rows=transportCatalogue.regions.filter(row=>row.filename===carrier.filename),seen=new Set();
++                rows.forEach(row=>{
++                    const model=models.get(row.sourceEntityUid),bucket=model?.kind==='pipe_segment'?'pipeSegments':'pipeJunctions';
++                    if(!model || ctx.state.constructions?.[bucket]?.[model.uid]!==model || !contributors.includes(model.uid)
++                        || row.operation!=='liquidTransportUnionBoundary' || row.carrierUid!==carrier.carrierUid
++                        || row.carrierContributorUids.join('\0')!==contributors.join('\0')
++                        || row.sourceEntitySnapshot!==JSON.stringify(model) || blocks.get(row.solidName)!==row.block
++                        || seen.has(row.solidName) || stlMap[row.solidName])
++                        throw new Error('liquid transport has stale or ambiguous source region ownership');
++                    const vertices=Array.from(row.block.matchAll(/vertex\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/g),m=>[Number(m[1]),Number(m[2]),Number(m[3])]);
++                    if(vertices.length!==row.facetCount*3 || !vertices.length || vertices.some(v=>v.some(n=>!Number.isFinite(n))))
++                        throw new Error('liquid transport has invalid literal facets');
++                    let areaM2=0;
++                    for(let i=0;i<vertices.length;i+=3){const a=vertices[i],b=vertices[i+1],c=vertices[i+2],u=b.map((v,j)=>v-a[j]),v=c.map((n,j)=>n-a[j]);areaM2+=Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])/2;}
++                    if(!Number.isFinite(areaM2) || areaM2<=1e-8)throw new Error('liquid transport has invalid exterior region area');
++                    seen.add(row.solidName);
++                    put(row.solidName,{kind:'liquid_transport_wall',role:'wall',objectPath:'constructions.'+bucket+'.'+model.uid,
++                        surfaceUid:null,path:carrier.filename,stlFileId:files.get(carrier.filename),areaM2,
++                        source:{modelUid:model.uid,faceId:'transport-envelope'}});
++                });
++                if(seen.size!==blocks.size || !seen.size)throw new Error('liquid transport has an unbound exterior carrier region');
++            }
++
+             // Fixed-temperature native patches use the same already-scoped OO name.
+             // Bind only the real current patch, never a body, merged role or custom STL.
+             if (nativeFixedPatches.size) {
+--- a/src/frontend/react/src/legacy/cfdrunBuild.ts
++++ b/src/frontend/react/src/legacy/cfdrunBuild.ts
+@@ -112,7 +112,8 @@
+   if(!project)return
+   const emitter=(window as unknown as {geometryScene?:{getGroupedStlSourceCatalogue?(files:Record<string,string>):{
+     schema:string;projectUid:string;files:Record<string,string>;regions:ReadonlyArray<{filename:string;solidName:string;
+-      sourceEntityUid:string;facetCount:number;block:string;operation:string;sourceEntitySnapshot:string}>
++      sourceEntityUid:string;facetCount:number;block:string;operation:string;sourceEntitySnapshot:string;
++      carrierUid?:string;carrierContributorUids?:readonly string[]}>;liquidTransport?:{filename:string;carrierUid:string;contributors:readonly string[];dependencies:readonly{uid:string;snapshot:string}[]}
+   }|null}}).geometryScene?.getGroupedStlSourceCatalogue?.(files)
+   if(emitter){
+     if(emitter.schema!=='dcdtuni.stl-source-emission/v1'||emitter.projectUid!==project.uid||
+@@ -120,6 +121,13 @@
+       throw new Error('STL source emission does not match the current project and exact uploaded bytes')
+     const entities=new Map(Object.values(project.constructions??{}).flatMap(bucket=>
+       bucket&&typeof bucket==='object'?Object.values(bucket).flatMap(model=>model&&typeof model==='object'&&'uid' in model?[[String(model.uid),JSON.stringify(model)] as const]:[]):[]))
++    const carrier=emitter.liquidTransport
++    if(carrier){
++      if(carrier.filename!=='merged_liquid_transport.stl'||carrier.carrierUid!==project.uid+'/liquid-transport/carrier/v1'||
++        !names.includes(carrier.filename)||!carrier.contributors.length||new Set(carrier.contributors).size!==carrier.contributors.length||
++        carrier.dependencies.some(row=>entities.get(row.uid)!==row.snapshot))
++        throw new Error('Liquid transport carrier has absent or stale OO contributors/dependencies')
++    }
+     const regions:NonNullable<CfdrunV2['geometryExport']['sourceRegions']>={}
+     for(const row of emitter.regions){
+       const index=names.indexOf(row.filename),fileId=`stl_${String(index).padStart(3,'0')}`,key=`${fileId}:${row.solidName}`
+@@ -127,7 +135,11 @@
+         throw new Error('STL source region has absent, ambiguous or stale OO entity ancestry')
+       regions[key]={stlFileId:fileId,solidName:row.solidName,sourceEntityUid:row.sourceEntityUid,
+         sourceRegionUid:`${project.uid}/${row.sourceEntityUid}/stl-region/${row.solidName}`,
+-        sourceFacetCount:row.facetCount,sourceRegionSha256:cfdrunExport().sha256TextSync(row.block),operation:row.operation}
++        sourceFacetCount:row.facetCount,sourceRegionSha256:cfdrunExport().sha256TextSync(row.block),operation:row.operation,
++        ...(row.operation==='liquidTransportUnionBoundary'?{carrierUid:row.carrierUid,carrierContributorUids:[...(row.carrierContributorUids??[])]}:{})}
++      if(row.operation==='liquidTransportUnionBoundary'&&(!carrier||row.filename!==carrier.filename||row.carrierUid!==carrier.carrierUid||
++        !carrier.contributors.includes(row.sourceEntityUid)||row.carrierContributorUids?.join('\0')!==carrier.contributors.join('\0')))
++        throw new Error('Liquid transport source region has invalid shared carrier ancestry')
+     }
+     manifest.geometryExport.sourceRegions=regions
+   }
+--- a/src/frontend/react/src/schema/cfdrun.ts
++++ b/src/frontend/react/src/schema/cfdrun.ts
+@@ -110,6 +110,8 @@
+   sourceRegions?: Record<string,{
+     stlFileId:string;solidName:string;sourceEntityUid:string;sourceRegionUid:string
+     sourceFacetCount:number;sourceRegionSha256:string;operation:string
++    /** Shared closed carrier provenance, only for explicit transport boolean output. */
++    carrierUid?:string;carrierContributorUids?:string[]
+   }>
+   sourceSurfaces?: Record<string,{
+     stlFileId:string;solidName:string;sourceObjectUid:string;sourceFaceUid:string
+--- a/src/backend/aircooling/runner/cfdrun_schema.py
++++ b/src/backend/aircooling/runner/cfdrun_schema.py
+@@ -824,7 +824,20 @@
+     sourceRegionUid: str
+     sourceFacetCount: int = Field(gt=0, strict=True)
+     sourceRegionSha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+-    operation: Literal["modelBoundary", "cellZone", "doorSheet"]
++    operation: Literal["modelBoundary", "cellZone", "doorSheet", "liquidTransportUnionBoundary"]
++    carrierUid: Optional[str] = None
++    carrierContributorUids: Optional[List[str]] = None
++
++    @model_validator(mode="after")
++    def validate_transport_carrier(self) -> "SourceRegionBinding":
++        if self.operation == "liquidTransportUnionBoundary":
++            uids = self.carrierContributorUids
++            if (not self.carrierUid or not uids or self.sourceEntityUid not in uids
++                    or any(not uid for uid in uids) or sorted(set(uids)) != uids):
++                raise ValueError("liquid transport requires explicit shared carrier and sorted unique source contributors")
++        elif self.carrierUid is not None or self.carrierContributorUids is not None:
++            raise ValueError("shared carrier ancestry is limited to liquid transport boolean output")
++        return self
+ 
+ 
+ class GeometryExport(CfdrunV2BaseModel):
+@@ -863,6 +876,17 @@
+             previous = region_identities.setdefault(binding.sourceRegionUid, identity)
+             if previous != identity:
+                 raise ValueError("sourceRegionUid aliases different literal facet inventories")
++        carriers = {}
++        for binding in self.sourceRegions.values():
++            if binding.operation != "liquidTransportUnionBoundary":
++                continue
++            path = self.stlFiles[binding.stlFileId].path
++            if path != "merged_liquid_transport.stl":
++                raise ValueError("liquid transport must remain in its declared whole closed carrier file")
++            identity = (binding.stlFileId, tuple(binding.carrierContributorUids))
++            previous = carriers.setdefault(binding.carrierUid, identity)
++            if previous != identity:
++                raise ValueError("liquid transport carrier aliases different source contributors or STL files")
+         return self
+ 
+ 
+--- a/src/backend/aircooling/runner/stlgen_runner.py
++++ b/src/backend/aircooling/runner/stlgen_runner.py
+@@ -3703,6 +3703,7 @@
+             "merged_wall_baffles.stl",      # new browser export: wall baffle subset
+             "merged_box.stl",
+             "merged_pipe.stl",              # air-side pipes / ducts (swept solids)
++            "merged_liquid_transport.stl", # one closed multi-source liquid transport carrier
+             "merged_partition_wall.stl",
+             "merged_leakage.stl",   # legacy pre-2026-04-17 scene-merged through-zone file
+             "room_wall.stl",
+@@ -6123,7 +6124,7 @@
+                 feat_level = _feat_int(mc.get("floorFeatureLevel"), feat_default)
+             elif filename == "merged_acu.stl":
+                 feat_level = feat_acu
+-            elif filename in ("merged_box.stl", "merged_pipe.stl"):
++            elif filename in ("merged_box.stl", "merged_pipe.stl", "merged_liquid_transport.stl"):
+                 feat_level = feat_box
+             elif filename == "merged_partition_wall.stl":
+                 feat_level = feat_partition
+@@ -6457,7 +6458,7 @@
+                     # Per-STL-file refinement level
+                     if filename in ("merged_rack.stl", "merged_rack_frame.stl"): rl = rl_rack_internal
+                     elif filename == "merged_acu.stl": rl = rl_acu
+-                    elif filename in ("merged_box.stl", "merged_pipe.stl"): rl = rl_box
++                    elif filename in ("merged_box.stl", "merged_pipe.stl", "merged_liquid_transport.stl"): rl = rl_box
+                     elif filename == "merged_partition_wall.stl": rl = rl_partition
+                     elif filename == "merged_floor_ceiling.stl": rl = rl_floor
+                     else: rl = rl_default
+--- /dev/null
++++ b/src/frontend/react/test/liquidTransportSolid.test.ts
+@@ -0,0 +1,35 @@
++import {readFileSync,mkdirSync,writeFileSync} from 'node:fs'
++import {resolve} from 'node:path'
++import {createHash} from 'node:crypto'
++import * as THREE from 'three'
++import {expect,it} from 'vitest'
++import '../src/legacy/geometryBuilder'
++import {compileDynamicLiquidGraph} from '../src/liquid/dynamicLiquidGraph'
++import {createPipeSegment,createPipeJunction,createModel} from '../src/legacy/factories'
++import {stateV4} from '../src/legacy/cfdprojModules'
++import {createCfdrunBuild,buildManifestV2,bindStlFileHashes} from '../src/legacy/cfdrunBuild'
++import {createSceneBuilder,emptyRegistries,type SceneHost} from '../src/interaction/sceneBuilder'
++import type {CfdProject,Construction} from '../src/schema/cfdproj'
++import type {CfdrunV2} from '../src/schema/cfdrun'
++
++function project(){const p=stateV4().getInitialStateV4() as unknown as CfdProject;p.uid='transport-control';p.geometry={height:3,plane:[[-1,-1],[2,-1],[2,2],[-1,2]]};return p}
++function pipe(p:CfdProject,points:number[][]){const made=createPipeSegment(p),m=made.model as any;m.geometry.waypoints=points.map(([x,y,z])=>({x,y,z}));m.geometry.location={x:0,y:.8,z:0};m.geometry.diameterM=.1;m.geometry.routeMode='polyline';(stateV4() as any).addConstruction(p,m);return m}
++function tee(){const p=project(),a=pipe(p,[[-.6,.25,0],[-.1,.25,0]]),b=pipe(p,[[.1,.25,0],[.6,.25,0]]),c=pipe(p,[[0,.25,-.1],[0,.25,-.5]]),j=createPipeJunction(p,{x:0,y:.25,z:0}).model as any;
++ j.cooling={type:'T_branch',quaternion:{x:0,y:0,z:0,w:1},fittingDiameterM:.1,ports:[{id:'port_1',offset:{x:-.1,y:0,z:0},direction:{x:-1,y:0,z:0}},{id:'port_2',offset:{x:.1,y:0,z:0},direction:{x:1,y:0,z:0}},{id:'port_3',offset:{x:0,y:0,z:-.1},direction:{x:0,y:0,z:-1}}]};(stateV4() as any).addConstruction(p,j);a.cooling.connection.endPortId=j.uid+'.port_1';b.cooling.connection.startPortId=j.uid+'.port_2';c.cooling.connection.startPortId=j.uid+'.port_3';return {p,a,b,c,j}}
++function harness(p:CfdProject,transform?:(g:THREE.Group)=>void){const g=new THREE.Group(),w=new THREE.Group();w.add(g);transform?.(g);w.updateMatrixWorld(true);const registries=emptyRegistries();const host:SceneHost={globalGroup:g,wrapperGroup:w,registries,project:()=>p,selectedUid:()=>null,webglAvailable:false};const builder=createSceneBuilder(host);
++ const globals=window as unknown as {allModels?:()=>Construction[]};const old=globals.allModels;globals.allModels=()=>stateV4().allModels(p) as Construction[];
++ const ids=globals.allModels().map(m=>m.uid);return {builder,g,ids,registries,files:()=>builder.api.buildGroupedStlMap(ids,false),close:()=>{builder.clear();if(old)globals.allModels=old;else delete globals.allModels}}}
++function triangles(text:string){return [...text.matchAll(/vertex\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/g)].map(m=>new THREE.Vector3(Number(m[1]),Number(m[2]),Number(m[3])))}
++// Independent literal-STL topological check, not the producer's polygon algorithm.
++function topology(text:string){const v=triangles(text),uses=new Map<string,[number,number]>();let volume=0;expect(v.length%3).toBe(0);for(let i=0;i<v.length;i+=3){const a=v[i]!,b=v[i+1]!,c=v[i+2]!;expect(b.clone().sub(a).cross(c.clone().sub(a)).length()).toBeGreaterThan(0);volume+=a.dot(b.clone().cross(c))/6;for(const [x,y] of [[a,b],[b,c],[c,a]]){const aa=x!.toArray().join(','),bb=y!.toArray().join(','),key=[aa,bb].sort().join('|'),row=uses.get(key)??[0,0];row[aa<bb?0:1]++;uses.set(key,row)}}expect([...uses.values()].every(([a,b])=>a===1&&b===1)).toBe(true);expect(volume).toBeGreaterThan(0);return {facets:v.length/3,edges:uses.size,volume}}
++const bareManifest=()=>({geometryExport:{coordinateSystem:'Y-up',unit:'m',stlFiles:{},solids:{}}}) as CfdrunV2
++it('exports a closed mitered underground envelope in world waypoint coordinates, with no display registry',()=>{const p=project(),m=pipe(p,[[0,.25,0],[.5,.25,0],[.5,.25,.5]]),h=harness(p);try{const files=h.files();expect(files['merged_liquid_transport.stl']).toBeTruthy();const v=triangles(files['merged_liquid_transport.stl']!);expect(Math.min(...v.map(x=>x.y))).toBeCloseTo(.2,8);expect(Math.max(...v.map(x=>x.y))).toBeCloseTo(.3,8);topology(files['merged_liquid_transport.stl']!);expect(h.registries.renderMeshes).toHaveLength(0);const manifest=bareManifest();bindStlFileHashes(manifest,files,p);const rows=Object.values(manifest.geometryExport.sourceRegions??{});expect(rows).toHaveLength(1);expect(rows[0]!.sourceEntityUid).toBe(m.uid);expect(rows[0]!.operation).toBe('liquidTransportUnionBoundary')}finally{h.close()}})
++it('unions a three-port fitting without inner caps and keeps partial exterior ownership in one closed carrier',()=>{const {p,a,b,c,j}=tee(),h=harness(p);try{const files=h.files(),stl=files['merged_liquid_transport.stl']!;topology(stl);const m=bareManifest();bindStlFileHashes(m,files,p);const rows=Object.values(m.geometryExport.sourceRegions??{});expect(new Set(rows.map(r=>r.sourceEntityUid))).toEqual(new Set([a.uid,b.uid,c.uid,j.uid]));for(const row of rows){expect(row.carrierUid).toBe(p.uid+'/liquid-transport/carrier/v1');expect(row.carrierContributorUids).toEqual([a.uid,b.uid,c.uid,j.uid].sort());expect(row).not.toHaveProperty('sourceFaceUid')};const capVertices=triangles(stl).filter(v=>Math.abs(Math.abs(v.x)-.1)<1e-9&&Math.abs(v.y-.25)<1e-9&&Math.abs(v.z)<1e-9);expect(capVertices).toHaveLength(0)}finally{h.close()}})
++it('exports mirrored metre-scaled world triangles with outward winding',()=>{const p=project();pipe(p,[[0,.25,0],[1,.25,0]]);const h=harness(p,g=>g.scale.set(-2,2,2));try{const t=topology(h.files()['merged_liquid_transport.stl']!);expect(t.volume).toBeCloseTo(8*.1**2/4*16*Math.sin(2*Math.PI/16)/2,7)}finally{h.close()}})
++it('rejects retained union provenance after any supporting current equipment owner changes',()=>{const {p,a}=tee(),h=harness(p);try{const files=h.files();a.geometry.waypoints[0].x-=.1;expect(()=>bindStlFileHashes(bareManifest(),files,p)).toThrow(/stale OO contributors/)}finally{h.close()}})
++it('pins a non-contributing CDU port owner and refuses cached bytes after the supporting cabinet moves',()=>{const p=project(),cdu=createModel(p,'cdu').model as any;cdu.geometry.location={x:1,y:.8,z:0};cdu.geometry.size={x:.6,y:2,z:1.2};cdu.cooling.ports=[{id:'supply',position:{x:.15,y:.15,z:1.2},direction:{x:0,y:0,z:1},diameterM:.1},{id:'return',position:{x:.45,y:.15,z:1.2},direction:{x:0,y:0,z:1},diameterM:.1}];(stateV4() as any).addConstruction(p,cdu);const m=pipe(p,[[1.15,.95,1.2],[1.15,.95,1.7]]);m.cooling.connection.startPortId=cdu.uid+'.supply';const h=harness(p);try{const files=h.builder.api.buildGroupedStlMap([m.uid],false),manifest=bareManifest();bindStlFileHashes(manifest,files,p);expect(Object.values(manifest.geometryExport.sourceRegions??{}).map(r=>r.sourceEntityUid)).toEqual([m.uid]);const v=triangles(files['merged_liquid_transport.stl']!);expect(Math.min(...v.map(p=>p.z))).toBeCloseTo(1.2,8);cdu.geometry.location.x+=.01;expect(()=>bindStlFileHashes(bareManifest(),files,p)).toThrow(/stale OO contributors/)}finally{h.close()}})
++it('rejects malformed branches, nonfinite routes, and missing physical fitting declarations',()=>{const p=project(),m=pipe(p,[[0,.25,0],[1,.25,0]]),h=harness(p);try{m.cooling.valves=[{id:'branch',type:'tee_junction',position:{x:.5,y:.25,z:0},branchDiameterM:.025,branchWaypoints:[{x:.7,y:.25,z:0},{x:.7,y:.5,z:0}]}];expect(()=>h.files()).toThrow(/detached/);m.cooling.valves=[];m.geometry.waypoints[0].x=NaN;expect(()=>h.files()).toThrow(/invalid waypoint/)}finally{h.close()};const t=tee(),g=harness(t.p);try{delete t.j.cooling.fittingDiameterM;expect(()=>g.files()).toThrow(/invalid fitting diameter/)}finally{g.close()}})
++it('rejects an actual boolean result with a removed exterior polygon instead of filling its hole',()=>{const p=project();pipe(p,[[0,.25,0],[1,.25,0]]);const h=harness(p),globals=window as any,real=globals.ThreeCSG;try{globals.ThreeCSG={CSG:{fromMesh(mesh:THREE.Mesh,owner:number){const value=real.CSG.fromMesh(mesh,owner);value.polygons.pop();return value}}};expect(()=>h.files()).toThrow(/closed oriented/)}finally{globals.ThreeCSG=real;h.close()}})
++it('binds actual carrier wall regions through the shared cfdrun compiler and preserves liquid graph input',async()=>{const {p}=tee(),before=JSON.stringify(p.constructions),h=harness(p);try{const api=createCfdrunBuild({state:p,globalGroup:h.g,LENGTH_UNITS:{m:{scale:1}},_MESH_MODES:['bodyFitted','cartesianLocalized','structured'],buildGroupedStlMap:(ids,leakage)=>h.builder.api.buildGroupedStlMap(ids,leakage)}),manifest=await buildManifestV2(api,p,'2026-10-07T00:00:00.000Z'),files=h.files();bindStlFileHashes(manifest,files,p);const solids=Object.values(manifest.geometryExport.solids);expect(solids).toHaveLength(4);expect(solids.every(row=>row.role==='wall'&&row.areaM2!>0)).toBe(true);expect(JSON.stringify(p.constructions)).toBe(before);if(process.env.DCDTUNI_TRANSPORT_TEST_OUTPUT){const dir=resolve(process.env.DCDTUNI_TRANSPORT_TEST_OUTPUT);mkdirSync(dir,{recursive:true});writeFileSync(resolve(dir,'transport.cfdrun'),JSON.stringify(manifest,null,2));for(const [name,text]of Object.entries(files))writeFileSync(resolve(dir,name),text)}}finally{h.close()}})
++it('retains the existing legacy graph two-point rack branch convention without writing defaults into that project',()=>{const raw=JSON.parse(readFileSync(resolve(process.cwd(),'../../../case/LiquidSingle/LiquidSingle.cfdproj'),'utf8')),p=stateV4().normalizeStateV4(raw) as unknown as CfdProject,before=JSON.stringify(p),graph=compileDynamicLiquidGraph(p),h=harness(p);try{const ids=stateV4().allModels(p).filter((m:any)=>m.kind==='pipe_segment'||m.kind==='pipe_junction').map((m:any)=>m.uid),out=(h.builder.api as any).buildLiquidTransportProduct(ids);expect(out.regions.length).toBe(2);topology(out.stl);expect(JSON.stringify(p)).toBe(before);expect(compileDynamicLiquidGraph(p)).toEqual(graph)}finally{h.close()}})
++it.skipIf(!process.env.DCDTUNI_TRANSPORT_ACTUAL_PROJECT)('replays the saved real project only when explicitly supplied, retaining the source file bytes',()=>{const path=process.env.DCDTUNI_TRANSPORT_ACTUAL_PROJECT;if(!path)return;const data=readFileSync(path),sha=createHash('sha256').update(data).digest('hex'),p=stateV4().normalizeStateV4(JSON.parse(data.toString())) as unknown as CfdProject,h=harness(p);try{const beforeGraph=compileDynamicLiquidGraph(p),ids=stateV4().allModels(p).filter((m:any)=>m.kind==='pipe_segment'||m.kind==='pipe_junction').map((m:any)=>m.uid),result=(h.builder.api as any).buildLiquidTransportProduct(ids);const t=topology(result.stl);expect(compileDynamicLiquidGraph(p)).toEqual(beforeGraph);console.info('ACTUAL_TRANSPORT_PRODUCT',JSON.stringify({inputSha256:sha,facets:t.facets,volumeM3:t.volume,graphNodes:beforeGraph.nodes.length,graphEdges:beforeGraph.edges.length,graphUnchanged:true,regions:result.regions.map((r:any)=>r.model.uid),bytes:result.stl.length,unchangedInputSha256:createHash('sha256').update(readFileSync(path)).digest('hex')}));if(process.env.DCDTUNI_TRANSPORT_TEST_OUTPUT){writeFileSync(resolve(process.env.DCDTUNI_TRANSPORT_TEST_OUTPUT,'actual-liquid-transport.stl'),result.stl)}}finally{h.close()}},60000)
+--- /dev/null
++++ b/src/backend/tests/test_liquid_transport_carrier.py
+@@ -0,0 +1,95 @@
++"""Schema controls and opt-in real React->runner carrier stage; no native mesh job."""
++import json
++import os
++from pathlib import Path
++import shutil
++import pytest
++from pydantic import ValidationError
++from backend.aircooling.runner.cfdrun_schema import GeometryExport, SourceRegionBinding
++from backend.aircooling.runner.stlgen_runner import STLGenRunner
++
++
++def row(**changes):
++    data = dict(stlFileId="stl_000", solidName="transport_a", sourceEntityUid="pipe-a",
++        sourceRegionUid="project/pipe-a/stl-region/transport_a", sourceFacetCount=10,
++        sourceRegionSha256="a" * 64, operation="liquidTransportUnionBoundary",
++        carrierUid="project/liquid-transport/carrier/v1", carrierContributorUids=["pipe-a", "tee-b"])
++    data.update(changes)
++    return data
++
++
++def geometry(first=None, second=None, path="merged_liquid_transport.stl"):
++    rows = {"stl_000:transport_a": first or row()}
++    if second:
++        rows["stl_000:transport_b"] = second
++    return {"stlFiles": {"stl_000": {"path": path, "kind": "grouped_ascii"}}, "sourceRegions": rows}
++
++
++def test_explicit_shared_transport_carrier_does_not_replace_region_source_uid():
++    result = GeometryExport.model_validate(geometry())
++    owned = result.sourceRegions["stl_000:transport_a"]
++    assert owned.sourceEntityUid == "pipe-a"
++    assert owned.carrierUid != owned.sourceEntityUid
++    assert owned.carrierContributorUids == ["pipe-a", "tee-b"]
++
++
++@pytest.mark.parametrize("changes", [
++    {"carrierUid": None}, {"carrierContributorUids": None},
++    {"carrierContributorUids": ["tee-b"]}, {"carrierContributorUids": ["tee-b", "pipe-a"]},
++    {"carrierContributorUids": ["pipe-a", "pipe-a"]},
++    {"operation": "modelBoundary"},
++])
++def test_rejects_missing_ambiguous_or_unreviewed_carrier_metadata(changes):
++    with pytest.raises(ValidationError):
++        SourceRegionBinding.model_validate(row(**changes))
++
++
++def test_rejects_split_open_regions_as_independent_carrier_files():
++    with pytest.raises(ValidationError, match="whole closed carrier file"):
++        GeometryExport.model_validate(geometry(path="pipe_a.stl"))
++
++
++def test_rejects_same_carrier_uid_with_different_contributors():
++    second = row(solidName="transport_b", sourceRegionUid="project/tee-b/stl-region/transport_b",
++        sourceEntityUid="tee-b", carrierContributorUids=["pipe-a", "pipe-c", "tee-b"])
++    with pytest.raises(ValidationError, match="aliases different"):
++        GeometryExport.model_validate(geometry(second=second))
++
++
++@pytest.mark.skipif(not os.environ.get("DCDTUNI_TRANSPORT_STAGE_FIXTURE"), reason="requires actual React-exported fixture")
++def test_real_export_carrier_stays_whole_and_is_declared_as_wall_by_actual_runner(tmp_path):
++    source = Path(os.environ["DCDTUNI_TRANSPORT_STAGE_FIXTURE"])
++    case = tmp_path / "actual-react-stage"
++    tri = case / "Mesh" / "constant" / "triSurface"
++    tri.mkdir(parents=True)
++    model = case / "model"
++    model.mkdir()
++    shutil.copy2(source / "transport.cfdrun", model / "transport.cfdrun")
++    for stl in source.glob("*.stl"):
++        if stl.name.startswith("actual-"):
++            continue
++        shutil.copy2(stl, tri / stl.name)
++    original = (tri / "merged_liquid_transport.stl").read_bytes()
++    runner = STLGenRunner(case_dir=case, cfdrun_path=model / "transport.cfdrun")
++    runner._verify_hybrid_source_stls()
++    runner._load()
++    assert (tri / "merged_liquid_transport.stl").read_bytes() == original
++    payload = json.loads((model / "transport.cfdrun").read_text())
++    expected = [r["solidName"] for r in payload["geometryExport"]["sourceRegions"].values()]
++    assert set(runner._stl_solids["merged_liquid_transport.stl"]) == set(expected)
++    assert len(list(tri.glob("*liquid_transport*.stl"))) == 1
++    system = case / "Mesh" / "system"
++    system.mkdir(exist_ok=True)
++    runner._generate_snappy_hex_mesh_dict(system)
++    text = (system / "snappyHexMeshDict").read_text()
++    assert "merged_liquid_transport.stl" in text
++    assert "name merged_liquid_transport;" in text
++    assert "    merged_liquid_transport\n    {" in text
++    for name in expected:
++        assert f"{name} {{ name {name}; }}" in text
++        assert name in text
++    # Actual wall patch declaration is the native carves=true entry point;
++    # reading STL bytes or an emitter catalogue alone is insufficient.
++    carrier_block = text[text.index("    merged_liquid_transport\n    {"):]
++    assert "patchInfo { type wall; inGroups (wall); }" in carrier_block
++    assert "faceType internal" not in carrier_block.split("//", 1)[0]

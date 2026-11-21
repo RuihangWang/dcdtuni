@@ -1,0 +1,86 @@
+#include "primitiveMesh.H"
+#include "primitiveMeshTools.H"
+#include "tetPointRef.H"
+#include "bitSet.H"
+#include "mathematicalConstants.H"
+#include <vector>
+#include <set>
+#include <map>
+#include <algorithm>
+#include <iostream>
+#include <iomanip>
+using namespace Foam;
+struct Raw {label id,own,nei;std::vector<label> ring;bool selected;};
+#include "actual_fixture.H"
+struct View : primitiveMesh {
+ pointField ps;faceList fs;labelList own,nei;std::vector<label> cellIDs,faceIDs;
+ bitSet selected;vectorField sf,fc,cc;scalarField vol;
+ View(bool merged):primitiveMesh() {
+  cellIDs=merged?candidateCells:actualCells;
+  std::map<label,label> cm;for(label i=0;i<label(cellIDs.size());++i)cm[cellIDs[i]]=i;
+  std::vector<Raw> internal,boundary;
+  for(auto r:(merged?candidateFaces:actualFaces)) {
+   
+   
+   const bool a=cm.count(r.own),b=cm.count(r.nei);if(!a&&!b)continue;
+   if(a&&b) {if(r.own>r.nei) {std::swap(r.own,r.nei);std::reverse(r.ring.begin()+1,r.ring.end());}internal.push_back(r);}
+   else {if(!a){r.own=r.nei;std::reverse(r.ring.begin()+1,r.ring.end());}r.nei=-1;boundary.push_back(r);}
+  }
+  auto order=[](const Raw&a,const Raw&b){return a.id<b.id;};
+  std::sort(internal.begin(),internal.end(),order);std::sort(boundary.begin(),boundary.end(),order);
+  auto rr=internal;rr.insert(rr.end(),boundary.begin(),boundary.end());
+  ps.setSize(actualPoints.size());for(label i=0;i<ps.size();++i)ps[i]=actualPoints[i];
+  fs.setSize(rr.size());own.setSize(rr.size());nei.setSize(internal.size());selected.resize(rr.size());
+  for(label i=0;i<label(rr.size());++i){const Raw&r=rr[i];faceIDs.push_back(r.id);
+   fs[i].setSize(r.ring.size());for(label j=0;j<fs[i].size();++j)fs[i][j]=r.ring[j];
+   own[i]=cm.at(r.own);if(i<nei.size())nei[i]=cm.at(r.nei);if(r.selected)selected.set(i);
+  }
+  reset(ps.size(),nei.size(),fs.size(),cellIDs.size());
+  primitiveMeshTools::makeFaceCentresAndAreas(fs,ps,fc,sf);
+  cc.setSize(cellIDs.size());vol.setSize(cellIDs.size());
+  primitiveMeshTools::makeCellCentresAndVols(*this,fc,sf,cc,vol);
+ }
+ const pointField& points()const override{return ps;}
+ const pointField& oldPoints()const override{return ps;}
+ const faceList& faces()const override{return fs;}
+ const labelList& faceOwner()const override{return own;}
+ const labelList& faceNeighbour()const override{return nei;}
+ bool concave(labelHashSet& s)const{return primitiveMesh::checkConcaveCells(sf,fc,false,&s);}
+ void print(const char* tag) {
+  auto dt=primitiveMeshTools::cellDeterminant(*this,Vector<label>::one,sf,selected);
+  labelHashSet bad;const bool failure=concave(bad);
+  label ki=label(std::find(cellIDs.begin(),cellIDs.end(),keepCell)-cellIDs.begin());
+  std::cout<<"{\"kind\":\""<<tag<<"\",\"stockConcaveAny\":"<<(failure?"true":"false")
+   <<",\"keepCellStockConcave\":"<<(bad.found(ki)?"true":"false")<<",\"keepD\":"<<dt()[ki]
+   <<",\"keepV\":"<<vol[ki]<<",\"cells\":[";
+  for(label i=0;i<cc.size();++i){if(i)std::cout<<',';std::cout<<"{\"id\":"<<cellIDs[i]<<",\"D\":"<<dt()[i]
+   <<",\"V\":"<<vol[i]<<",\"CC\":["<<cc[i].x()<<','<<cc[i].y()<<','<<cc[i].z()<<"],\"concave\":"<<(bad.found(i)?"true":"false")<<'}';}
+  std::cout<<"],\"capturedMetrics\":[";
+  bool first=true;
+  for(label f=0;f<fs.size();++f) {
+   if(std::find(capturedFaces.begin(),capturedFaces.end(),faceIDs[f])==capturedFaces.end())continue;
+   if(!first)std::cout<<',';first=false;
+   const label a=own[f];const bool internal=f<nei.size();
+   const label b=internal?nei[f]:-1;
+   scalar w=1,r=1,n=0,skew=0;
+   if(internal){
+    const scalar da=mag(sf[f]&(fc[f]-cc[a])),db=mag(sf[f]&(cc[b]-fc[f]));
+    w=min(da,db)/(da+db+VSMALL);r=min(vol[a],vol[b])/(max(vol[a],vol[b])+VSMALL);
+    const vector delta=cc[b]-cc[a];
+    const scalar cosine=(delta&sf[f])/(mag(delta)*mag(sf[f])+ROOTVSMALL);
+    n=Foam::acos(Foam::max(scalar(-1),Foam::min(scalar(1),cosine)))*180.0/constant::mathematical::pi;
+    skew=primitiveMeshTools::faceSkewness(fs,ps,fc,sf,f,cc[a],cc[b]);
+   } else { if(selected.test(f)) {std::cerr<<"incomplete captured endpoint\n";std::exit(2);}
+    skew=primitiveMeshTools::boundaryFaceSkewness(fs,ps,fc,sf,f,cc[a]); }
+   scalar tq=GREAT;
+   for(label j=0;j<fs[f].size();++j){
+    const point&p=ps[fs[f][j]],&q=ps[fs[f][(j+1)%fs[f].size()]];
+    tq=min(tq,-tetPointRef(p,q,fc[f],cc[a]).quality());
+    if(internal)tq=min(tq,tetPointRef(p,q,fc[f],cc[b]).quality());
+   }
+   std::cout<<"{\"face\":"<<faceIDs[f]<<",\"weight\":"<<w<<",\"ratio\":"<<r<<",\"skew\":"<<skew<<",\"N\":"<<n<<",\"minCentreFanTetQuality\":"<<tq<<'}';
+  }
+  std::cout<<"]}\n";
+ }
+};
+int main(){std::cout<<std::setprecision(17);View before(false),after(true);before.print("old");after.print("merged");}

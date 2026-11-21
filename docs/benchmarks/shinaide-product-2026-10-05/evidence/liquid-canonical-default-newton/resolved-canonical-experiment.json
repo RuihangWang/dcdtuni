@@ -1,0 +1,146 @@
+{
+  "engine": "newton-dae",
+  "duration_s": 180,
+  "dt_s": 1,
+  "settings": {
+    "mode": "manual",
+    "pumpId": "",
+    "measurementId": "",
+    "setpoint": 45,
+    "kp": 0.03,
+    "ki": 0.002,
+    "bias": 0.8,
+    "loadStep": false,
+    "stepTime": 60,
+    "loadFactor": 1.5
+  },
+  "dae": {
+    "equation_system": "incompressible_thermal_dae",
+    "analysis": {
+      "mode": "steady",
+      "initialization": "steady"
+    },
+    "newton": {
+      "max_iterations": 40,
+      "atol": 1e-10,
+      "rtol": 1e-10,
+      "max_backtracks": 18
+    },
+    "primary_circuits": [
+      {
+        "edge_id": "m_30_hx",
+        "flow_kg_s": 1,
+        "inlet_K": 293.15,
+        "cp_J_kgK": 4180,
+        "rho_kg_m3": 992.2,
+        "primary_volume_m3": 0.02,
+        "secondary_volume_m3": 0.02,
+        "source": "mock",
+        "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+      }
+    ],
+    "execution": {
+      "backend": "pytorch",
+      "device": "cpu",
+      "dtype": "float64",
+      "max_threads": 2
+    }
+  },
+  "parameterPack": {
+    "schema_version": "1.0",
+    "id": "liquid-demo-equipment",
+    "revision": "mock-1-dae-v3",
+    "source": "mock",
+    "description": "Synthetic single-phase water-loop parameters for software demonstrations only. These are not NVIDIA or Vertiv specifications. Replace this pack on the unresolved project input and rerun for vendor/calibrated data. Explicit mock two-mixed-volume HX interpretation; not NV measurements or calibrated vendor performance.",
+    "profiles": {
+      "water": {
+        "type": "fluid",
+        "params": {
+          "rho_kg_m3": 997,
+          "cp_J_kgK": 4182,
+          "mu_Pa_s": 0.00089,
+          "k_W_mK": 0.606
+        },
+        "units": {
+          "rho_kg_m3": "kg/m3",
+          "cp_J_kgK": "J/(kg*K)",
+          "mu_Pa_s": "Pa*s",
+          "k_W_mK": "W/(m*K)"
+        }
+      },
+      "pipe-25mm": {
+        "type": "pipe",
+        "params": {
+          "D_m": 0.025,
+          "roughness_m": 0.0000015,
+          "K_minor_per_bend": 0.5,
+          "n_cells": 3
+        },
+        "units": {
+          "D_m": "m",
+          "roughness_m": "m",
+          "K_minor_per_bend": "1",
+          "n_cells": "1"
+        }
+      },
+      "pump-demo": {
+        "type": "pump",
+        "params": {
+          "H0_m": 6,
+          "a_coef": 20000000,
+          "rpm_ratio": 1
+        },
+        "units": {
+          "H0_m": "m",
+          "a_coef": "m/(m3/s)^2",
+          "rpm_ratio": "1"
+        }
+      },
+      "valve-demo": {
+        "type": "valve",
+        "params": {
+          "D_m": 0.025,
+          "Kv_max": 1.5,
+          "opening": 1,
+          "characteristic": "linear"
+        },
+        "units": {
+          "D_m": "m",
+          "Kv_max": "m3/h@1bar",
+          "opening": "1",
+          "characteristic": "enum"
+        }
+      },
+      "rack-equivalent": {
+        "type": "cold_plate",
+        "params": {
+          "dp_a": 2000000,
+          "dp_b": 10000,
+          "UA_W_per_K": 300,
+          "C_solid_J_per_K": 8000,
+          "V_fluid_m3": 0.0002
+        },
+        "units": {
+          "dp_a": "Pa/(kg/s)^2",
+          "dp_b": "Pa/(kg/s)",
+          "UA_W_per_K": "W/K",
+          "C_solid_J_per_K": "J/K",
+          "V_fluid_m3": "m3"
+        }
+      },
+      "hx-demo": {
+        "type": "heat_exchanger",
+        "params": {
+          "dp_a": 20000,
+          "dp_b": 5000,
+          "UA_W_per_K": 2000
+        },
+        "units": {
+          "dp_a": "Pa/(kg/s)^2",
+          "dp_b": "Pa/(kg/s)",
+          "UA_W_per_K": "W/K"
+        }
+      }
+    }
+  }
+}

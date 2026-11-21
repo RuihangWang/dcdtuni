@@ -1,0 +1,179 @@
+/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-fe-unfiltered-final-20261007/npm-environment/node_modules/vitest/dist/chunks/index.DsZFoqi9.js SHA256=971965449b97a95d173adc12dce70b2395f850c197e8fa33cc91df412c835e24
+Lines4301-4398
+  todo: "todo"
+};
+class JsonReporter {
+  start = 0;
+  ctx;
+  options;
+  constructor(options) {
+    this.options = options;
+  }
+  onInit(ctx) {
+    this.ctx = ctx;
+    this.start = Date.now();
+  }
+  async logTasks(files) {
+    const suites = getSuites(files);
+    const numTotalTestSuites = suites.length;
+    const tests = getTests(files);
+    const numTotalTests = tests.length;
+    const numFailedTestSuites = suites.filter((s) => s.result?.state === "fail").length;
+    const numPendingTestSuites = suites.filter(
+      (s) => s.result?.state === "run" || s.mode === "todo"
+    ).length;
+    const numPassedTestSuites = numTotalTestSuites - numFailedTestSuites - numPendingTestSuites;
+    const numFailedTests = tests.filter(
+      (t) => t.result?.state === "fail"
+    ).length;
+    const numPassedTests = tests.filter((t) => t.result?.state === "pass").length;
+    const numPendingTests = tests.filter(
+      (t) => t.result?.state === "run" || t.mode === "skip" || t.result?.state === "skip"
+    ).length;
+    const numTodoTests = tests.filter((t) => t.mode === "todo").length;
+    const testResults = [];
+    const success = numFailedTestSuites === 0 && numFailedTests === 0;
+    for (const file of files) {
+      const tests2 = getTests([file]);
+      let startTime = tests2.reduce(
+        (prev, next) => Math.min(prev, next.result?.startTime ?? Number.POSITIVE_INFINITY),
+        Number.POSITIVE_INFINITY
+      );
+      if (startTime === Number.POSITIVE_INFINITY) {
+        startTime = this.start;
+      }
+      const endTime = tests2.reduce(
+        (prev, next) => Math.max(
+          prev,
+          (next.result?.startTime ?? 0) + (next.result?.duration ?? 0)
+        ),
+        startTime
+      );
+      const assertionResults = tests2.map((t) => {
+        const ancestorTitles = [];
+        let iter = t.suite;
+        while (iter) {
+          ancestorTitles.push(iter.name);
+          iter = iter.suite;
+        }
+        ancestorTitles.reverse();
+        return {
+          ancestorTitles,
+          fullName: t.name ? [...ancestorTitles, t.name].join(" ") : ancestorTitles.join(" "),
+          status: StatusMap[t.result?.state || t.mode] || "skipped",
+          title: t.name,
+          duration: t.result?.duration,
+          failureMessages: t.result?.errors?.map((e) => e.stack || e.message) || [],
+          location: t.location,
+          meta: t.meta
+        };
+      });
+      if (tests2.some((t) => t.result?.state === "run")) {
+        this.ctx.logger.warn(
+          "WARNING: Some tests are still running when generating the JSON report.This is likely an internal bug in Vitest.Please report it to https://github.com/vitest-dev/vitest/issues"
+        );
+      }
+      const hasFailedTests = tests2.some((t) => t.result?.state === "fail");
+      testResults.push({
+        assertionResults,
+        startTime,
+        endTime,
+        status: file.result?.state === "fail" || hasFailedTests ? "failed" : "passed",
+        message: file.result?.errors?.[0]?.message ?? "",
+        name: file.filepath
+      });
+    }
+    const result = {
+      numTotalTestSuites,
+      numPassedTestSuites,
+      numFailedTestSuites,
+      numPendingTestSuites,
+      numTotalTests,
+      numPassedTests,
+      numFailedTests,
+      numPendingTests,
+      numTodoTests,
+      snapshot: this.ctx.snapshot.summary,
+      startTime: this.start,
+      success,
+      testResults
+    };
+
+/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-fe-unfiltered-final-20261007/npm-environment/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js SHA256=bfa94186daff535fefdf286088c1588fad6b02c01ef11cd3b42a6cb3e4c90767
+Lines17814-17833
+    if (config.build.ssr || !config.build.reportCompressedSize) {
+      return null;
+    }
+    if (shouldLogInfo && !hasCompressChunk) {
+      if (!tty) {
+        config.logger.info("computing gzip size...");
+      } else {
+        writeLine("computing gzip size (0)...");
+      }
+      hasCompressChunk = true;
+    }
+    const compressed = await compress(
+      typeof code === "string" ? code : Buffer.from(code)
+    );
+    compressedCount++;
+    if (shouldLogInfo && tty) {
+      writeLine(`computing gzip size (${compressedCount})...`);
+    }
+    return compressed.length;
+  }
+Lines17901-17955
+          if (!hasRenderedChunk) {
+            config.logger.info("rendering chunks...");
+          }
+        } else {
+          writeLine(`rendering chunks (${chunkCount})...`);
+        }
+        hasRenderedChunk = true;
+      }
+      return null;
+    },
+    generateBundle() {
+      if (shouldLogInfo && tty) clearLine$1();
+    },
+    async writeBundle({ dir: outDir }, output) {
+      let hasLargeChunks = false;
+      if (shouldLogInfo) {
+        const entries = (await Promise.all(
+          Object.values(output).map(
+            async (chunk) => {
+              if (chunk.type === "chunk") {
+                return {
+                  name: chunk.fileName,
+                  group: "JS",
+                  size: chunk.code.length,
+                  compressedSize: await getCompressedSize(chunk.code),
+                  mapSize: chunk.map ? chunk.map.toString().length : null
+                };
+              } else {
+                if (chunk.fileName.endsWith(".map")) return null;
+                const isCSS = chunk.fileName.endsWith(".css");
+                const isCompressible = isCSS || COMPRESSIBLE_ASSETS_RE.test(chunk.fileName);
+                return {
+                  name: chunk.fileName,
+                  group: isCSS ? "CSS" : "Assets",
+                  size: chunk.source.length,
+                  mapSize: null,
+                  // Rollup doesn't support CSS maps?
+                  compressedSize: isCompressible ? await getCompressedSize(chunk.source) : null
+                };
+              }
+            }
+          )
+        )).filter(isDefined);
+        if (tty) clearLine$1();
+        let longest = 0;
+        let biggestSize = 0;
+        let biggestMap = 0;
+        let biggestCompressSize = 0;
+        for (const entry of entries) {
+          if (entry.name.length > longest) longest = entry.name.length;
+          if (entry.size > biggestSize) biggestSize = entry.size;
+          if (entry.mapSize && entry.mapSize > biggestMap) {
+            biggestMap = entry.mapSize;
+          }
+          if (entry.compressedSize && entry.compressedSize > biggestCompressSize) {

@@ -1,0 +1,265 @@
+FFF.FFFFFFF                                                              [100%]
+=================================== FAILURES ===================================
+_______ test_session_caller_mask_root_reauthor_off_restores_new_visible ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-v2-20261006/tmp/pytest-layered-red/test_session_caller_mask_root_0')
+
+    def test_session_caller_mask_root_reauthor_off_restores_new_visible(tmp_path):
+        scene, stage, result, packet = authored(tmp_path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        path = result["uidPaths"]["shell"][0]
+        stage.SetEditTarget(session)
+        session_before = session.ExportToString()
+        handlers._set_geometry_hidden(scene, stage, True)
+        assert stage.GetEditTarget().GetLayer() == session
+        new = render_scene.author_scene(stage, packet, tmp_path)
+        handlers.install_render_room_shell_paths(scene, stage, new["roomShellPaths"])
+        handlers._set_geometry_hidden(scene, stage, False)
+>       assert computed(stage, path) == UsdGeom.Tokens.inherited
+E       AssertionError: assert 'invisible' == 'inherited'
+E         
+E         - inherited
+E         + invisible
+
+tests/test_layered_mask.py:35: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 2 prims)
+__________ test_user_session_hidden_is_not_captured_as_root_original ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-v2-20261006/tmp/pytest-layered-red/test_user_session_hidden_is_no0')
+
+    def test_user_session_hidden_is_not_captured_as_root_original(tmp_path):
+        scene, stage, result, packet = authored(tmp_path)
+        path = result["uidPaths"]["shell"][0]
+        session = stage.GetSessionLayer()
+        stage.SetEditTarget(session)
+        UsdGeom.Imageable(stage.GetPrimAtPath(path)).MakeInvisible()
+        original_session = session.ExportToString()
+        new = render_scene.author_scene(stage, packet, tmp_path)
+        original_root = stage.GetRootLayer().ExportToString()
+        handlers.install_render_room_shell_paths(scene, stage, new["roomShellPaths"])
+        handlers._set_geometry_hidden(scene, stage, True)
+        handlers._set_geometry_hidden(scene, stage, False)
+        assert computed(stage, path) == UsdGeom.Tokens.invisible
+>       assert layer_bytes(stage.GetRootLayer(), session) == (original_root, original_session)
+E       assert ('#usda 1.0\n...    }\n}\n\n') == ('#usda 1.0\n...    }\n}\n\n')
+E         
+E         At index 1 diff: '#usda 1.0\n\nover "World"\n{\n    over "RenderScene"\n    {\n        over "Geometry"\n        {\n            over "p_ecea042d78537699bd76399a"\n            {\n                token visibility = "invisible"\n            }\n\n            over "p_271cf489b4d380a3ab540c74"\n            {\n                token visibility = "invisible"\n            }\n        }\n    }\n}\n\n' != '#usda 1.0\n\nover "World"\n{\n    over "RenderScene"\n    {\n        over "Geometry"\n        {\n            over "p_ecea042d78537699bd76399a"\n            {\n                token...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_layered_mask.py:53: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 2 prims)
+___________ test_root_samples_and_property_metadata_restore_exactly ____________
+
+    def test_root_samples_and_property_metadata_restore_exactly():
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        attr = UsdGeom.Xform.Define(stage, path).GetVisibilityAttr()
+        attr.Set(UsdGeom.Tokens.inherited)
+        attr.Set(UsdGeom.Tokens.inherited, 0)
+        attr.Set(UsdGeom.Tokens.inherited, 10)
+        attr.SetDocumentation("original authored animation")
+        attr.SetCustomData({"ownership": "user"})
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        original = layer_bytes(root, session)
+        stage.SetEditTarget(session)
+        scene = scene_for(path)
+        handlers._set_geometry_hidden(scene, stage, True)
+        for time in (None, -1, 0, 5, 10, 12):
+            assert computed(stage, path, time) == UsdGeom.Tokens.invisible
+>       assert root.ListTimeSamplesForPath(Sdf.Path(path + ".visibility")) == []
+E       assert [0.0, 10.0] == []
+E         
+E         Left contains 2 more items, first extra item: 0.0
+E         Use -v to get more diff
+
+tests/test_layered_mask.py:73: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+_________ test_sublayer_only_prim_does_not_leak_root_parent_containers _________
+
+    def test_sublayer_only_prim_does_not_leak_root_parent_containers():
+        stage = Usd.Stage.CreateInMemory()
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        weak = Sdf.Layer.CreateAnonymous("weak")
+        root.subLayerPaths.append(weak.identifier)
+        stage.SetEditTarget(weak)
+        path = "/World/OnlyWeak/Room"
+        UsdGeom.Xform.Define(stage, path)
+        stage.SetEditTarget(session)
+        before = layer_bytes(root, session, weak)
+        scene = scene_for(path)
+        handlers._set_geometry_hidden(scene, stage, True)
+        assert computed(stage, path, 7) == UsdGeom.Tokens.invisible
+        handlers._set_geometry_hidden(scene, stage, False)
+>       assert layer_bytes(root, session, weak) == before
+E       assert ('#usda 1.0\n...    }\n}\n\n') == ('#usda 1.0\n...    }\n}\n\n')
+E         
+E         At index 1 diff: '#usda 1.0\n\nover "World"\n{\n    over "OnlyWeak"\n    {\n        over "Room"\n        {\n            token visibility\n        }\n    }\n}\n\n' != '#usda 1.0\n\n'
+E         Use -v to get more diff
+
+tests/test_layered_mask.py:111: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+[dc.cfd_bridge] geometry restored for volume (groups=['Room'], 1 prims)
+______ test_stronger_visible_opinion_refuses_and_rolls_back[False-False] _______
+
+sampled = False, in_sublayer = False
+
+    @pytest.mark.parametrize("sampled", [False, True])
+    @pytest.mark.parametrize("in_sublayer", [False, True])
+    def test_stronger_visible_opinion_refuses_and_rolls_back(sampled, in_sublayer):
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        UsdGeom.Xform.Define(stage, path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        strong = Sdf.Layer.CreateAnonymous("strong") if in_sublayer else session
+        if in_sublayer:
+            session.subLayerPaths.append(strong.identifier)
+        stage.SetEditTarget(strong)
+        attr = UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr()
+        attr.Set(UsdGeom.Tokens.inherited, Usd.TimeCode(10) if sampled else Usd.TimeCode.Default())
+        stage.SetEditTarget(session)
+        before = layer_bytes(root, session, strong)
+        scene = scene_for(path)
+>       with pytest.raises(RuntimeError, match="stronger visibility"):
+E       Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:132: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+_______ test_stronger_visible_opinion_refuses_and_rolls_back[False-True] _______
+
+sampled = True, in_sublayer = False
+
+    @pytest.mark.parametrize("sampled", [False, True])
+    @pytest.mark.parametrize("in_sublayer", [False, True])
+    def test_stronger_visible_opinion_refuses_and_rolls_back(sampled, in_sublayer):
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        UsdGeom.Xform.Define(stage, path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        strong = Sdf.Layer.CreateAnonymous("strong") if in_sublayer else session
+        if in_sublayer:
+            session.subLayerPaths.append(strong.identifier)
+        stage.SetEditTarget(strong)
+        attr = UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr()
+        attr.Set(UsdGeom.Tokens.inherited, Usd.TimeCode(10) if sampled else Usd.TimeCode.Default())
+        stage.SetEditTarget(session)
+        before = layer_bytes(root, session, strong)
+        scene = scene_for(path)
+>       with pytest.raises(RuntimeError, match="stronger visibility"):
+E       Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:132: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+_______ test_stronger_visible_opinion_refuses_and_rolls_back[True-False] _______
+
+sampled = False, in_sublayer = True
+
+    @pytest.mark.parametrize("sampled", [False, True])
+    @pytest.mark.parametrize("in_sublayer", [False, True])
+    def test_stronger_visible_opinion_refuses_and_rolls_back(sampled, in_sublayer):
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        UsdGeom.Xform.Define(stage, path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        strong = Sdf.Layer.CreateAnonymous("strong") if in_sublayer else session
+        if in_sublayer:
+            session.subLayerPaths.append(strong.identifier)
+        stage.SetEditTarget(strong)
+        attr = UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr()
+        attr.Set(UsdGeom.Tokens.inherited, Usd.TimeCode(10) if sampled else Usd.TimeCode.Default())
+        stage.SetEditTarget(session)
+        before = layer_bytes(root, session, strong)
+        scene = scene_for(path)
+>       with pytest.raises(RuntimeError, match="stronger visibility"):
+E       Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:132: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+_______ test_stronger_visible_opinion_refuses_and_rolls_back[True-True] ________
+
+sampled = True, in_sublayer = True
+
+    @pytest.mark.parametrize("sampled", [False, True])
+    @pytest.mark.parametrize("in_sublayer", [False, True])
+    def test_stronger_visible_opinion_refuses_and_rolls_back(sampled, in_sublayer):
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        UsdGeom.Xform.Define(stage, path)
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        strong = Sdf.Layer.CreateAnonymous("strong") if in_sublayer else session
+        if in_sublayer:
+            session.subLayerPaths.append(strong.identifier)
+        stage.SetEditTarget(strong)
+        attr = UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr()
+        attr.Set(UsdGeom.Tokens.inherited, Usd.TimeCode(10) if sampled else Usd.TimeCode.Default())
+        stage.SetEditTarget(session)
+        before = layer_bytes(root, session, strong)
+        scene = scene_for(path)
+>       with pytest.raises(RuntimeError, match="stronger visibility"):
+E       Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:132: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 1 prims)
+____ test_later_path_refusal_rolls_back_earlier_path_and_parent_containers _____
+
+    def test_later_path_refusal_rolls_back_earlier_path_and_parent_containers():
+        stage = Usd.Stage.CreateInMemory()
+        root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+        weak = Sdf.Layer.CreateAnonymous("weak")
+        root.subLayerPaths.append(weak.identifier)
+        stage.SetEditTarget(weak)
+        for p in ("/World/A/Room", "/World/B/Room"):
+            UsdGeom.Xform.Define(stage, p)
+        stage.SetEditTarget(session)
+        UsdGeom.Imageable(stage.GetPrimAtPath("/World/B/Room")).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+        before = layer_bytes(root, session, weak)
+        scene = types.SimpleNamespace(geo_groups={"Room": ["/World/A/Room", "/World/B/Room"]})
+>       with pytest.raises(RuntimeError, match="stronger visibility"):
+E       Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_layered_mask.py:152: Failed
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] geometry hidden for volume (groups=['Room'], 2 prims)
+_____ test_actual_volume_handler_does_not_rebuild_or_ack_when_mask_refused _____
+
+    def test_actual_volume_handler_does_not_rebuild_or_ack_when_mask_refused():
+        namespace = {"__package__": "dc.cfd_bridge"}
+        exec(source_function(BRIDGE / "scene.py", "show_volume_display"), namespace)
+        stage = Usd.Stage.CreateInMemory()
+        path = "/World/Room"
+        UsdGeom.Xform.Define(stage, path)
+        stage.SetEditTarget(stage.GetSessionLayer())
+        UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+        called = []
+        async def rebuild(*a, **k):
+            called.append("rebuild")
+        scene = scene_for(path)
+        scene.__dict__.update(dataset_path="controlled", field_stats={}, _volume_domain_override={},
+                              clip_enabled=False, _rebuild_volume=rebuild)
+>       from dc.cfd_bridge import slice_render
+E       ImportError: cannot import name 'slice_render' from 'dc.cfd_bridge' (/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-v2-20261006/before/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/__init__.py)
+
+tests/test_layered_mask.py:172: ImportError
+=========================== short test summary info ============================
+FAILED tests/test_layered_mask.py::test_session_caller_mask_root_reauthor_off_restores_new_visible
+FAILED tests/test_layered_mask.py::test_user_session_hidden_is_not_captured_as_root_original
+FAILED tests/test_layered_mask.py::test_root_samples_and_property_metadata_restore_exactly
+FAILED tests/test_layered_mask.py::test_sublayer_only_prim_does_not_leak_root_parent_containers
+FAILED tests/test_layered_mask.py::test_stronger_visible_opinion_refuses_and_rolls_back[False-False]
+FAILED tests/test_layered_mask.py::test_stronger_visible_opinion_refuses_and_rolls_back[False-True]
+FAILED tests/test_layered_mask.py::test_stronger_visible_opinion_refuses_and_rolls_back[True-False]
+FAILED tests/test_layered_mask.py::test_stronger_visible_opinion_refuses_and_rolls_back[True-True]
+FAILED tests/test_layered_mask.py::test_later_path_refusal_rolls_back_earlier_path_and_parent_containers
+FAILED tests/test_layered_mask.py::test_actual_volume_handler_does_not_rebuild_or_ack_when_mask_refused
+10 failed, 1 passed in 1.16s

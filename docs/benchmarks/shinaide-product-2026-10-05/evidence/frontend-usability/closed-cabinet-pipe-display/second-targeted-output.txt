@@ -1,0 +1,62 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/legacy/liquidClosedCabinetRender.test.ts > hands the original longitudinal UV buffers and path to the display-only adapter before PBR tiling
+[liquid_pipe_renderer.js] Pipe renderer loaded
+
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts (6 tests | 2 failed) 636ms
+   × restores the complete original buffers on inspect without replacing materials, mesh, blind caps or inputs 141ms
+     → pbr_materials: UVs of this geometry were already scaled (shared geometry?)
+   × returns the entire route when the actual shell is hidden or transparent 86ms
+     → pbr_materials: UVs of this geometry were already scaled (shared geometry?)
+ ✓ test/closedCabinetPipeClip.test.ts (10 tests) 111ms
+ ✓ test/components/ClosedCabinetDisplay.test.tsx (3 tests) 95ms
+ ✓ test/closedCabinetDisplayRevision.test.ts (2 tests) 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > restores the complete original buffers on inspect without replacing materials, mesh, blind caps or inputs
+Error: pbr_materials: UVs of this geometry were already scaled (shared geometry?)
+ ❯ _markScaled ../shared/js/pbr_materials.js:209:19
+    207|     function _markScaled(geometry) {
+    208|         if (geometry.userData.pbrUvScaled) {
+    209|             throw new Error('pbr_materials: UVs of this geometry were …
+       |                   ^
+    210|         }
+    211|         geometry.userData.pbrUvScaled = true;
+ ❯ scaleUv ../shared/js/pbr_materials.js:218:9
+ ❯ Object.tubeUv ../shared/js/pbr_materials.js:244:16
+ ❯ ../shared/js/liquid_pipe_renderer.js:830:22
+ ❯ Mesh.traverse node_modules/three/build/three.core.js:12760:3
+ ❯ Group.traverse node_modules/three/build/three.core.js:12766:18
+ ❯ Object.refreshPipeDisplayGeometry ../shared/js/liquid_pipe_renderer.js:822:18
+ ❯ src/legacy/liquidScene.ts:198:20
+ ❯ Module.setShowCabinetPipes src/liquid/closedCabinetDisplay.ts:16:3
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:88:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > returns the entire route when the actual shell is hidden or transparent
+Error: pbr_materials: UVs of this geometry were already scaled (shared geometry?)
+ ❯ _markScaled ../shared/js/pbr_materials.js:209:19
+    207|     function _markScaled(geometry) {
+    208|         if (geometry.userData.pbrUvScaled) {
+    209|             throw new Error('pbr_materials: UVs of this geometry were …
+       |                   ^
+    210|         }
+    211|         geometry.userData.pbrUvScaled = true;
+ ❯ scaleUv ../shared/js/pbr_materials.js:218:9
+ ❯ Object.tubeUv ../shared/js/pbr_materials.js:244:16
+ ❯ ../shared/js/liquid_pipe_renderer.js:830:22
+ ❯ Mesh.traverse node_modules/three/build/three.core.js:12760:3
+ ❯ Group.traverse node_modules/three/build/three.core.js:12766:18
+ ❯ Object.refreshPipeDisplayGeometry ../shared/js/liquid_pipe_renderer.js:822:18
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:113:50
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 19 passed (21)
+   Start at  05:13:35
+   Duration  11.77s (transform 2.21s, setup 0ms, collect 6.49s, tests 851ms, environment 3.34s, prepare 276ms)
+

@@ -1,0 +1,50 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx (4 tests | 2 failed) 194ms
+   × project description belongs to the loaded document > drops an uncommitted old-document draft even when the next UID and committed text are identical 40ms
+     → expected 'not part of the next document' to be '' // Object.is equality
+   × project description belongs to the loaded document > keeps normal blur editing and restores the visible committed text on undo 36ms
+     → expected 'edited description' to be 'committed description' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  19:11:52
+   Duration  20.36s (transform 4.54s, setup 0ms, collect 8.19s, tests 194ms, environment 11.15s, prepare 467ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/ProjectDescriptionLoad.test.tsx > project description belongs to the loaded document > drops an uncommitted old-document draft even when the next UID and committed text are identical
+AssertionError: expected 'not part of the next document' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ not part of the next document
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx:78:30
+     76|     expect(store.getProject()!.meta?.description).toBe('')
+     77|     load('')
+     78|     expect(textarea().value).toBe('')
+       |                              ^
+     79|     expect(store.isDirty()).toBe(false)
+     80|     expect(store.undoDepth()).toBe(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/components/ProjectDescriptionLoad.test.tsx > project description belongs to the loaded document > keeps normal blur editing and restores the visible committed text on undo
+AssertionError: expected 'edited description' to be 'committed description' // Object.is equality
+
+Expected: "committed description"
+Received: "edited description"
+
+ ❯ test/components/ProjectDescriptionLoad.test.tsx:93:30
+     91|     flushSync(() => store.undo())
+     92|     expect(store.getProject()!.meta?.description).toBe('committed desc…
+     93|     expect(textarea().value).toBe('committed description')
+       |                              ^
+     94|   })
+     95| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

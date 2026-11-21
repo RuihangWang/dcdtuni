@@ -1,0 +1,30 @@
+--- src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
++++ src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
+@@ -80,8 +80,10 @@
+     assert len(acks) == 1, "exactly the view-state reply reports sceneRequestId"
+     keys = {k.arg for k in acks[0].keywords}
+     assert {"view", "primitives", "sceneRevision", "projectHash", "sceneRequestId"} <= keys
+-    src = ast.unparse(route)
++    author = next(n for n in cls.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "_author_render_scene")
++    src = ast.unparse(author)
+     assert src.index("author_scene(") < src.index("self._last_scene_request_id = request_id")
++    assert "_author_render_scene(" in ast.unparse(route)
+ 
+ 
+ 
+@@ -95,9 +97,12 @@
+     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+     fn = {n.name: n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+     route = ast.unparse(fn["_route_render_command"])
+-    assert "self._scene_project_uid != self._display_project_uid" in route
+-    assert "self._clear_display(stage)" in route
++    author = ast.unparse(fn["_author_render_scene"])
++    assert "packet['project']['uid'] != self._display_project_uid" in author
++    assert "self._clear_display(stage)" in author
++    assert "_author_render_scene(" in route
+     assert "self._display_project_uid = self._scene_project_uid" in ast.unparse(fn["_load_granted_dataset"])
+     clear = ast.unparse(fn["_clear_display"])
+-    for call in ("remove_streamlines", "remove_slice", "show_volume_display(stage, 'off')", "dataset_path = None"):
++    for call in ("remove_streamlines", "remove_slice", "show_volume_display(stage, 'off')",
++                 "dataset_path = None", "source_vtu_path = None", "RemovePrim('/World/internal')"):
+         assert call in clear, call

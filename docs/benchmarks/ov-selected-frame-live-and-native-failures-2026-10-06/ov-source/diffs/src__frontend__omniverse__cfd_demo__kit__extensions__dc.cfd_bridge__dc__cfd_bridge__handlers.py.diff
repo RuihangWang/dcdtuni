@@ -1,0 +1,53 @@
+--- src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
++++ src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
+@@ -591,7 +591,7 @@
+ 
+ 
+ def handle_set_streamlines(scene, stage, enabled, field, seed_center, seed_radius,
+-                           n_seeds, max_steps, direction):
++                           n_seeds, max_steps, direction, *, _schedule=None):
+     """Generate (enabled) or remove (disabled) the streamlines. Integration ALWAYS uses
+     the vec3 U field; ``field`` (T|U) is only the COLOUR field. Seeds + lines are
+     confined to the ROI box when clipping is active (enforced in generate_streamlines)."""
+@@ -604,12 +604,12 @@
+     if direction in ("forward", "backward", "both"):
+         scene.sl_direction = direction
+     if enabled:
+-        asyncio.ensure_future(scene.generate_streamlines(stage))
++        (_schedule or asyncio.ensure_future)(scene.generate_streamlines(stage))
+     else:
+-        asyncio.ensure_future(scene.remove_streamlines(stage))
+-
+-
+-def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds):
++        (_schedule or asyncio.ensure_future)(scene.remove_streamlines(stage))
++
++
++def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds, *, _schedule=None):
+     """Create / move / show / hide the draggable seed-sphere preview (no re-trace).
+     Mirrors the ROI-box show pattern: showing it selects the prim so the transform
+     gizmo attaches for dragging."""
+@@ -617,7 +617,7 @@
+     _resolve_seed_center(scene, stage, center)
+     scene.seed_radius = float(radius)
+     scene.n_seeds = int(n_seeds)
+-    asyncio.ensure_future(scene.update_seed_sphere(stage, bool(visible)))
++    (_schedule or asyncio.ensure_future)(scene.update_seed_sphere(stage, bool(visible)))
+ 
+ 
+ def handle_set_slice(scene, stage, visible, origin, normal, radius, field, domain):
+@@ -636,7 +636,7 @@
+     scene.resolve_slice_origin(stage, origin)
+ 
+ 
+-def handle_sync_from_viewport(scene, stage):
++def handle_sync_from_viewport(scene, stage, *, _schedule=None):
+     """Re-render whatever the user DRAGGED in the viewport.
+ 
+     Kit emits no drag events over the one-way command channel, so a gizmo drag cannot
+@@ -674,4 +674,4 @@
+             # Nothing to re-render, but the ROI numbers still moved — say so, otherwise
+             # the button looks dead when the user drags before showing a field.
+             print("[dc.cfd_bridge] syncFromViewport: ROI updated (nothing rendered yet)")
+-    asyncio.ensure_future(_apply())
++    (_schedule or asyncio.ensure_future)(_apply())

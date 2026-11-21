@@ -1,0 +1,36 @@
+..................................F................                      [100%]
+=================================== FAILURES ===================================
+_____________ test_demo_defaults_gpu0_uuid_and_worktree_extension ______________
+
+fake_kit = ({'CUDA_VISIBLE_DEVICES': '', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1002/bus', 'DC_CFD_AI': '0', 'DC_CFD_KI...oal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-final/test_demo_defaults_gpu0_uuid_a0/bin'))
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-final/test_demo_defaults_gpu0_uuid_a0')
+
+    def test_demo_defaults_gpu0_uuid_and_worktree_extension(fake_kit, tmp_path):
+        environment, _ = fake_kit
+        runtime = tmp_path / "runtime"
+        environment.update(DC_CFD_RUNTIME_DIR=str(runtime), DC_CFD_MANAGED="1")
+        with (tmp_path / "launch.log").open("wb") as output:
+            process = subprocess.Popen(["bash", str(DEMO / "scripts/start_demo.sh")],
+                env=environment, stdout=output, stderr=subprocess.STDOUT)
+>           child_pid = int(_wait_file(runtime / "kit.pid", process))
+
+src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-texture-cache-20261005/pytest-final/test_demo_defaults_gpu0_uuid_a0/runtime/kit.pid')
+process = <Popen: returncode: 1 args: ['bash', '/mnt/lv/home/litianyu/mycode/dcdtuni/....>
+timeout = 5
+
+    def _wait_file(path, process, timeout=5):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if path.is_file():
+                return path.read_text().strip()
+            if process.poll() is not None:
+>               raise AssertionError(f"launcher exited before {path.name}: {process.returncode}")
+E               AssertionError: launcher exited before kit.pid: 1
+
+src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py::test_demo_defaults_gpu0_uuid_and_worktree_extension
+1 failed, 50 passed in 12.72s

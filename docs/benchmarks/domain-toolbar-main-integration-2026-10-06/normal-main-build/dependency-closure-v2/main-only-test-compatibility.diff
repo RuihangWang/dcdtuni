@@ -1,0 +1,15 @@
+--- original-c970
++++ MAIN-compatibility-1f1f
+@@ -163,11 +163,10 @@
+     actual.write_bytes(stl)
+     runner._verify_hybrid_source_stls()
+     assert runner._verified_source_cfdrun_sha256 == snapshot.sha256
+-    assert runner._point_repair_source_receipt["rawSha256"] == snapshot.sha256
++    assert runner._source_stls_verified is True
+     actual.write_bytes(stl + b"changed")
+     with pytest.raises(ValueError, match="content hash"):
+         runner._verify_hybrid_source_stls()
+-    assert runner._point_repair_source_receipt is None
+ 
+ 
+ def quality_mesh(runner):

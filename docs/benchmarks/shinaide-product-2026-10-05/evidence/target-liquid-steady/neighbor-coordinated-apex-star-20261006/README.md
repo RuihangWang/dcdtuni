@@ -1,0 +1,15 @@
+# AP28144 synchronized two-star diagnostic — refused
+
+This is frozen P12 52d0e89c geometry, not current P13. P13 remains Failed2 D831/W82/R0; no production source, actual case, API, server, business mesher, checker, solver or index was changed.
+
+Actual incidence yields 32 old core cells and 38 literal exterior faces. Both internal targets are absent from the outer shell. Eight sourceZone3 wall facets, including 2217059, retain exact ordered coordinates, point0, sourceBase, patch and source roles. SourceZone is not material authorization. There are 26 first-halo and 43 second-halo cells; all 101 old / 113 candidate metric endpoint shapes are complete.
+
+The hybrid candidate replaces the prior14-cell point-star by 26 cones, moves actual interior AP28144 through its complete point-star, and leaves 18 original core cells in place: 32 → 44 core. The first84-request search introduced passing D failures and is preserved as a refusal. The single protected successor uses163 requests. Existing request history is replayed without new proposals; it contains no point at which all26 new cones satisfy inherited passing D.
+
+The installed OpenFOAM2412 DP/Int32 primitiveMesh calculation is decisive: D5 → 4, W0 → 0, R0 → 0, skew0 → 0. Two new tets833839/833853 have D0.00041231557776845386 / 0.0003502467349444263 and inherit original passing D roles. Thus this is not an acceptable repair despite the lower bad-cell count. No threshold or predicate was weakened. Stock concavity is false for every complete old/new cell, pyramids are positive, official centre/anchor tet quality is positive above the stock floor.
+
+N70 warnings are separately reported: 4 → 6, local maximum80.3361752617139 → 77.3090959012815. Warning changes do not excuse the D refusal. Exact Fraction cavity V/M1 and all69 outside mathematical shapes are preserved. Ten ordinary outside installed CC/V values differ by arithmetic traversal/order (maximum65 ULP); no outside DP-equality claim is made. Coupled faces are absent from this stored local stencil. A complete real writer/alias certificate, normal source authority, global collision/overlap and deadline validation are not claimed.
+
+The fixed38 exterior triangle one-cone necessary54/128 bounds are all above0.001 (minimum0.020104734222915647). This does not prove another decomposition is feasible or that the rejected finite grammar is globally impossible. It supports investigating one different template that removes both internal points and uses the entire38-face shell; that future candidate is not part of this frozen result.
+
+Reproduce the typed data with typed-joint-v2/build-command.json and installed_kernel.cpp/actual_fixture.H using the bound installed libraries. The audit imports the prior frozen14-star Fraction helper; its prior manifest and source-reader hashes are bound. Tests:16 passed. Refer to pytest-receipt.json, installed-joint-audit.json and receipt.json for exact scope. TMP/caches and checked source-poly symlinks are excluded from the payload manifest; nothing was deleted.

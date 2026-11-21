@@ -1,0 +1,57 @@
+--- a/source/core/src/Cartesian.cpp
++++ b/source/core/src/Cartesian.cpp
+@@ -45,6 +45,7 @@
+ 
+ #include "meshgen/Cartesian.hpp"
+ #include "LeafBoundaryWallHalfOwnership.hpp"
++#include "ProducerStateCapture.hpp"
+ 
+ #include "meshgen/ThreadPool.hpp"
+ 
+@@ -17133,6 +17134,46 @@
+                           (int64_t)std::floor(q.z / splitQcell)};
+         };
+         auto splitViolatingRounds = [&](bool allGreenOnly, long onlyCi = -1) {
++            if (meshgen_producer_capture::enabled() && onlyCi < 0) {
++            // PRIVATE default-OFF observation; no producer return or predicate changes.
++            meshgen_producer_capture::Options captureOptions;
++            captureOptions.stage = allGreenOnly ? 1 : 2;
++            captureOptions.onlyCi = onlyCi;
++            captureOptions.allGreenOnly = allGreenOnly;
++            captureOptions.pointGridBuilt = ptGridBuilt;
++            captureOptions.pointGridSize = ptGridSize;
++#if defined(MESHGEN_WITH_MPI)
++            captureOptions.rank = mpi::rank();
++            captureOptions.size = mpi::size();
++            captureOptions.distributed = dt.on;
++#endif
++            meshgen_producer_capture::capture(cells, gpts, cfg, c.H, clipTol, origin,
++                captureOptions,
++                [&](int ci) {
++#if defined(MESHGEN_WITH_MPI)
++                    return dt.on ? dt.rankOfCell(ci) : 0;
++#else
++                    (void)ci; return 0;
++#endif
++                },
++                [&](size_t ci) {
++#if defined(MESHGEN_WITH_MPI)
++                    return dt.on ? (ci < dt.filled.size() ? (int)dt.filled[ci] : -1) : 1;
++#else
++                    (void)ci; return 1;
++#endif
++                },
++                [&](long long leaf) {
++                    meshgen_producer_capture::LeafBinding binding;
++                    if (leaf >= 0 && leaf < c.mesh.nLeaves()) {
++                        Vec3 lo, hi; c.mesh.leafBox(leaf, lo, hi);
++                        binding.valid = true; binding.key = c.mesh.leafKey(leaf);
++                        binding.level = c.mesh.leafLevel(leaf);
++                        binding.box = {{lo.x,lo.y,lo.z,hi.x,hi.y,hi.z}};
++                    }
++                    return binding;
++                });
++            }
+         // ---- S9b：越界胞合法拆分修复（T-CYL 方向 3）----
+         // 合并修复尽力后仍越界的胞，是同级吸收无法挽回的非凸构型（角环 L 胞：
+         // 散度/OF 质心落凹侧，壁面切平面横穿主体；弧带胞：质心落弧内）。对这类

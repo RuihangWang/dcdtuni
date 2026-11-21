@@ -1,0 +1,4875 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class dictionary;
+    location system;
+    object snappyHexMeshDict;
+}
+
+castellatedMesh on;
+snap off;
+addLayers off;
+
+// snappyHexMesh DELETES zero-sized patches when both snap and addLayers are
+// off (snappyHexMesh.C:1833) — which is every Cartesian mode. A surface whose
+// region ends up with no exposed faces (an ACU bottom flush with the floor, a
+// pillar top against the ceiling, a rack face inside a containment) then
+// vanishes from polyMesh/boundary entirely, and the boundary condition bound
+// to it is silently lost. Keeping the empty patch costs nothing and keeps
+// every declared STL region addressable.
+keepPatches true;
+
+geometry
+{
+    merged_acu.stl
+    {
+        type triSurfaceMesh;
+        name merged_acu;
+        regions
+        {
+            ACU_01_Front_patch { name ACU_01_Front_patch; }
+            ACU_01_Front_part1 { name ACU_01_Front_part1; }
+            ACU_01_Back_patch { name ACU_01_Back_patch; }
+            ACU_01_Back_part1 { name ACU_01_Back_part1; }
+            ACU_01_Left { name ACU_01_Left; }
+            ACU_01_Right { name ACU_01_Right; }
+            ACU_01_Top { name ACU_01_Top; }
+            ACU_01_Bottom { name ACU_01_Bottom; }
+            ACU_02_Front_patch { name ACU_02_Front_patch; }
+            ACU_02_Front_part1 { name ACU_02_Front_part1; }
+            ACU_02_Back_patch { name ACU_02_Back_patch; }
+            ACU_02_Back_part1 { name ACU_02_Back_part1; }
+            ACU_02_Left { name ACU_02_Left; }
+            ACU_02_Right { name ACU_02_Right; }
+            ACU_02_Top { name ACU_02_Top; }
+            ACU_02_Bottom { name ACU_02_Bottom; }
+            ACU_03_Front_patch { name ACU_03_Front_patch; }
+            ACU_03_Front_part1 { name ACU_03_Front_part1; }
+            ACU_03_Back_patch { name ACU_03_Back_patch; }
+            ACU_03_Back_part1 { name ACU_03_Back_part1; }
+            ACU_03_Left { name ACU_03_Left; }
+            ACU_03_Right { name ACU_03_Right; }
+            ACU_03_Top { name ACU_03_Top; }
+            ACU_03_Bottom { name ACU_03_Bottom; }
+            ACU_04_Front_patch { name ACU_04_Front_patch; }
+            ACU_04_Front_part1 { name ACU_04_Front_part1; }
+            ACU_04_Back_patch { name ACU_04_Back_patch; }
+            ACU_04_Back_part1 { name ACU_04_Back_part1; }
+            ACU_04_Left { name ACU_04_Left; }
+            ACU_04_Right { name ACU_04_Right; }
+            ACU_04_Top { name ACU_04_Top; }
+            ACU_04_Bottom { name ACU_04_Bottom; }
+        }
+    }
+
+    merged_box.stl
+    {
+        type triSurfaceMesh;
+        name merged_box;
+        regions
+        {
+            UPS_Rack_Front { name UPS_Rack_Front; }
+            UPS_Rack_Back { name UPS_Rack_Back; }
+            UPS_Rack_Left { name UPS_Rack_Left; }
+            UPS_Rack_Right { name UPS_Rack_Right; }
+            UPS_Rack_Top { name UPS_Rack_Top; }
+            UPS_Rack_Bottom { name UPS_Rack_Bottom; }
+            CDU_1_Front { name CDU_1_Front; }
+            CDU_1_Back { name CDU_1_Back; }
+            CDU_1_Left { name CDU_1_Left; }
+            CDU_1_Right { name CDU_1_Right; }
+            CDU_1_Top { name CDU_1_Top; }
+            CDU_1_Bottom { name CDU_1_Bottom; }
+        }
+    }
+
+    merged_floor_ceiling.stl
+    {
+        type triSurfaceMesh;
+        name merged_floor_ceiling;
+        regions
+        {
+            Room_Floor { name Room_Floor; }
+            Room_Ceiling { name Room_Ceiling; }
+        }
+    }
+
+    merged_perforatedBlankingPanel_3U.stl
+    {
+        type triSurfaceMesh;
+        name merged_perforatedBlankingPanel_3U;
+        regions
+        {
+            Rack_A_01_inlet_u1_u3 { name Rack_A_01_inlet_u1_u3; }
+            Rack_A_02_inlet_u1_u3 { name Rack_A_02_inlet_u1_u3; }
+            Rack_A_03_inlet_u1_u3 { name Rack_A_03_inlet_u1_u3; }
+            Rack_A_04_inlet_u1_u3 { name Rack_A_04_inlet_u1_u3; }
+            Rack_A_05_inlet_u1_u3 { name Rack_A_05_inlet_u1_u3; }
+            Rack_A_06_inlet_u1_u3 { name Rack_A_06_inlet_u1_u3; }
+            Rack_B_01_inlet_u1_u3 { name Rack_B_01_inlet_u1_u3; }
+            Rack_B_02_inlet_u1_u3 { name Rack_B_02_inlet_u1_u3; }
+            Rack_B_03_inlet_u1_u3 { name Rack_B_03_inlet_u1_u3; }
+            Rack_B_04_inlet_u1_u3 { name Rack_B_04_inlet_u1_u3; }
+            Rack_B_05_inlet_u1_u3 { name Rack_B_05_inlet_u1_u3; }
+            Rack_B_06_inlet_u1_u3 { name Rack_B_06_inlet_u1_u3; }
+            Rack_B_07_inlet_u1_u3 { name Rack_B_07_inlet_u1_u3; }
+            Rack_B_08_inlet_u1_u3 { name Rack_B_08_inlet_u1_u3; }
+        }
+    }
+
+    merged_perforatedBlankingPanel_4U.stl
+    {
+        type triSurfaceMesh;
+        name merged_perforatedBlankingPanel_4U;
+        regions
+        {
+            Rack_A_01_inlet_u21_u24 { name Rack_A_01_inlet_u21_u24; }
+            Rack_A_01_inlet_u29_u32 { name Rack_A_01_inlet_u29_u32; }
+            Rack_A_01_inlet_u41_u44 { name Rack_A_01_inlet_u41_u44; }
+            Rack_A_02_inlet_u21_u24 { name Rack_A_02_inlet_u21_u24; }
+            Rack_A_02_inlet_u29_u32 { name Rack_A_02_inlet_u29_u32; }
+            Rack_A_02_inlet_u41_u44 { name Rack_A_02_inlet_u41_u44; }
+            Rack_A_03_inlet_u21_u24 { name Rack_A_03_inlet_u21_u24; }
+            Rack_A_03_inlet_u29_u32 { name Rack_A_03_inlet_u29_u32; }
+            Rack_A_03_inlet_u41_u44 { name Rack_A_03_inlet_u41_u44; }
+            Rack_A_04_inlet_u21_u24 { name Rack_A_04_inlet_u21_u24; }
+            Rack_A_04_inlet_u29_u32 { name Rack_A_04_inlet_u29_u32; }
+            Rack_A_04_inlet_u41_u44 { name Rack_A_04_inlet_u41_u44; }
+            Rack_A_05_inlet_u21_u24 { name Rack_A_05_inlet_u21_u24; }
+            Rack_A_05_inlet_u29_u32 { name Rack_A_05_inlet_u29_u32; }
+            Rack_A_05_inlet_u41_u44 { name Rack_A_05_inlet_u41_u44; }
+            Rack_A_06_inlet_u21_u24 { name Rack_A_06_inlet_u21_u24; }
+            Rack_A_06_inlet_u29_u32 { name Rack_A_06_inlet_u29_u32; }
+            Rack_A_06_inlet_u41_u44 { name Rack_A_06_inlet_u41_u44; }
+            Rack_B_01_inlet_u21_u24 { name Rack_B_01_inlet_u21_u24; }
+            Rack_B_01_inlet_u29_u32 { name Rack_B_01_inlet_u29_u32; }
+            Rack_B_01_inlet_u41_u44 { name Rack_B_01_inlet_u41_u44; }
+            Rack_B_02_inlet_u21_u24 { name Rack_B_02_inlet_u21_u24; }
+            Rack_B_02_inlet_u29_u32 { name Rack_B_02_inlet_u29_u32; }
+            Rack_B_02_inlet_u41_u44 { name Rack_B_02_inlet_u41_u44; }
+            Rack_B_03_inlet_u21_u24 { name Rack_B_03_inlet_u21_u24; }
+            Rack_B_03_inlet_u29_u32 { name Rack_B_03_inlet_u29_u32; }
+            Rack_B_03_inlet_u41_u44 { name Rack_B_03_inlet_u41_u44; }
+            Rack_B_04_inlet_u21_u24 { name Rack_B_04_inlet_u21_u24; }
+            Rack_B_04_inlet_u29_u32 { name Rack_B_04_inlet_u29_u32; }
+            Rack_B_04_inlet_u41_u44 { name Rack_B_04_inlet_u41_u44; }
+            Rack_B_05_inlet_u21_u24 { name Rack_B_05_inlet_u21_u24; }
+            Rack_B_05_inlet_u29_u32 { name Rack_B_05_inlet_u29_u32; }
+            Rack_B_05_inlet_u41_u44 { name Rack_B_05_inlet_u41_u44; }
+            Rack_B_06_inlet_u21_u24 { name Rack_B_06_inlet_u21_u24; }
+            Rack_B_06_inlet_u29_u32 { name Rack_B_06_inlet_u29_u32; }
+            Rack_B_06_inlet_u41_u44 { name Rack_B_06_inlet_u41_u44; }
+            Rack_B_07_inlet_u21_u24 { name Rack_B_07_inlet_u21_u24; }
+            Rack_B_07_inlet_u29_u32 { name Rack_B_07_inlet_u29_u32; }
+            Rack_B_07_inlet_u41_u44 { name Rack_B_07_inlet_u41_u44; }
+            Rack_B_08_inlet_u21_u24 { name Rack_B_08_inlet_u21_u24; }
+            Rack_B_08_inlet_u29_u32 { name Rack_B_08_inlet_u29_u32; }
+            Rack_B_08_inlet_u41_u44 { name Rack_B_08_inlet_u41_u44; }
+        }
+    }
+
+    merged_perforatedBlankingPanel_5U.stl
+    {
+        type triSurfaceMesh;
+        name merged_perforatedBlankingPanel_5U;
+        regions
+        {
+            Rack_A_01_inlet_u8_u12 { name Rack_A_01_inlet_u8_u12; }
+            Rack_A_02_inlet_u8_u12 { name Rack_A_02_inlet_u8_u12; }
+            Rack_A_03_inlet_u8_u12 { name Rack_A_03_inlet_u8_u12; }
+            Rack_A_04_inlet_u8_u12 { name Rack_A_04_inlet_u8_u12; }
+            Rack_A_05_inlet_u8_u12 { name Rack_A_05_inlet_u8_u12; }
+            Rack_A_06_inlet_u8_u12 { name Rack_A_06_inlet_u8_u12; }
+            Rack_B_01_inlet_u8_u12 { name Rack_B_01_inlet_u8_u12; }
+            Rack_B_02_inlet_u8_u12 { name Rack_B_02_inlet_u8_u12; }
+            Rack_B_03_inlet_u8_u12 { name Rack_B_03_inlet_u8_u12; }
+            Rack_B_04_inlet_u8_u12 { name Rack_B_04_inlet_u8_u12; }
+            Rack_B_05_inlet_u8_u12 { name Rack_B_05_inlet_u8_u12; }
+            Rack_B_06_inlet_u8_u12 { name Rack_B_06_inlet_u8_u12; }
+            Rack_B_07_inlet_u8_u12 { name Rack_B_07_inlet_u8_u12; }
+            Rack_B_08_inlet_u8_u12 { name Rack_B_08_inlet_u8_u12; }
+        }
+    }
+
+    merged_rack_frame.stl
+    {
+        type triSurfaceMesh;
+        name merged_rack_frame;
+        regions
+        {
+            Rack_A_01_frame { name Rack_A_01_frame; }
+            Rack_A_02_frame { name Rack_A_02_frame; }
+            Rack_A_03_frame { name Rack_A_03_frame; }
+            Rack_A_04_frame { name Rack_A_04_frame; }
+            Rack_A_05_frame { name Rack_A_05_frame; }
+            Rack_A_06_frame { name Rack_A_06_frame; }
+            Rack_B_01_frame { name Rack_B_01_frame; }
+            Rack_B_02_frame { name Rack_B_02_frame; }
+            Rack_B_03_frame { name Rack_B_03_frame; }
+            Rack_B_04_frame { name Rack_B_04_frame; }
+            Rack_B_05_frame { name Rack_B_05_frame; }
+            Rack_B_06_frame { name Rack_B_06_frame; }
+            Rack_B_07_frame { name Rack_B_07_frame; }
+            Rack_B_08_frame { name Rack_B_08_frame; }
+        }
+    }
+
+    merged_server_4U.stl
+    {
+        type triSurfaceMesh;
+        name merged_server_4U;
+        regions
+        {
+            Rack_A_01_Rack_A_01_server_1_front { name Rack_A_01_Rack_A_01_server_1_front; }
+            Rack_A_01_Rack_A_01_server_1_outlet_p0 { name Rack_A_01_Rack_A_01_server_1_outlet_p0; }
+            Rack_A_01_Rack_A_01_server_1_outlet_wall { name Rack_A_01_Rack_A_01_server_1_outlet_wall; }
+            Rack_A_01_Rack_A_01_server_1_top { name Rack_A_01_Rack_A_01_server_1_top; }
+            Rack_A_01_Rack_A_01_server_1_bottom { name Rack_A_01_Rack_A_01_server_1_bottom; }
+            Rack_A_01_Rack_A_01_server_3_front { name Rack_A_01_Rack_A_01_server_3_front; }
+            Rack_A_01_Rack_A_01_server_3_outlet_p0 { name Rack_A_01_Rack_A_01_server_3_outlet_p0; }
+            Rack_A_01_Rack_A_01_server_3_outlet_wall { name Rack_A_01_Rack_A_01_server_3_outlet_wall; }
+            Rack_A_01_Rack_A_01_server_3_top { name Rack_A_01_Rack_A_01_server_3_top; }
+            Rack_A_01_Rack_A_01_server_3_bottom { name Rack_A_01_Rack_A_01_server_3_bottom; }
+            Rack_A_02_Rack_A_02_server_1_front { name Rack_A_02_Rack_A_02_server_1_front; }
+            Rack_A_02_Rack_A_02_server_1_outlet_p0 { name Rack_A_02_Rack_A_02_server_1_outlet_p0; }
+            Rack_A_02_Rack_A_02_server_1_outlet_wall { name Rack_A_02_Rack_A_02_server_1_outlet_wall; }
+            Rack_A_02_Rack_A_02_server_1_top { name Rack_A_02_Rack_A_02_server_1_top; }
+            Rack_A_02_Rack_A_02_server_1_bottom { name Rack_A_02_Rack_A_02_server_1_bottom; }
+            Rack_A_02_Rack_A_02_server_3_front { name Rack_A_02_Rack_A_02_server_3_front; }
+            Rack_A_02_Rack_A_02_server_3_outlet_p0 { name Rack_A_02_Rack_A_02_server_3_outlet_p0; }
+            Rack_A_02_Rack_A_02_server_3_outlet_wall { name Rack_A_02_Rack_A_02_server_3_outlet_wall; }
+            Rack_A_02_Rack_A_02_server_3_top { name Rack_A_02_Rack_A_02_server_3_top; }
+            Rack_A_02_Rack_A_02_server_3_bottom { name Rack_A_02_Rack_A_02_server_3_bottom; }
+            Rack_A_03_Rack_A_03_server_1_front { name Rack_A_03_Rack_A_03_server_1_front; }
+            Rack_A_03_Rack_A_03_server_1_outlet_p0 { name Rack_A_03_Rack_A_03_server_1_outlet_p0; }
+            Rack_A_03_Rack_A_03_server_1_outlet_wall { name Rack_A_03_Rack_A_03_server_1_outlet_wall; }
+            Rack_A_03_Rack_A_03_server_1_top { name Rack_A_03_Rack_A_03_server_1_top; }
+            Rack_A_03_Rack_A_03_server_1_bottom { name Rack_A_03_Rack_A_03_server_1_bottom; }
+            Rack_A_03_Rack_A_03_server_3_front { name Rack_A_03_Rack_A_03_server_3_front; }
+            Rack_A_03_Rack_A_03_server_3_outlet_p0 { name Rack_A_03_Rack_A_03_server_3_outlet_p0; }
+            Rack_A_03_Rack_A_03_server_3_outlet_wall { name Rack_A_03_Rack_A_03_server_3_outlet_wall; }
+            Rack_A_03_Rack_A_03_server_3_top { name Rack_A_03_Rack_A_03_server_3_top; }
+            Rack_A_03_Rack_A_03_server_3_bottom { name Rack_A_03_Rack_A_03_server_3_bottom; }
+            Rack_A_04_Rack_A_04_server_1_front { name Rack_A_04_Rack_A_04_server_1_front; }
+            Rack_A_04_Rack_A_04_server_1_outlet_p0 { name Rack_A_04_Rack_A_04_server_1_outlet_p0; }
+            Rack_A_04_Rack_A_04_server_1_outlet_wall { name Rack_A_04_Rack_A_04_server_1_outlet_wall; }
+            Rack_A_04_Rack_A_04_server_1_top { name Rack_A_04_Rack_A_04_server_1_top; }
+            Rack_A_04_Rack_A_04_server_1_bottom { name Rack_A_04_Rack_A_04_server_1_bottom; }
+            Rack_A_04_Rack_A_04_server_3_front { name Rack_A_04_Rack_A_04_server_3_front; }
+            Rack_A_04_Rack_A_04_server_3_outlet_p0 { name Rack_A_04_Rack_A_04_server_3_outlet_p0; }
+            Rack_A_04_Rack_A_04_server_3_outlet_wall { name Rack_A_04_Rack_A_04_server_3_outlet_wall; }
+            Rack_A_04_Rack_A_04_server_3_top { name Rack_A_04_Rack_A_04_server_3_top; }
+            Rack_A_04_Rack_A_04_server_3_bottom { name Rack_A_04_Rack_A_04_server_3_bottom; }
+            Rack_A_05_Rack_A_05_server_1_front { name Rack_A_05_Rack_A_05_server_1_front; }
+            Rack_A_05_Rack_A_05_server_1_outlet_p0 { name Rack_A_05_Rack_A_05_server_1_outlet_p0; }
+            Rack_A_05_Rack_A_05_server_1_outlet_wall { name Rack_A_05_Rack_A_05_server_1_outlet_wall; }
+            Rack_A_05_Rack_A_05_server_1_top { name Rack_A_05_Rack_A_05_server_1_top; }
+            Rack_A_05_Rack_A_05_server_1_bottom { name Rack_A_05_Rack_A_05_server_1_bottom; }
+            Rack_A_05_Rack_A_05_server_3_front { name Rack_A_05_Rack_A_05_server_3_front; }
+            Rack_A_05_Rack_A_05_server_3_outlet_p0 { name Rack_A_05_Rack_A_05_server_3_outlet_p0; }
+            Rack_A_05_Rack_A_05_server_3_outlet_wall { name Rack_A_05_Rack_A_05_server_3_outlet_wall; }
+            Rack_A_05_Rack_A_05_server_3_top { name Rack_A_05_Rack_A_05_server_3_top; }
+            Rack_A_05_Rack_A_05_server_3_bottom { name Rack_A_05_Rack_A_05_server_3_bottom; }
+            Rack_A_06_Rack_A_06_server_1_front { name Rack_A_06_Rack_A_06_server_1_front; }
+            Rack_A_06_Rack_A_06_server_1_outlet_p0 { name Rack_A_06_Rack_A_06_server_1_outlet_p0; }
+            Rack_A_06_Rack_A_06_server_1_outlet_wall { name Rack_A_06_Rack_A_06_server_1_outlet_wall; }
+            Rack_A_06_Rack_A_06_server_1_top { name Rack_A_06_Rack_A_06_server_1_top; }
+            Rack_A_06_Rack_A_06_server_1_bottom { name Rack_A_06_Rack_A_06_server_1_bottom; }
+            Rack_A_06_Rack_A_06_server_3_front { name Rack_A_06_Rack_A_06_server_3_front; }
+            Rack_A_06_Rack_A_06_server_3_outlet_p0 { name Rack_A_06_Rack_A_06_server_3_outlet_p0; }
+            Rack_A_06_Rack_A_06_server_3_outlet_wall { name Rack_A_06_Rack_A_06_server_3_outlet_wall; }
+            Rack_A_06_Rack_A_06_server_3_top { name Rack_A_06_Rack_A_06_server_3_top; }
+            Rack_A_06_Rack_A_06_server_3_bottom { name Rack_A_06_Rack_A_06_server_3_bottom; }
+            Rack_B_01_Rack_B_01_server_1_front { name Rack_B_01_Rack_B_01_server_1_front; }
+            Rack_B_01_Rack_B_01_server_1_outlet_p0 { name Rack_B_01_Rack_B_01_server_1_outlet_p0; }
+            Rack_B_01_Rack_B_01_server_1_outlet_wall { name Rack_B_01_Rack_B_01_server_1_outlet_wall; }
+            Rack_B_01_Rack_B_01_server_1_top { name Rack_B_01_Rack_B_01_server_1_top; }
+            Rack_B_01_Rack_B_01_server_1_bottom { name Rack_B_01_Rack_B_01_server_1_bottom; }
+            Rack_B_01_Rack_B_01_server_3_front { name Rack_B_01_Rack_B_01_server_3_front; }
+            Rack_B_01_Rack_B_01_server_3_outlet_p0 { name Rack_B_01_Rack_B_01_server_3_outlet_p0; }
+            Rack_B_01_Rack_B_01_server_3_outlet_wall { name Rack_B_01_Rack_B_01_server_3_outlet_wall; }
+            Rack_B_01_Rack_B_01_server_3_top { name Rack_B_01_Rack_B_01_server_3_top; }
+            Rack_B_01_Rack_B_01_server_3_bottom { name Rack_B_01_Rack_B_01_server_3_bottom; }
+            Rack_B_02_Rack_B_02_server_1_front { name Rack_B_02_Rack_B_02_server_1_front; }
+            Rack_B_02_Rack_B_02_server_1_outlet_p0 { name Rack_B_02_Rack_B_02_server_1_outlet_p0; }
+            Rack_B_02_Rack_B_02_server_1_outlet_wall { name Rack_B_02_Rack_B_02_server_1_outlet_wall; }
+            Rack_B_02_Rack_B_02_server_1_top { name Rack_B_02_Rack_B_02_server_1_top; }
+            Rack_B_02_Rack_B_02_server_1_bottom { name Rack_B_02_Rack_B_02_server_1_bottom; }
+            Rack_B_02_Rack_B_02_server_3_front { name Rack_B_02_Rack_B_02_server_3_front; }
+            Rack_B_02_Rack_B_02_server_3_outlet_p0 { name Rack_B_02_Rack_B_02_server_3_outlet_p0; }
+            Rack_B_02_Rack_B_02_server_3_outlet_wall { name Rack_B_02_Rack_B_02_server_3_outlet_wall; }
+            Rack_B_02_Rack_B_02_server_3_top { name Rack_B_02_Rack_B_02_server_3_top; }
+            Rack_B_02_Rack_B_02_server_3_bottom { name Rack_B_02_Rack_B_02_server_3_bottom; }
+            Rack_B_03_Rack_B_03_server_1_front { name Rack_B_03_Rack_B_03_server_1_front; }
+            Rack_B_03_Rack_B_03_server_1_outlet_p0 { name Rack_B_03_Rack_B_03_server_1_outlet_p0; }
+            Rack_B_03_Rack_B_03_server_1_outlet_wall { name Rack_B_03_Rack_B_03_server_1_outlet_wall; }
+            Rack_B_03_Rack_B_03_server_1_top { name Rack_B_03_Rack_B_03_server_1_top; }
+            Rack_B_03_Rack_B_03_server_1_bottom { name Rack_B_03_Rack_B_03_server_1_bottom; }
+            Rack_B_03_Rack_B_03_server_3_front { name Rack_B_03_Rack_B_03_server_3_front; }
+            Rack_B_03_Rack_B_03_server_3_outlet_p0 { name Rack_B_03_Rack_B_03_server_3_outlet_p0; }
+            Rack_B_03_Rack_B_03_server_3_outlet_wall { name Rack_B_03_Rack_B_03_server_3_outlet_wall; }
+            Rack_B_03_Rack_B_03_server_3_top { name Rack_B_03_Rack_B_03_server_3_top; }
+            Rack_B_03_Rack_B_03_server_3_bottom { name Rack_B_03_Rack_B_03_server_3_bottom; }
+            Rack_B_04_Rack_B_04_server_1_front { name Rack_B_04_Rack_B_04_server_1_front; }
+            Rack_B_04_Rack_B_04_server_1_outlet_p0 { name Rack_B_04_Rack_B_04_server_1_outlet_p0; }
+            Rack_B_04_Rack_B_04_server_1_outlet_wall { name Rack_B_04_Rack_B_04_server_1_outlet_wall; }
+            Rack_B_04_Rack_B_04_server_1_top { name Rack_B_04_Rack_B_04_server_1_top; }
+            Rack_B_04_Rack_B_04_server_1_bottom { name Rack_B_04_Rack_B_04_server_1_bottom; }
+            Rack_B_04_Rack_B_04_server_3_front { name Rack_B_04_Rack_B_04_server_3_front; }
+            Rack_B_04_Rack_B_04_server_3_outlet_p0 { name Rack_B_04_Rack_B_04_server_3_outlet_p0; }
+            Rack_B_04_Rack_B_04_server_3_outlet_wall { name Rack_B_04_Rack_B_04_server_3_outlet_wall; }
+            Rack_B_04_Rack_B_04_server_3_top { name Rack_B_04_Rack_B_04_server_3_top; }
+            Rack_B_04_Rack_B_04_server_3_bottom { name Rack_B_04_Rack_B_04_server_3_bottom; }
+            Rack_B_05_Rack_B_05_server_1_front { name Rack_B_05_Rack_B_05_server_1_front; }
+            Rack_B_05_Rack_B_05_server_1_outlet_p0 { name Rack_B_05_Rack_B_05_server_1_outlet_p0; }
+            Rack_B_05_Rack_B_05_server_1_outlet_wall { name Rack_B_05_Rack_B_05_server_1_outlet_wall; }
+            Rack_B_05_Rack_B_05_server_1_top { name Rack_B_05_Rack_B_05_server_1_top; }
+            Rack_B_05_Rack_B_05_server_1_bottom { name Rack_B_05_Rack_B_05_server_1_bottom; }
+            Rack_B_05_Rack_B_05_server_3_front { name Rack_B_05_Rack_B_05_server_3_front; }
+            Rack_B_05_Rack_B_05_server_3_outlet_p0 { name Rack_B_05_Rack_B_05_server_3_outlet_p0; }
+            Rack_B_05_Rack_B_05_server_3_outlet_wall { name Rack_B_05_Rack_B_05_server_3_outlet_wall; }
+            Rack_B_05_Rack_B_05_server_3_top { name Rack_B_05_Rack_B_05_server_3_top; }
+            Rack_B_05_Rack_B_05_server_3_bottom { name Rack_B_05_Rack_B_05_server_3_bottom; }
+            Rack_B_06_Rack_B_06_server_1_front { name Rack_B_06_Rack_B_06_server_1_front; }
+            Rack_B_06_Rack_B_06_server_1_outlet_p0 { name Rack_B_06_Rack_B_06_server_1_outlet_p0; }
+            Rack_B_06_Rack_B_06_server_1_outlet_wall { name Rack_B_06_Rack_B_06_server_1_outlet_wall; }
+            Rack_B_06_Rack_B_06_server_1_top { name Rack_B_06_Rack_B_06_server_1_top; }
+            Rack_B_06_Rack_B_06_server_1_bottom { name Rack_B_06_Rack_B_06_server_1_bottom; }
+            Rack_B_06_Rack_B_06_server_3_front { name Rack_B_06_Rack_B_06_server_3_front; }
+            Rack_B_06_Rack_B_06_server_3_outlet_p0 { name Rack_B_06_Rack_B_06_server_3_outlet_p0; }
+            Rack_B_06_Rack_B_06_server_3_outlet_wall { name Rack_B_06_Rack_B_06_server_3_outlet_wall; }
+            Rack_B_06_Rack_B_06_server_3_top { name Rack_B_06_Rack_B_06_server_3_top; }
+            Rack_B_06_Rack_B_06_server_3_bottom { name Rack_B_06_Rack_B_06_server_3_bottom; }
+            Rack_B_07_Rack_B_07_server_1_front { name Rack_B_07_Rack_B_07_server_1_front; }
+            Rack_B_07_Rack_B_07_server_1_outlet_p0 { name Rack_B_07_Rack_B_07_server_1_outlet_p0; }
+            Rack_B_07_Rack_B_07_server_1_outlet_wall { name Rack_B_07_Rack_B_07_server_1_outlet_wall; }
+            Rack_B_07_Rack_B_07_server_1_top { name Rack_B_07_Rack_B_07_server_1_top; }
+            Rack_B_07_Rack_B_07_server_1_bottom { name Rack_B_07_Rack_B_07_server_1_bottom; }
+            Rack_B_07_Rack_B_07_server_3_front { name Rack_B_07_Rack_B_07_server_3_front; }
+            Rack_B_07_Rack_B_07_server_3_outlet_p0 { name Rack_B_07_Rack_B_07_server_3_outlet_p0; }
+            Rack_B_07_Rack_B_07_server_3_outlet_wall { name Rack_B_07_Rack_B_07_server_3_outlet_wall; }
+            Rack_B_07_Rack_B_07_server_3_top { name Rack_B_07_Rack_B_07_server_3_top; }
+            Rack_B_07_Rack_B_07_server_3_bottom { name Rack_B_07_Rack_B_07_server_3_bottom; }
+            Rack_B_08_Rack_B_08_server_1_front { name Rack_B_08_Rack_B_08_server_1_front; }
+            Rack_B_08_Rack_B_08_server_1_outlet_p0 { name Rack_B_08_Rack_B_08_server_1_outlet_p0; }
+            Rack_B_08_Rack_B_08_server_1_outlet_wall { name Rack_B_08_Rack_B_08_server_1_outlet_wall; }
+            Rack_B_08_Rack_B_08_server_1_top { name Rack_B_08_Rack_B_08_server_1_top; }
+            Rack_B_08_Rack_B_08_server_1_bottom { name Rack_B_08_Rack_B_08_server_1_bottom; }
+            Rack_B_08_Rack_B_08_server_3_front { name Rack_B_08_Rack_B_08_server_3_front; }
+            Rack_B_08_Rack_B_08_server_3_outlet_p0 { name Rack_B_08_Rack_B_08_server_3_outlet_p0; }
+            Rack_B_08_Rack_B_08_server_3_outlet_wall { name Rack_B_08_Rack_B_08_server_3_outlet_wall; }
+            Rack_B_08_Rack_B_08_server_3_top { name Rack_B_08_Rack_B_08_server_3_top; }
+            Rack_B_08_Rack_B_08_server_3_bottom { name Rack_B_08_Rack_B_08_server_3_bottom; }
+        }
+    }
+
+    merged_server_8U.stl
+    {
+        type triSurfaceMesh;
+        name merged_server_8U;
+        regions
+        {
+            Rack_A_01_Rack_A_01_server_2_front { name Rack_A_01_Rack_A_01_server_2_front; }
+            Rack_A_01_Rack_A_01_server_2_outlet_p0 { name Rack_A_01_Rack_A_01_server_2_outlet_p0; }
+            Rack_A_01_Rack_A_01_server_2_outlet_wall { name Rack_A_01_Rack_A_01_server_2_outlet_wall; }
+            Rack_A_01_Rack_A_01_server_2_top { name Rack_A_01_Rack_A_01_server_2_top; }
+            Rack_A_01_Rack_A_01_server_2_bottom { name Rack_A_01_Rack_A_01_server_2_bottom; }
+            Rack_A_01_Rack_A_01_server_4_front { name Rack_A_01_Rack_A_01_server_4_front; }
+            Rack_A_01_Rack_A_01_server_4_outlet_p0 { name Rack_A_01_Rack_A_01_server_4_outlet_p0; }
+            Rack_A_01_Rack_A_01_server_4_outlet_wall { name Rack_A_01_Rack_A_01_server_4_outlet_wall; }
+            Rack_A_01_Rack_A_01_server_4_top { name Rack_A_01_Rack_A_01_server_4_top; }
+            Rack_A_01_Rack_A_01_server_4_bottom { name Rack_A_01_Rack_A_01_server_4_bottom; }
+            Rack_A_02_Rack_A_02_server_2_front { name Rack_A_02_Rack_A_02_server_2_front; }
+            Rack_A_02_Rack_A_02_server_2_outlet_p0 { name Rack_A_02_Rack_A_02_server_2_outlet_p0; }
+            Rack_A_02_Rack_A_02_server_2_outlet_wall { name Rack_A_02_Rack_A_02_server_2_outlet_wall; }
+            Rack_A_02_Rack_A_02_server_2_top { name Rack_A_02_Rack_A_02_server_2_top; }
+            Rack_A_02_Rack_A_02_server_2_bottom { name Rack_A_02_Rack_A_02_server_2_bottom; }
+            Rack_A_02_Rack_A_02_server_4_front { name Rack_A_02_Rack_A_02_server_4_front; }
+            Rack_A_02_Rack_A_02_server_4_outlet_p0 { name Rack_A_02_Rack_A_02_server_4_outlet_p0; }
+            Rack_A_02_Rack_A_02_server_4_outlet_wall { name Rack_A_02_Rack_A_02_server_4_outlet_wall; }
+            Rack_A_02_Rack_A_02_server_4_top { name Rack_A_02_Rack_A_02_server_4_top; }
+            Rack_A_02_Rack_A_02_server_4_bottom { name Rack_A_02_Rack_A_02_server_4_bottom; }
+            Rack_A_03_Rack_A_03_server_2_front { name Rack_A_03_Rack_A_03_server_2_front; }
+            Rack_A_03_Rack_A_03_server_2_outlet_p0 { name Rack_A_03_Rack_A_03_server_2_outlet_p0; }
+            Rack_A_03_Rack_A_03_server_2_outlet_wall { name Rack_A_03_Rack_A_03_server_2_outlet_wall; }
+            Rack_A_03_Rack_A_03_server_2_top { name Rack_A_03_Rack_A_03_server_2_top; }
+            Rack_A_03_Rack_A_03_server_2_bottom { name Rack_A_03_Rack_A_03_server_2_bottom; }
+            Rack_A_03_Rack_A_03_server_4_front { name Rack_A_03_Rack_A_03_server_4_front; }
+            Rack_A_03_Rack_A_03_server_4_outlet_p0 { name Rack_A_03_Rack_A_03_server_4_outlet_p0; }
+            Rack_A_03_Rack_A_03_server_4_outlet_wall { name Rack_A_03_Rack_A_03_server_4_outlet_wall; }
+            Rack_A_03_Rack_A_03_server_4_top { name Rack_A_03_Rack_A_03_server_4_top; }
+            Rack_A_03_Rack_A_03_server_4_bottom { name Rack_A_03_Rack_A_03_server_4_bottom; }
+            Rack_A_04_Rack_A_04_server_2_front { name Rack_A_04_Rack_A_04_server_2_front; }
+            Rack_A_04_Rack_A_04_server_2_outlet_p0 { name Rack_A_04_Rack_A_04_server_2_outlet_p0; }
+            Rack_A_04_Rack_A_04_server_2_outlet_wall { name Rack_A_04_Rack_A_04_server_2_outlet_wall; }
+            Rack_A_04_Rack_A_04_server_2_top { name Rack_A_04_Rack_A_04_server_2_top; }
+            Rack_A_04_Rack_A_04_server_2_bottom { name Rack_A_04_Rack_A_04_server_2_bottom; }
+            Rack_A_04_Rack_A_04_server_4_front { name Rack_A_04_Rack_A_04_server_4_front; }
+            Rack_A_04_Rack_A_04_server_4_outlet_p0 { name Rack_A_04_Rack_A_04_server_4_outlet_p0; }
+            Rack_A_04_Rack_A_04_server_4_outlet_wall { name Rack_A_04_Rack_A_04_server_4_outlet_wall; }
+            Rack_A_04_Rack_A_04_server_4_top { name Rack_A_04_Rack_A_04_server_4_top; }
+            Rack_A_04_Rack_A_04_server_4_bottom { name Rack_A_04_Rack_A_04_server_4_bottom; }
+            Rack_A_05_Rack_A_05_server_2_front { name Rack_A_05_Rack_A_05_server_2_front; }
+            Rack_A_05_Rack_A_05_server_2_outlet_p0 { name Rack_A_05_Rack_A_05_server_2_outlet_p0; }
+            Rack_A_05_Rack_A_05_server_2_outlet_wall { name Rack_A_05_Rack_A_05_server_2_outlet_wall; }
+            Rack_A_05_Rack_A_05_server_2_top { name Rack_A_05_Rack_A_05_server_2_top; }
+            Rack_A_05_Rack_A_05_server_2_bottom { name Rack_A_05_Rack_A_05_server_2_bottom; }
+            Rack_A_05_Rack_A_05_server_4_front { name Rack_A_05_Rack_A_05_server_4_front; }
+            Rack_A_05_Rack_A_05_server_4_outlet_p0 { name Rack_A_05_Rack_A_05_server_4_outlet_p0; }
+            Rack_A_05_Rack_A_05_server_4_outlet_wall { name Rack_A_05_Rack_A_05_server_4_outlet_wall; }
+            Rack_A_05_Rack_A_05_server_4_top { name Rack_A_05_Rack_A_05_server_4_top; }
+            Rack_A_05_Rack_A_05_server_4_bottom { name Rack_A_05_Rack_A_05_server_4_bottom; }
+            Rack_A_06_Rack_A_06_server_2_front { name Rack_A_06_Rack_A_06_server_2_front; }
+            Rack_A_06_Rack_A_06_server_2_outlet_p0 { name Rack_A_06_Rack_A_06_server_2_outlet_p0; }
+            Rack_A_06_Rack_A_06_server_2_outlet_wall { name Rack_A_06_Rack_A_06_server_2_outlet_wall; }
+            Rack_A_06_Rack_A_06_server_2_top { name Rack_A_06_Rack_A_06_server_2_top; }
+            Rack_A_06_Rack_A_06_server_2_bottom { name Rack_A_06_Rack_A_06_server_2_bottom; }
+            Rack_A_06_Rack_A_06_server_4_front { name Rack_A_06_Rack_A_06_server_4_front; }
+            Rack_A_06_Rack_A_06_server_4_outlet_p0 { name Rack_A_06_Rack_A_06_server_4_outlet_p0; }
+            Rack_A_06_Rack_A_06_server_4_outlet_wall { name Rack_A_06_Rack_A_06_server_4_outlet_wall; }
+            Rack_A_06_Rack_A_06_server_4_top { name Rack_A_06_Rack_A_06_server_4_top; }
+            Rack_A_06_Rack_A_06_server_4_bottom { name Rack_A_06_Rack_A_06_server_4_bottom; }
+            Rack_B_01_Rack_B_01_server_2_front { name Rack_B_01_Rack_B_01_server_2_front; }
+            Rack_B_01_Rack_B_01_server_2_outlet_p0 { name Rack_B_01_Rack_B_01_server_2_outlet_p0; }
+            Rack_B_01_Rack_B_01_server_2_outlet_wall { name Rack_B_01_Rack_B_01_server_2_outlet_wall; }
+            Rack_B_01_Rack_B_01_server_2_top { name Rack_B_01_Rack_B_01_server_2_top; }
+            Rack_B_01_Rack_B_01_server_2_bottom { name Rack_B_01_Rack_B_01_server_2_bottom; }
+            Rack_B_01_Rack_A_01_server_4_front { name Rack_B_01_Rack_A_01_server_4_front; }
+            Rack_B_01_Rack_A_01_server_4_outlet_p0 { name Rack_B_01_Rack_A_01_server_4_outlet_p0; }
+            Rack_B_01_Rack_A_01_server_4_outlet_wall { name Rack_B_01_Rack_A_01_server_4_outlet_wall; }
+            Rack_B_01_Rack_A_01_server_4_top { name Rack_B_01_Rack_A_01_server_4_top; }
+            Rack_B_01_Rack_A_01_server_4_bottom { name Rack_B_01_Rack_A_01_server_4_bottom; }
+            Rack_B_02_Rack_B_02_server_2_front { name Rack_B_02_Rack_B_02_server_2_front; }
+            Rack_B_02_Rack_B_02_server_2_outlet_p0 { name Rack_B_02_Rack_B_02_server_2_outlet_p0; }
+            Rack_B_02_Rack_B_02_server_2_outlet_wall { name Rack_B_02_Rack_B_02_server_2_outlet_wall; }
+            Rack_B_02_Rack_B_02_server_2_top { name Rack_B_02_Rack_B_02_server_2_top; }
+            Rack_B_02_Rack_B_02_server_2_bottom { name Rack_B_02_Rack_B_02_server_2_bottom; }
+            Rack_B_02_Rack_B_02_server_4_front { name Rack_B_02_Rack_B_02_server_4_front; }
+            Rack_B_02_Rack_B_02_server_4_outlet_p0 { name Rack_B_02_Rack_B_02_server_4_outlet_p0; }
+            Rack_B_02_Rack_B_02_server_4_outlet_wall { name Rack_B_02_Rack_B_02_server_4_outlet_wall; }
+            Rack_B_02_Rack_B_02_server_4_top { name Rack_B_02_Rack_B_02_server_4_top; }
+            Rack_B_02_Rack_B_02_server_4_bottom { name Rack_B_02_Rack_B_02_server_4_bottom; }
+            Rack_B_03_Rack_B_03_server_2_front { name Rack_B_03_Rack_B_03_server_2_front; }
+            Rack_B_03_Rack_B_03_server_2_outlet_p0 { name Rack_B_03_Rack_B_03_server_2_outlet_p0; }
+            Rack_B_03_Rack_B_03_server_2_outlet_wall { name Rack_B_03_Rack_B_03_server_2_outlet_wall; }
+            Rack_B_03_Rack_B_03_server_2_top { name Rack_B_03_Rack_B_03_server_2_top; }
+            Rack_B_03_Rack_B_03_server_2_bottom { name Rack_B_03_Rack_B_03_server_2_bottom; }
+            Rack_B_03_Rack_B_03_server_4_front { name Rack_B_03_Rack_B_03_server_4_front; }
+            Rack_B_03_Rack_B_03_server_4_outlet_p0 { name Rack_B_03_Rack_B_03_server_4_outlet_p0; }
+            Rack_B_03_Rack_B_03_server_4_outlet_wall { name Rack_B_03_Rack_B_03_server_4_outlet_wall; }
+            Rack_B_03_Rack_B_03_server_4_top { name Rack_B_03_Rack_B_03_server_4_top; }
+            Rack_B_03_Rack_B_03_server_4_bottom { name Rack_B_03_Rack_B_03_server_4_bottom; }
+            Rack_B_04_Rack_B_04_server_2_front { name Rack_B_04_Rack_B_04_server_2_front; }
+            Rack_B_04_Rack_B_04_server_2_outlet_p0 { name Rack_B_04_Rack_B_04_server_2_outlet_p0; }
+            Rack_B_04_Rack_B_04_server_2_outlet_wall { name Rack_B_04_Rack_B_04_server_2_outlet_wall; }
+            Rack_B_04_Rack_B_04_server_2_top { name Rack_B_04_Rack_B_04_server_2_top; }
+            Rack_B_04_Rack_B_04_server_2_bottom { name Rack_B_04_Rack_B_04_server_2_bottom; }
+            Rack_B_04_Rack_B_04_server_4_front { name Rack_B_04_Rack_B_04_server_4_front; }
+            Rack_B_04_Rack_B_04_server_4_outlet_p0 { name Rack_B_04_Rack_B_04_server_4_outlet_p0; }
+            Rack_B_04_Rack_B_04_server_4_outlet_wall { name Rack_B_04_Rack_B_04_server_4_outlet_wall; }
+            Rack_B_04_Rack_B_04_server_4_top { name Rack_B_04_Rack_B_04_server_4_top; }
+            Rack_B_04_Rack_B_04_server_4_bottom { name Rack_B_04_Rack_B_04_server_4_bottom; }
+            Rack_B_05_Rack_B_05_server_2_front { name Rack_B_05_Rack_B_05_server_2_front; }
+            Rack_B_05_Rack_B_05_server_2_outlet_p0 { name Rack_B_05_Rack_B_05_server_2_outlet_p0; }
+            Rack_B_05_Rack_B_05_server_2_outlet_wall { name Rack_B_05_Rack_B_05_server_2_outlet_wall; }
+            Rack_B_05_Rack_B_05_server_2_top { name Rack_B_05_Rack_B_05_server_2_top; }
+            Rack_B_05_Rack_B_05_server_2_bottom { name Rack_B_05_Rack_B_05_server_2_bottom; }
+            Rack_B_05_Rack_B_05_server_4_front { name Rack_B_05_Rack_B_05_server_4_front; }
+            Rack_B_05_Rack_B_05_server_4_outlet_p0 { name Rack_B_05_Rack_B_05_server_4_outlet_p0; }
+            Rack_B_05_Rack_B_05_server_4_outlet_wall { name Rack_B_05_Rack_B_05_server_4_outlet_wall; }
+            Rack_B_05_Rack_B_05_server_4_top { name Rack_B_05_Rack_B_05_server_4_top; }
+            Rack_B_05_Rack_B_05_server_4_bottom { name Rack_B_05_Rack_B_05_server_4_bottom; }
+            Rack_B_06_Rack_B_06_server_2_front { name Rack_B_06_Rack_B_06_server_2_front; }
+            Rack_B_06_Rack_B_06_server_2_outlet_p0 { name Rack_B_06_Rack_B_06_server_2_outlet_p0; }
+            Rack_B_06_Rack_B_06_server_2_outlet_wall { name Rack_B_06_Rack_B_06_server_2_outlet_wall; }
+            Rack_B_06_Rack_B_06_server_2_top { name Rack_B_06_Rack_B_06_server_2_top; }
+            Rack_B_06_Rack_B_06_server_2_bottom { name Rack_B_06_Rack_B_06_server_2_bottom; }
+            Rack_B_06_Rack_B_06_server_4_front { name Rack_B_06_Rack_B_06_server_4_front; }
+            Rack_B_06_Rack_B_06_server_4_outlet_p0 { name Rack_B_06_Rack_B_06_server_4_outlet_p0; }
+            Rack_B_06_Rack_B_06_server_4_outlet_wall { name Rack_B_06_Rack_B_06_server_4_outlet_wall; }
+            Rack_B_06_Rack_B_06_server_4_top { name Rack_B_06_Rack_B_06_server_4_top; }
+            Rack_B_06_Rack_B_06_server_4_bottom { name Rack_B_06_Rack_B_06_server_4_bottom; }
+            Rack_B_07_Rack_B_07_server_2_front { name Rack_B_07_Rack_B_07_server_2_front; }
+            Rack_B_07_Rack_B_07_server_2_outlet_p0 { name Rack_B_07_Rack_B_07_server_2_outlet_p0; }
+            Rack_B_07_Rack_B_07_server_2_outlet_wall { name Rack_B_07_Rack_B_07_server_2_outlet_wall; }
+            Rack_B_07_Rack_B_07_server_2_top { name Rack_B_07_Rack_B_07_server_2_top; }
+            Rack_B_07_Rack_B_07_server_2_bottom { name Rack_B_07_Rack_B_07_server_2_bottom; }
+            Rack_B_07_Rack_B_07_server_4_front { name Rack_B_07_Rack_B_07_server_4_front; }
+            Rack_B_07_Rack_B_07_server_4_outlet_p0 { name Rack_B_07_Rack_B_07_server_4_outlet_p0; }
+            Rack_B_07_Rack_B_07_server_4_outlet_wall { name Rack_B_07_Rack_B_07_server_4_outlet_wall; }
+            Rack_B_07_Rack_B_07_server_4_top { name Rack_B_07_Rack_B_07_server_4_top; }
+            Rack_B_07_Rack_B_07_server_4_bottom { name Rack_B_07_Rack_B_07_server_4_bottom; }
+            Rack_B_08_Rack_B_08_server_2_front { name Rack_B_08_Rack_B_08_server_2_front; }
+            Rack_B_08_Rack_B_08_server_2_outlet_p0 { name Rack_B_08_Rack_B_08_server_2_outlet_p0; }
+            Rack_B_08_Rack_B_08_server_2_outlet_wall { name Rack_B_08_Rack_B_08_server_2_outlet_wall; }
+            Rack_B_08_Rack_B_08_server_2_top { name Rack_B_08_Rack_B_08_server_2_top; }
+            Rack_B_08_Rack_B_08_server_2_bottom { name Rack_B_08_Rack_B_08_server_2_bottom; }
+            Rack_B_08_Rack_B_08_server_4_front { name Rack_B_08_Rack_B_08_server_4_front; }
+            Rack_B_08_Rack_B_08_server_4_outlet_p0 { name Rack_B_08_Rack_B_08_server_4_outlet_p0; }
+            Rack_B_08_Rack_B_08_server_4_outlet_wall { name Rack_B_08_Rack_B_08_server_4_outlet_wall; }
+            Rack_B_08_Rack_B_08_server_4_top { name Rack_B_08_Rack_B_08_server_4_top; }
+            Rack_B_08_Rack_B_08_server_4_bottom { name Rack_B_08_Rack_B_08_server_4_bottom; }
+        }
+    }
+
+    merged_wall_baffle.stl
+    {
+        type triSurfaceMesh;
+        name merged_wall_baffle;
+    }
+
+    room_wall.stl
+    {
+        type triSurfaceMesh;
+        name room_wall;
+        regions
+        {
+            Room_Wall_1 { name Room_Wall_1; }
+            Room_Wall_2 { name Room_Wall_2; }
+            Room_Wall_3 { name Room_Wall_3; }
+            Room_Wall_4 { name Room_Wall_4; }
+        }
+    }
+
+    wallBaffle_floor_Raised_Floor.stl
+    {
+        type triSurfaceMesh;
+        name wallBaffle_floor_Raised_Floor;
+        regions
+        {
+            Raised_Floor { name Raised_Floor; }
+        }
+    }
+
+    rackRegion_Rack_A_01
+    {
+        type searchableRotatedBox;
+        origin (1.490737 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_A_02
+    {
+        type searchableRotatedBox;
+        origin (2.690738 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_A_03
+    {
+        type searchableRotatedBox;
+        origin (3.290738 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_A_04
+    {
+        type searchableRotatedBox;
+        origin (3.890738 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_A_05
+    {
+        type searchableRotatedBox;
+        origin (5.090738 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_A_06
+    {
+        type searchableRotatedBox;
+        origin (5.690738 0.800000 4.019872);
+        e1 (1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (0.000000 0.000000 1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_01
+    {
+        type searchableRotatedBox;
+        origin (2.090737 0.800000 2.815872);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_02
+    {
+        type searchableRotatedBox;
+        origin (2.690737 0.800000 2.815872);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_03
+    {
+        type searchableRotatedBox;
+        origin (3.290738 0.800000 2.815872);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_04
+    {
+        type searchableRotatedBox;
+        origin (4.490738 0.800000 2.816900);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_05
+    {
+        type searchableRotatedBox;
+        origin (5.090738 0.800000 2.816900);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_06
+    {
+        type searchableRotatedBox;
+        origin (5.690738 0.800000 2.816900);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_07
+    {
+        type searchableRotatedBox;
+        origin (6.890738 0.800000 2.816872);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+
+    rackRegion_Rack_B_08
+    {
+        type searchableRotatedBox;
+        origin (7.490738 0.800000 2.817872);
+        e1 (-1.000000 0.000000 0.000000);
+        e2 (0.000000 1.000000 0.000000);
+        e3 (-0.000000 0.000000 -1.000000);
+        span (0.600000 2.047000 1.200000);
+    }
+}
+
+dcdtuniSourceSurfaces
+{
+    merged_perforatedBlankingPanel_3U.stl
+    {
+        Rack_A_01_inlet_u1_u3
+        {
+            sourceObjectUid "m_1";
+            sourceFaceUid "proj_Shinaide/m_1/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_02_inlet_u1_u3
+        {
+            sourceObjectUid "m_3";
+            sourceFaceUid "proj_Shinaide/m_3/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_03_inlet_u1_u3
+        {
+            sourceObjectUid "m_4";
+            sourceFaceUid "proj_Shinaide/m_4/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_04_inlet_u1_u3
+        {
+            sourceObjectUid "m_5";
+            sourceFaceUid "proj_Shinaide/m_5/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_05_inlet_u1_u3
+        {
+            sourceObjectUid "m_7";
+            sourceFaceUid "proj_Shinaide/m_7/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_06_inlet_u1_u3
+        {
+            sourceObjectUid "m_17";
+            sourceFaceUid "proj_Shinaide/m_17/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_01_inlet_u1_u3
+        {
+            sourceObjectUid "m_10";
+            sourceFaceUid "proj_Shinaide/m_10/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_02_inlet_u1_u3
+        {
+            sourceObjectUid "m_11";
+            sourceFaceUid "proj_Shinaide/m_11/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_03_inlet_u1_u3
+        {
+            sourceObjectUid "m_12";
+            sourceFaceUid "proj_Shinaide/m_12/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_04_inlet_u1_u3
+        {
+            sourceObjectUid "m_13";
+            sourceFaceUid "proj_Shinaide/m_13/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_05_inlet_u1_u3
+        {
+            sourceObjectUid "m_15";
+            sourceFaceUid "proj_Shinaide/m_15/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_06_inlet_u1_u3
+        {
+            sourceObjectUid "m_16";
+            sourceFaceUid "proj_Shinaide/m_16/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_07_inlet_u1_u3
+        {
+            sourceObjectUid "m_19";
+            sourceFaceUid "proj_Shinaide/m_19/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_08_inlet_u1_u3
+        {
+            sourceObjectUid "m_20";
+            sourceFaceUid "proj_Shinaide/m_20/blanking/front/u1-u3/source-sheet";
+            representation zeroThicknessSheet;
+        }
+    }
+    merged_perforatedBlankingPanel_4U.stl
+    {
+        Rack_A_01_inlet_u21_u24
+        {
+            sourceObjectUid "m_1";
+            sourceFaceUid "proj_Shinaide/m_1/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_01_inlet_u29_u32
+        {
+            sourceObjectUid "m_1";
+            sourceFaceUid "proj_Shinaide/m_1/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_01_inlet_u41_u44
+        {
+            sourceObjectUid "m_1";
+            sourceFaceUid "proj_Shinaide/m_1/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_02_inlet_u21_u24
+        {
+            sourceObjectUid "m_3";
+            sourceFaceUid "proj_Shinaide/m_3/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_02_inlet_u29_u32
+        {
+            sourceObjectUid "m_3";
+            sourceFaceUid "proj_Shinaide/m_3/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_02_inlet_u41_u44
+        {
+            sourceObjectUid "m_3";
+            sourceFaceUid "proj_Shinaide/m_3/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_03_inlet_u21_u24
+        {
+            sourceObjectUid "m_4";
+            sourceFaceUid "proj_Shinaide/m_4/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_03_inlet_u29_u32
+        {
+            sourceObjectUid "m_4";
+            sourceFaceUid "proj_Shinaide/m_4/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_03_inlet_u41_u44
+        {
+            sourceObjectUid "m_4";
+            sourceFaceUid "proj_Shinaide/m_4/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_04_inlet_u21_u24
+        {
+            sourceObjectUid "m_5";
+            sourceFaceUid "proj_Shinaide/m_5/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_04_inlet_u29_u32
+        {
+            sourceObjectUid "m_5";
+            sourceFaceUid "proj_Shinaide/m_5/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_04_inlet_u41_u44
+        {
+            sourceObjectUid "m_5";
+            sourceFaceUid "proj_Shinaide/m_5/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_05_inlet_u21_u24
+        {
+            sourceObjectUid "m_7";
+            sourceFaceUid "proj_Shinaide/m_7/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_05_inlet_u29_u32
+        {
+            sourceObjectUid "m_7";
+            sourceFaceUid "proj_Shinaide/m_7/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_05_inlet_u41_u44
+        {
+            sourceObjectUid "m_7";
+            sourceFaceUid "proj_Shinaide/m_7/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_06_inlet_u21_u24
+        {
+            sourceObjectUid "m_17";
+            sourceFaceUid "proj_Shinaide/m_17/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_06_inlet_u29_u32
+        {
+            sourceObjectUid "m_17";
+            sourceFaceUid "proj_Shinaide/m_17/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_06_inlet_u41_u44
+        {
+            sourceObjectUid "m_17";
+            sourceFaceUid "proj_Shinaide/m_17/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_01_inlet_u21_u24
+        {
+            sourceObjectUid "m_10";
+            sourceFaceUid "proj_Shinaide/m_10/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_01_inlet_u29_u32
+        {
+            sourceObjectUid "m_10";
+            sourceFaceUid "proj_Shinaide/m_10/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_01_inlet_u41_u44
+        {
+            sourceObjectUid "m_10";
+            sourceFaceUid "proj_Shinaide/m_10/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_02_inlet_u21_u24
+        {
+            sourceObjectUid "m_11";
+            sourceFaceUid "proj_Shinaide/m_11/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_02_inlet_u29_u32
+        {
+            sourceObjectUid "m_11";
+            sourceFaceUid "proj_Shinaide/m_11/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_02_inlet_u41_u44
+        {
+            sourceObjectUid "m_11";
+            sourceFaceUid "proj_Shinaide/m_11/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_03_inlet_u21_u24
+        {
+            sourceObjectUid "m_12";
+            sourceFaceUid "proj_Shinaide/m_12/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_03_inlet_u29_u32
+        {
+            sourceObjectUid "m_12";
+            sourceFaceUid "proj_Shinaide/m_12/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_03_inlet_u41_u44
+        {
+            sourceObjectUid "m_12";
+            sourceFaceUid "proj_Shinaide/m_12/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_04_inlet_u21_u24
+        {
+            sourceObjectUid "m_13";
+            sourceFaceUid "proj_Shinaide/m_13/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_04_inlet_u29_u32
+        {
+            sourceObjectUid "m_13";
+            sourceFaceUid "proj_Shinaide/m_13/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_04_inlet_u41_u44
+        {
+            sourceObjectUid "m_13";
+            sourceFaceUid "proj_Shinaide/m_13/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_05_inlet_u21_u24
+        {
+            sourceObjectUid "m_15";
+            sourceFaceUid "proj_Shinaide/m_15/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_05_inlet_u29_u32
+        {
+            sourceObjectUid "m_15";
+            sourceFaceUid "proj_Shinaide/m_15/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_05_inlet_u41_u44
+        {
+            sourceObjectUid "m_15";
+            sourceFaceUid "proj_Shinaide/m_15/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_06_inlet_u21_u24
+        {
+            sourceObjectUid "m_16";
+            sourceFaceUid "proj_Shinaide/m_16/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_06_inlet_u29_u32
+        {
+            sourceObjectUid "m_16";
+            sourceFaceUid "proj_Shinaide/m_16/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_06_inlet_u41_u44
+        {
+            sourceObjectUid "m_16";
+            sourceFaceUid "proj_Shinaide/m_16/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_07_inlet_u21_u24
+        {
+            sourceObjectUid "m_19";
+            sourceFaceUid "proj_Shinaide/m_19/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_07_inlet_u29_u32
+        {
+            sourceObjectUid "m_19";
+            sourceFaceUid "proj_Shinaide/m_19/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_07_inlet_u41_u44
+        {
+            sourceObjectUid "m_19";
+            sourceFaceUid "proj_Shinaide/m_19/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_08_inlet_u21_u24
+        {
+            sourceObjectUid "m_20";
+            sourceFaceUid "proj_Shinaide/m_20/blanking/front/u21-u24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_08_inlet_u29_u32
+        {
+            sourceObjectUid "m_20";
+            sourceFaceUid "proj_Shinaide/m_20/blanking/front/u29-u32/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_08_inlet_u41_u44
+        {
+            sourceObjectUid "m_20";
+            sourceFaceUid "proj_Shinaide/m_20/blanking/front/u41-u44/source-sheet";
+            representation zeroThicknessSheet;
+        }
+    }
+    merged_perforatedBlankingPanel_5U.stl
+    {
+        Rack_A_01_inlet_u8_u12
+        {
+            sourceObjectUid "m_1";
+            sourceFaceUid "proj_Shinaide/m_1/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_02_inlet_u8_u12
+        {
+            sourceObjectUid "m_3";
+            sourceFaceUid "proj_Shinaide/m_3/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_03_inlet_u8_u12
+        {
+            sourceObjectUid "m_4";
+            sourceFaceUid "proj_Shinaide/m_4/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_04_inlet_u8_u12
+        {
+            sourceObjectUid "m_5";
+            sourceFaceUid "proj_Shinaide/m_5/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_05_inlet_u8_u12
+        {
+            sourceObjectUid "m_7";
+            sourceFaceUid "proj_Shinaide/m_7/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_A_06_inlet_u8_u12
+        {
+            sourceObjectUid "m_17";
+            sourceFaceUid "proj_Shinaide/m_17/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_01_inlet_u8_u12
+        {
+            sourceObjectUid "m_10";
+            sourceFaceUid "proj_Shinaide/m_10/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_02_inlet_u8_u12
+        {
+            sourceObjectUid "m_11";
+            sourceFaceUid "proj_Shinaide/m_11/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_03_inlet_u8_u12
+        {
+            sourceObjectUid "m_12";
+            sourceFaceUid "proj_Shinaide/m_12/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_04_inlet_u8_u12
+        {
+            sourceObjectUid "m_13";
+            sourceFaceUid "proj_Shinaide/m_13/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_05_inlet_u8_u12
+        {
+            sourceObjectUid "m_15";
+            sourceFaceUid "proj_Shinaide/m_15/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_06_inlet_u8_u12
+        {
+            sourceObjectUid "m_16";
+            sourceFaceUid "proj_Shinaide/m_16/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_07_inlet_u8_u12
+        {
+            sourceObjectUid "m_19";
+            sourceFaceUid "proj_Shinaide/m_19/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        Rack_B_08_inlet_u8_u12
+        {
+            sourceObjectUid "m_20";
+            sourceFaceUid "proj_Shinaide/m_20/blanking/front/u8-u12/source-sheet";
+            representation zeroThicknessSheet;
+        }
+    }
+    merged_server_4U.stl
+    {
+        Rack_A_01_Rack_A_01_server_1_bottom
+        {
+            sourceObjectUid "m_1/e_1";
+            sourceFaceUid "proj_Shinaide/m_1/e_1/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_1_front
+        {
+            sourceObjectUid "m_1/e_1";
+            sourceFaceUid "proj_Shinaide/m_1/e_1/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_1_outlet_p0
+        {
+            sourceObjectUid "m_1/e_1";
+            sourceFaceUid "proj_Shinaide/m_1/e_1/outlet_p_9";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_1_outlet_wall
+        {
+            sourceObjectUid "m_1/e_1";
+            sourceFaceUid "proj_Shinaide/m_1/e_1/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_1_top
+        {
+            sourceObjectUid "m_1/e_1";
+            sourceFaceUid "proj_Shinaide/m_1/e_1/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_3_bottom
+        {
+            sourceObjectUid "m_1/e_3";
+            sourceFaceUid "proj_Shinaide/m_1/e_3/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_3_front
+        {
+            sourceObjectUid "m_1/e_3";
+            sourceFaceUid "proj_Shinaide/m_1/e_3/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_3_outlet_p0
+        {
+            sourceObjectUid "m_1/e_3";
+            sourceFaceUid "proj_Shinaide/m_1/e_3/outlet_p_11";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_3_outlet_wall
+        {
+            sourceObjectUid "m_1/e_3";
+            sourceFaceUid "proj_Shinaide/m_1/e_3/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_3_top
+        {
+            sourceObjectUid "m_1/e_3";
+            sourceFaceUid "proj_Shinaide/m_1/e_3/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_1_bottom
+        {
+            sourceObjectUid "m_3/e_5";
+            sourceFaceUid "proj_Shinaide/m_3/e_5/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_1_front
+        {
+            sourceObjectUid "m_3/e_5";
+            sourceFaceUid "proj_Shinaide/m_3/e_5/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_1_outlet_p0
+        {
+            sourceObjectUid "m_3/e_5";
+            sourceFaceUid "proj_Shinaide/m_3/e_5/outlet_p_13";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_1_outlet_wall
+        {
+            sourceObjectUid "m_3/e_5";
+            sourceFaceUid "proj_Shinaide/m_3/e_5/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_1_top
+        {
+            sourceObjectUid "m_3/e_5";
+            sourceFaceUid "proj_Shinaide/m_3/e_5/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_3_bottom
+        {
+            sourceObjectUid "m_3/e_7";
+            sourceFaceUid "proj_Shinaide/m_3/e_7/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_3_front
+        {
+            sourceObjectUid "m_3/e_7";
+            sourceFaceUid "proj_Shinaide/m_3/e_7/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_3_outlet_p0
+        {
+            sourceObjectUid "m_3/e_7";
+            sourceFaceUid "proj_Shinaide/m_3/e_7/outlet_p_15";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_3_outlet_wall
+        {
+            sourceObjectUid "m_3/e_7";
+            sourceFaceUid "proj_Shinaide/m_3/e_7/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_3_top
+        {
+            sourceObjectUid "m_3/e_7";
+            sourceFaceUid "proj_Shinaide/m_3/e_7/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_1_bottom
+        {
+            sourceObjectUid "m_4/e_9";
+            sourceFaceUid "proj_Shinaide/m_4/e_9/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_1_front
+        {
+            sourceObjectUid "m_4/e_9";
+            sourceFaceUid "proj_Shinaide/m_4/e_9/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_1_outlet_p0
+        {
+            sourceObjectUid "m_4/e_9";
+            sourceFaceUid "proj_Shinaide/m_4/e_9/outlet_p_17";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_1_outlet_wall
+        {
+            sourceObjectUid "m_4/e_9";
+            sourceFaceUid "proj_Shinaide/m_4/e_9/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_1_top
+        {
+            sourceObjectUid "m_4/e_9";
+            sourceFaceUid "proj_Shinaide/m_4/e_9/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_3_bottom
+        {
+            sourceObjectUid "m_4/e_11";
+            sourceFaceUid "proj_Shinaide/m_4/e_11/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_3_front
+        {
+            sourceObjectUid "m_4/e_11";
+            sourceFaceUid "proj_Shinaide/m_4/e_11/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_3_outlet_p0
+        {
+            sourceObjectUid "m_4/e_11";
+            sourceFaceUid "proj_Shinaide/m_4/e_11/outlet_p_19";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_3_outlet_wall
+        {
+            sourceObjectUid "m_4/e_11";
+            sourceFaceUid "proj_Shinaide/m_4/e_11/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_3_top
+        {
+            sourceObjectUid "m_4/e_11";
+            sourceFaceUid "proj_Shinaide/m_4/e_11/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_1_bottom
+        {
+            sourceObjectUid "m_5/e_13";
+            sourceFaceUid "proj_Shinaide/m_5/e_13/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_1_front
+        {
+            sourceObjectUid "m_5/e_13";
+            sourceFaceUid "proj_Shinaide/m_5/e_13/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_1_outlet_p0
+        {
+            sourceObjectUid "m_5/e_13";
+            sourceFaceUid "proj_Shinaide/m_5/e_13/outlet_p_21";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_1_outlet_wall
+        {
+            sourceObjectUid "m_5/e_13";
+            sourceFaceUid "proj_Shinaide/m_5/e_13/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_1_top
+        {
+            sourceObjectUid "m_5/e_13";
+            sourceFaceUid "proj_Shinaide/m_5/e_13/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_3_bottom
+        {
+            sourceObjectUid "m_5/e_15";
+            sourceFaceUid "proj_Shinaide/m_5/e_15/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_3_front
+        {
+            sourceObjectUid "m_5/e_15";
+            sourceFaceUid "proj_Shinaide/m_5/e_15/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_3_outlet_p0
+        {
+            sourceObjectUid "m_5/e_15";
+            sourceFaceUid "proj_Shinaide/m_5/e_15/outlet_p_23";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_3_outlet_wall
+        {
+            sourceObjectUid "m_5/e_15";
+            sourceFaceUid "proj_Shinaide/m_5/e_15/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_3_top
+        {
+            sourceObjectUid "m_5/e_15";
+            sourceFaceUid "proj_Shinaide/m_5/e_15/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_1_bottom
+        {
+            sourceObjectUid "m_7/e_17";
+            sourceFaceUid "proj_Shinaide/m_7/e_17/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_1_front
+        {
+            sourceObjectUid "m_7/e_17";
+            sourceFaceUid "proj_Shinaide/m_7/e_17/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_1_outlet_p0
+        {
+            sourceObjectUid "m_7/e_17";
+            sourceFaceUid "proj_Shinaide/m_7/e_17/outlet_p_25";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_1_outlet_wall
+        {
+            sourceObjectUid "m_7/e_17";
+            sourceFaceUid "proj_Shinaide/m_7/e_17/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_1_top
+        {
+            sourceObjectUid "m_7/e_17";
+            sourceFaceUid "proj_Shinaide/m_7/e_17/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_3_bottom
+        {
+            sourceObjectUid "m_7/e_19";
+            sourceFaceUid "proj_Shinaide/m_7/e_19/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_3_front
+        {
+            sourceObjectUid "m_7/e_19";
+            sourceFaceUid "proj_Shinaide/m_7/e_19/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_3_outlet_p0
+        {
+            sourceObjectUid "m_7/e_19";
+            sourceFaceUid "proj_Shinaide/m_7/e_19/outlet_p_27";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_3_outlet_wall
+        {
+            sourceObjectUid "m_7/e_19";
+            sourceFaceUid "proj_Shinaide/m_7/e_19/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_3_top
+        {
+            sourceObjectUid "m_7/e_19";
+            sourceFaceUid "proj_Shinaide/m_7/e_19/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_1_bottom
+        {
+            sourceObjectUid "m_17/e_45";
+            sourceFaceUid "proj_Shinaide/m_17/e_45/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_1_front
+        {
+            sourceObjectUid "m_17/e_45";
+            sourceFaceUid "proj_Shinaide/m_17/e_45/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_1_outlet_p0
+        {
+            sourceObjectUid "m_17/e_45";
+            sourceFaceUid "proj_Shinaide/m_17/e_45/outlet_p_29";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_1_outlet_wall
+        {
+            sourceObjectUid "m_17/e_45";
+            sourceFaceUid "proj_Shinaide/m_17/e_45/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_1_top
+        {
+            sourceObjectUid "m_17/e_45";
+            sourceFaceUid "proj_Shinaide/m_17/e_45/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_3_bottom
+        {
+            sourceObjectUid "m_17/e_47";
+            sourceFaceUid "proj_Shinaide/m_17/e_47/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_3_front
+        {
+            sourceObjectUid "m_17/e_47";
+            sourceFaceUid "proj_Shinaide/m_17/e_47/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_3_outlet_p0
+        {
+            sourceObjectUid "m_17/e_47";
+            sourceFaceUid "proj_Shinaide/m_17/e_47/outlet_p_31";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_3_outlet_wall
+        {
+            sourceObjectUid "m_17/e_47";
+            sourceFaceUid "proj_Shinaide/m_17/e_47/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_3_top
+        {
+            sourceObjectUid "m_17/e_47";
+            sourceFaceUid "proj_Shinaide/m_17/e_47/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_1_bottom
+        {
+            sourceObjectUid "m_10/e_21";
+            sourceFaceUid "proj_Shinaide/m_10/e_21/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_1_front
+        {
+            sourceObjectUid "m_10/e_21";
+            sourceFaceUid "proj_Shinaide/m_10/e_21/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_1_outlet_p0
+        {
+            sourceObjectUid "m_10/e_21";
+            sourceFaceUid "proj_Shinaide/m_10/e_21/outlet_p_33";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_1_outlet_wall
+        {
+            sourceObjectUid "m_10/e_21";
+            sourceFaceUid "proj_Shinaide/m_10/e_21/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_1_top
+        {
+            sourceObjectUid "m_10/e_21";
+            sourceFaceUid "proj_Shinaide/m_10/e_21/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_3_bottom
+        {
+            sourceObjectUid "m_10/e_23";
+            sourceFaceUid "proj_Shinaide/m_10/e_23/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_3_front
+        {
+            sourceObjectUid "m_10/e_23";
+            sourceFaceUid "proj_Shinaide/m_10/e_23/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_3_outlet_p0
+        {
+            sourceObjectUid "m_10/e_23";
+            sourceFaceUid "proj_Shinaide/m_10/e_23/outlet_p_35";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_3_outlet_wall
+        {
+            sourceObjectUid "m_10/e_23";
+            sourceFaceUid "proj_Shinaide/m_10/e_23/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_3_top
+        {
+            sourceObjectUid "m_10/e_23";
+            sourceFaceUid "proj_Shinaide/m_10/e_23/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_1_bottom
+        {
+            sourceObjectUid "m_11/e_25";
+            sourceFaceUid "proj_Shinaide/m_11/e_25/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_1_front
+        {
+            sourceObjectUid "m_11/e_25";
+            sourceFaceUid "proj_Shinaide/m_11/e_25/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_1_outlet_p0
+        {
+            sourceObjectUid "m_11/e_25";
+            sourceFaceUid "proj_Shinaide/m_11/e_25/outlet_p_37";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_1_outlet_wall
+        {
+            sourceObjectUid "m_11/e_25";
+            sourceFaceUid "proj_Shinaide/m_11/e_25/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_1_top
+        {
+            sourceObjectUid "m_11/e_25";
+            sourceFaceUid "proj_Shinaide/m_11/e_25/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_3_bottom
+        {
+            sourceObjectUid "m_11/e_27";
+            sourceFaceUid "proj_Shinaide/m_11/e_27/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_3_front
+        {
+            sourceObjectUid "m_11/e_27";
+            sourceFaceUid "proj_Shinaide/m_11/e_27/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_3_outlet_p0
+        {
+            sourceObjectUid "m_11/e_27";
+            sourceFaceUid "proj_Shinaide/m_11/e_27/outlet_p_39";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_3_outlet_wall
+        {
+            sourceObjectUid "m_11/e_27";
+            sourceFaceUid "proj_Shinaide/m_11/e_27/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_3_top
+        {
+            sourceObjectUid "m_11/e_27";
+            sourceFaceUid "proj_Shinaide/m_11/e_27/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_1_bottom
+        {
+            sourceObjectUid "m_12/e_29";
+            sourceFaceUid "proj_Shinaide/m_12/e_29/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_1_front
+        {
+            sourceObjectUid "m_12/e_29";
+            sourceFaceUid "proj_Shinaide/m_12/e_29/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_1_outlet_p0
+        {
+            sourceObjectUid "m_12/e_29";
+            sourceFaceUid "proj_Shinaide/m_12/e_29/outlet_p_41";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_1_outlet_wall
+        {
+            sourceObjectUid "m_12/e_29";
+            sourceFaceUid "proj_Shinaide/m_12/e_29/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_1_top
+        {
+            sourceObjectUid "m_12/e_29";
+            sourceFaceUid "proj_Shinaide/m_12/e_29/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_3_bottom
+        {
+            sourceObjectUid "m_12/e_31";
+            sourceFaceUid "proj_Shinaide/m_12/e_31/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_3_front
+        {
+            sourceObjectUid "m_12/e_31";
+            sourceFaceUid "proj_Shinaide/m_12/e_31/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_3_outlet_p0
+        {
+            sourceObjectUid "m_12/e_31";
+            sourceFaceUid "proj_Shinaide/m_12/e_31/outlet_p_43";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_3_outlet_wall
+        {
+            sourceObjectUid "m_12/e_31";
+            sourceFaceUid "proj_Shinaide/m_12/e_31/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_3_top
+        {
+            sourceObjectUid "m_12/e_31";
+            sourceFaceUid "proj_Shinaide/m_12/e_31/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_1_bottom
+        {
+            sourceObjectUid "m_13/e_33";
+            sourceFaceUid "proj_Shinaide/m_13/e_33/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_1_front
+        {
+            sourceObjectUid "m_13/e_33";
+            sourceFaceUid "proj_Shinaide/m_13/e_33/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_1_outlet_p0
+        {
+            sourceObjectUid "m_13/e_33";
+            sourceFaceUid "proj_Shinaide/m_13/e_33/outlet_p_45";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_1_outlet_wall
+        {
+            sourceObjectUid "m_13/e_33";
+            sourceFaceUid "proj_Shinaide/m_13/e_33/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_1_top
+        {
+            sourceObjectUid "m_13/e_33";
+            sourceFaceUid "proj_Shinaide/m_13/e_33/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_3_bottom
+        {
+            sourceObjectUid "m_13/e_35";
+            sourceFaceUid "proj_Shinaide/m_13/e_35/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_3_front
+        {
+            sourceObjectUid "m_13/e_35";
+            sourceFaceUid "proj_Shinaide/m_13/e_35/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_3_outlet_p0
+        {
+            sourceObjectUid "m_13/e_35";
+            sourceFaceUid "proj_Shinaide/m_13/e_35/outlet_p_47";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_3_outlet_wall
+        {
+            sourceObjectUid "m_13/e_35";
+            sourceFaceUid "proj_Shinaide/m_13/e_35/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_3_top
+        {
+            sourceObjectUid "m_13/e_35";
+            sourceFaceUid "proj_Shinaide/m_13/e_35/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_1_bottom
+        {
+            sourceObjectUid "m_15/e_37";
+            sourceFaceUid "proj_Shinaide/m_15/e_37/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_1_front
+        {
+            sourceObjectUid "m_15/e_37";
+            sourceFaceUid "proj_Shinaide/m_15/e_37/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_1_outlet_p0
+        {
+            sourceObjectUid "m_15/e_37";
+            sourceFaceUid "proj_Shinaide/m_15/e_37/outlet_p_49";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_1_outlet_wall
+        {
+            sourceObjectUid "m_15/e_37";
+            sourceFaceUid "proj_Shinaide/m_15/e_37/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_1_top
+        {
+            sourceObjectUid "m_15/e_37";
+            sourceFaceUid "proj_Shinaide/m_15/e_37/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_3_bottom
+        {
+            sourceObjectUid "m_15/e_39";
+            sourceFaceUid "proj_Shinaide/m_15/e_39/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_3_front
+        {
+            sourceObjectUid "m_15/e_39";
+            sourceFaceUid "proj_Shinaide/m_15/e_39/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_3_outlet_p0
+        {
+            sourceObjectUid "m_15/e_39";
+            sourceFaceUid "proj_Shinaide/m_15/e_39/outlet_p_51";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_3_outlet_wall
+        {
+            sourceObjectUid "m_15/e_39";
+            sourceFaceUid "proj_Shinaide/m_15/e_39/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_3_top
+        {
+            sourceObjectUid "m_15/e_39";
+            sourceFaceUid "proj_Shinaide/m_15/e_39/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_1_bottom
+        {
+            sourceObjectUid "m_16/e_41";
+            sourceFaceUid "proj_Shinaide/m_16/e_41/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_1_front
+        {
+            sourceObjectUid "m_16/e_41";
+            sourceFaceUid "proj_Shinaide/m_16/e_41/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_1_outlet_p0
+        {
+            sourceObjectUid "m_16/e_41";
+            sourceFaceUid "proj_Shinaide/m_16/e_41/outlet_p_53";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_1_outlet_wall
+        {
+            sourceObjectUid "m_16/e_41";
+            sourceFaceUid "proj_Shinaide/m_16/e_41/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_1_top
+        {
+            sourceObjectUid "m_16/e_41";
+            sourceFaceUid "proj_Shinaide/m_16/e_41/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_3_bottom
+        {
+            sourceObjectUid "m_16/e_43";
+            sourceFaceUid "proj_Shinaide/m_16/e_43/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_3_front
+        {
+            sourceObjectUid "m_16/e_43";
+            sourceFaceUid "proj_Shinaide/m_16/e_43/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_3_outlet_p0
+        {
+            sourceObjectUid "m_16/e_43";
+            sourceFaceUid "proj_Shinaide/m_16/e_43/outlet_p_55";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_3_outlet_wall
+        {
+            sourceObjectUid "m_16/e_43";
+            sourceFaceUid "proj_Shinaide/m_16/e_43/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_3_top
+        {
+            sourceObjectUid "m_16/e_43";
+            sourceFaceUid "proj_Shinaide/m_16/e_43/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_1_bottom
+        {
+            sourceObjectUid "m_19/e_49";
+            sourceFaceUid "proj_Shinaide/m_19/e_49/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_1_front
+        {
+            sourceObjectUid "m_19/e_49";
+            sourceFaceUid "proj_Shinaide/m_19/e_49/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_1_outlet_p0
+        {
+            sourceObjectUid "m_19/e_49";
+            sourceFaceUid "proj_Shinaide/m_19/e_49/outlet_p_57";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_1_outlet_wall
+        {
+            sourceObjectUid "m_19/e_49";
+            sourceFaceUid "proj_Shinaide/m_19/e_49/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_1_top
+        {
+            sourceObjectUid "m_19/e_49";
+            sourceFaceUid "proj_Shinaide/m_19/e_49/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_3_bottom
+        {
+            sourceObjectUid "m_19/e_51";
+            sourceFaceUid "proj_Shinaide/m_19/e_51/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_3_front
+        {
+            sourceObjectUid "m_19/e_51";
+            sourceFaceUid "proj_Shinaide/m_19/e_51/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_3_outlet_p0
+        {
+            sourceObjectUid "m_19/e_51";
+            sourceFaceUid "proj_Shinaide/m_19/e_51/outlet_p_59";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_3_outlet_wall
+        {
+            sourceObjectUid "m_19/e_51";
+            sourceFaceUid "proj_Shinaide/m_19/e_51/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_3_top
+        {
+            sourceObjectUid "m_19/e_51";
+            sourceFaceUid "proj_Shinaide/m_19/e_51/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_1_bottom
+        {
+            sourceObjectUid "m_20/e_53";
+            sourceFaceUid "proj_Shinaide/m_20/e_53/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_1_front
+        {
+            sourceObjectUid "m_20/e_53";
+            sourceFaceUid "proj_Shinaide/m_20/e_53/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_1_outlet_p0
+        {
+            sourceObjectUid "m_20/e_53";
+            sourceFaceUid "proj_Shinaide/m_20/e_53/outlet_p_61";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_1_outlet_wall
+        {
+            sourceObjectUid "m_20/e_53";
+            sourceFaceUid "proj_Shinaide/m_20/e_53/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_1_top
+        {
+            sourceObjectUid "m_20/e_53";
+            sourceFaceUid "proj_Shinaide/m_20/e_53/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_3_bottom
+        {
+            sourceObjectUid "m_20/e_55";
+            sourceFaceUid "proj_Shinaide/m_20/e_55/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_3_front
+        {
+            sourceObjectUid "m_20/e_55";
+            sourceFaceUid "proj_Shinaide/m_20/e_55/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_3_outlet_p0
+        {
+            sourceObjectUid "m_20/e_55";
+            sourceFaceUid "proj_Shinaide/m_20/e_55/outlet_p_63";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_3_outlet_wall
+        {
+            sourceObjectUid "m_20/e_55";
+            sourceFaceUid "proj_Shinaide/m_20/e_55/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_3_top
+        {
+            sourceObjectUid "m_20/e_55";
+            sourceFaceUid "proj_Shinaide/m_20/e_55/top___face__";
+            representation surfaceFace;
+        }
+    }
+    merged_server_8U.stl
+    {
+        Rack_A_01_Rack_A_01_server_2_bottom
+        {
+            sourceObjectUid "m_1/e_2";
+            sourceFaceUid "proj_Shinaide/m_1/e_2/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_2_front
+        {
+            sourceObjectUid "m_1/e_2";
+            sourceFaceUid "proj_Shinaide/m_1/e_2/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_2_outlet_p0
+        {
+            sourceObjectUid "m_1/e_2";
+            sourceFaceUid "proj_Shinaide/m_1/e_2/outlet_p_10";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_2_outlet_wall
+        {
+            sourceObjectUid "m_1/e_2";
+            sourceFaceUid "proj_Shinaide/m_1/e_2/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_2_top
+        {
+            sourceObjectUid "m_1/e_2";
+            sourceFaceUid "proj_Shinaide/m_1/e_2/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_4_bottom
+        {
+            sourceObjectUid "m_1/e_4";
+            sourceFaceUid "proj_Shinaide/m_1/e_4/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_4_front
+        {
+            sourceObjectUid "m_1/e_4";
+            sourceFaceUid "proj_Shinaide/m_1/e_4/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_4_outlet_p0
+        {
+            sourceObjectUid "m_1/e_4";
+            sourceFaceUid "proj_Shinaide/m_1/e_4/outlet_p_12";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_4_outlet_wall
+        {
+            sourceObjectUid "m_1/e_4";
+            sourceFaceUid "proj_Shinaide/m_1/e_4/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_01_Rack_A_01_server_4_top
+        {
+            sourceObjectUid "m_1/e_4";
+            sourceFaceUid "proj_Shinaide/m_1/e_4/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_2_bottom
+        {
+            sourceObjectUid "m_3/e_6";
+            sourceFaceUid "proj_Shinaide/m_3/e_6/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_2_front
+        {
+            sourceObjectUid "m_3/e_6";
+            sourceFaceUid "proj_Shinaide/m_3/e_6/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_2_outlet_p0
+        {
+            sourceObjectUid "m_3/e_6";
+            sourceFaceUid "proj_Shinaide/m_3/e_6/outlet_p_14";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_2_outlet_wall
+        {
+            sourceObjectUid "m_3/e_6";
+            sourceFaceUid "proj_Shinaide/m_3/e_6/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_2_top
+        {
+            sourceObjectUid "m_3/e_6";
+            sourceFaceUid "proj_Shinaide/m_3/e_6/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_4_bottom
+        {
+            sourceObjectUid "m_3/e_8";
+            sourceFaceUid "proj_Shinaide/m_3/e_8/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_4_front
+        {
+            sourceObjectUid "m_3/e_8";
+            sourceFaceUid "proj_Shinaide/m_3/e_8/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_4_outlet_p0
+        {
+            sourceObjectUid "m_3/e_8";
+            sourceFaceUid "proj_Shinaide/m_3/e_8/outlet_p_16";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_4_outlet_wall
+        {
+            sourceObjectUid "m_3/e_8";
+            sourceFaceUid "proj_Shinaide/m_3/e_8/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_02_Rack_A_02_server_4_top
+        {
+            sourceObjectUid "m_3/e_8";
+            sourceFaceUid "proj_Shinaide/m_3/e_8/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_2_bottom
+        {
+            sourceObjectUid "m_4/e_10";
+            sourceFaceUid "proj_Shinaide/m_4/e_10/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_2_front
+        {
+            sourceObjectUid "m_4/e_10";
+            sourceFaceUid "proj_Shinaide/m_4/e_10/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_2_outlet_p0
+        {
+            sourceObjectUid "m_4/e_10";
+            sourceFaceUid "proj_Shinaide/m_4/e_10/outlet_p_18";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_2_outlet_wall
+        {
+            sourceObjectUid "m_4/e_10";
+            sourceFaceUid "proj_Shinaide/m_4/e_10/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_2_top
+        {
+            sourceObjectUid "m_4/e_10";
+            sourceFaceUid "proj_Shinaide/m_4/e_10/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_4_bottom
+        {
+            sourceObjectUid "m_4/e_12";
+            sourceFaceUid "proj_Shinaide/m_4/e_12/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_4_front
+        {
+            sourceObjectUid "m_4/e_12";
+            sourceFaceUid "proj_Shinaide/m_4/e_12/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_4_outlet_p0
+        {
+            sourceObjectUid "m_4/e_12";
+            sourceFaceUid "proj_Shinaide/m_4/e_12/outlet_p_20";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_4_outlet_wall
+        {
+            sourceObjectUid "m_4/e_12";
+            sourceFaceUid "proj_Shinaide/m_4/e_12/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_03_Rack_A_03_server_4_top
+        {
+            sourceObjectUid "m_4/e_12";
+            sourceFaceUid "proj_Shinaide/m_4/e_12/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_2_bottom
+        {
+            sourceObjectUid "m_5/e_14";
+            sourceFaceUid "proj_Shinaide/m_5/e_14/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_2_front
+        {
+            sourceObjectUid "m_5/e_14";
+            sourceFaceUid "proj_Shinaide/m_5/e_14/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_2_outlet_p0
+        {
+            sourceObjectUid "m_5/e_14";
+            sourceFaceUid "proj_Shinaide/m_5/e_14/outlet_p_22";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_2_outlet_wall
+        {
+            sourceObjectUid "m_5/e_14";
+            sourceFaceUid "proj_Shinaide/m_5/e_14/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_2_top
+        {
+            sourceObjectUid "m_5/e_14";
+            sourceFaceUid "proj_Shinaide/m_5/e_14/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_4_bottom
+        {
+            sourceObjectUid "m_5/e_16";
+            sourceFaceUid "proj_Shinaide/m_5/e_16/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_4_front
+        {
+            sourceObjectUid "m_5/e_16";
+            sourceFaceUid "proj_Shinaide/m_5/e_16/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_4_outlet_p0
+        {
+            sourceObjectUid "m_5/e_16";
+            sourceFaceUid "proj_Shinaide/m_5/e_16/outlet_p_24";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_4_outlet_wall
+        {
+            sourceObjectUid "m_5/e_16";
+            sourceFaceUid "proj_Shinaide/m_5/e_16/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_04_Rack_A_04_server_4_top
+        {
+            sourceObjectUid "m_5/e_16";
+            sourceFaceUid "proj_Shinaide/m_5/e_16/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_2_bottom
+        {
+            sourceObjectUid "m_7/e_18";
+            sourceFaceUid "proj_Shinaide/m_7/e_18/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_2_front
+        {
+            sourceObjectUid "m_7/e_18";
+            sourceFaceUid "proj_Shinaide/m_7/e_18/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_2_outlet_p0
+        {
+            sourceObjectUid "m_7/e_18";
+            sourceFaceUid "proj_Shinaide/m_7/e_18/outlet_p_26";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_2_outlet_wall
+        {
+            sourceObjectUid "m_7/e_18";
+            sourceFaceUid "proj_Shinaide/m_7/e_18/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_2_top
+        {
+            sourceObjectUid "m_7/e_18";
+            sourceFaceUid "proj_Shinaide/m_7/e_18/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_4_bottom
+        {
+            sourceObjectUid "m_7/e_20";
+            sourceFaceUid "proj_Shinaide/m_7/e_20/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_4_front
+        {
+            sourceObjectUid "m_7/e_20";
+            sourceFaceUid "proj_Shinaide/m_7/e_20/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_4_outlet_p0
+        {
+            sourceObjectUid "m_7/e_20";
+            sourceFaceUid "proj_Shinaide/m_7/e_20/outlet_p_28";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_4_outlet_wall
+        {
+            sourceObjectUid "m_7/e_20";
+            sourceFaceUid "proj_Shinaide/m_7/e_20/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_05_Rack_A_05_server_4_top
+        {
+            sourceObjectUid "m_7/e_20";
+            sourceFaceUid "proj_Shinaide/m_7/e_20/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_2_bottom
+        {
+            sourceObjectUid "m_17/e_46";
+            sourceFaceUid "proj_Shinaide/m_17/e_46/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_2_front
+        {
+            sourceObjectUid "m_17/e_46";
+            sourceFaceUid "proj_Shinaide/m_17/e_46/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_2_outlet_p0
+        {
+            sourceObjectUid "m_17/e_46";
+            sourceFaceUid "proj_Shinaide/m_17/e_46/outlet_p_30";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_2_outlet_wall
+        {
+            sourceObjectUid "m_17/e_46";
+            sourceFaceUid "proj_Shinaide/m_17/e_46/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_2_top
+        {
+            sourceObjectUid "m_17/e_46";
+            sourceFaceUid "proj_Shinaide/m_17/e_46/top___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_4_bottom
+        {
+            sourceObjectUid "m_17/e_48";
+            sourceFaceUid "proj_Shinaide/m_17/e_48/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_4_front
+        {
+            sourceObjectUid "m_17/e_48";
+            sourceFaceUid "proj_Shinaide/m_17/e_48/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_4_outlet_p0
+        {
+            sourceObjectUid "m_17/e_48";
+            sourceFaceUid "proj_Shinaide/m_17/e_48/outlet_p_32";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_4_outlet_wall
+        {
+            sourceObjectUid "m_17/e_48";
+            sourceFaceUid "proj_Shinaide/m_17/e_48/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_A_06_Rack_A_06_server_4_top
+        {
+            sourceObjectUid "m_17/e_48";
+            sourceFaceUid "proj_Shinaide/m_17/e_48/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_A_01_server_4_bottom
+        {
+            sourceObjectUid "m_10/e_24";
+            sourceFaceUid "proj_Shinaide/m_10/e_24/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_A_01_server_4_front
+        {
+            sourceObjectUid "m_10/e_24";
+            sourceFaceUid "proj_Shinaide/m_10/e_24/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_A_01_server_4_outlet_p0
+        {
+            sourceObjectUid "m_10/e_24";
+            sourceFaceUid "proj_Shinaide/m_10/e_24/outlet_p_36";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_A_01_server_4_outlet_wall
+        {
+            sourceObjectUid "m_10/e_24";
+            sourceFaceUid "proj_Shinaide/m_10/e_24/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_A_01_server_4_top
+        {
+            sourceObjectUid "m_10/e_24";
+            sourceFaceUid "proj_Shinaide/m_10/e_24/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_2_bottom
+        {
+            sourceObjectUid "m_10/e_22";
+            sourceFaceUid "proj_Shinaide/m_10/e_22/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_2_front
+        {
+            sourceObjectUid "m_10/e_22";
+            sourceFaceUid "proj_Shinaide/m_10/e_22/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_2_outlet_p0
+        {
+            sourceObjectUid "m_10/e_22";
+            sourceFaceUid "proj_Shinaide/m_10/e_22/outlet_p_34";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_2_outlet_wall
+        {
+            sourceObjectUid "m_10/e_22";
+            sourceFaceUid "proj_Shinaide/m_10/e_22/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_01_Rack_B_01_server_2_top
+        {
+            sourceObjectUid "m_10/e_22";
+            sourceFaceUid "proj_Shinaide/m_10/e_22/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_2_bottom
+        {
+            sourceObjectUid "m_11/e_26";
+            sourceFaceUid "proj_Shinaide/m_11/e_26/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_2_front
+        {
+            sourceObjectUid "m_11/e_26";
+            sourceFaceUid "proj_Shinaide/m_11/e_26/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_2_outlet_p0
+        {
+            sourceObjectUid "m_11/e_26";
+            sourceFaceUid "proj_Shinaide/m_11/e_26/outlet_p_38";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_2_outlet_wall
+        {
+            sourceObjectUid "m_11/e_26";
+            sourceFaceUid "proj_Shinaide/m_11/e_26/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_2_top
+        {
+            sourceObjectUid "m_11/e_26";
+            sourceFaceUid "proj_Shinaide/m_11/e_26/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_4_bottom
+        {
+            sourceObjectUid "m_11/e_28";
+            sourceFaceUid "proj_Shinaide/m_11/e_28/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_4_front
+        {
+            sourceObjectUid "m_11/e_28";
+            sourceFaceUid "proj_Shinaide/m_11/e_28/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_4_outlet_p0
+        {
+            sourceObjectUid "m_11/e_28";
+            sourceFaceUid "proj_Shinaide/m_11/e_28/outlet_p_40";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_4_outlet_wall
+        {
+            sourceObjectUid "m_11/e_28";
+            sourceFaceUid "proj_Shinaide/m_11/e_28/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_02_Rack_B_02_server_4_top
+        {
+            sourceObjectUid "m_11/e_28";
+            sourceFaceUid "proj_Shinaide/m_11/e_28/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_2_bottom
+        {
+            sourceObjectUid "m_12/e_30";
+            sourceFaceUid "proj_Shinaide/m_12/e_30/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_2_front
+        {
+            sourceObjectUid "m_12/e_30";
+            sourceFaceUid "proj_Shinaide/m_12/e_30/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_2_outlet_p0
+        {
+            sourceObjectUid "m_12/e_30";
+            sourceFaceUid "proj_Shinaide/m_12/e_30/outlet_p_42";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_2_outlet_wall
+        {
+            sourceObjectUid "m_12/e_30";
+            sourceFaceUid "proj_Shinaide/m_12/e_30/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_2_top
+        {
+            sourceObjectUid "m_12/e_30";
+            sourceFaceUid "proj_Shinaide/m_12/e_30/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_4_bottom
+        {
+            sourceObjectUid "m_12/e_32";
+            sourceFaceUid "proj_Shinaide/m_12/e_32/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_4_front
+        {
+            sourceObjectUid "m_12/e_32";
+            sourceFaceUid "proj_Shinaide/m_12/e_32/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_4_outlet_p0
+        {
+            sourceObjectUid "m_12/e_32";
+            sourceFaceUid "proj_Shinaide/m_12/e_32/outlet_p_44";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_4_outlet_wall
+        {
+            sourceObjectUid "m_12/e_32";
+            sourceFaceUid "proj_Shinaide/m_12/e_32/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_03_Rack_B_03_server_4_top
+        {
+            sourceObjectUid "m_12/e_32";
+            sourceFaceUid "proj_Shinaide/m_12/e_32/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_2_bottom
+        {
+            sourceObjectUid "m_13/e_34";
+            sourceFaceUid "proj_Shinaide/m_13/e_34/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_2_front
+        {
+            sourceObjectUid "m_13/e_34";
+            sourceFaceUid "proj_Shinaide/m_13/e_34/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_2_outlet_p0
+        {
+            sourceObjectUid "m_13/e_34";
+            sourceFaceUid "proj_Shinaide/m_13/e_34/outlet_p_46";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_2_outlet_wall
+        {
+            sourceObjectUid "m_13/e_34";
+            sourceFaceUid "proj_Shinaide/m_13/e_34/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_2_top
+        {
+            sourceObjectUid "m_13/e_34";
+            sourceFaceUid "proj_Shinaide/m_13/e_34/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_4_bottom
+        {
+            sourceObjectUid "m_13/e_36";
+            sourceFaceUid "proj_Shinaide/m_13/e_36/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_4_front
+        {
+            sourceObjectUid "m_13/e_36";
+            sourceFaceUid "proj_Shinaide/m_13/e_36/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_4_outlet_p0
+        {
+            sourceObjectUid "m_13/e_36";
+            sourceFaceUid "proj_Shinaide/m_13/e_36/outlet_p_48";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_4_outlet_wall
+        {
+            sourceObjectUid "m_13/e_36";
+            sourceFaceUid "proj_Shinaide/m_13/e_36/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_04_Rack_B_04_server_4_top
+        {
+            sourceObjectUid "m_13/e_36";
+            sourceFaceUid "proj_Shinaide/m_13/e_36/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_2_bottom
+        {
+            sourceObjectUid "m_15/e_38";
+            sourceFaceUid "proj_Shinaide/m_15/e_38/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_2_front
+        {
+            sourceObjectUid "m_15/e_38";
+            sourceFaceUid "proj_Shinaide/m_15/e_38/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_2_outlet_p0
+        {
+            sourceObjectUid "m_15/e_38";
+            sourceFaceUid "proj_Shinaide/m_15/e_38/outlet_p_50";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_2_outlet_wall
+        {
+            sourceObjectUid "m_15/e_38";
+            sourceFaceUid "proj_Shinaide/m_15/e_38/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_2_top
+        {
+            sourceObjectUid "m_15/e_38";
+            sourceFaceUid "proj_Shinaide/m_15/e_38/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_4_bottom
+        {
+            sourceObjectUid "m_15/e_40";
+            sourceFaceUid "proj_Shinaide/m_15/e_40/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_4_front
+        {
+            sourceObjectUid "m_15/e_40";
+            sourceFaceUid "proj_Shinaide/m_15/e_40/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_4_outlet_p0
+        {
+            sourceObjectUid "m_15/e_40";
+            sourceFaceUid "proj_Shinaide/m_15/e_40/outlet_p_52";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_4_outlet_wall
+        {
+            sourceObjectUid "m_15/e_40";
+            sourceFaceUid "proj_Shinaide/m_15/e_40/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_05_Rack_B_05_server_4_top
+        {
+            sourceObjectUid "m_15/e_40";
+            sourceFaceUid "proj_Shinaide/m_15/e_40/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_2_bottom
+        {
+            sourceObjectUid "m_16/e_42";
+            sourceFaceUid "proj_Shinaide/m_16/e_42/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_2_front
+        {
+            sourceObjectUid "m_16/e_42";
+            sourceFaceUid "proj_Shinaide/m_16/e_42/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_2_outlet_p0
+        {
+            sourceObjectUid "m_16/e_42";
+            sourceFaceUid "proj_Shinaide/m_16/e_42/outlet_p_54";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_2_outlet_wall
+        {
+            sourceObjectUid "m_16/e_42";
+            sourceFaceUid "proj_Shinaide/m_16/e_42/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_2_top
+        {
+            sourceObjectUid "m_16/e_42";
+            sourceFaceUid "proj_Shinaide/m_16/e_42/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_4_bottom
+        {
+            sourceObjectUid "m_16/e_44";
+            sourceFaceUid "proj_Shinaide/m_16/e_44/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_4_front
+        {
+            sourceObjectUid "m_16/e_44";
+            sourceFaceUid "proj_Shinaide/m_16/e_44/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_4_outlet_p0
+        {
+            sourceObjectUid "m_16/e_44";
+            sourceFaceUid "proj_Shinaide/m_16/e_44/outlet_p_56";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_4_outlet_wall
+        {
+            sourceObjectUid "m_16/e_44";
+            sourceFaceUid "proj_Shinaide/m_16/e_44/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_06_Rack_B_06_server_4_top
+        {
+            sourceObjectUid "m_16/e_44";
+            sourceFaceUid "proj_Shinaide/m_16/e_44/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_2_bottom
+        {
+            sourceObjectUid "m_19/e_50";
+            sourceFaceUid "proj_Shinaide/m_19/e_50/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_2_front
+        {
+            sourceObjectUid "m_19/e_50";
+            sourceFaceUid "proj_Shinaide/m_19/e_50/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_2_outlet_p0
+        {
+            sourceObjectUid "m_19/e_50";
+            sourceFaceUid "proj_Shinaide/m_19/e_50/outlet_p_58";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_2_outlet_wall
+        {
+            sourceObjectUid "m_19/e_50";
+            sourceFaceUid "proj_Shinaide/m_19/e_50/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_2_top
+        {
+            sourceObjectUid "m_19/e_50";
+            sourceFaceUid "proj_Shinaide/m_19/e_50/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_4_bottom
+        {
+            sourceObjectUid "m_19/e_52";
+            sourceFaceUid "proj_Shinaide/m_19/e_52/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_4_front
+        {
+            sourceObjectUid "m_19/e_52";
+            sourceFaceUid "proj_Shinaide/m_19/e_52/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_4_outlet_p0
+        {
+            sourceObjectUid "m_19/e_52";
+            sourceFaceUid "proj_Shinaide/m_19/e_52/outlet_p_60";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_4_outlet_wall
+        {
+            sourceObjectUid "m_19/e_52";
+            sourceFaceUid "proj_Shinaide/m_19/e_52/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_07_Rack_B_07_server_4_top
+        {
+            sourceObjectUid "m_19/e_52";
+            sourceFaceUid "proj_Shinaide/m_19/e_52/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_2_bottom
+        {
+            sourceObjectUid "m_20/e_54";
+            sourceFaceUid "proj_Shinaide/m_20/e_54/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_2_front
+        {
+            sourceObjectUid "m_20/e_54";
+            sourceFaceUid "proj_Shinaide/m_20/e_54/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_2_outlet_p0
+        {
+            sourceObjectUid "m_20/e_54";
+            sourceFaceUid "proj_Shinaide/m_20/e_54/outlet_p_62";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_2_outlet_wall
+        {
+            sourceObjectUid "m_20/e_54";
+            sourceFaceUid "proj_Shinaide/m_20/e_54/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_2_top
+        {
+            sourceObjectUid "m_20/e_54";
+            sourceFaceUid "proj_Shinaide/m_20/e_54/top___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_4_bottom
+        {
+            sourceObjectUid "m_20/e_56";
+            sourceFaceUid "proj_Shinaide/m_20/e_56/bottom___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_4_front
+        {
+            sourceObjectUid "m_20/e_56";
+            sourceFaceUid "proj_Shinaide/m_20/e_56/inlet___face__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_4_outlet_p0
+        {
+            sourceObjectUid "m_20/e_56";
+            sourceFaceUid "proj_Shinaide/m_20/e_56/outlet_p_64";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_4_outlet_wall
+        {
+            sourceObjectUid "m_20/e_56";
+            sourceFaceUid "proj_Shinaide/m_20/e_56/outlet___wall__";
+            representation surfaceFace;
+        }
+        Rack_B_08_Rack_B_08_server_4_top
+        {
+            sourceObjectUid "m_20/e_56";
+            sourceFaceUid "proj_Shinaide/m_20/e_56/top___face__";
+            representation surfaceFace;
+        }
+    }
+    merged_wall_baffle.stl
+    {
+        con_b
+        {
+            sourceObjectUid "m_23";
+            sourceFaceUid "proj_Shinaide/m_23/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        con_b_copy
+        {
+            sourceObjectUid "m_24";
+            sourceFaceUid "proj_Shinaide/m_24/source-sheet";
+            representation zeroThicknessSheet;
+        }
+        con_f
+        {
+            sourceObjectUid "m_22";
+            sourceFaceUid "proj_Shinaide/m_22/source-sheet";
+            representation zeroThicknessSheet;
+        }
+    }
+    wallBaffle_floor_Raised_Floor.stl
+    {
+        Raised_Floor
+        {
+            sourceObjectUid "m_52";
+            sourceFaceUid "proj_Shinaide/m_52/source-sheet";
+            representation zeroThicknessSheet;
+        }
+    }
+}
+
+
+castellatedMeshControls
+{
+    maxLocalCells   5000000;
+    maxGlobalCells  5000000;
+    minRefinementCells 5;
+    nCellsBetweenLevels 1;
+    maxLoadUnbalance 0.5;
+    handleSnapProblems false;
+    allowFreeStandingZoneFaces true;
+    resolveFeatureAngle 30;
+
+    features
+    (
+    {
+        file "merged_acu.eMesh";
+        level 2;
+    }
+    {
+        file "merged_box.eMesh";
+        level 2;
+    }
+    {
+        file "merged_floor_ceiling.eMesh";
+        level 2;
+    }
+    {
+        file "merged_wall_baffle.eMesh";
+        level 2;
+    }
+    {
+        file "room_wall.eMesh";
+        level 2;
+    }
+    {
+        file "wallBaffle_floor_Raised_Floor.eMesh";
+        level 2;
+    }
+    );
+
+    refinementSurfaces
+    {
+    merged_acu
+    {
+        level (1 1);
+        regions
+        {
+            ACU_01_Front_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_01_Front_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_01_Back_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_01_Back_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_01_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_01_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_01_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_01_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Front_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_02_Front_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Back_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_02_Back_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_02_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Front_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_03_Front_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Back_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_03_Back_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_03_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Front_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_04_Front_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Back_patch
+            {
+                level (1 1);
+                patchInfo { type patch; }
+            }
+            ACU_04_Back_part1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            ACU_04_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_box
+    {
+        level (1 1);
+        regions
+        {
+            UPS_Rack_Front
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            UPS_Rack_Back
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            UPS_Rack_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            UPS_Rack_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            UPS_Rack_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            UPS_Rack_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Front
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Back
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Left
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Right
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Top
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            CDU_1_Bottom
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_floor_ceiling
+    {
+        level (1 1);
+        regions
+        {
+            Room_Floor
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Ceiling
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_perforatedBlankingPanel_3U
+    {
+        level (4 4);
+        faceType internal;
+        faceZone merged_perforatedBlankingPanel_3U;
+    }
+
+    merged_perforatedBlankingPanel_4U
+    {
+        level (4 4);
+        faceType internal;
+        faceZone merged_perforatedBlankingPanel_4U;
+    }
+
+    merged_perforatedBlankingPanel_5U
+    {
+        level (4 4);
+        faceType internal;
+        faceZone merged_perforatedBlankingPanel_5U;
+    }
+
+    merged_rack_frame
+    {
+        level (1 1);
+        regions
+        {
+            Rack_A_01_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_frame
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_server_4U
+    {
+        level (1 1);
+        regions
+        {
+            Rack_A_01_Rack_A_01_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_1_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_1_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_1_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_1_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_1_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_3_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_3_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_3_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_3_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_3_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_server_8U
+    {
+        level (1 1);
+        regions
+        {
+            Rack_A_01_Rack_A_01_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_01_Rack_A_01_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_02_Rack_A_02_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_03_Rack_A_03_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_04_Rack_A_04_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_05_Rack_A_05_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_A_06_Rack_A_06_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_B_01_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_A_01_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_A_01_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_A_01_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_A_01_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_01_Rack_A_01_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_02_Rack_B_02_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_03_Rack_B_03_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_04_Rack_B_04_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_05_Rack_B_05_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_06_Rack_B_06_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_07_Rack_B_07_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_2_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_2_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_2_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_2_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_2_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_4_front
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_4_outlet_p0
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_4_outlet_wall
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_4_top
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Rack_B_08_Rack_B_08_server_4_bottom
+            {
+                level (4 4);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    merged_wall_baffle
+    {
+        level (1 1);
+        faceType internal;
+        faceZone merged_wall_baffle;
+        regions
+        {
+            con_f
+            {
+                level (1 1);
+            }
+            con_b
+            {
+                level (1 1);
+            }
+            con_b_copy
+            {
+                level (1 1);
+            }
+        }
+    }
+
+    room_wall
+    {
+        level (1 1);
+        regions
+        {
+            Room_Wall_1
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Wall_2
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Wall_3
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+            Room_Wall_4
+            {
+                level (1 1);
+                patchInfo { type wall; inGroups (wall); }
+            }
+        }
+    }
+
+    wallBaffle_floor_Raised_Floor
+    {
+        level (2 2);
+        faceType internal;
+        faceZone Raised_Floor;
+    }
+    }
+
+    refinementRegions
+    {
+        rackRegion_Rack_A_01
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_A_02
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_A_03
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_A_04
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_A_05
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_A_06
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_01
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_02
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_03
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_04
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_05
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_06
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_07
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+
+        rackRegion_Rack_B_08
+        {
+            mode inside;
+            levels ((1e15 4));
+        }
+    }
+
+    // Use locationsInMesh with explicit cell zone assignment
+    locationsInMesh
+    (
+        (( 3.280000 1.580000 3.360000 ) none)
+        (( 4.441409 0.862500 3.304696 ) none)
+        (( 4.441409 0.737500 3.304696 ) none)
+        (( 1.553237 1.823500 3.417372 ) none)
+        (( 1.428237 1.823500 3.417372 ) none)
+        (( 7.553238 1.823500 3.418872 ) none)
+        (( 7.428238 1.823500 3.418872 ) none)
+        (( 4.490738 2.784500 3.418386 ) none)
+        (( 4.490738 2.909500 3.418386 ) none)
+    );
+}
+
+snapControls
+{
+    nSmoothPatch 1;
+    tolerance 1.5;
+    nSolveIter 20;
+    nRelaxIter 5;
+    nFeatureSnapIter 10;
+    implicitFeatureSnap true;
+    explicitFeatureSnap true;
+    multiRegionFeatureSnap true;
+    nFaceSplitInterval 5;
+    releasePoints true;
+}
+
+addLayersControls
+{
+    relativeSizes true;
+    expansionRatio 1.0;
+    finalLayerThickness 0.3;
+    minThickness 0.1;
+    nGrow 0;
+    featureAngle 60;
+    nRelaxIter 3;
+    nSmoothSurfaceNormals 1;
+    nSmoothNormals 3;
+    nSmoothThickness 10;
+    maxFaceThicknessRatio 0.5;
+    maxThicknessToMedialRatio 0.3;
+    minMedianAxisAngle 90;
+    nBufferCellsNoExtrude 0;
+    nLayerIter 50;
+    layers
+    {
+    }
+}
+
+meshQualityControls
+{
+    maxNonOrtho 60;
+    maxBoundarySkewness 20;
+    maxInternalSkewness 4;
+    maxConcave 80;
+    minFlatness 0.5;
+    minVol 1e-13;
+    minTetQuality 1e-15;
+    minArea -1;
+    minTwist 0.02;
+    minDeterminant 0.001;
+    minFaceWeight 0.05;
+    minVolRatio 0.01;
+    minTriangleTwist -1;
+    nSmoothScale 4;
+    errorReduction 0.75;
+    relaxed
+    {
+        maxNonOrtho 70;
+    }
+}
+
+writeFlags
+(
+    scalarLevels
+);
+
+mergeTolerance 1e-6;

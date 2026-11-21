@@ -1,0 +1,7 @@
+# GUI liquid run after normal OV debug restart
+
+Windows in-app-browser tab74 loaded the saved20s/2s Shinaide ring/rear project into the normal restarted8396 service. The current published React solver/linked-monitor UI prepared and started the actual differentiable CPU float64 two-thread DAE. Run3fedf5b47c6747308aab7de326f12152 completed/converged with11 frames to20s; monitor showed completed11/11, coldplate40.09°C/outlet38.26°C/flow.0088kg/s and thermal residual1.90e-6W. No console warning/error was observed in sampled interval. Source/render scene remains2348 authored primitives/818 frontend meshes.
+
+The exact full run ID comes from the normal own backend access log; status/result/checkpoint/executed-input were read through existing product API and retained by value. The earlier full run88a6 was preserved before restart in the whole-selection-camera packet. All result fields except run_id match the earlier run exactly. This verifies a fresh GUI rerun, not checkpoint restoration, changing-input transients, MMS manufacturing, physical calibration or GPU parity. Equipment coefficients are explicit mock-1-dae-v3; no synthetic result is mislabeled as measured.
+
+Concurrent OV Shift/display-grid acceptance remains unresolved. The current14-rack common category selection remains14 after focus/ISO and whole outlines appear; this is a different interaction from native Shift clicking. Original main8390 service was untouched.

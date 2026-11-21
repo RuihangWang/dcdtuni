@@ -1,0 +1,131 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_volume_flow_initialization_evaluates_real_mesh_area[False] ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_volume_flow_initializatio0')
+scheduled = False
+
+    @pytest.mark.parametrize("scheduled", [False, True])
+    def test_volume_flow_initialization_evaluates_real_mesh_area(tmp_path, scheduled):
+        # A supplied zero `value` suppresses Function1/mesh-area evaluation in the
+        # OpenFOAM constructor, hiding all boundary flux from initial CourantNo.
+        bc = {
+            "ACU_1_supply": {"bc_type": "acu_supply", "flow_rate": 1.4},
+            "S1_inlet": {"bc_type": "fan_inlet", "flow_rate": 0.5},
+            "S1_outlet": {"bc_type": "fan_outlet", "flow_rate": 0.5},
+        }
+        if scheduled:
+            for data in bc.values():
+                data["timeVarying"] = {"airflow": [{"t": 0, "value": data["flow_rate"]},
+                                                   {"t": 2, "value": data["flow_rate"] * 0.5}]}
+        fg = _make_field_gen(tmp_path, bc)
+        target = tmp_path / "0" / "U"
+        target.parent.mkdir()
+        fg._write_u_field(target, [(name, "wall") for name in bc])
+        text = target.read_text()
+        for name in bc:
+            block = text.split("    " + name + "\n", 1)[1].split("    }", 1)[0]
+            assert "flowRate" in block and "volumetricFlowRate" in block
+>           assert not re.search(r"\bvalue\s+uniform", block), name
+E           AssertionError: ACU_1_supply
+E           assert not <re.Match object; span=(93, 116), match='value           uniform'>
+E            +  where <re.Match object; span=(93, 116), match='value           uniform'> = <function search at 0x7ff87f9da050>('\\bvalue\\s+uniform', '    {\n        type            flowRateInletVelocity;\n        volumetricFlowRate 1.4;\n        value           uniform (0 0 0);\n')
+E            +    where <function search at 0x7ff87f9da050> = re.search
+
+src/backend/tests/test_template_params.py:1621: AssertionError
+________ test_volume_flow_initialization_evaluates_real_mesh_area[True] ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_volume_flow_initializatio1')
+scheduled = True
+
+    @pytest.mark.parametrize("scheduled", [False, True])
+    def test_volume_flow_initialization_evaluates_real_mesh_area(tmp_path, scheduled):
+        # A supplied zero `value` suppresses Function1/mesh-area evaluation in the
+        # OpenFOAM constructor, hiding all boundary flux from initial CourantNo.
+        bc = {
+            "ACU_1_supply": {"bc_type": "acu_supply", "flow_rate": 1.4},
+            "S1_inlet": {"bc_type": "fan_inlet", "flow_rate": 0.5},
+            "S1_outlet": {"bc_type": "fan_outlet", "flow_rate": 0.5},
+        }
+        if scheduled:
+            for data in bc.values():
+                data["timeVarying"] = {"airflow": [{"t": 0, "value": data["flow_rate"]},
+                                                   {"t": 2, "value": data["flow_rate"] * 0.5}]}
+        fg = _make_field_gen(tmp_path, bc)
+        target = tmp_path / "0" / "U"
+        target.parent.mkdir()
+        fg._write_u_field(target, [(name, "wall") for name in bc])
+        text = target.read_text()
+        for name in bc:
+            block = text.split("    " + name + "\n", 1)[1].split("    }", 1)[0]
+            assert "flowRate" in block and "volumetricFlowRate" in block
+>           assert not re.search(r"\bvalue\s+uniform", block), name
+E           AssertionError: ACU_1_supply
+E           assert not <re.Match object; span=(155, 178), match='value           uniform'>
+E            +  where <re.Match object; span=(155, 178), match='value           uniform'> = <function search at 0x7ff87f9da050>('\\bvalue\\s+uniform', '    {\n        type            flowRateInletVelocity;\n        volumetricFlowRate table\n        (\n            (0 1.4)\n            (2 0.7)\n        );\n        value           uniform (0 0 0);\n')
+E            +    where <function search at 0x7ff87f9da050> = re.search
+
+src/backend/tests/test_template_params.py:1621: AssertionError
+___ test_steady_seed_copies_pressure_corrected_flux_with_its_boundary_values ___
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_steady_seed_copies_pressu0')
+
+    def test_steady_seed_copies_pressure_corrected_flux_with_its_boundary_values(tmp_path):
+        steady, zero = tmp_path / "1000", tmp_path / "0"
+        write(steady, {"T": STEADY_T, "U": STEADY_U, "phi": STEADY_PHI})
+        write(zero, {"T": TRANSIENT_T, "U": TRANSIENT_U})
+        seeded = seed_internal_fields(steady, zero)
+>       assert "phi" in seeded
+E       AssertionError: assert 'phi' in ['T', 'U']
+
+src/backend/tests/test_transient_start.py:240: AssertionError
+______________ test_steady_seed_requires_pressure_corrected_flux _______________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_steady_seed_requires_pres0')
+
+    def test_steady_seed_requires_pressure_corrected_flux(tmp_path):
+        steady, zero = tmp_path / "1000", tmp_path / "0"
+        write(steady, {"T": STEADY_T, "U": STEADY_U})
+        write(zero, {"T": TRANSIENT_T, "U": TRANSIENT_U})
+>       with pytest.raises(ValueError, match="phi"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_transient_start.py:249: Failed
+_____ test_steady_seed_rejects_invalid_flux_identity[volScalarField-ascii] _____
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_steady_seed_rejects_inval0')
+cls = 'volScalarField', fmt = 'ascii'
+
+    @pytest.mark.parametrize("cls,fmt", [("volScalarField", "ascii"), ("surfaceScalarField", "binary")])
+    def test_steady_seed_rejects_invalid_flux_identity(tmp_path, cls, fmt):
+        steady, zero = tmp_path / "1000", tmp_path / "0"
+        write(steady, {"T": STEADY_T, "U": STEADY_U,
+                      "phi": field("phi", "uniform 0", "", cls=cls, fmt=fmt)})
+        write(zero, {"T": TRANSIENT_T, "U": TRANSIENT_U})
+>       with pytest.raises(ValueError, match="phi"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_transient_start.py:259: Failed
+__ test_steady_seed_rejects_invalid_flux_identity[surfaceScalarField-binary] ___
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pytest-initial-flux-fail/test_steady_seed_rejects_inval1')
+cls = 'surfaceScalarField', fmt = 'binary'
+
+    @pytest.mark.parametrize("cls,fmt", [("volScalarField", "ascii"), ("surfaceScalarField", "binary")])
+    def test_steady_seed_rejects_invalid_flux_identity(tmp_path, cls, fmt):
+        steady, zero = tmp_path / "1000", tmp_path / "0"
+        write(steady, {"T": STEADY_T, "U": STEADY_U,
+                      "phi": field("phi", "uniform 0", "", cls=cls, fmt=fmt)})
+        write(zero, {"T": TRANSIENT_T, "U": TRANSIENT_U})
+>       with pytest.raises(ValueError, match="phi"):
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+src/backend/tests/test_transient_start.py:259: Failed
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_template_params.py::test_volume_flow_initialization_evaluates_real_mesh_area[False]
+FAILED src/backend/tests/test_template_params.py::test_volume_flow_initialization_evaluates_real_mesh_area[True]
+FAILED src/backend/tests/test_transient_start.py::test_steady_seed_copies_pressure_corrected_flux_with_its_boundary_values
+FAILED src/backend/tests/test_transient_start.py::test_steady_seed_requires_pressure_corrected_flux
+FAILED src/backend/tests/test_transient_start.py::test_steady_seed_rejects_invalid_flux_identity[volScalarField-ascii]
+FAILED src/backend/tests/test_transient_start.py::test_steady_seed_rejects_invalid_flux_identity[surfaceScalarField-binary]
+6 failed in 0.85s

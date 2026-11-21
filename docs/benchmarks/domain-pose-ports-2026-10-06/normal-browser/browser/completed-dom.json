@@ -1,0 +1,41 @@
+{
+  "bodyText": "▼\n📁 工程与视图\n📂 加载工程\n💾 保存工程\n🏠 房间 2D 平面设计\n🎮 进入第一人称\n💧 液冷模拟\n🌬️ 风冷模拟\n🗂️\n几何\n🔬\n液冷\n📊\n后处理\n液冷动态实验\n\nCDU—管网—冷板联动。泵、换热器与阀门使用可替换的 mock 参数；设备几何和冷板参数来自当前工程。\n\n可微 Newton DAE\n\n此 DAE 使用已保存的合成设备、一次侧储能和材料参数。运行前请核对一次侧详情和参数包；这些输入不是实测或厂商标定。\n\n分析模式\n瞬态 · 负载响应在顶栏切换（液冷视图）\n\n初值：稳态初始化。计算设置：CPU · float64 · 2 线程（工程保存值）。\n\nCPU 线程数\n1\n2\n4\n\n线程数写入工程，用于下一次求解；共享服务器建议选用留有余量的线程预算。\n\n查看已保存的一次侧参数（1 个 HX）\n时间与负载\n仿真时长 / s\n24.5 s（瞬态时由时间条决定）\n时间步长 / s\n\n瞬态工程里，负载与一次侧进水温度的变化在时间条上给冷板功耗 / 一次侧进水温度打关键帧\n\n泵控制\n控制方式\n固定转速\n冷板温度 PI\n泵压差 PI\n\n保存的泵速与阀位轨迹是基线；下方在线设定从下一接受步生效。此入口不接 PI 控制器。\n\n实验设置随工程保存。参数包：liquid-demo-equipment · mock-1-dae-v3\n\n播放速度\n1×\n10×\n最快计算\n导出液冷运行文件\n新建实验\n当前运行的计划负载倍率\n80%\n100%\n120%\n\n已接受负载倍率：100%。\n\n在线倍率与工程预设的负载计划相乘，例如 1.2 × 1.2 = 1.44；已接受历史保持完整。\n\n泵\nm_30_pump\n泵相对转速\n排队泵速\n\n当前已接受：m_30_pump = 1\n\n阀门\nm_32_control_valve_1778059294098\nm_32_control_valve_1778059300037\nm_32_control_valve_1778059304833\nm_32_control_valve_1778059309112\nm_32_control_valve_1778059313540\nm_32_control_valve_1778059317045\nm_32_control_valve_1778059321377\nm_32_control_valve_1778059326858\nm_32_control_valve_1778059337713\nm_32_control_valve_1778059365363\nm_32_control_valve_1778059369370\nm_32_control_valve_1778059372094\nm_32_control_valve_1778059375012\nm_32_control_valve_1778059381648\n阀门开度\n排队阀位\n\n当前已接受：m_32_control_valve_1778059294098 = 1\n\nHX 边\nm_30_hx\n供水温度（K）\n排队供水温度\n\n当前已接受：m_30_hx = 293.15\n\n独立稳态查询\n\n使用当前已接受时刻的边界与待生效热负载、泵速和阀位，独立预览稳态；不推进时间，也不写入瞬态曲线。\n\n已完成 · 24.5 s\n运行 846357c1e058 · 4b16b22023\n导出结果\n保存检查点\n导出已计算输入\n\n包含已完成时刻的实际输入，可独立复现；待应用命令和独立稳态查询不在其中。\n\n核查液冷热量守恒\n已核查 56 台服务器、2800 个采样；最大热量残差 3.38e-8 W。\n\n本次结果与已接受输入的运行身份已核对。\n\n这里只核查冷板输入、液体移热与芯片储能；未计算空气侧余热。\n\n旧版边界条件求解\n⌃\n液冷\n稳态\n瞬态\n风冷·稳态\n渲染器 \nThree.js\nOmniverse\n导出渲染场景\nOV 连接\n建模工具\n⌄\n视图工具\n⌄\n偏好设置\n⌄\n起点：稳态收敛场\n起点：均匀初场\nt\ns\n时间设置\n轨道\nFPS: 40 | meshes: 800\n动态实验\n旧版监视\n联动监视\n\n仿真时间 24.5 s · 50 帧\n\n冷板\nm_1_e_1_cp_CP-CU_1\nm_1_e_2_cp_CP-CU_1\nm_1_e_3_cp_CP-CU_1\nm_1_e_4_cp_CP-CU_1\nm_3_e_5_cp_CP-CU_1\nm_3_e_6_cp_CP-CU_1\nm_3_e_7_cp_CP-CU_1\nm_3_e_8_cp_CP-CU_1\nm_4_e_9_cp_CP-CU_1\nm_4_e_10_cp_CP-CU_1\nm_4_e_11_cp_CP-CU_1\nm_4_e_12_cp_CP-CU_1\nm_5_e_13_cp_CP-CU_1\nm_5_e_14_cp_CP-CU_1\nm_5_e_15_cp_CP-CU_1\nm_5_e_16_cp_CP-CU_1\nm_7_e_17_cp_CP-CU_1\nm_7_e_18_cp_CP-CU_1\nm_7_e_19_cp_CP-CU_1\nm_7_e_20_cp_CP-CU_1\nm_17_e_45_cp_CP-CU_1\nm_17_e_46_cp_CP-CU_1\nm_17_e_47_cp_CP-CU_1\nm_17_e_48_cp_CP-CU_1\nm_10_e_21_cp_CP-CU_1\nm_10_e_22_cp_CP-CU_1\nm_10_e_23_cp_CP-CU_1\nm_10_e_24_cp_CP-CU_1\nm_11_e_25_cp_CP-CU_1\nm_11_e_26_cp_CP-CU_1\nm_11_e_27_cp_CP-CU_1\nm_11_e_28_cp_CP-CU_1\nm_12_e_29_cp_CP-CU_1\nm_12_e_30_cp_CP-CU_1\nm_12_e_31_cp_CP-CU_1\nm_12_e_32_cp_CP-CU_1\nm_13_e_33_cp_CP-CU_1\nm_13_e_34_cp_CP-CU_1\nm_13_e_35_cp_CP-CU_1\nm_13_e_36_cp_CP-CU_1\nm_15_e_37_cp_CP-CU_1\nm_15_e_38_cp_CP-CU_1\nm_15_e_39_cp_CP-CU_1\nm_15_e_40_cp_CP-CU_1\nm_16_e_41_cp_CP-CU_1\nm_16_e_42_cp_CP-CU_1\nm_16_e_43_cp_CP-CU_1\nm_16_e_44_cp_CP-CU_1\nm_19_e_49_cp_CP-CU_1\nm_19_e_50_cp_CP-CU_1\nm_19_e_51_cp_CP-CU_1\nm_19_e_52_cp_CP-CU_1\nm_20_e_53_cp_CP-CU_1\nm_20_e_54_cp_CP-CU_1\nm_20_e_55_cp_CP-CU_1\nm_20_e_56_cp_CP-CU_1\n冷板温度 / °C\nm_1_e_1_cp_CP-CU_1\n冷板质量流量 / kg/s\nm_1_e_1_cp_CP-CU_1\nCDU_1 · 一次回水 / 二次供水\n\n一次回水 25.01 °C · 二次供水 35.53 °C\n\n一次回水\n二次供水\n\n两条温度曲线各用独立纵轴；请按刻度比较变化。\n\nMMS 解析参考\n热量与储能 / kW\n热输入\n一次侧带走\n储能率\n\n热输入 21.00 kW · 一次侧带走 20.92 kW · 储能率 0.08 kW\n\n热平衡残差 -1.19e-8 W\n\n图表使用同一运行的物理时间；温度由 K 换算为 °C。能量残差衡量数值守恒，不表示设备模型已由现场验证。\n\n◀\n▶\n拖拽或使用左右方向键，每次移动 10 像素；按住 Shift 移动 40 像素。\n拖拽或使用上下方向键，每次移动 10 像素；按住 Shift 移动 40 像素。\nTerminal无可撤销操作\n↶ 撤销\n↷ 重做\nTERMINAL\nLOG\nTOGGLE\n📸 截图\n[05:11:04] [file:loadProject] /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/DomainAsset_Compat_Browser_CUA/DomainAsset_Compat_After.cfdproj\n[05:11:05] [view:refreshServerInfo] DCTwin 就绪\n[05:14:05] [file:saveProject] /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/DomainAsset_Compat_Browser_CUA/DomainAsset_PosePorts_After.cfdproj\n[05:14:05] [file:saveProject] 工程已保存到服务器：/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/DomainAsset_Compat_Browser_CUA/DomainAsset_PosePorts_After.cfdproj",
+  "canvas": [
+    {
+      "height": 995,
+      "width": 1508
+    },
+    {
+      "height": 115,
+      "width": 115
+    },
+    {
+      "height": 70,
+      "width": 70
+    },
+    {
+      "height": 219,
+      "width": 280
+    },
+    {
+      "height": 188,
+      "width": 280
+    },
+    {
+      "height": 188,
+      "width": 280
+    },
+    {
+      "height": 188,
+      "width": 280
+    },
+    {
+      "height": 219,
+      "width": 280
+    }
+  ],
+  "entries": [
+    "/assets/index-BaX01T4G.js"
+  ],
+  "url": "http://10.96.72.147:8396/"
+}

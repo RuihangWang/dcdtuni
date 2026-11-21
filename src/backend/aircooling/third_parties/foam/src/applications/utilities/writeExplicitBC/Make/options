@@ -1,0 +1,20 @@
+EXE_INC = \
+    -I$(LIB_SRC)/finiteVolume/lnInclude \
+    -I$(LIB_SRC)/meshTools/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
+    -I$(LIB_SRC)/transportModels \
+    -I$(LIB_SRC)/transportModels/incompressible/singlePhaseTransportModel \
+    -I$(DC_FOAM_SRC)/lib/explicitBoundaryWrite
+
+/* The turbulence libraries are what REGISTER the wall-function patch types
+   (alphatJayatillekeWallFunction, nutkWallFunction, epsilonWallFunction, ...).
+   Without them this utility parses a result file it cannot construct and dies
+   with "Unknown patchField type ... for patch type wall". */
+EXE_LIBS = \
+    -lfiniteVolume \
+    -lmeshTools \
+    -lturbulenceModels \
+    -lincompressibleTurbulenceModels \
+    -lincompressibleTransportModels \
+    -L$(FOAM_LIBBIN)/$(FOAM_MPI) -Wl,-rpath,$(FOAM_LIBBIN)/$(FOAM_MPI)

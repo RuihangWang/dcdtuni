@@ -1,0 +1,45 @@
+{
+ "name": "AB-UPT + BQA + AGS (DCTS)",
+ "name_zh": "AB-UPT + BQA + AGS（DCTS）",
+ "recommended": false,
+ "description": "AB-UPT backbone with BQA and AGS, the lowest DCTS error; one whole-room forward pass with every cell as anchor (slower, more memory).",
+ "description_zh": "AB-UPT 主干 + BQA + AGS，DCTS 上误差最低；整室一次前向、全部单元作锚点（更慢、显存更大）。",
+ "run": "c86 abupt_channel_wmn__lr1e-3 seed 18",
+ "parameters": "about 3 M",
+ "dataset": "DCTS (500 parametric GTC rooms; 400 train / 50 val / 50 test)",
+ "fields": [
+  "u",
+  "v",
+  "w",
+  "p_rgh",
+  "T"
+ ],
+ "adapter": "scano-dcts-v1",
+ "first_iteration": "../dcts_normalizer/first_iteration.json",
+ "mesh": {
+  "engine": "snappy",
+  "base_cell_m": 0.34,
+  "note": "snappyHexMesh with the DCTS recipe (case/DCTS/make_dcts_project.py)"
+ },
+ "metric": "mean over the five fields of the per-field relative L2 error",
+ "val_error": 0.3718,
+ "checkpoint_sha256": "5ecb9b4237e1b9226d240c4527b8f80180876abebef50cef93d5470d272d3972",
+ "training_ranges": "../dcts_normalizer/training_ranges.json",
+ "source": "Google Drive SCANO/realtime_demo_20261027/model/abupt_bqa_ags_c86_s18",
+ "test_error": 0.3684,
+ "test_error_T": 0.1647,
+ "test_rmse_T_K": 0.762,
+ "paper_seconds_gh200": 148.61,
+ "paper_peak_gpu_gib": 9.1,
+ "memory": {
+  "node_bytes": 504,
+  "row_bytes": 5230,
+  "tta_rows0": 351972,
+  "tta_rows_per_node": 0.02461,
+  "note": "peak = node_bytes x nodes + row_bytes x rows (rows: nodes for the whole room, tta_rows0 + tta_rows_per_node x nodes for TTA); fit on an RTX 4090, docs/benchmarks/scano-tta-2026-10-29"
+ },
+ "inference": {
+  "auto": "tta",
+  "note": "TTA x1 matches the whole-room forward on the four DCTS example rooms (mean error 0.3721 vs 0.3718) in 15-19 s instead of 215-303 s on an RTX 4090; docs/benchmarks/scano-tta-2026-10-29"
+ }
+}

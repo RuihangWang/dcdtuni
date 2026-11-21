@@ -1,0 +1,193 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[convert] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3bdd026dd0>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno0')
+block = 'convert'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+>       assert old["ok"] is False, (block, stage.events, ext.acks)
+E       AssertionError: ('convert', [('blocked', 'convert', 'old-project'), ('scene', 'new-project'), ('import', '/mnt/lv/home/litianyu/mycode...[0.0, 1.0, 0.0, 1.0, 0.0, 1.0], 'fields': {}, 'hasT': True, 'hasU': False, ...}, 'ok': True, 'requestId': 'old-load'}])
+E       assert True is False
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:199: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno0/old.vtu
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[import] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3bdcf4ba90>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno1')
+block = 'import'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+>       assert old["ok"] is False, (block, stage.events, ext.acks)
+E       AssertionError: ('import', [('blocked', 'import', 'old-project'), ('scene', 'new-project'), ('import', '/mnt/lv/home/litianyu/mycode/d...[0.0, 1.0, 0.0, 1.0, 0.0, 1.0], 'fields': {}, 'hasT': True, 'hasU': False, ...}, 'ok': True, 'requestId': 'old-load'}])
+E       assert True is False
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:199: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno1/old.vtu
+_ test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[bounds] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3bde4c2b30>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno2')
+block = 'bounds'
+
+    @pytest.mark.parametrize("block", ["convert", "import", "bounds"])
+    def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
+        async def scenario():
+            ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+            ext._route_render_command("loadResultDataset",
+                json.dumps({"requestId": "old-load", "grant": granted}))
+            await _drain_until(started.is_set)
+            ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+            await asyncio.sleep(0)
+            release.set()
+            await _drain_until(lambda: len(ext.acks) == 2)
+            old = next(a for a in ext.acks if a["requestId"] == "old-load")
+            new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+            assert old["ok"] is False, (block, stage.events, ext.acks)
+            assert "scene changed" in old["error"].lower()
+            assert new["ok"] is True
+            assert stage.project == "new-project"
+            assert ext._scene_project_uid == "new-project"
+            assert ext._display_project_uid is None
+            assert scene.dataset_path is None and scene.t_field is None
+            assert scene.vtu_path is None and scene.source_vtu_path is None
+            assert scene._slice_grid is None and scene._slice_summary is None
+            assert not stage.GetPrimAtPath("/World/internal")
+            assert not any(event[0] == "import" and event[-1] == "new-project"
+                           for event in stage.events), stage.events
+>       asyncio.run(scenario())
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/runners.py:44: in run
+    return loop.run_until_complete(main)
+../../../../../miniconda3/envs/dcdtuni/lib/python3.10/asyncio/base_events.py:649: in run_until_complete
+    return future.result()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def scenario():
+        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
+        ext._route_render_command("loadResultDataset",
+            json.dumps({"requestId": "old-load", "grant": granted}))
+        await _drain_until(started.is_set)
+        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
+        await asyncio.sleep(0)
+        release.set()
+        await _drain_until(lambda: len(ext.acks) == 2)
+        old = next(a for a in ext.acks if a["requestId"] == "old-load")
+        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
+>       assert old["ok"] is False, (block, stage.events, ext.acks)
+E       AssertionError: ('bounds', [('import', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-se...[0.0, 1.0, 0.0, 1.0, 0.0, 1.0], 'fields': {}, 'hasT': True, 'hasU': False, ...}, 'ok': True, 'requestId': 'old-load'}])
+E       assert True is False
+
+src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py:199: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[dc.cfd_bridge] dataset=/World/internal T=/World/internal/T U=None Umag=None
+[dc.cfd_bridge] load_dataset OK: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/kit-race/owned-tmp/red-pytest/test_blocked_old_dataset_canno2/old.vtu
+[dc.cfd_bridge] scene load begin primitives=0
+[dc.cfd_bridge] scene load authored primitives=0
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[convert]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[import]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py::test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene[bounds]
+3 failed, 1 passed in 0.39s

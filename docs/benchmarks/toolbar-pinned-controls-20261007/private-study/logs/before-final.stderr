@@ -1,0 +1,113 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > scrolls only expanded tools while preserving both primary and section controls
+AssertionError: primary controls must not belong to tools scroll region: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:59:91
+     57|  const body=document.getElementById('toolbar-body')!
+     58|  const primary=document.querySelector('.toolbar-primary')!,tabs=docume…
+     59|  expect(body.contains(primary),'primary controls must not belong to to…
+       |                                                                                           ^
+     60|  expect(body.contains(tabs),'section navigation must not belong to too…
+     61|  const nodes=Array.from(tabs.children)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > reserves the measured header AND timeline on deliberate keyboard shrinking
+AssertionError: expected 152 to be 232 // Object.is equality
+
+- Expected
++ Received
+
+- 232
++ 152
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:75:46
+     73|   const handle=document.getElementById('toolbar-resizer')!
+     74|   act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent(…
+     75|   expect(parseFloat(f.toolbar.style.height)).toBe(232)
+       |                                              ^
+     76|   expect(handle.getAttribute('aria-valuemin')).toBe('232')
+     77|   expect(parseFloat(f.toolbar.style.getPropertyValue('--toolbar-header…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > remeasures a same-width header rewrap through its actual ResizeObserver
+AssertionError: expected undefined to be defined
+ ❯ test/toolbarPinnedControls.private.test.tsx:85:19
+     83|  try{
+     84|   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))
+     85|   expect(observe).toBeDefined()
+       |                   ^
+     86|   headerHeight=140;act(()=>observe!.emit())
+     87|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > keeps manual preference across header expansion and narrower/wider layouts
+TypeError: Cannot read properties of undefined (reading 'emit')
+ ❯ test/toolbarPinnedControls.private.test.tsx:97:36
+     95|   act(()=>{for(let i=0;i<4;i++)handle.dispatchEvent(new KeyboardEvent(…
+     96|   const observe=SizeObserver.all.find(o=>o.targets.has(f.header))!
+     97|   headerHeight=120;act(()=>observe.emit())
+       |                                    ^
+     98|   expect(parseFloat(f.toolbar.style.height)).toBe(272)
+     99|   width=800;headerHeight=80;act(()=>observe.emit())
+ ❯ Proxy.act ../../../../../goal-20261005/integration/src/frontend/react/node_modules/react/cjs/react.development.js:2512:16
+ ❯ test/toolbarPinnedControls.private.test.tsx:97:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > remeasures timeline visibility without moving the fixed controls into scrolling tools
+AssertionError: expected '32' to be '112' // Object.is equality
+
+Expected: "112"
+Received: "32"
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:111:85
+    109|  try{
+    110|   await act(async()=>{f.footer.hidden=true;await Promise.resolve()})
+    111|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+       |                                                                                     ^
+    112|   await act(async()=>{f.footer.hidden=false;footerHeight=160;await Pro…
+    113|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > keeps positive bounded keyboard regions at an extremely short viewport height
+AssertionError: expected NaN to be greater than 0
+ ❯ test/toolbarPinnedControls.private.test.tsx:127:18
+    125|   const body=parseFloat(f.toolbar.style.getPropertyValue('--toolbar-bo…
+    126|   const footer=parseFloat(f.toolbar.style.getPropertyValue('--timeline…
+    127|   expect(header).toBeGreaterThan(0);expect(body).toBeGreaterThan(0);ex…
+       |                  ^
+    128|   expect(header+body+footer).toBeCloseTo(parseFloat(f.toolbar.style.he…
+    129|   expect(f.toolbar.dataset.headerScrollable).toBe('true');expect(f.too…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/toolbarPinnedControls.private.test.tsx > removes the empty tools budget when all sections close and restores it on reopening
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/toolbarPinnedControls.private.test.tsx:138:25
+    136|   expect(f.body.hidden).toBe(false)
+    137|   await act(async()=>{click('toolbar-view-tools-toggle');await Promise…
+    138|   expect(f.body.hidden).toBe(true)
+       |                         ^
+    139|   expect(document.getElementById('toolbar-resizer')!.getAttribute('ari…
+    140|   expect(parseFloat(f.toolbar.style.getPropertyValue('--toolbar-body-f…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+

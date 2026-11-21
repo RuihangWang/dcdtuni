@@ -1,0 +1,65 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dcCartMeshDict;
+}
+
+// Written by STLGenRunner (meshEngine: dcCart). Geometry, refinementSurfaces,
+// refinementRegions and locationsInMesh come from snappyHexMeshDict.
+nCellsBetweenLevels 1;
+timeLimitSeconds    300;
+// Write every flow-through baffle's <zone>_master/_slave pair in the mesher
+// itself (and a processorCyclic patch for each pair a rank boundary
+// separates). That is all redistributePar and createBaffles existed to do, so
+// both passes are skipped below -- 29 s of the Base604 mesh pipeline.
+splitBaffles        true;
+// The same ceiling the snappy path writes into snappyHexMeshDict, and the same
+// fallback. dcCartMesh stops refining once its octree reaches it, exactly where
+// meshRefinement::refineCandidates stops in snappyHexMesh.
+maxGlobalCells      10000;
+// Near-coincidence weld of the surfaces before the cut (see the runner comment
+// above): 0 turns it off. DCCART_WELD_TOL / DCCART_WELD=0 in the environment win.
+weldTolerance       0;
+// First-layer floor on top of the weld (dcCartSurfaces::weldNearCoincident):
+// per surface class the band widens to firstLayerMinFraction x that class's
+// refinement-level spacing, capped at firstLayerMax m, so no axis-aligned
+// surface carves a slab thinner than that. 0 = classic weld only. A gap
+// between two solids wider than firstLayerSealGap (< 0: weldTolerance) is
+// never sealed. DCCART_FIRSTLAYER_FRACTION / DCCART_FIRSTLAYER_MAX win.
+firstLayerMinFraction 0;
+firstLayerMax       0.005;
+firstLayerSealGap   -1;
+
+dcdtuniPointRepairSourceRoleContract
+{
+    version 1;
+    eligible true;
+    rawSha256 "bbd9daefecc28cb48e2e5d9d21a9d31abdf8f73cf5d171c950ecc94b4bae0c62";
+    rolesDigest "9bb342db8a3f74760a49c6b4729f186ffb1073b00aad357313c182860f26e113";
+    scope globallyNoBulkSourcesAndNoMaterialDomains;
+    reasons ();
+}
+
+dcdtuniWeightUnionSourceContract
+{
+    version 1;
+    eligible true;
+    rawSha256 "bbd9daefecc28cb48e2e5d9d21a9d31abdf8f73cf5d171c950ecc94b4bae0c62";
+    rolesDigest "9bb342db8a3f74760a49c6b4729f186ffb1073b00aad357313c182860f26e113";
+    scope globalSinglePhaseAirMaterial;
+    materialKey "global-air:1202d89a6133e73efcd4107255a5e6f5722e0704c5100e641dd5e451fc56b137";
+    materialDigest "1202d89a6133e73efcd4107255a5e6f5722e0704c5100e641dd5e451fc56b137";
+    producerDigest "20290ac887f8191449cd3291f580727db3def144517f567ae05378a9cb0140e4";
+    boundaryMembershipDigest "e0fe3c74388250c04f20147c4f827d3a84c4cdd099c7458b6824aea6e30166d5";
+    ownershipPolicy adjacentFinalCarvedFluidCells;
+    reasons ();
+}
+
+background
+{
+    x (-0.25 0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0 2.25);
+    y (-0.25 0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0 2.25);
+    z (-0.25 0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0 2.25);
+}

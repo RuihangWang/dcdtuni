@@ -1,0 +1,132 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T5 (results on the playhead, transient verdict, E2E) — E7 complete",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t5",
+  "code": "c8c49c63",
+  "machine": "40901, isolated worktree ~/scratch/wt-t5 on 8390 (8360 untouched)",
+  "rules": {
+    "follow": "results follow the playhead only when the user moves it (or the result's own time control); a freshly opened result shows its latest time/sample",
+    "nearest": "nearest written time (air, 0/ excluded: its boundary values are generated placeholders) or sample (liquid); ties to the earlier",
+    "held_colour_range": "surface clim and slice clim held across playhead-driven frame changes; reset on a run change",
+    "readout": "the result's time is shown; 'nearest written time' only for a frame the playhead chose"
+  },
+  "commits": {
+    "0fcf6e06/e510414d": "plan: T5 expanded",
+    "a8bb93e3": "T5a liquid sample follows the playhead",
+    "4f77bcf5": "T5c transient verdict; last solver stage only",
+    "a5a7c38c": "T5b air frame follows the playhead; server marks transient runs",
+    "0a37b988": "T5b fix found by the gate: a freshly opened run no longer jumps to the playhead's frame",
+    "c8c49c63": "runner logs TRANSIENT_COMPLETED as INFO; runner call-site test"
+  },
+  "tests": {
+    "new": {
+      "resultPlayback": 6,
+      "liquidPanelPlayhead": 2,
+      "PostprocessPlayhead": 4,
+      "server_transient_flag": 1,
+      "convergence_transient": 6,
+      "runner_verdict_call_site": 1
+    },
+    "real_logs": {
+      "t4_gate_uniform": "TRANSIENT_COMPLETED, 800 steps, max Co 5.05 (maxCo 5)",
+      "t4_gate_steady_start": "TRANSIENT_COMPLETED, 800 steps (was assessed as 1045 mixed SIMPLE+PIMPLE iterations), max Co 6.23",
+      "steady_0914_logs": "old and new verdicts identical: CONVERGED 285 and 281 iterations"
+    },
+    "pytest_full_backend": {
+      "commit": "c8c49c63",
+      "passed": 1853,
+      "skipped": 66,
+      "failed": 4,
+      "failed_same_on_main": [
+        "dcCart x2",
+        "MMS fixture x2"
+      ]
+    },
+    "vitest": {
+      "commit": "0a37b988",
+      "files": 317,
+      "files_skipped": 1,
+      "tests": 3165,
+      "tests_skipped": 1,
+      "failed": 0
+    },
+    "tsc": "clean"
+  },
+  "browser_gate": {
+    "air": {
+      "case": "Slab; T4 uniform gate run copied into the gate case (passes /api/pp/init run identity)",
+      "open": "init at latest 4 s with the playhead at 0: stays at 4 s (readout '结果时刻 t = 4 s (播放头在 0 s)')",
+      "slice": "Y slice added at 4 s",
+      "bar_1s": {
+        "frame": 1,
+        "frame_own_range_C": [
+          12.0,
+          86.7
+        ],
+        "displayed_range_C": [
+          12.0,
+          82.66
+        ],
+        "slice": "kept and re-cut (network: init, mesh, field, slice)"
+      },
+      "bar_0s": {
+        "frame": 0.5,
+        "frame_own_range_C": [
+          15.0,
+          86.7
+        ],
+        "readout": "结果时刻 t = 0.5 s (播放头 0 s,取最近的写出时刻)",
+        "matches_t4": "supply 15 C before the 1 s step, 12 C after (T4 patch averages 288.15 -> 285.15 K)"
+      },
+      "list_pick_1_5": {
+        "frame": 1.5,
+        "playhead": 2,
+        "retargeted": false
+      }
+    },
+    "liquid": {
+      "case": "Shinaide_Liquid/Shinaide_dae_cpu.cfdproj, timeline 150 s, prepare -> start, completed 150 s, 16 samples, converged",
+      "run": "run-952c7e38b4514f4088dc8f64daa1fa67 (copy in 40901 ~/scratch/t5gate/)",
+      "open": "after refresh: latest 150 s, playhead 0, no jump",
+      "bar_30s": {
+        "sample": 3,
+        "max_chip_C": 65.1
+      },
+      "bar_90s": {
+        "sample": 9,
+        "max_chip_C": 79.8
+      },
+      "result_file_max_chip_C": [
+        65.1,
+        65.1,
+        65.1,
+        65.1,
+        65.1,
+        65.1,
+        75.3,
+        78.5,
+        79.5,
+        79.8,
+        79.9,
+        79.9,
+        79.9,
+        79.9,
+        79.9,
+        79.9
+      ],
+      "slider_to_sample_2": {
+        "playhead": 20,
+        "pipe_colouring": "changes with the sample (visual)"
+      }
+    },
+    "backend_version": "8390 started at a5a7c38c (backend); the React bundle was rebuilt at 0a37b988; later commits touch frontend, tests and docs only. No new air solve ran in the gate (the air result is a copy of the T4 run): the transient verdict is covered through the runner's own call site by a unit test and on real logs by the CLI"
+  },
+  "notes": [
+    "volume renders are dropped on a frame change; with writes every 0.5 s and a 1 s grid half the air frames are reachable only from the time list; a result-control pick moves the playhead off 0 and freezes the inspector (回到起点 recovers)",
+    "gate-run diagnostics: time step stayed 0.005 s (Courant at maxCo 5); p_rgh initial residual of each step's last outer corrector ~0.15 median (PIMPLE nOuterCorrectors 2, no residual control) — a solver-settings question for the user, not changed in T5",
+    "pre-existing, split off as tasks: the liquid results panel keeps the previous run after an experiment finishes until refreshed; the solve tab shows 'running checkMesh' after a solve starts"
+  ],
+  "fixed_before_merge": "the runner logged a completed transient run as WARNING (only CONVERGED was INFO); TRANSIENT_COMPLETED is INFO now, with a runner call-site test"
+}

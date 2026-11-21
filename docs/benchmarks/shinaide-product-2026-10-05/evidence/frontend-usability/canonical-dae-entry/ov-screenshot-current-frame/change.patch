@@ -1,0 +1,236 @@
+--- a/src/frontend/react/src/components/LogPanel.tsx
++++ b/src/frontend/react/src/components/LogPanel.tsx
+@@ -2,25 +2,17 @@
+ import * as store from '../projectStore'
+ import { toggleLogDock } from '../ui/layoutMetrics'
+ import { TerminalPanel } from './TerminalPanel'
+-
+-/**
+- * Save the viewport as a PNG under the case directory.
+- *
+- * The canvas is re-rendered first. A WebGL canvas without `preserveDrawingBuffer`
+- * is CLEARED after each present, so `toDataURL` on a canvas that has not just
+- * drawn returns a blank image — and a blank screenshot looks like a broken
+- * viewport rather than a mistimed read.
++import { captureViewportPng } from '../ui/viewportScreenshot'
++
++/**
++ * Save the displayed OV frame or freshly rendered Three canvas as a PNG.
++ * Capture errors are visible in the existing Operation Log.
+  */
+ async function captureScreenshot() {
+-  const handle = (window as unknown as { __viewportRender?: () => HTMLCanvasElement | null })
+-    .__viewportRender
+-  const canvas = handle?.() ?? document.querySelector<HTMLCanvasElement>('#center-view canvas')
+-  if (!canvas) {
+-    store.logOperation('captureScreenshot', 'no canvas')
+-    return
+-  }
+   try {
+-    const imageData = canvas.toDataURL('image/png')
++    const handle = (window as unknown as { __viewportRender?: () => HTMLCanvasElement | null })
++      .__viewportRender
++    const imageData = captureViewportPng(document, handle)
+     const resp = await fetch('/api/screenshot', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+--- a/src/frontend/react/src/ui/viewportScreenshot.ts
++++ b/src/frontend/react/src/ui/viewportScreenshot.ts
+@@ -0,0 +1,39 @@
++/**
++ * Capture the renderer currently displayed in the viewport.
++ *
++ * OV is mounted over a retained Three canvas. A mounted OV view must therefore
++ * either supply a decoded frame or fail; silently using Three would save a
++ * different scene/camera from the one the user is looking at.
++ */
++export function captureViewportPng(
++  doc: Document,
++  renderThree?: () => HTMLCanvasElement | null,
++): string {
++  const ov = doc.querySelector<HTMLElement>('.ov-render-viewport')
++  if (ov) {
++    const video = ov.querySelector<HTMLVideoElement>('video')
++    if (!video) throw new Error('Omniverse screenshot: viewport video is unavailable')
++    const width = video.videoWidth
++    const height = video.videoHeight
++    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || width <= 0 || height <= 0) {
++      throw new Error('Omniverse screenshot: no decoded current frame; wait for the video stream')
++    }
++    const canvas = doc.createElement('canvas')
++    canvas.width = width
++    canvas.height = height
++    const context = canvas.getContext('2d')
++    if (!context) throw new Error('Omniverse screenshot: 2D capture context is unavailable')
++    try {
++      context.drawImage(video, 0, 0, width, height)
++      return canvas.toDataURL('image/png')
++    } catch (error) {
++      throw new Error('Omniverse screenshot: ' + (error instanceof Error ? error.message : String(error)))
++    }
++  }
++
++  // Without preserveDrawingBuffer, Three's canvas must be read immediately
++  // after the existing hook has rendered it; keep that call before toDataURL.
++  const canvas = renderThree?.() ?? doc.querySelector<HTMLCanvasElement>('#center-view canvas')
++  if (!canvas) throw new Error('no canvas')
++  return canvas.toDataURL('image/png')
++}
+--- a/src/frontend/react/test/viewportScreenshot.test.tsx
++++ b/src/frontend/react/test/viewportScreenshot.test.tsx
+@@ -0,0 +1,155 @@
++import { act } from 'react'
++import { createRoot, type Root } from 'react-dom/client'
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { LogPanel } from '../src/components/LogPanel'
++import * as store from '../src/projectStore'
++
++vi.mock('../src/components/TerminalPanel', () => ({ TerminalPanel: () => null }))
++
++type ViewportWindow = Window & { __viewportRender?: () => HTMLCanvasElement | null }
++const viewportWindow = window as ViewportWindow
++let host: HTMLDivElement
++let root: Root
++let threeCanvas: HTMLCanvasElement
++let drawImage: ReturnType<typeof vi.fn>
++let fetchScreenshot: ReturnType<typeof vi.fn>
++let renderThree: ReturnType<typeof vi.fn>
++let saveCanvas: HTMLCanvasElement | undefined
++
++beforeEach(() => {
++  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
++  vi.stubGlobal('ResizeObserver', class {
++    observe() {}
++    disconnect() {}
++  })
++  document.body.innerHTML = '<div id="center-view"><canvas></canvas></div>'
++  threeCanvas = document.querySelector<HTMLCanvasElement>('#center-view canvas')!
++  drawImage = vi.fn()
++  saveCanvas = undefined
++  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
++    saveCanvas = this
++    return { drawImage } as unknown as CanvasRenderingContext2D
++  })
++  vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(function (this: HTMLCanvasElement) {
++    return this === threeCanvas ? 'data:image/png;base64,THREE' : 'data:image/png;base64,OV_CURRENT_FRAME'
++  })
++  fetchScreenshot = vi.fn(async () => ({ json: async () => ({ path: 'screenshots/current.png' }) }))
++  vi.stubGlobal('fetch', fetchScreenshot)
++  renderThree = vi.fn(() => threeCanvas)
++  viewportWindow.__viewportRender = renderThree
++  host = document.createElement('div')
++  document.body.append(host)
++  root = createRoot(host)
++  act(() => root.render(<LogPanel />))
++})
++
++afterEach(() => {
++  act(() => root.unmount())
++  delete viewportWindow.__viewportRender
++  document.body.innerHTML = ''
++  vi.restoreAllMocks()
++  vi.unstubAllGlobals()
++})
++
++function ovVideo(readyState = 4, width = 1600, height = 900) {
++  const overlay = document.createElement('div')
++  overlay.className = 'ov-render-viewport'
++  const video = document.createElement('video')
++  video.style.width = '320px'
++  video.style.height = '180px'
++  Object.defineProperties(video, {
++    readyState: { value: readyState, configurable: true },
++    videoWidth: { value: width, configurable: true },
++    videoHeight: { value: height, configurable: true },
++  })
++  overlay.append(video)
++  document.getElementById('center-view')!.append(overlay)
++  return video
++}
++
++async function pressScreenshot() {
++  const button = host.querySelector<HTMLButtonElement>('#btn-screenshot')!
++  await act(async () => {
++    button.click()
++    await Promise.resolve()
++  })
++}
++
++it('the actual screenshot button saves the decoded OV frame at native dimensions, without rendering hidden Three', async () => {
++  const video = ovVideo(2, 1920, 1080)
++  await pressScreenshot()
++  expect(renderThree).not.toHaveBeenCalled()
++  expect(drawImage).toHaveBeenCalledTimes(1)
++  expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1920, 1080)
++  expect([saveCanvas!.width, saveCanvas!.height]).toEqual([1920, 1080])
++  expect(fetchScreenshot).toHaveBeenCalledTimes(1)
++  expect(fetchScreenshot).toHaveBeenCalledWith('/api/screenshot', {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json' },
++    body: JSON.stringify({ imageData: 'data:image/png;base64,OV_CURRENT_FRAME' }),
++  })
++})
++
++it('an OV stream without a current decoded frame reports an error and never falls back or posts Three', async () => {
++  ovVideo(1)
++  await pressScreenshot()
++  expect(fetchScreenshot).not.toHaveBeenCalled()
++  expect(renderThree).not.toHaveBeenCalled()
++  expect(drawImage).not.toHaveBeenCalled()
++  expect(store.getLog()[0]).toMatchObject({ action: 'captureScreenshot' })
++  expect(store.getLog()[0]!.detail).toMatch(/Omniverse.*decoded current frame/i)
++})
++
++it('an empty OV video with no native frame size cannot produce a screenshot', async () => {
++  ovVideo(4, 0, 0)
++  await pressScreenshot()
++  expect(fetchScreenshot).not.toHaveBeenCalled()
++  expect(renderThree).not.toHaveBeenCalled()
++  expect(store.getLog()[0]!.detail).toMatch(/Omniverse.*decoded current frame/i)
++})
++
++it('a mounted OV viewport with no video explicitly refuses the screenshot', async () => {
++  const overlay = document.createElement('div')
++  overlay.className = 'ov-render-viewport'
++  document.getElementById('center-view')!.append(overlay)
++  await pressScreenshot()
++  expect(fetchScreenshot).not.toHaveBeenCalled()
++  expect(renderThree).not.toHaveBeenCalled()
++  expect(store.getLog()[0]!.detail).toMatch(/Omniverse.*video/i)
++})
++
++it('Three screenshots still re-render immediately before toDataURL', async () => {
++  let rendered = false
++  renderThree.mockImplementation(() => {
++    rendered = true
++    return threeCanvas
++  })
++  vi.spyOn(threeCanvas, 'toDataURL').mockImplementation(() => {
++    expect(rendered).toBe(true)
++    return 'data:image/png;base64,FRESH_THREE'
++  })
++  await pressScreenshot()
++  expect(renderThree).toHaveBeenCalledTimes(1)
++  expect(drawImage).not.toHaveBeenCalled()
++  expect(JSON.parse(fetchScreenshot.mock.calls[0]![1].body)).toEqual({
++    imageData: 'data:image/png;base64,FRESH_THREE',
++  })
++})
++
++it('Three can retain the existing canvas fallback when its render hook is unavailable', async () => {
++  delete viewportWindow.__viewportRender
++  await pressScreenshot()
++  expect(drawImage).not.toHaveBeenCalled()
++  expect(JSON.parse(fetchScreenshot.mock.calls[0]![1].body)).toEqual({
++    imageData: 'data:image/png;base64,THREE',
++  })
++})
++
++it('OV frame drawing errors are logged without a hidden-Three fallback or invalid POST', async () => {
++  ovVideo()
++  drawImage.mockImplementation(() => { throw new Error('decoded frame became unavailable') })
++  await pressScreenshot()
++  expect(renderThree).not.toHaveBeenCalled()
++  expect(fetchScreenshot).not.toHaveBeenCalled()
++  expect(store.getLog()[0]!.detail).toContain('decoded frame became unavailable')
++})

@@ -1,0 +1,37 @@
+{
+  "compilerWarnings": 211,
+  "compilerErrors": 0,
+  "warningClasses": {
+    "[-Wunused-": 6,
+    "[-Wuninitialized]": 2,
+    "[-Wold-style-cast]": 167,
+    "[-Wsign-compare]": 2
+  },
+  "buildStdoutBytes": 8953,
+  "buildStderrBytes": 132650,
+  "reportedOpenFOAM": [
+    "OpenFOAM  : v2412  (linux64GccDPInt32Opt)"
+  ],
+  "HSourceContext": [
+    {
+      "line": 814,
+      "excerpt": "            const weightUnionAuthority& weightAuthority = weightUnionAuthority(),\n            const completeCavityAuthority& cavityAuthority = completeCavityAuthority(),\n            // PRIVATE explicit argument; normal APP remains default OFF.\n            const bool earliestPhysicalPointRepair = false\n        );\n\n        static label auditRegularTransitionRoofs(cutMesh& m, const boolList& coupledPatch);\n"
+    }
+  ],
+  "CSourceContext": [
+    {
+      "line": 12602,
+      "excerpt": "    const wordList& patchGroups,\n    const weightUnionAuthority& weightAuthority,\n    const completeCavityAuthority& cavityAuthority,\n    const bool earliestPhysicalPointRepair\n)\n{\n    const char* p17ObservationFlag=getenv(\"DCCART_LEGACY_JOURNAL_OBSERVE\");\n    dcCartLegacyJournalObservation::Scope p17ObservationScope(p17ObservationFlag&&std::strcmp(p17ObservationFlag,\"1\")==0,myRank);"
+    },
+    {
+      "line": 12616,
+      "excerpt": "    const label completeRepairRequested=completeRepairFlag&&std::string(completeRepairFlag)==\"1\";\n    // Same fixed two setup collectives encode both flags on EVERY rank.\n    // No trial or local early-return branch contains MPI.\n    const label completeContextFlags=completeContextRequested+2*completeRepairRequested+4*label(earliestPhysicalPointRepair);\n    const label completeContextMin=returnReduce(completeContextFlags,minOp<label>());\n    const label completeContextMax=returnReduce(completeContextFlags,maxOp<label>());\n    if(completeContextMin!=completeContextMax)\n    {FatalErrorInFunction<<\"complete-cavity context flag differs across ranks\"<<exit(FatalError);}"
+    }
+  ],
+  "APPSourceContext": [
+    {
+      "line": 2894,
+      "excerpt": "        }\n        if (getenv(\"DCCART_CONFORMING_CONES\") != nullptr)\n        {\n            dcCartCutCells::decomposeConformingCones\n            (\n                m,patchNames,patchTypes,patchNeighbours,myProc,\n                runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority,cavityAuthority\n            );"
+    }
+  ]
+}

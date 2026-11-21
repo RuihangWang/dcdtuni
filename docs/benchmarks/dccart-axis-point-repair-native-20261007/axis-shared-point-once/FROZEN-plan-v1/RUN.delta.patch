@@ -1,0 +1,43 @@
+--- /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/dccart-kernel-three-flag-tiny-plan-shared-20261007/FROZEN-plan-v1/RUN.py
++++ RUN.py
+@@ -22,18 +22,19 @@
+   assert actual==expect,'Current reviewed source/pair/served bytes drift: '+key;groups[key]=actual
+  expected=json.loads((F/plan['ownedRolesFile']).read_text());actual={pid:role_info(pid) for pid in expected};assert actual==expected,'Owned role changed';groups['roles']=actual
+  for p,expected in plan['externalReferences'].items():assert info(p)==expected,'Reviewed external reference drift: '+p
++ for p,expected in plan['baselineComparison']['files'].items():assert info(p)==expected,'Frozen AXIS scientific baseline drift: '+p
+  for k in ['APP','LIB']:
+   v=plan['pair'][k];assert info(v['path'])=={x:v[x] for x in ['sha256','bytes']}
+  v=plan['stockCheckMesh'];assert info(v['path'])=={x:v[x] for x in ['sha256','bytes']}
+  source=plan['sourceC'];x=literal_block(source['actualF3C']['path']);y=literal_block(source['actualNormalC']['path']);assert x==y and hashlib.sha256(x).hexdigest()==source['blockSHA256']
+  return {'sourceGroups':{k:len(v) if k!='sourceCohortFile' else {g:len(rows) for g,rows in v.items()} for k,v in groups.items()},'sourceFingerprint':hashlib.sha256(json.dumps(groups,sort_keys=True,separators=(',',':')).encode()).hexdigest(),'pair':plan['pair'],'kernelLiteralEqual':True,'noNetworkOrGPURequest':True}
+ def env_for(kind):
+- assert kind in ['BASE','AXIS']
++ assert kind in ['AXIS_REFERENCE','AXIS_SHARED']
+  env={k:v for k,v in os.environ.items() if not k.startswith(('DCCART_','CART_')) and k not in ['LD_PRELOAD','LD_AUDIT','LD_DEBUG']}
+  env.update(plan['commonFlags']);env.update(CUDA_VISIBLE_DEVICES='',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1',PYTHONDONTWRITEBYTECODE='1',PYTHONPYCACHEPREFIX=str(T/'cache/pycache'),TMPDIR=str(T/'tmp'),TMP=str(T/'tmp'),TEMP=str(T/'tmp'),XDG_CACHE_HOME=str(T/'cache'),CCACHE_DIR=str(T/'cache/ccache'))
+- if kind=='AXIS':env.update(plan['axisOnlyDelta'])
++ if kind=='AXIS_SHARED':env.update(plan['sharedOnlyDelta'])
+  assert not any(k in env for k in plan['forbiddenVariables'])
+- assert {k:v for k,v in env.items() if k.startswith('DCCART_')}=={**plan['commonFlags'],**(plan['axisOnlyDelta'] if kind=='AXIS' else {})}
++ assert {k:v for k,v in env.items() if k.startswith('DCCART_')}=={**plan['commonFlags'],**(plan['sharedOnlyDelta'] if kind=='AXIS_SHARED' else {})}
+  return env
+ def bounded(name,argv,cwd,env):
+  rec={'argv':argv,'cwd':str(cwd),'startUTC':datetime.datetime.now(datetime.timezone.utc).isoformat(),'watchdogSeconds':120,'nativeFlags':{k:v for k,v in env.items() if k.startswith('DCCART_')},'environment':{k:env.get(k) for k in ['CUDA_VISIBLE_DEVICES','OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','TMPDIR','XDG_CACHE_HOME']}};start=time.monotonic()
+@@ -111,7 +112,7 @@
+   root=CASE/kind;assert root.exists() and not(root/'Mesh/constant/polyMesh').exists()
+   assert {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}==set(inputs)
+   for rel,v in inputs.items():assert info(root/rel)=={k:v[k] for k in ['sha256','bytes']} and info(F/'input'/rel)=={k:v[k] for k in ['sha256','bytes']}
+- base=env_for('BASE');axis=env_for('AXIS');delta={k:[base.get(k),axis.get(k)] for k in set(base)|set(axis) if base.get(k)!=axis.get(k)};assert set(delta)==set(plan['axisOnlyDelta']) and all(v==[None,'1'] for v in delta.values())
++ base=env_for('AXIS_REFERENCE');axis=env_for('AXIS_SHARED');delta={k:[base.get(k),axis.get(k)] for k in set(base)|set(axis) if base.get(k)!=axis.get(k)};assert set(delta)==set(plan['sharedOnlyDelta']) and all(v==[None,'1'] for v in delta.values())
+  T.mkdir();(T/'logs').mkdir();(T/'guards').mkdir();(T/'tmp').mkdir();(T/'cache').mkdir();write(T/'environment-difference.json',delta);write(T/'authorization-binding.json',{'exactApprovedPlanManifestSHA':args.approved_plan_manifest_sha,'pair':plan['pair'],'scope':plan['scope'],'runtimeFlagSupplied':True})
+  APP=Path(plan['pair']['APP']['path']);LIB=Path(plan['pair']['LIB']['path']);CHECK=Path(plan['stockCheckMesh']['path']);N=Path(plan['nativeRoot']);summary={};meshNames=['points','faces','owner','neighbour','boundary','cellZones','faceZones','pointZones']
+  write(T/'guards/run-before.json',guards())
+@@ -131,7 +132,7 @@
+      payload=line[len(prefix):]
+      if not payload.startswith('{'):incomplete.append(payload);continue
+      observations.append(json.loads(payload,parse_int=int))
+-   result={'nativeStatus':rec,'actualPrivateLIBInit':loader,'physicalObserverCommonBothExact1':True,'decisionObservations':observations,'incompleteObservationLines':incomplete,'rawUint64Decoder':'Python json parse_int=int; no JS number identity promotion','nativeRelevantLines':[x for x in out.splitlines() if any(k in x for k in ['axis-plane kernel','physical-point lifecycle','Normal complete-cavity','postwriter coupled certificate:','Total '])],'literalMeshOK':False,'quality':'not checked','meshFiles':mesh}
++   result={'nativeStatus':rec,'actualPrivateLIBInit':loader,'physicalObserverRetainedExact1':True,'decisionObservations':observations,'incompleteObservationLines':incomplete,'rawUint64Decoder':'Python json parse_int=int; no JS number identity promotion','nativeRelevantLines':[x for x in out.splitlines() if any(k in x for k in ['axis-plane kernel','physical-point lifecycle','Normal complete-cavity','postwriter coupled certificate:','dcCart finite point repair:','Total '])],'literalMeshOK':False,'quality':'not checked','meshFiles':mesh}
+    if rec.get('returncode')==0 and not rec.get('timedOut') and len(mesh)==8 and loader:
+     assert not incomplete,'Physical observer output incomplete'
+     chk=[str(CHECK),'-case',str(case),'-allTopology','-allGeometry'];cs='source /mnt/lv/home/litianyu/miniconda3/etc/profile.d/conda.sh\nconda activate dcdtuni\nsource '+shlex.quote(str(N/'env.sh'))+'\nunset LD_DEBUG\nexec '+shlex.join(chk)+'\n'

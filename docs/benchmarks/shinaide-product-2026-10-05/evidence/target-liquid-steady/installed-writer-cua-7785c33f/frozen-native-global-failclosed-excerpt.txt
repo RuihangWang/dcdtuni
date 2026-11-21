@@ -1,0 +1,29 @@
+oupled
+            (*actual.checkpoint,mesh,*bindings,actual); }
+        const scalar verifySeconds=verifyClock.elapsedTime();
+        label ioFailures=0;
+        if (getenv("DCCART_CONE_EVIDENCE") || localFailures)
+        {
+            const fileName output=runTime.path()/("conforming-writer-final-rank"+std::to_string(Pstream::myProcNo())+".json");
+            if (!writeWriterCertificate(actual,output,
+                localFailures?"local-rejected":"local-pass-awaiting-global",localFailures,verifySeconds)) { ++ioFailures; }
+        }
+        const label globalFailures=returnReduce(localFailures+ioFailures,sumOp<label>());
+        if (globalFailures)
+        {
+            // Preserve the raw PREOPERATOR input, never the altered candidate
+            // polyMesh. APP has not called write() and obtains no result.
+            const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
+            const bool preserved=writeWriterCheckpoint(*m.writerBaseline->checkpoint,prefix);
+            Pout<<"Conforming installed writer rejected: local "<<localFailures
+                <<", preoperator checkpoint preserved "<<preserved<<endl;
+            FatalErrorInFunction<<"coupled postwriter DP/ring/alias/role invariance failed on "
+                <<globalFailures<<" face/metadata record(s); no mesh written"<<exit(FatalError);
+        }
+        Pout<<"Conforming installed postwriter coupled certificate: rank "<<Pstream::myProcNo()
+            <<", faces "<<m.writerBaseline->faces.size()<<", failures "<<localFailures
+            <<", verify "<<verifySeconds<<" s; earliest installed baseline and real final DP bytes; full checkMesh required"<<endl;
+        m.writerBaseline.reset();
+    }
+    return meshPtr;
+}

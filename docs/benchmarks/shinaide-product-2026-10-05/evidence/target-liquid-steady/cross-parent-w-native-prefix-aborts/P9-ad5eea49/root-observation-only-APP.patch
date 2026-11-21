@@ -1,0 +1,23 @@
+--- frozen-Q-APP
++++ actual-APP-observation
+@@ -2859,12 +2859,20 @@
+             auto snapshot=dcCartPostCarveFluidOwnershipPreview::capture
+                 (m,meshDict,patchNames,patchTypes,surfaces.faceZoneNames(),
+                  myProc,completedNormalFluidOnlyPath,remainingSnapshot);
++            Pout<<"Normal W ownership snapshot: rank "<<myProc
++                <<", completed normal path "<<completedNormalFluidOnlyPath
++                <<", immutable snapshot complete "<<snapshot->complete
++                <<", pre-cone cells/faces/points "<<m.nCells<<'/'<<m.faces.size()<<'/'<<m.points.size()
++                <<", setup wall "<<snapshotClock->elapsedTime()<<" s; no quality acceptance implied"<<endl;
+             auto ownership=dcCartPostCarveFluidOwnershipPreview::verifier(snapshot);
+             std::function<dcCartCutCells::weightUnionOrigin(label)> sourceOrigin=
+                 [snapshot](label parent)
+                 { return dcCartPostCarveFluidOwnershipPreview::origin(snapshot,parent); };
+             weightAuthority=dcCartWeightUnionSourceContract::readAuthority
+                 (meshDict,ownership,remainingW,sourceOrigin);
++            Pout<<"Normal W material authority: rank "<<myProc
++                <<", material gate "<<weightAuthority.globallyNoMaterialNoBulk
++                <<"; individual complete origin and installed quality guards required"<<endl;
+         }
+         if (getenv("DCCART_CONFORMING_CONES") != nullptr)
+         {

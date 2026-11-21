@@ -1,0 +1,109 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > does not change default EPS or lend transport precision to subsequent default objects
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/transportCsgPrecision.test.ts:16:75
+     14|   expect(a.polygons.every((q:any)=>q.plane.classificationEpsilon===und…
+     15|   expect(b.polygons.every((q:any)=>q.plane.classificationEpsilon===und…
+     16|   expect(p.polygons.every((q:any)=>q.plane.classificationEpsilon===1e-…
+       |                                                                           ^
+     17|   expect(a.polygons[0].plane.constructor.EPSILON).toBe(1e-5)
+     18|   expect(volume(a.union(b))).toBeCloseTo(8,12)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > rejects invalid or looser precision before creating geometry
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/transportCsgPrecision.test.ts:21:81
+     19| })
+     20| it('rejects invalid or looser precision before creating geometry',()=>{
+     21|   for(const v of [0,-1,NaN,Infinity,1e-4])expect(()=>CSG.fromMesh(mesh…
+       |                                                                                 ^
+     22| })
+     23| it('classifies a real five-micrometre span without moving its endpoint…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > classifies a real five-micrometre span without moving its endpoints and leaves default classification unchanged
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/transportCsgPrecision.test.ts:28:17
+     26|   const poly=new Polygon(vertices,37,p.plane),normal=new Vector(1,0,0)…
+     27|   cut.classificationEpsilon=p.plane.classificationEpsilon;cut.splitPol…
+     28|   expect(front).toHaveLength(1);expect(back).toHaveLength(1);expect(co…
+       |                 ^
+     29|   expect(front[0].vertices.some((v:any)=>v.pos.x===5e-6)).toBe(true);e…
+     30|   expect(front[0].vertices.some((v:any)=>v.pos.x===0)).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > preserves precise clipped plane lineage and independent clone/flip ownership
+AssertionError: expected { x: NaN, y: NaN, z: NaN } to deeply equal { x: +0, y: +0, z: 1 }
+
+- Expected
++ Received
+
+  Object {
+-   "x": 0,
+-   "y": 0,
+-   "z": 1,
++   "x": NaN,
++   "y": NaN,
++   "z": NaN,
+  }
+
+ ❯ test/transportCsgPrecision.test.ts:40:96
+     38|   cut.splitPolygon(poly,[],[],front,back);expect(front).toHaveLength(1…
+     39|   expect(front[0].vertices.slice(0,3).map((v:any)=>[v.pos.x,v.pos.y,v.…
+     40|   const before={...poly.plane.normal},cloned=front[0].clone();expect({…
+       |                                                                                                ^
+     41|   cloned.flip();expect({...front[0].plane.normal}).toEqual(before);exp…
+     42| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > binds precise support planes after affine transform before split/clone
+AssertionError: expected 3.8114499005168794 to be less than 1e-12
+ ❯ test/transportCsgPrecision.test.ts:46:121
+     44|   const m=mesh();m.position.set(3,2,-4);m.rotation.set(.23,.45,-.12);m…
+     45|   const a=CSG.fromMesh(m,37,1e-9),clone=a.clone(),inverse=a.inverse();…
+     46|   a.polygons.forEach((p:any,i:number)=>{for(const v of p.vertices)expe…
+       |                                                                                                                         ^
+     47|     expect(p.plane).not.toBe(clone.polygons[i].plane);expect(p.plane.c…
+     48| })
+ ❯ test/transportCsgPrecision.test.ts:46:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/transportCsgPrecision.test.ts > keeps a physical one-micrometre Boolean intersection and original owners
+AssertionError: expected +0 to be close to 0.000004, received difference is 0.000004, but expected 5e-13
+ ❯ test/transportCsgPrecision.test.ts:52:32
+     50|   const a=CSG.fromMesh(mesh(),37,1e-9),b=CSG.fromMesh(mesh(2-1e-6),41,…
+     51|   const intersection=a.intersect(b),union=a.union(b)
+     52|   expect(volume(intersection)).toBeCloseTo(4e-6,12);expect(volume(unio…
+       |                                ^
+     53|   for(const out of [intersection,union])expect(out.polygons.every((p:a…
+     54|   const xs=intersection.polygons.flatMap((p:any)=>p.vertices.map((v:an…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+

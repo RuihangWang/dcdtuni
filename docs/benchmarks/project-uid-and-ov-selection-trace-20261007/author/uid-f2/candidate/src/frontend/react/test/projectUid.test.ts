@@ -1,0 +1,27 @@
+// Real shared factory, editor store, file format, source hash and OV edit gate.
+// The original empty-UID GUI file is copied byte-for-byte; no API/media/native.
+import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
+import {createHash} from 'node:crypto'
+import {afterEach,expect,it,vi} from 'vitest'
+import * as THREE from 'three'
+import * as store from '../src/projectStore'
+import type {CfdProject} from '../src/schema/cfdproj'
+import {stateV4} from '../src/legacy/cfdprojModules'
+import {checkProjectDocument,serializeProjectState} from '../src/io/projectFiles'
+import {cfdrunExport} from '../src/legacy/cfdrunBuild'
+import {buildSceneSnapshot} from '../src/renderer/sceneSnapshot'
+import {createOvEditBridge} from '../src/renderer/ovEditBridge'
+const fixture=readFileSync(resolve(__dirname,'fixtures/project_uid/GridNative_OneBox_GUI_20261007.cfdproj'))
+const raw=()=>JSON.parse(fixture.toString()) as CfdProject
+const uuid=/^proj_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const sourceHash=()=>cfdrunExport().projectContentHashSync(store.getProject())
+afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks()})
+it('boots the actual editor store with a nonempty persistent document identity',()=>{expect(store.getProject()!.uid).toMatch(uuid);expect(serializeProjectState(store.getProject()!)).toContain(store.getProject()!.uid!)})
+it('creates distinct document identities even for identical unnamed projects',()=>{const docs=Array.from({length:32},()=>stateV4().newDocumentV4() as unknown as CfdProject);for(const doc of docs)expect(doc.uid).toMatch(uuid);expect(new Set(docs.map(doc=>doc.uid)).size).toBe(docs.length);for(const doc of docs)expect((stateV4().normalizeStateV4(doc) as unknown as CfdProject).uid).toBe(doc.uid)})
+it('opens the exact empty-UID GUI save and persists its repaired identity on save/reload',()=>{expect(createHash('sha256').update(fixture).digest('hex')).toBe('e1517b2c5120c20a4b9cb9908336e8de1dbded3339d5f110fcb3f55451727a54');const disk=raw();expect(disk.uid).toBe('');const check=checkProjectDocument(disk);expect(check.ok).toBe(true);if(!check.ok)throw new Error(check.error);store.loadProject(check.project,'/controlled/GridNative_OneBox.cfdproj');const uid=store.getProject()!.uid;expect(uid).toMatch(uuid);const text=serializeProjectState(store.getProject()!);expect(JSON.parse(text).uid).toBe(uid);const hash=sourceHash();store.loadProject(JSON.parse(text),'/controlled/GridNative_OneBox.cfdproj');expect(store.getProject()!.uid).toBe(uid);expect(sourceHash()).toBe(hash);expect(JSON.parse(fixture.toString()).uid).toBe('')})
+for(const legacy of ['',undefined])it('backfills only the '+(legacy===''?'empty':'missing')+' UID on a legacy live document',()=>{const doc=raw();if(legacy===undefined)delete doc.uid;store.loadProject(doc,null);const uid=store.getProject()!.uid;expect(uid).toMatch(uuid);expect(doc.uid).toBe(legacy);store.logAction('view refresh');store.markSaved('/controlled/identity.cfdproj');expect(store.getProject()!.uid).toBe(uid)})
+it('keeps saved identity byte-for-byte through edit/undo/redo/playhead and format save',()=>{const doc=raw();doc.uid='proj_existing-saved/identity:1';store.loadProject(doc,null);expect(store.getProject()!.uid).toBe(doc.uid);expect(store.edit('name','controlled',p=>{p.name='Edited'})).toBe(true);store.undo();expect(store.getProject()!.uid).toBe(doc.uid);store.redo();const text=serializeProjectState(store.getProject()!),hash=sourceHash();store.setPlayhead(10);store.markSaved('/controlled/identity.cfdproj');expect(store.getProject()!.uid).toBe(doc.uid);expect(serializeProjectState(store.getProject()!)).toBe(text);expect(sourceHash()).toBe(hash);store.setPlayhead(0);expect(store.getProject()!.uid).toBe(doc.uid)})
+it('makes a repaired real source selectable only with its newly acknowledged identity',()=>{store.loadProject(raw(),null);const project=store.getProject()!,uid=project.uid;expect(uid).toMatch(uuid);const model=Object.values(project.constructions!.boxes!)[0]!;const root=new THREE.Group(),group=new THREE.Group();group.userData.modelId=model.uid;group.add(new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial()));root.add(group);const snapshot=buildSceneSnapshot({root,project}),selected=vi.fn(),bridge=createOvEditBridge({snapshot,sceneRevision:9,currentSceneRevision:()=>9,pickablePrimitiveIds:new Set(snapshot.primitives.map(p=>p.id)),editablePrimitiveIds:new Set(),canEdit:()=>true,onSelection:selected});const event={schema:'dcdtuni.ov-edit/v1',sceneRevision:9,projectHash:bridge.projectHash,coordinateSystem:{upAxis:'Y',handedness:'right',metersPerUnit:1},action:{type:'selection'},selection:[{primId:snapshot.primitives[0]!.id,modelUid:model.uid}]};expect(bridge.apply({...event,projectHash:cfdrunExport().projectContentHashSync(raw())})).toMatchObject({ok:false,reason:'stale_project'});expect(bridge.apply({...event,sceneRevision:8})).toMatchObject({ok:false,reason:'stale_scene'});expect(bridge.apply(event)).toEqual({ok:true,action:'selection',modelUids:[model.uid]});expect(selected).toHaveBeenCalledWith([model.uid]);expect(store.getProject()!.uid).toBe(uid)})
+
+it('preserves the established missing-UID v3 migration before current-format backfill',()=>{const legacy={schemaVersion:3,meta:{projectName:'Legacy LAN'},construction:[]} as unknown as CfdProject;store.loadProject(legacy,null);expect(store.getProject()!.uid).toBe('proj_Legacy_LAN');expect((legacy as {uid?:string}).uid).toBeUndefined()})

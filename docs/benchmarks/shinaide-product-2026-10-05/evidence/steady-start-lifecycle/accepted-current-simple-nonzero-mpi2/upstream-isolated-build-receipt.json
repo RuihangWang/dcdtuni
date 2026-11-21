@@ -1,0 +1,127 @@
+{
+  "scope": "static ordinary cyclic/processor scalar pressure Laplacian; free-component solvability guard, not a full CFD convergence/accuracy certificate",
+  "priorReceipt": "compat-gauge-receipt.json preserves first RHS-only guard and 38-test pass; it is superseded for backward-error scale by this receipt",
+  "necessaryCompatibility": "sum(raw equation source + noncoupled boundary source)=0 before pressure references; coupled ordinary cyclic/processor terms remain in conservative linear operator",
+  "derivedScale": {
+    "formula": "abs(compensated global sum RHS) <= 64*SMALL*(original raw/boundary source magnitude + free-cell face-incidence magnitudes of phiHbyA and actual nonorth faceFluxCorrection)",
+    "assembly": "fvc::div contributes an internal face once with each sign to adjacent cells; each boundary face contributes once to its owner. Each ordinary cyclic/processor global pair is represented once per adjacent cell across the pair/ranks.",
+    "deferredNonorth": "installed-matrix-v2412/gaussLaplacianSchemes.C scalar-Gamma specialization subtracts mesh.V()*fvc::div(faceFluxCorrection), retaining actual face field when fluxRequired; both owned solver callers pass their actual phiHbyA",
+    "implementation": "Face scale visits only free-cell incidences and no face traversal/reductions occur when every component is anchored; local source sums compensated; all ranks reduce same global component lists",
+    "limits": "64*SMALL is a relative backward-error allowance on original conservative assembly, with no absolute physical imbalance floor, no residualControl change; nonfinite rejects; affine jump and AMI/ACMI remain fail-closed"
+  },
+  "counterexample": {
+    "pytest": "compat-face-before-pytest-output.txt",
+    "result": "1 failed, 7 deselected in 2.45s",
+    "mesh": "60 cells, (3 4 5), three ordinary translational cyclic pairs, actual Sf dot constant transport flux, two MPI ranks",
+    "diagnostics": [
+      "CONSERVATIVE_FLOW_RHS sum=1.47451e-16, sumAbs=3.27863e-16, internalFaceScale=7.67012",
+      "[1] Incompatible assembled RHS in free pressure component 0: sum=1.47451e-16, sumAbs=3.27863e-16, roundoffTolerance=2.09832e-29. A pressure gauge cannot balance imposed sources/fluxes."
+    ],
+    "baselineHelperGit": "79efd1b9f57e1327b0fce56e67a909e278be8a59",
+    "baselineExecutableSha256": null,
+    "identityLimit": "Pre-fix executable hash was not recorded. Preserved exact fixture inputs and raw MPI output document behavior; final executable/source identities below are recorded."
+  },
+  "developmentHistory": [
+    {
+      "pytest": "compat-face-fixed-pytest-output.txt",
+      "result": "1 failed, 8 passed in 15.89s",
+      "reason": "Unbalanced Neumann process rejected but expected FatalError text was absent from captured combined stdout; unchanged isolated binary single-test recheck passed (compat-face-neumann-recheck-output.txt). Cause of missing output not independently established."
+    },
+    {
+      "pytest": "compat-face-fixed-v2-pytest-output.txt",
+      "result": "1 failed, 9 passed in 17.61s",
+      "reason": "Six-digit sheared periodic geometry/field serialization produced assembled component imbalance -2.75568e-10 above 1.54144e-12 tolerance; guard correctly rejected this fixture. Increased geometry and field write precision to17; do not interpret this as relaxing compatibility."
+    },
+    {
+      "pytest": "compat-face-periodic-precise-output.txt",
+      "result": "1 failed, 2 passed, 7 deselected in 5.30s",
+      "reason": "Actual sheared solver accepted but nonorth diagnostic test used an overescaped regex; corrected test parser, retained raw numerical output."
+    }
+  ],
+  "accepted": {
+    "pytest": "compat-face-final-pytest-output.txt",
+    "result": "41 passed in 39.91s",
+    "compatibilityTests": 10,
+    "allNumericalTests": 28,
+    "resolverTests": 13,
+    "newChecks": [
+      "periodic flow conservative cancellation passes",
+      "true additional netSource 1e-6 rejects before any gauge",
+      "sheared periodic nonconstant initial pressure exercises actual deferred nonorth flux"
+    ],
+    "scopeLimit": "Three kernel pressure passes prove compatibility/gauge behavior and finite state, not full manufactured-solution convergence of the nonorth Picard iteration.",
+    "periodicDiagnostics": [
+      {
+        "caseLog": "test_periodic_flow_still_rejec0/case/log.mpirun",
+        "returnMeaning": "rejected true netSource 1e-6",
+        "diagnostics": [
+          "CONSERVATIVE_FLOW_RHS sum=9.9999999994622353e-07, sumAbs=1.0000000008569534e-06, internalFaceScale=7.6701234556666673",
+          "NONORTH_CORRECTION_SCALE 5.5683417418263558e-29",
+          "[0] Incompatible assembled RHS in free pressure component 0: sum=9.9999999994622353e-07, sumAbs=1.0000000008569534e-06, faceAssemblyScale=21.540740734000011, roundoffTolerance=1.3786074709760009e-12. A pressure gauge cannot balance imposed sources/fluxes."
+        ]
+      },
+      {
+        "caseLog": "test_periodic_sheared_mesh_inc0/case/log.mpirun",
+        "returnMeaning": "accepted conservative face assembly",
+        "diagnostics": [
+          "CONSERVATIVE_FLOW_RHS sum=3.0531133177191805e-16, sumAbs=0.97979589711328896, internalFaceScale=7.5318518519866693",
+          "NONORTH_CORRECTION_SCALE 0.46540305112882074",
+          "Pressure RHS compatibility: component 0, sum=3.6082248300317588e-16, sumAbs=0.97979589711328896, faceAssemblyScale=23.105270803426613, roundoffTolerance=1.5414442688345538e-12",
+          "CONSERVATIVE_FLOW_RHS sum=-5.4210108624275222e-17, sumAbs=0.058743696054535395, internalFaceScale=7.5318518519866693",
+          "NONORTH_CORRECTION_SCALE 0.031357625012367482",
+          "CONSERVATIVE_FLOW_RHS sum=-5.4806419819142249e-17, sumAbs=0.0035219802780435904, internalFaceScale=7.5318518519866693",
+          "NONORTH_CORRECTION_SCALE 0.00083647031604050417"
+        ]
+      },
+      {
+        "caseLog": "test_periodic_uniform_flow_acc0/case/log.mpirun",
+        "returnMeaning": "accepted conservative face assembly",
+        "diagnostics": [
+          "CONSERVATIVE_FLOW_RHS sum=-5.3776427755280342e-17, sumAbs=8.5695339713256548e-16, internalFaceScale=7.6701234556666673",
+          "NONORTH_CORRECTION_SCALE 5.5683417418263558e-29",
+          "Pressure RHS compatibility: component 0, sum=-5.377642775528036e-17, sumAbs=8.5695339713256548e-16, faceAssemblyScale=21.540740734000011, roundoffTolerance=1.3786074069760009e-12",
+          "CONSERVATIVE_FLOW_RHS sum=-5.3776427755290757e-17, sumAbs=8.5695339713227548e-16, internalFaceScale=7.6701234556666673",
+          "NONORTH_CORRECTION_SCALE 2.4764126263051091e-27",
+          "CONSERVATIVE_FLOW_RHS sum=-5.3776427755280274e-17, sumAbs=8.5695339713256972e-16, internalFaceScale=7.6701234556666673",
+          "NONORTH_CORRECTION_SCALE 4.4876382523658641e-29"
+        ]
+      }
+    ]
+  },
+  "sourceSha256": {
+    "src/backend/aircooling/third_parties/foam/src/lib/pressureComponents/pressureComponentReferences.H": "bac985702d5c79d75b155051edca1ee67046b3c9af5bc63510b23c7fa3ec580e",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqSimpleFoam_new/pEqn.H": "ed9da41bc03ea0a8cd8a2d79bd769b89b6320be6cae17df1728985d25f0996a9",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/pEqn.H": "798d4d047811bb1d2073641751847fbfeaebacc972dca157b424f0d0111f3f90",
+    "src/backend/tests/pressure_component_kernel/pressureComponentKernel.C": "32102f1a93424ac1bd3141cef22100516ec3548e9ae9a525928185f89022eb54",
+    "src/backend/tests/test_pressure_component_compatibility.py": "ace069887a697c70e5077c8fefcc862ee35af7e295a1ee9fc2f2f697e17b2464",
+    "tools/verify_pressure_component_gauges.sh": "f6b4690726456ecc4634579c82873afe0fc29030950e673906bbb71ad29cf1b0"
+  },
+  "executables": {
+    "buoyantBoussinesqPimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqPimpleFoam_new",
+      "sha256": "87987cc7a4193721dcde9ea11ff4cbdd23cef86ebd3add78b63c1f6a6d483058"
+    },
+    "buoyantBoussinesqSimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqSimpleFoam_new",
+      "sha256": "7932473e304c68aba242e1c9947eeb0586c1aebea911b6e567e19e3d85316257"
+    },
+    "pressureComponentKernel": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/platforms/linux64GccDPInt32Opt/bin/pressureComponentKernel",
+      "sha256": "25cf98845f4c14769b2526d469f2f798c48ad0ddca12544fb78aeb2deb05746f"
+    }
+  },
+  "raw": {
+    "path": "compat-face-raw.json",
+    "sha256": "f500c85e37df152f7d919a705722afeb726d10c32666f3445c585967385dcd35",
+    "records": {
+      "pytest-before": 12,
+      "pytest-fixed": 118,
+      "pytest-fixed-v2": 130,
+      "pytest-neumann-recheck": 12,
+      "pytest-periodic-precise": 40,
+      "pytest-final": 396,
+      "buildLogs": 5
+    }
+  },
+  "activeProduction": "All existing active SIMPLE/PIMPLE binary and input bytes stayed frozen. New binaries were built in pressure-compat-face-build."
+}

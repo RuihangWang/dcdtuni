@@ -1,0 +1,103 @@
+FFFFF.F                                                                  [100%]
+=================================== FAILURES ===================================
+_______________ test_cancel_queued_job_never_launches_after_ack ________________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+
+    def test_cancel_queued_job_never_launches_after_ack(route):
+        job=start(route);code,body=abort(route,job)
+>       assert code==200 and body['status']=='aborting' and body['done'] is False
+E       AssertionError: assert (200 == 200 and 'already_done' == 'aborting'
+E         
+E         - aborting
+E         + already_done)
+
+src/server/tests/test_job_cancellation.py:68: AssertionError
+_____________ test_cancel_during_browser_release_never_late_spawns _____________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3b8ba3a30>
+
+    def test_cancel_during_browser_release_never_late_spawns(route,monkeypatch):
+        entered=threading.Event();release=threading.Event()
+        def browser_release():
+            entered.set();assert release.wait(2);return {'status':'closed'}
+        monkeypatch.setattr(route,'_release_idle_software_browser',browser_release)
+        job=start(route);worker=REAL_THREAD(target=route.workers[0],daemon=True);worker.start()
+        try:
+            assert entered.wait(1)
+            _,body=abort(route,job)
+>           assert body['status']=='aborting' and not route.JOBS[job]['done']
+E           AssertionError: assert ('already_done' == 'aborting'
+E             
+E             - aborting
+E             + already_done)
+
+src/server/tests/test_job_cancellation.py:86: AssertionError
+________ test_abort_ack_waits_for_stdout_drain_and_real_worker_finally _________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3b8c67c40>
+
+    def test_abort_ack_waits_for_stdout_drain_and_real_worker_finally(route,monkeypatch):
+        proc=Process(blocked=True)
+        monkeypatch.setattr(route.subprocess,'Popen',lambda *_a,**_k:proc)
+        job=start(route);worker=REAL_THREAD(target=route.workers[0],daemon=True);worker.start()
+        try:
+            assert proc.stdout.entered.wait(1)
+            _,body=abort(route,job)
+            assert proc.poll()==-15
+>           assert body['status']=='aborting' and body['done'] is False
+E           AssertionError: assert ('aborted' == 'aborting'
+E             
+E             - aborting
+E             + aborted)
+
+src/server/tests/test_job_cancellation.py:101: AssertionError
+________ test_repeated_abort_is_idempotent_and_cannot_cancel_other_job _________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+
+    def test_repeated_abort_is_idempotent_and_cannot_cancel_other_job(route):
+        job=start(route);other=start(route)
+        first=abort(route,job);second=abort(route,job)
+>       assert first==second and first[1]['status']=='aborting'
+E       AssertionError: assert ((200, {'jobId...lready_done'}) == (200, {'jobId...lready_done'})
+E         
+E         Use -v to get more diff and 'already_done' == 'aborting'
+E         
+E         - aborting
+E         + already_done)
+
+src/server/tests/test_job_cancellation.py:114: AssertionError
+_______________ test_naturally_finished_job_remains_already_done _______________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+
+    def test_naturally_finished_job_remains_already_done(route):
+        job=start(route);route.workers[0]()
+        before=dict(route.JOBS[job]);_,body=abort(route,job)
+>       assert body['status']=='already_done' and body['done'] is True
+E       KeyError: 'done'
+
+src/server/tests/test_job_cancellation.py:126: KeyError
+________ test_status_and_final_sse_expose_cancellation_terminal_fields _________
+
+route = <module 'cancel_test_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+
+    def test_status_and_final_sse_expose_cancellation_terminal_fields(route):
+        job=start(route);abort(route,job);route.workers[0]()
+        route.handle_job_status(None,{'job_id':[job]})
+        status=route.replies[-1][1]
+>       assert status['done'] and status['returncode']==-15 and status['cancelled']
+E       assert (True and 0 == -15)
+
+src/server/tests/test_job_cancellation.py:141: AssertionError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_job_cancellation.py::test_cancel_queued_job_never_launches_after_ack
+FAILED src/server/tests/test_job_cancellation.py::test_cancel_during_browser_release_never_late_spawns
+FAILED src/server/tests/test_job_cancellation.py::test_abort_ack_waits_for_stdout_drain_and_real_worker_finally
+FAILED src/server/tests/test_job_cancellation.py::test_repeated_abort_is_idempotent_and_cannot_cancel_other_job
+FAILED src/server/tests/test_job_cancellation.py::test_naturally_finished_job_remains_already_done
+FAILED src/server/tests/test_job_cancellation.py::test_status_and_final_sse_expose_cancellation_terminal_fields
+6 failed, 1 passed in 0.25s

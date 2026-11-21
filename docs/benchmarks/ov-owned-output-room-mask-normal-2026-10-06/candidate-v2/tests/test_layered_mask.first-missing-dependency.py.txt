@@ -1,0 +1,176 @@
+"""Real in-memory USD layer composition, not a composed-value mock."""
+import asyncio
+import types
+from unittest import mock
+
+import pytest
+from pxr import Sdf, Usd, UsdGeom
+from test_private_outputs_mask import authored, handlers, render_scene, source_function, BRIDGE
+
+
+def computed(stage, path, time=None):
+    return UsdGeom.Imageable(stage.GetPrimAtPath(path)).ComputeVisibility(
+        Usd.TimeCode.Default() if time is None else Usd.TimeCode(time))
+
+
+def scene_for(path):
+    return types.SimpleNamespace(geo_groups={"Room": [path]})
+
+
+def layer_bytes(*layers):
+    return tuple(layer.ExportToString() for layer in layers)
+
+
+def test_session_caller_mask_root_reauthor_off_restores_new_visible(tmp_path):
+    scene, stage, result, packet = authored(tmp_path)
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    path = result["uidPaths"]["shell"][0]
+    stage.SetEditTarget(session)
+    session_before = session.ExportToString()
+    handlers._set_geometry_hidden(scene, stage, True)
+    assert stage.GetEditTarget().GetLayer() == session
+    new = render_scene.author_scene(stage, packet, tmp_path)
+    handlers.install_render_room_shell_paths(scene, stage, new["roomShellPaths"])
+    handlers._set_geometry_hidden(scene, stage, False)
+    assert computed(stage, path) == UsdGeom.Tokens.inherited
+    assert session.ExportToString() == session_before
+    assert stage.GetEditTarget().GetLayer() == session
+
+
+def test_user_session_hidden_is_not_captured_as_root_original(tmp_path):
+    scene, stage, result, packet = authored(tmp_path)
+    path = result["uidPaths"]["shell"][0]
+    session = stage.GetSessionLayer()
+    stage.SetEditTarget(session)
+    UsdGeom.Imageable(stage.GetPrimAtPath(path)).MakeInvisible()
+    original_session = session.ExportToString()
+    new = render_scene.author_scene(stage, packet, tmp_path)
+    original_root = stage.GetRootLayer().ExportToString()
+    handlers.install_render_room_shell_paths(scene, stage, new["roomShellPaths"])
+    handlers._set_geometry_hidden(scene, stage, True)
+    handlers._set_geometry_hidden(scene, stage, False)
+    assert computed(stage, path) == UsdGeom.Tokens.invisible
+    assert layer_bytes(stage.GetRootLayer(), session) == (original_root, original_session)
+    assert stage.GetEditTarget().GetLayer() == session
+
+
+def test_root_samples_and_property_metadata_restore_exactly():
+    stage = Usd.Stage.CreateInMemory()
+    path = "/World/Room"
+    attr = UsdGeom.Xform.Define(stage, path).GetVisibilityAttr()
+    attr.Set(UsdGeom.Tokens.inherited)
+    attr.Set(UsdGeom.Tokens.inherited, 0)
+    attr.Set(UsdGeom.Tokens.inherited, 10)
+    attr.SetDocumentation("original authored animation")
+    attr.SetCustomData({"ownership": "user"})
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    original = layer_bytes(root, session)
+    stage.SetEditTarget(session)
+    scene = scene_for(path)
+    handlers._set_geometry_hidden(scene, stage, True)
+    for time in (None, -1, 0, 5, 10, 12):
+        assert computed(stage, path, time) == UsdGeom.Tokens.invisible
+    assert root.ListTimeSamplesForPath(Sdf.Path(path + ".visibility")) == []
+    handlers._set_geometry_hidden(scene, stage, False)
+    assert layer_bytes(root, session) == original
+    for time in (None, 0, 5, 10):
+        assert computed(stage, path, time) == UsdGeom.Tokens.inherited
+    assert stage.GetEditTarget().GetLayer() == session
+
+
+def test_absent_root_property_with_session_hidden_remains_absent():
+    stage = Usd.Stage.CreateInMemory()
+    path = "/World/Room"
+    UsdGeom.Xform.Define(stage, path)
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    stage.SetEditTarget(session)
+    UsdGeom.Imageable(stage.GetPrimAtPath(path)).MakeInvisible()
+    before = layer_bytes(root, session)
+    scene = scene_for(path)
+    handlers._set_geometry_hidden(scene, stage, True)
+    handlers._set_geometry_hidden(scene, stage, False)
+    assert layer_bytes(root, session) == before
+    assert not root.GetAttributeAtPath(path + ".visibility")
+    assert computed(stage, path) == UsdGeom.Tokens.invisible
+
+
+def test_sublayer_only_prim_does_not_leak_root_parent_containers():
+    stage = Usd.Stage.CreateInMemory()
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    weak = Sdf.Layer.CreateAnonymous("weak")
+    root.subLayerPaths.append(weak.identifier)
+    stage.SetEditTarget(weak)
+    path = "/World/OnlyWeak/Room"
+    UsdGeom.Xform.Define(stage, path)
+    stage.SetEditTarget(session)
+    before = layer_bytes(root, session, weak)
+    scene = scene_for(path)
+    handlers._set_geometry_hidden(scene, stage, True)
+    assert computed(stage, path, 7) == UsdGeom.Tokens.invisible
+    handlers._set_geometry_hidden(scene, stage, False)
+    assert layer_bytes(root, session, weak) == before
+    assert not root.GetPrimAtPath("/World")
+    assert stage.GetEditTarget().GetLayer() == session
+
+
+@pytest.mark.parametrize("sampled", [False, True])
+@pytest.mark.parametrize("in_sublayer", [False, True])
+def test_stronger_visible_opinion_refuses_and_rolls_back(sampled, in_sublayer):
+    stage = Usd.Stage.CreateInMemory()
+    path = "/World/Room"
+    UsdGeom.Xform.Define(stage, path)
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    strong = Sdf.Layer.CreateAnonymous("strong") if in_sublayer else session
+    if in_sublayer:
+        session.subLayerPaths.append(strong.identifier)
+    stage.SetEditTarget(strong)
+    attr = UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr()
+    attr.Set(UsdGeom.Tokens.inherited, Usd.TimeCode(10) if sampled else Usd.TimeCode.Default())
+    stage.SetEditTarget(session)
+    before = layer_bytes(root, session, strong)
+    scene = scene_for(path)
+    with pytest.raises(RuntimeError, match="stronger visibility"):
+        handlers._set_geometry_hidden(scene, stage, True)
+    assert layer_bytes(root, session, strong) == before
+    assert not getattr(scene, "_volume_geometry_saved", {})
+    assert not getattr(scene, "_volume_geometry_hidden", False)
+    assert stage.GetEditTarget().GetLayer() == session
+
+
+def test_later_path_refusal_rolls_back_earlier_path_and_parent_containers():
+    stage = Usd.Stage.CreateInMemory()
+    root, session = stage.GetRootLayer(), stage.GetSessionLayer()
+    weak = Sdf.Layer.CreateAnonymous("weak")
+    root.subLayerPaths.append(weak.identifier)
+    stage.SetEditTarget(weak)
+    for p in ("/World/A/Room", "/World/B/Room"):
+        UsdGeom.Xform.Define(stage, p)
+    stage.SetEditTarget(session)
+    UsdGeom.Imageable(stage.GetPrimAtPath("/World/B/Room")).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+    before = layer_bytes(root, session, weak)
+    scene = types.SimpleNamespace(geo_groups={"Room": ["/World/A/Room", "/World/B/Room"]})
+    with pytest.raises(RuntimeError, match="stronger visibility"):
+        handlers._set_geometry_hidden(scene, stage, True)
+    assert layer_bytes(root, session, weak) == before
+    assert not getattr(scene, "_volume_geometry_saved", {})
+
+
+def test_actual_volume_handler_does_not_rebuild_or_ack_when_mask_refused():
+    namespace = {"__package__": "dc.cfd_bridge"}
+    exec(source_function(BRIDGE / "scene.py", "show_volume_display"), namespace)
+    stage = Usd.Stage.CreateInMemory()
+    path = "/World/Room"
+    UsdGeom.Xform.Define(stage, path)
+    stage.SetEditTarget(stage.GetSessionLayer())
+    UsdGeom.Imageable(stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+    called = []
+    async def rebuild(*a, **k):
+        called.append("rebuild")
+    scene = scene_for(path)
+    scene.__dict__.update(dataset_path="controlled", field_stats={}, _volume_domain_override={},
+                          clip_enabled=False, _rebuild_volume=rebuild)
+    from dc.cfd_bridge import slice_render
+    with mock.patch.object(slice_render, "volume_display_domain", return_value=None):
+        with pytest.raises(RuntimeError, match="stronger visibility"):
+            asyncio.run(namespace["show_volume_display"](scene, stage, "T"))
+    assert called == []

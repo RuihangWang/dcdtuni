@@ -1,0 +1,552 @@
+{
+  "recordedUtc": "2026-10-05T10:51:14.701616+00:00",
+  "kitPid": 3598531,
+  "environment": {
+    "XDG_DATA_HOME": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-cache/xdg-data",
+    "CUDA_CACHE_PATH": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-cache/cuda",
+    "XDG_CONFIG_HOME": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-cache/xdg-config",
+    "DCDTUNI_RENDER_TEXTURE_CACHE": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-runtime/8301.3qsMNj/render-textures",
+    "TMPDIR": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-runtime/8301.3qsMNj/tmp",
+    "XDG_CACHE_HOME": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/ov-cache/xdg-cache"
+  },
+  "sources": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py",
+      "bytes": 18770,
+      "sha256": "57603ddb47d4ccd91447ac0b90f6a18db29b32130dba9d9a6c7946e39c0b8fa9",
+      "excerpts": [
+        {
+          "line": 290,
+          "text": "    owner = Owner(args.cleanup_grace)"
+        },
+        {
+          "line": 291,
+          "text": "    signal.signal(signal.SIGTERM, owner.request_stop)"
+        },
+        {
+          "line": 292,
+          "text": "    signal.signal(signal.SIGINT, owner.request_stop)"
+        },
+        {
+          "line": 293,
+          "text": "    if args.managed:"
+        },
+        {
+          "line": 294,
+          "text": "        _parent_death_signal(args.parent_pid or os.getppid())"
+        },
+        {
+          "line": 295,
+          "text": "    # Reap only our adopted descendants during owned session cleanup."
+        },
+        {
+          "line": 296,
+          "text": "    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:"
+        },
+        {
+          "line": 297,
+          "text": "        raise OSError(ctypes.get_errno(), \"PR_SET_CHILD_SUBREAPER failed\")"
+        },
+        {
+          "line": 298,
+          "text": "    runtime.mkdir(parents=True, exist_ok=True)"
+        },
+        {
+          "line": 299,
+          "text": "    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as control:"
+        },
+        {
+          "line": 300,
+          "text": "        control.bind((\"127.0.0.1\", 0))"
+        },
+        {
+          "line": 301,
+          "text": "        control.listen(1)"
+        },
+        {
+          "line": 302,
+          "text": "        _write(runtime, \"supervisor.pid\", os.getpid())"
+        },
+        {
+          "line": 303,
+          "text": "        _write(runtime, \"supervisor.uid\", os.getuid())"
+        },
+        {
+          "line": 304,
+          "text": "        _write(runtime, \"supervisor.port\", control.getsockname()[1])"
+        },
+        {
+          "line": 305,
+          "text": "        _write(runtime, \"startup.timeout\", args.startup_timeout)"
+        },
+        {
+          "line": 306,
+          "text": "        deadline = time.monotonic() + args.startup_timeout"
+        },
+        {
+          "line": 307,
+          "text": "        code = 1"
+        },
+        {
+          "line": 308,
+          "text": "        try:"
+        },
+        {
+          "line": 309,
+          "text": "            owner.check()"
+        },
+        {
+          "line": 310,
+          "text": "            descriptor = _pidfd_open(os.getpid())"
+        },
+        {
+          "line": 311,
+          "text": "            os.close(descriptor)"
+        },
+        {
+          "line": 312,
+          "text": "            if args.required_executable and not os.access(args.required_executable, os.X_OK):"
+        },
+        {
+          "line": 313,
+          "text": "                raise RuntimeError(\"kit-cae wrapper is missing or not executable\")"
+        },
+        {
+          "line": 314,
+          "text": "            if args.signal_port and _listener_inodes(args.signal_port):"
+        },
+        {
+          "line": 315,
+          "text": "                raise RuntimeError(\"expected signaling port belongs to another process\")"
+        },
+        {
+          "line": 316,
+          "text": "            environment = dict(os.environ)"
+        },
+        {
+          "line": 317,
+          "text": "            environment.pop(\"EXEC\", None)"
+        },
+        {
+          "line": 318,
+          "text": "            temporary = runtime / \"tmp\""
+        },
+        {
+          "line": 319,
+          "text": "            temporary.mkdir(exist_ok=True)"
+        },
+        {
+          "line": 320,
+          "text": "            environment[\"TMPDIR\"] = str(temporary)"
+        },
+        {
+          "line": 321,
+          "text": "            # Texture uploads belong to this launch, regardless of inherited cache overrides."
+        },
+        {
+          "line": 322,
+          "text": "            texture_cache = runtime / \"render-textures\""
+        },
+        {
+          "line": 323,
+          "text": "            if not texture_cache.resolve().is_relative_to(root):"
+        },
+        {
+          "line": 324,
+          "text": "                raise RuntimeError(\"texture cache must stay inside this checkout\")"
+        },
+        {
+          "line": 325,
+          "text": "            texture_cache.mkdir(exist_ok=True)"
+        },
+        {
+          "line": 326,
+          "text": "            environment[\"DCDTUNI_RENDER_TEXTURE_CACHE\"] = str(texture_cache)"
+        },
+        {
+          "line": 327,
+          "text": "            if args.gpu is not None:"
+        },
+        {
+          "line": 328,
+          "text": "                def run_probe(command, *, env, timeout):"
+        },
+        {
+          "line": 329,
+          "text": "                    return owner.probe(command, env=env,"
+        },
+        {
+          "line": 330,
+          "text": "                        timeout=min(timeout, args.preflight_timeout), deadline=deadline)"
+        },
+        {
+          "line": 331,
+          "text": "                index, physical_uuid, pci, active, icd = resolve_gpu(args.gpu, environment, run_probe)"
+        },
+        {
+          "line": 332,
+          "text": "                environment.update(CUDA_VISIBLE_DEVICES=physical_uuid,"
+        },
+        {
+          "line": 333,
+          "text": "                    VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd,"
+        },
+        {
+          "line": 334,
+          "text": "                    DC_CFD_RESOLVED_GPU=index, DC_CFD_RESOLVED_UUID=physical_uuid,"
+        },
+        {
+          "line": 335,
+          "text": "                    DC_CFD_RESOLVED_PCI=pci, DC_CFD_RESOLVED_ACTIVE_GPU=str(active),"
+        },
+        {
+          "line": 336,
+          "text": "                    DC_CFD_RESOLVED_ICD=icd)"
+        },
+        {
+          "line": 337,
+          "text": "                _write(runtime, \"gpu.txt\","
+        },
+        {
+          "line": 338,
+          "text": "                    f\"index={index}\\nuuid={physical_uuid}\\npci_bus_id={pci}\\n\""
+        },
+        {
+          "line": 339,
+          "text": "                    f\"active_gpu={active}\\nvulkan_icd={icd}\")"
+        },
+        {
+          "line": 340,
+          "text": "            environment[\"DC_CFD_SUPERVISOR_PID\"] = str(os.getpid())"
+        },
+        {
+          "line": 341,
+          "text": "            if args.display:"
+        },
+        {
+          "line": 342,
+          "text": "                environment[\"DISPLAY\"] = args.display"
+        },
+        {
+          "line": 343,
+          "text": "                def display_alive():"
+        },
+        {
+          "line": 344,
+          "text": "                    try:"
+        },
+        {
+          "line": 345,
+          "text": "                        owner.probe([\"xdpyinfo\"], env=environment, timeout=2, deadline=deadline)"
+        }
+      ]
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh",
+      "bytes": 9995,
+      "sha256": "a1ef562b0d078db98b875f6eb5d5cddcdf3e8cea26fa9f602330fb0494bbbc1f",
+      "excerpts": [
+        {
+          "line": 1,
+          "text": "#!/usr/bin/env bash"
+        },
+        {
+          "line": 2,
+          "text": "# Launch the kit-cae streaming app with the dc.cfd_bridge extension + GTC data."
+        },
+        {
+          "line": 3,
+          "text": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "text": "# Derived from this script's own location, never hardcoded: the previous absolute"
+        },
+        {
+          "line": 5,
+          "text": "# path meant a clone anywhere else (different user, different mount) died at the"
+        },
+        {
+          "line": 6,
+          "text": "# `cd \"$BUILD\"` below with \"No such file or directory\" before Kit ever started."
+        },
+        {
+          "line": 7,
+          "text": "# scripts -> cfd_demo -> omniverse -> frontend -> src -> repo root, i.e. five levels."
+        },
+        {
+          "line": 8,
+          "text": "# Built Kit/resources may be borrowed via separate explicit overrides."
+        },
+        {
+          "line": 9,
+          "text": "ROOT=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/../../../../..\" && pwd)\""
+        },
+        {
+          "line": 10,
+          "text": "# A worktree may borrow built Kit/resources; its bridge extension stays local."
+        },
+        {
+          "line": 11,
+          "text": "ASSET_ROOT=\"${DC_CFD_ASSET_ROOT:-$ROOT}\""
+        },
+        {
+          "line": 12,
+          "text": "REF=\"$ASSET_ROOT/src/frontend/omniverse/Ref_code/kit-cae\""
+        },
+        {
+          "line": 13,
+          "text": "BUILD=\"${DC_CFD_KIT_BUILD:-$REF/_build/linux-x86_64/release}\""
+        },
+        {
+          "line": 14,
+          "text": "DEMO=\"$ROOT/src/frontend/omniverse/cfd_demo\""
+        },
+        {
+          "line": 15,
+          "text": "EXT_DIR=\"$DEMO/kit/extensions\""
+        },
+        {
+          "line": 16,
+          "text": "# One physical GPU, default GPU0. CUDA is pinned by UUID; Vulkan's index"
+        },
+        {
+          "line": 17,
+          "text": "# must still match the same PCI bus (its enumeration ignores the CUDA mask)."
+        },
+        {
+          "line": 18,
+          "text": "GPU=\"${DC_CFD_GPU:-${CFD_GPU:-0}}\""
+        },
+        {
+          "line": 19,
+          "text": "[[ \"$GPU\" =~ ^[0-9]+$ ]] || { echo \"[start_demo] ERROR: GPU must be a physical index\" >&2; exit 2; }"
+        },
+        {
+          "line": 20,
+          "text": "# Signalling port the web UI dials. Parameterised for start_server.sh --ov-port;"
+        },
+        {
+          "line": 21,
+          "text": "# the historical fixed value stays the default."
+        },
+        {
+          "line": 22,
+          "text": "SIGNAL_PORT=\"${DC_CFD_SIGNAL_PORT:-8301}\""
+        },
+        {
+          "line": 23,
+          "text": "[[ \"$SIGNAL_PORT\" =~ ^[0-9]+$ ]] && (( SIGNAL_PORT >= 1 && SIGNAL_PORT <= 65535 )) \\"
+        },
+        {
+          "line": 24,
+          "text": "  || { echo \"[start_demo] ERROR: signalling port must be 1..65535\" >&2; exit 2; }"
+        },
+        {
+          "line": 25,
+          "text": "mkdir -p \"$ROOT/.codex-tmp/ov-runtime\""
+        },
+        {
+          "line": 26,
+          "text": "RUNTIME=\"${DC_CFD_RUNTIME_DIR:-$(mktemp -d \"$ROOT/.codex-tmp/ov-runtime/${SIGNAL_PORT}.XXXXXX\")}\""
+        },
+        {
+          "line": 27,
+          "text": "RUNTIME=\"$(realpath -m \"$RUNTIME\")\""
+        },
+        {
+          "line": 28,
+          "text": "[[ \"$RUNTIME\" == \"$ROOT/\"* ]] \\"
+        },
+        {
+          "line": 29,
+          "text": "  || { echo \"[start_demo] ERROR: runtime directory must stay inside this checkout\" >&2; exit 2; }"
+        },
+        {
+          "line": 30,
+          "text": "mkdir -p \"$RUNTIME\""
+        },
+        {
+          "line": 31,
+          "text": "export TMPDIR=\"$RUNTIME/tmp\""
+        },
+        {
+          "line": 32,
+          "text": "mkdir -p \"$TMPDIR\""
+        },
+        {
+          "line": 33,
+          "text": "# Kit portable mode redirects data/cache/log tokens into this checkout."
+        },
+        {
+          "line": 34,
+          "text": "# Stable GPU caches avoid discarding compiled shaders on every restart."
+        },
+        {
+          "line": 35,
+          "text": "CACHE_ROOT=\"$ROOT/.codex-tmp/ov-cache\""
+        },
+        {
+          "line": 36,
+          "text": "mkdir -p \"$CACHE_ROOT\"/{kit,gl,cuda,xdg-cache,xdg-config,xdg-data}"
+        },
+        {
+          "line": 37,
+          "text": "export __GL_SHADER_DISK_CACHE_PATH=\"$CACHE_ROOT/gl\""
+        },
+        {
+          "line": 38,
+          "text": "export CUDA_CACHE_PATH=\"$CACHE_ROOT/cuda\""
+        },
+        {
+          "line": 39,
+          "text": "export XDG_CACHE_HOME=\"$CACHE_ROOT/xdg-cache\""
+        },
+        {
+          "line": 40,
+          "text": "export XDG_CONFIG_HOME=\"$CACHE_ROOT/xdg-config\""
+        },
+        {
+          "line": 41,
+          "text": "export XDG_DATA_HOME=\"$CACHE_ROOT/xdg-data\""
+        },
+        {
+          "line": 42,
+          "text": "# Establish ownership before GPU/display preflight. The supervised child is"
+        },
+        {
+          "line": 43,
+          "text": "# reached only with the supervisor's resolved, UUID-bound selection."
+        },
+        {
+          "line": 44,
+          "text": "if [[ \"${1:-}\" != --supervised-child ]]; then"
+        },
+        {
+          "line": 45,
+          "text": "    SUPERVISOR=(python3 \"$DEMO/scripts/supervise_kit.py\" --runtime \"$RUNTIME\""
+        },
+        {
+          "line": 46,
+          "text": "        --display \"${DC_CFD_DISPLAY:-:99}\" --gpu \"$GPU\" --signal-port \"$SIGNAL_PORT\""
+        },
+        {
+          "line": 47,
+          "text": "        --required-executable \"$BUILD/omni.cae_streaming.kit.sh\""
+        },
+        {
+          "line": 48,
+          "text": "        --startup-timeout \"${DC_CFD_STARTUP_TIMEOUT:-300}\""
+        },
+        {
+          "line": 49,
+          "text": "        --preflight-timeout \"${DC_CFD_PREFLIGHT_TIMEOUT:-20}\")"
+        },
+        {
+          "line": 50,
+          "text": "    if [[ \"${DC_CFD_MANAGED:-0}\" == 1 ]]; then"
+        },
+        {
+          "line": 51,
+          "text": "        exec \"${SUPERVISOR[@]}\" --managed --parent-pid \"${DC_CFD_PARENT_PID:-$PPID}\" -- \\"
+        },
+        {
+          "line": 52,
+          "text": "            bash \"$DEMO/scripts/start_demo.sh\" --supervised-child"
+        },
+        {
+          "line": 53,
+          "text": "    fi"
+        },
+        {
+          "line": 54,
+          "text": "    \"${SUPERVISOR[@]}\" -- bash \"$DEMO/scripts/start_demo.sh\" --supervised-child \\"
+        },
+        {
+          "line": 55,
+          "text": "        > \"$RUNTIME/launcher.log\" 2>&1 &"
+        },
+        {
+          "line": 56,
+          "text": "    echo \"[start_demo] Supervisor PID $! ; log: $RUNTIME/kit.log\""
+        },
+        {
+          "line": 57,
+          "text": "    echo \"[start_demo] to start web UI: (cd $DEMO/web && npm run dev)\""
+        },
+        {
+          "line": 58,
+          "text": "    exit 0"
+        },
+        {
+          "line": 59,
+          "text": "fi"
+        },
+        {
+          "line": 60,
+          "text": "[[ \"${DC_CFD_SUPERVISOR_PID:-}\" =~ ^[0-9]+$ ]] &&"
+        },
+        {
+          "line": 61,
+          "text": "    [[ \"$PPID\" == \"$DC_CFD_SUPERVISOR_PID\" ]] &&"
+        },
+        {
+          "line": 62,
+          "text": "    [[ \"$(cat \"$RUNTIME/supervisor.pid\")\" == \"$DC_CFD_SUPERVISOR_PID\" ]] ||"
+        },
+        {
+          "line": 63,
+          "text": "    { echo \"[start_demo] ERROR: supervised child requires its live owner\" >&2; exit 2; }"
+        },
+        {
+          "line": 64,
+          "text": "GPU_INDEX=\"${DC_CFD_RESOLVED_GPU:-}\""
+        },
+        {
+          "line": 65,
+          "text": "GPU_UUID=\"${DC_CFD_RESOLVED_UUID:-}\""
+        },
+        {
+          "line": 66,
+          "text": "GPU_BUS_ID=\"${DC_CFD_RESOLVED_PCI:-}\""
+        },
+        {
+          "line": 67,
+          "text": "ACTIVE_GPU=\"${DC_CFD_RESOLVED_ACTIVE_GPU:-}\""
+        },
+        {
+          "line": 68,
+          "text": "VULKAN_ICD=\"${DC_CFD_RESOLVED_ICD:-}\""
+        },
+        {
+          "line": 69,
+          "text": "[[ \"$GPU_INDEX\" == \"$GPU\" && \"$GPU_UUID\" == GPU-* &&"
+        },
+        {
+          "line": 70,
+          "text": "   \"$ACTIVE_GPU\" =~ ^[0-9]+$ && -f \"$VULKAN_ICD\" ]] ||"
+        },
+        {
+          "line": 71,
+          "text": "    { echo \"[start_demo] ERROR: missing supervised GPU selection\" >&2; exit 2; }"
+        },
+        {
+          "line": 72,
+          "text": "export CUDA_VISIBLE_DEVICES=\"$GPU_UUID\""
+        },
+        {
+          "line": 73,
+          "text": "export VK_DRIVER_FILES=\"$VULKAN_ICD\" VK_ICD_FILENAMES=\"$VULKAN_ICD\""
+        },
+        {
+          "line": 74,
+          "text": "CAE_DEVICE=\"cuda:0\""
+        },
+        {
+          "line": 75,
+          "text": "AI_ENABLED=\"${DC_CFD_AI:-0}\""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+--- before/dcCartCompleteCavityReplayObservation.H
++++ after/dcCartCompleteCavityReplayObservation.H
+@@ -4,6 +4,8 @@
+ #include "dcCartCompleteCavityReplaySourceSidecar.H"
+ #include <chrono>
+ #include <cstdio>
++#include <sys/stat.h>
++#include <unistd.h>
+ #include <cstdlib>
+ #include <sstream>
+ #include <iomanip>
+@@ -569,9 +571,21 @@
+ inline bool exclusiveWrite(const char* path,const std::string& bytes)noexcept
+ {
+     FILE* f=std::fopen(path,"wx");if(!f)return false;
++    // Keep the created inode alive until cleanup; never remove an existing or
++    // replaced path (including a symlink) merely because observation I/O failed.
++    const int ownedFd=::dup(::fileno(f));struct stat owned{};
++    const bool ownKnown=ownedFd>=0&&::fstat(ownedFd,&owned)==0;
+     const bool all=std::fwrite(bytes.data(),1,bytes.size(),f)==bytes.size();
+     const bool flushed=std::fflush(f)==0;const bool closed=std::fclose(f)==0;
+-    return all&&flushed&&closed;
++    const bool ok=all&&flushed&&closed;
++    if(!ok&&ownKnown)
++    {
++        struct stat current{};
++        if(::lstat(path,&current)==0&&S_ISREG(current.st_mode)&&
++           current.st_dev==owned.st_dev&&current.st_ino==owned.st_ino)::unlink(path);
++    }
++    if(ownedFd>=0)::close(ownedFd);
++    return ok;
+ }
+ inline Result capture(bool on,const char* path,const L::Catalogue& catalogue,const L::Cut& raw,
+                       const std::vector<std::vector<label>>& cf,const wordList& patchTypes,

@@ -1,0 +1,128 @@
+{
+  "format": "air-mesh-geometric-cone-audit/v2",
+  "scope": "Read-only target/actual opt-in Tri diagnosis; no geometry, mesh, solver or native binary modification.",
+  "audits": {
+    "target": {
+      "classificationTotals": {
+        "convex-with-coplanar-facets": 123924,
+        "vertex-halfspace-violation": 1623,
+        "nonconvex-face-polygon": 51
+      },
+      "localSetTotals": {
+        "concaveCells": 125598,
+        "lowQualityTetFaces": 32,
+        "lowWeightFaces": 54,
+        "lowVolRatioFaces": 46,
+        "concaveFaces": 1674,
+        "warpedFaces": 2
+      }
+    },
+    "triPyramid": {
+      "classificationTotals": {
+        "convex-with-coplanar-facets": 42696,
+        "vertex-halfspace-violation": 673,
+        "nonconvex-face-polygon": 22,
+        "nonplanar-face-unproved": 9
+      },
+      "localSetTotals": {
+        "concaveCells": 43400,
+        "lowQualityTetFaces": 1909,
+        "lowWeightFaces": 3321,
+        "lowVolRatioFaces": 2391,
+        "concaveFaces": 680,
+        "warpedFaces": 0
+      }
+    }
+  },
+  "classificationTolerance": "1e-10*max(1,bboxExtent) metres; distinct from external strict acceptance. Face polygons require global directed-edge support halfspaces, planar geometry, positive volume and area closure.",
+  "revision": "Local turn signs can miss self-crossing polygons. Strong edge-support audit reclassifies two target cells from convex to nonconvex face polygon; old raw preserved.",
+  "nativeCheckerDefinition": {
+    "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshCheck.C",
+    "sha256": "d2203b0b22373230d04a994f00823c22359066c7a7289a02514e10755ad5f946",
+    "criterion": "outward-normal dot normalized face-to-other-face-centre > -1e-6; coplanar different facets trigger the test."
+  },
+  "counterexample": {
+    "rank": 0,
+    "cell": 24576,
+    "baseFace": 24057,
+    "sideFaces": [
+      70400,
+      70401
+    ],
+    "sideOtherCells": [
+      24579,
+      24580
+    ],
+    "collinearVertexChain": [
+      11948,
+      11966,
+      11965
+    ],
+    "chainCrossM2": [
+      0,
+      0,
+      0
+    ],
+    "sideNormalsDot": 1.0,
+    "checkerFaceCentreUnitDot": 0.0
+  },
+  "tests": "9 passed in 0.41s; initial test-only NameError preserved. Tests include convex coplanar cube, L-prism, warped face, tetrahedron, diagnostic set parsing, preserved-base cone and self-crossing star.",
+  "execution": "OpenBLAS/OMP1 per process, CUDA empty, CPU24-31, eight readonly rank workers; no API/solver invocation.",
+  "limits": [
+    "Not a full checkMesh pass. Native faceTet report counts failure events, not unique face labels; original target35 events correspond to32 labels. See target-tet-cleanup-partition-receipt.json for source-backed correction; no flagged target face is coupled.",
+    "No saved native cell-level or merge-stage ancestry; polygon count/bbox does not establish stage identity.",
+    "Centroid-pyramid volume conservation and convex child geometry do not guarantee strict plane tests, conforming face incidence or interpolation quality.",
+    "Different-neighbor coplanar side facets cannot be joined locally while preserving one-face-one-cell-pair topology. Any propagated canonical refinement requires separate complete quality verification."
+  ],
+  "sourceSha256": {
+    "tools/audit_air_mesh_geometry.py": "9f973fa74084aa0f007958666dfae61dcb990e4c6d430c1db0f5a13a8464fec6",
+    "src/backend/tests/test_audit_air_mesh_geometry.py": "c0e007044601d8f57d9612cfaa2bd8539ebba6f67a39fd3f68368832154b1162"
+  },
+  "files": {
+    "tri-pyramid-geometry-audit.json": {
+      "bytes": 2629298,
+      "sha256": "43d17966cdd42c12da000d26cea8875f2282d7c8e4c6fe0e46e7451f6d16b018"
+    },
+    "tri-pyramid-geometry-audit-v2.json": {
+      "bytes": 2699020,
+      "sha256": "32045fa29ccb105969cba490c149f8fa45e583f5a994a82e2b30909fe7fd79c1"
+    },
+    "full-mesh-geometry-audit-v2.json": {
+      "bytes": 6726146,
+      "sha256": "d198f7749ec3005578e7f4cc949c25e61f8c69ecb52a6150d79ac0232ff58e3e"
+    },
+    "tri-pyramid-collinear-child-counterexample.json": {
+      "bytes": 9909,
+      "sha256": "48e882c0544edf81959f448cc31b55e61e906e1648dbb787bff3af7984ad9394"
+    },
+    "target-centroid-cone-probes.json": {
+      "bytes": 56395,
+      "sha256": "68b2a841d8033d28ee404951448768a9cb6645baf3f72ede163d10227fafe242"
+    },
+    "target-centroid-cone-probes-v2.json": {
+      "bytes": 57626,
+      "sha256": "56ec6f703adff1b7366d0e5d90a48145fd3108d0f5cbd3e695013a8492d9f763"
+    },
+    "geometry-cone-probe-pytest-output.txt": {
+      "bytes": 98,
+      "sha256": "d9fbe6c5107ab4f085df9faa896dd7f4f797f380d994966d9098ce80b5dc817c"
+    },
+    "geometry-polygon-probe-initial-test-error.txt": {
+      "bytes": 814,
+      "sha256": "f0980c25677bc6d6cc7027d2f57b8b3ca5a5d7af6495caef265a0b117da1f189"
+    },
+    "tri-pyramid-geometry-progress.txt": {
+      "bytes": 851,
+      "sha256": "6193d64c4941c1d985cdd5bd99063c0eff541913175a5de405c4614f8b66921b"
+    },
+    "tri-pyramid-geometry-audit-v2-progress.txt": {
+      "bytes": 851,
+      "sha256": "7d8244aa056c7635b18bb9b8f270e30ff561e9be0d71481e7bc0bad734f1811a"
+    },
+    "full-mesh-geometry-audit-v2-progress.txt": {
+      "bytes": 2415,
+      "sha256": "b69480f81517d116d65418b3232286092d423658fd2804c22463852cd3cad44b"
+    }
+  },
+  "interpretationCorrection": "The former coupled-accounting explanation was incorrect for this target. Corrected using checkFaceTets increments and reconstructed owner/neighbour/base-point counts; original raw numerical results retained."
+}

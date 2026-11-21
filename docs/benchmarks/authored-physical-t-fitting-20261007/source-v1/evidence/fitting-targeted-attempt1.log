@@ -1,0 +1,114 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/t-fitting-authored-private/reviewtree/src/frontend/react
+
+ ✓ test/liquidFactories.test.ts > placement > puts the CRH on the rack back face and sizes it to the rack
+ ✓ test/liquidFactories.test.ts > placement > places the cold plate mid-height and mid-depth
+ ✓ test/liquidFactories.test.ts > placement > lifts the heat source to its own slot, not to the rack floor
+ ✓ test/liquidFactories.test.ts > placement > falls back to the 1U default when the rack carries no slot height
+ ✓ test/liquidFactories.test.ts > rackServer > reads the slot index from geometry.slotPosition
+ ✓ test/liquidFactories.test.ts > rackServer > names an unnamed server by its uid rather than "undefined"
+ ✓ test/liquidFactories.test.ts > rackServer > returns null for a server that is not on the rack
+ ✓ test/liquidFactories.test.ts > buildCrh > produces a V4 box-bucket model tagged crh, parented to the rack
+ ✓ test/liquidFactories.test.ts > buildCrh > carries the four CRH performance fields the graph generator reads
+ ✓ test/liquidFactories.test.ts > buildCrh > is translucent and carries no anchor marker
+ ✓ test/liquidFactories.test.ts > buildCrh > takes the next free uid rather than restarting at m_1
+ ✓ test/liquidFactories.test.ts > findCrhForRack > finds a CRH by its parent rack, and only that rack
+ ✓ test/liquidFactories.test.ts > buildColdPlate > stamps the clock into the name, so two on one rack do not collide
+ ✓ test/liquidFactories.test.ts > buildColdPlate > carries the cold-plate spec block and both port slots
+ ✓ test/liquidFactories.test.ts > buildHeatSource > splits the legacy heatSource block into cooling, as the migrator does
+ ✓ test/liquidFactories.test.ts > buildHeatSource > sits at the server slot, so two servers do not get the same height
+ ✓ test/liquidFactories.test.ts > shape parity with the plain factories > gives every liquid kind the lazily-materialised rotateTool
+ ✓ test/liquidFactories.test.ts > shape parity with the plain factories > keeps `kind` off the serialised document
+ ✓ test/liquidFactories.test.ts > authored physical free T fittings > uses25mm metres regardless of authoring input unit and does not share mutable port defaults
+stdout | test/authoredTBranch.test.ts > real shared upgrade inherits the authored 73mm diameter rather than bridge25mm or spec text
+[liquid_mode.js] Loaded
+ACTUAL_SPLIT {"inputDiameter":0.073,"inputSpec":"pipe_999mm","junctionDiameter":0.073,"partDiameters":[0.073,0.073]}
+
+stdout | test/authoredTBranch.test.ts > both real creation factories author an explicit25mm three-port physical fitting
+ACTUAL_FACTORY {"free":{"type":"T_branch","quaternion":{"x":0,"y":0,"z":0,"w":1},"fittingDiameterM":0.025,"ports":[{"id":"port_1","offset":{"x":-0.04,"y":0,"z":0},"direction":{"x":-1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_2","offset":{"x":0.04,"y":0,"z":0},"direction":{"x":1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_3","offset":{"x":0,"y":0,"z":0.04},"direction":{"x":0,"y":0,"z":1},"type":"out","connectedPipeId":null}]},"bridge":{"type":"T_branch","quaternion":{"x":0,"y":0,"z":0,"w":1},"fittingDiameterM":0.025,"ports":[{"id":"port_1","offset":{"x":-0.04,"y":0,"z":0},"direction":{"x":-1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_2","offset":{"x":0.04,"y":0,"z":0},"direction":{"x":1,"y":0,"z":0},"type":"inout","connectedPipeId":null},{"id":"port_3","offset":{"x":0,"y":0,"z":0.04},"direction":{"x":0,"y":0,"z":1},"type":"out","connectedPipeId":null}]}}
+
+stdout | test/authoredTBranch.test.ts > exports the factory physical fitting after yaw and uniform scale, with real source UID/carrier provenance and outward closed triangles
+[STLExport] rackStlCache: 0.051ms
+[STLExport] groups: 0.294ms
+[STLExport] buckets: 0.151ms
+
+stdout | test/authoredTBranch.test.ts > keeps old absent fitting physics absent through actual load/save/reload and honestly rejects export with an actionable message
+[STLExport] rackStlCache: 0.012ms
+[STLExport] groups: 0.045ms
+[STLExport] buckets: 0.013ms
+
+stdout | test/authoredTBranch.test.ts > does not infer a missing physical port direction from its display or offset
+[STLExport] rackStlCache: 0.008ms
+[STLExport] groups: 0.035ms
+
+ ✓ test/authoredTBranch.test.ts > real shared upgrade inherits the authored 73mm diameter rather than bridge25mm or spec text
+ ✓ test/authoredTBranch.test.ts > both real creation factories author an explicit25mm three-port physical fitting
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter undefined before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter null before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter 0 before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter -0.1 before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter NaN before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter Infinity before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > rejects invalid authored source diameter .073 before split/undo or topology mutation
+ ✓ test/authoredTBranch.test.ts > exports the factory physical fitting after yaw and uniform scale, with real source UID/carrier provenance and outward closed triangles
+ × test/authoredTBranch.test.ts > keeps old absent fitting physics absent through actual load/save/reload and honestly rejects export with an actionable message
+   → expected [Function] to throw an error
+ ✓ test/authoredTBranch.test.ts > does not infer a missing physical port direction from its display or offset
+ ✓ test/legacy/liquidGlobals.test.ts > manifoldEndpoint > places the split layout at the two rack edges, yawed by the rack quaternion
+ ✓ test/legacy/liquidGlobals.test.ts > manifoldEndpoint > stacks both pipes on one side for the both-left / both-right layouts
+ ✓ test/legacy/liquidGlobals.test.ts > manifoldEndpoint > mounts on the outlet face when asked, 50 mm clear of it
+ ✓ test/legacy/liquidGlobals.test.ts > manifoldEndpoint > returns null for anything that is not a liquid rack with U-slots
+ ✓ test/legacy/liquidGlobals.test.ts > nextLiquidUid > does not repeat itself while the project is unchanged
+ ✓ test/legacy/liquidGlobals.test.ts > nextLiquidUid > still clears a project that grew past the counter
+ ✓ test/legacy/liquidGlobals.test.ts > the pipe factories > seeds a 25 mm pipe with no waypoints, as createPipeSegmentModel does
+ ✓ test/legacy/liquidGlobals.test.ts > the pipe factories > seeds a 60 mm T-branch at the waypoint it was split from
+ ✓ test/legacy/liquidGlobals.test.ts > physical T fitting bridge seed > accepts an explicit authored bore and includes finite physical ports in the existing frame
+ ✓ test/legacy/liquidGlobals.test.ts > physical T fitting bridge seed > refuses invalid physical bridge bore 0 instead of silently replacing it
+ ✓ test/legacy/liquidGlobals.test.ts > physical T fitting bridge seed > refuses invalid physical bridge bore -1 instead of silently replacing it
+ ✓ test/legacy/liquidGlobals.test.ts > physical T fitting bridge seed > refuses invalid physical bridge bore NaN instead of silently replacing it
+ ✓ test/legacy/liquidGlobals.test.ts > physical T fitting bridge seed > refuses invalid physical bridge bore Infinity instead of silently replacing it
+stderr | test/PipeJunctionInspector.test.tsx > the actual common Inspector edits physical bore in display mm, preserves arbitrary saved ports/frame and roundtrips through the codec
+Warning: An update to AuthOverlay inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at AuthOverlay (/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/t-fitting-authored-private/reviewtree/src/frontend/react/src/components/AuthOverlay.tsx:12:39)
+
+ ✓ test/PipeJunctionInspector.test.tsx > the actual common Inspector edits physical bore in display mm, preserves arbitrary saved ports/frame and roundtrips through the codec
+ ✓ test/PipeJunctionInspector.test.tsx > does not author old missing physics on load/render/save or on draft input; the explicit declaration is the single authoring action
+ ✓ test/PipeJunctionInspector.test.tsx > explicitly reauthors a legacy standard layout without deleting IDs, connections, roles or saved orientation
+ ✓ test/PipeJunctionInspector.test.tsx > refuses unknown legacy port identities instead of severing a saved topology
+ ✓ test/PipeJunctionInspector.test.tsx > refuses zero/negative/nonfinite edits and wrong kinds without writing a checkpoint
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/authoredTBranch.test.ts > keeps old absent fitting physics absent through actual load/save/reload and honestly rejects export with an actionable message
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/authoredTBranch.test.ts:56:50
+     54|  const json=serializeProjectState(live()),loaded=readProjectFileText(j…
+     55|  const saved=store.findConstruction(loaded.project,m.uid)!.model as Ba…
+     56|  expect(()=>exportFitting(loaded.project,m.uid)).toThrow(/invalid fitt…
+       |                                                  ^
+     57|  expect(saved.cooling.fittingDiameterM).toBeUndefined()
+     58| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 48 passed (49)
+   Start at  12:08:48
+   Duration  10.89s (transform 3.54s, setup 0ms, collect 8.09s, tests 761ms, environment 4.90s, prepare 586ms)
+

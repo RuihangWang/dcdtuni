@@ -1,0 +1,11 @@
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityAuthority.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCompleteCavityAuthority.H
+@@ -94,6 +94,8 @@
+ )
+ {
+     origins.clear();
++    // Reject oversized/empty caller input before any clock/mesh/shape scan.
++    if (cells.empty() || cells.size()>dcCartCompleteCavityOriginCore::maxCavityCells) return false;
+     if (!authority.ready() || !available(authority.remainingSeconds)
+      || mesh.nCells<0 || mesh.cellAlive.size()!=std::size_t(mesh.nCells)
+      || mesh.completeCavityLineage.size()!=std::size_t(mesh.nCells)) return false;

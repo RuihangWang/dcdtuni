@@ -1,0 +1,41 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/pduSceneDisplay.test.ts -t plain visible HMI --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/pduSceneDisplay.test.ts (12 tests | 1 failed | 11 skipped) 51ms
+   × original BOX face editing through visible PDU panels > plain visible HMI hit reaches the original editable front face through the real Viewport resolution table 50ms
+     → expected null to deeply equal { type: 'face', uid: 'm_252', …(1) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/pduSceneDisplay.test.ts > original BOX face editing through visible PDU panels > plain visible HMI hit reaches the original editable front face through the real Viewport resolution table
+AssertionError: expected null to deeply equal { type: 'face', uid: 'm_252', …(1) }
+
+- Expected: 
+Object {
+  "faceId": "front",
+  "type": "face",
+  "uid": "m_252",
+}
+
++ Received: 
+null
+
+ ❯ test/pduSceneDisplay.test.ts:165:96
+    163|   const hit=pickNearestHit(new THREE.Raycaster(origin,dir).intersectOb…
+    164|   expect(hit.object.userData.equipmentVisualDetail).toBe(true)
+    165|   expect(viewportSelectionFor('m_252',hit.object.userData,h.registries…
+       |                                                                                                ^
+    166|  })
+    167| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  06:38:55
+   Duration  3.42s (transform 780ms, setup 0ms, collect 2.20s, tests 51ms, environment 810ms, prepare 80ms)
+

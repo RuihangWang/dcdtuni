@@ -1,0 +1,157 @@
+--- a/src/frontend/react/src/renderer/RendererControl.tsx
++++ b/src/frontend/react/src/renderer/RendererControl.tsx
+@@ -105,6 +105,8 @@
+   projectUid:string
+   projectHash:string|null
+   sceneRevision:number
++  /** Present for a camera transaction pinned to an accepted source packet. */
++  primitives?:number
+ }
+ export function isAcceptedRenderView(ack:RenderAck,identity:AcceptedRenderViewIdentity):boolean {
+   return identity.projectUid.trim().length>0&&typeof identity.projectHash==='string'
+@@ -112,6 +114,8 @@
+     &&Number.isSafeInteger(identity.sceneRevision)&&identity.sceneRevision>=0
+     &&ack.ok===true&&ack.projectHash===identity.projectHash
+     &&ack.sceneRevision===identity.sceneRevision
++    &&(identity.primitives===undefined||(Number.isSafeInteger(identity.primitives)&&identity.primitives>=0
++      &&Number.isSafeInteger(ack.primitives)&&ack.primitives===identity.primitives))
+ }
+ /** An acknowledged OV orbit survives a project edit; new time/selection still win. */
+ export function keepActiveOvCamera(packet:SceneSnapshot,ack:RenderAck,activeProjectUid:string,
+@@ -207,6 +211,7 @@
+   const resultSync=useRef<LatestSceneSync<ResultTransmission>|null>(null)
+   const sceneEpoch=useRef(0)
+   const sceneRevision=useRef(-1)
++  const acceptedPrimitiveCount=useRef(-1)
+   const ackedSceneHash=useRef<string|null>(null)
+   const acceptedModelUids=useRef<ReadonlySet<string>>(new Set())
+   const sourceQueryBridge=useRef<ReturnType<typeof createOvEditBridge>|null>(null)
+@@ -277,6 +282,7 @@
+     if(!live?.uid||live.uid!==packet.project.uid||
+        cfdrunExport().projectContentHashSync(live)!==expectedHash)return false
+     acceptedModelUids.current=new Set(packet.primitives.map(p=>p.modelUid))
++    acceptedPrimitiveCount.current=packet.primitives.length
+     sceneRevision.current=ack.sceneRevision
+     ackedSceneHash.current=ack.projectHash
+     setOvResultStage(value,{projectUid:packet.project.uid,projectHash:ack.projectHash,sceneRevision:ack.sceneRevision})
+@@ -335,7 +341,7 @@
+     viewDelivery.current?.close();viewDelivery.current=null
+     overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+     resultSync.current?.close();resultSync.current=null
+-    client.current?.onEditEvent(null);sceneRevision.current=-1;ackedSceneHash.current=null
++    client.current?.onEditEvent(null);sceneRevision.current=-1;acceptedPrimitiveCount.current=-1;ackedSceneHash.current=null
+     degraded.current=false
+     setOvSession({client:null,ready:false,degraded:false,liquidActive:false,sceneIdle:null,projectUid:null,projectContentSha256:null,sceneRevision:null})
+     setMessage({key:getServerInfo()?.ovBridge===false?'renderer.ov_not_started':'renderer.ov_unavailable',vars:{error:error.message}})
+@@ -351,7 +357,7 @@
+     const token=++session.current
+     const sourceKey=key
+     const capturedClient=client.current
+-    const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
++    const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current,primitives:acceptedPrimitiveCount.current}
+     let diagnosticContext:ReturnType<typeof captureDiagnosticContext>|null=null
+     let diagnosticCaptureError:unknown=null
+     try {
+@@ -365,14 +371,14 @@
+     sync.current?.close();sync.current=null
+     overlaySync.current?.close();overlaySync.current=null;hasOverlay.current=false
+     resultSync.current?.close();resultSync.current=null
+-    client.current?.onEditEvent(null);sceneRevision.current=-1;ackedSceneHash.current=null
++    client.current?.onEditEvent(null);sceneRevision.current=-1;acceptedPrimitiveCount.current=-1;ackedSceneHash.current=null
+     degraded.current=false
+     try {
+       if(diagnosticCaptureError)throw diagnosticCaptureError
+       if(client.current&&ready&&canRead) {
+         // Healthy Kit replies can take several seconds; keep one bounded handoff.
+         const ack=await waitForRenderView(diagnosticContext
+-          ?capturedClient!.readViewDiagnostics(diagnosticContext):capturedClient!.readView(),diagnosticContext?3000:8000)
++          ?capturedClient!.readViewDiagnostics(diagnosticContext):capturedClient!.readView("camera-handoff"),diagnosticContext?3000:8000)
+         if(session.current!==token||currentKey.current!==sourceKey||client.current!==capturedClient
+           ||ack.view?.timeSeconds!==timeSeconds||selectedResultTime()!==timeSeconds)return
+         const liveProject=store.getProject()
+@@ -569,8 +575,8 @@
+         sync.current=new LatestSceneSync<SceneTransmission>(async ({packet,hash})=>{
+           let next=packet
+           if(packet.project.uid===sentProjectUid.current){
+-            const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current}
+-            const ack=await waitForRenderView(value.readView(),3000)
++            const acceptedView={projectUid:sentProjectUid.current,projectHash:ackedSceneHash.current,sceneRevision:sceneRevision.current,primitives:acceptedPrimitiveCount.current}
++            const ack=await waitForRenderView(value.readView("camera-handoff"),3000)
+             if(session.current!==token||client.current!==value)return
+             if(sentProjectUid.current===acceptedView.projectUid
+               &&ackedSceneHash.current===acceptedView.projectHash&&sceneRevision.current===acceptedView.sceneRevision)
+--- a/src/frontend/react/src/renderer/ovProtocol.ts
++++ b/src/frontend/react/src/renderer/ovProtocol.ts
+@@ -508,8 +508,15 @@
+     }
+     throw new Error(`Omniverse acknowledgement timed out: the Kit->browser channel never opened after ${attempts} probes (${last})`)
+   }
+-  readView(): Promise<RenderAck> {
+-    return this.request(id => this.command('getViewState', { requestId: id }))
++  /** Camera handoff reads live state and scene identity without requesting a
++   * derived decoration proof. Default reads keep the complete display receipt. */
++  readView(purpose?: 'camera-handoff'): Promise<RenderAck> {
++    if (purpose !== undefined && purpose !== 'camera-handoff') {
++      return Promise.reject(new Error('Invalid Omniverse view purpose'))
++    }
++    return this.request(id => this.command('getViewState', {
++      requestId: id, ...(purpose === undefined ? {} : { purpose }),
++    }))
+   }
+   /** Only the explicit return selector opts into this bounded readonly branch. */
+   readViewDiagnostics(context:DiagnosticContext):Promise<DiagnosticReply> {
+--- a/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ b/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -800,11 +800,12 @@
+                         _native_grid_receipt_diagnostic('flush-send',payload.get('gridDisplay'))
+                     except Exception:
+                         pass  # Diagnostic import/sink failure cannot suppress ACK.
+-                    # Carb drops None dictionary entries. Keep a freshly
+-                    # revalidated native receipt as explicit JSON text; no
+-                    # nullable proof field is reconstructed by the receiver.
++                    # Carb drops None dictionary entries and turns empty arrays
++                    # into objects. Preserve real views and freshly revalidated
++                    # native receipts as JSON; the receiver reconstructs no fields.
+                     wire_grid = payload.get('gridDisplay')
+-                    if type(wire_grid) is dict and 'nativeGeometry' in wire_grid:
++                    if (type(wire_grid) is dict and 'nativeGeometry' in wire_grid
++                            or type(payload.get('view')) is dict):
+                         try:
+                             import json
+                             wire = {'renderAckJSON': json.dumps(
+@@ -812,7 +813,7 @@
+                                 separators=(',', ':'))}
+                             app.get_message_bus_event_stream().push(event, payload=wire)
+                         except Exception:
+-                            # No legacy fallback can carry a failed native proof.
++                            # No legacy fallback can carry a failed view/proof.
+                             # A failed encode/send must not discard later ACKs.
+                             continue
+                     else:
+@@ -948,7 +949,9 @@
+             if set(args) != allowed[command] and not (
+                     (command == 'loadRenderScene' and set(args) == {'requestId', 'projectHash'}) or
+                     (command == 'clearRenderResultLayers' and set(args) == {'requestId', 'displayGeneration'}) or
+-                    (command == 'getViewState' and set(args) == {'requestId', 'diagnostics'})):
++                    (command == 'getViewState' and set(args) == {'requestId', 'diagnostics'}) or
++                    (command == 'getViewState' and set(args) == {'requestId', 'purpose'}
++                     and args['purpose'] == 'camera-handoff')):
+                 raise ValueError('Unexpected or missing render command fields')
+             if command in {'beginRenderResultLayers', 'renderResultLayersChunk',
+                            'renderResultLayersProgress', 'loadRenderResultLayers'}:
+@@ -1211,6 +1214,15 @@
+                     return
+                 selection_paths = ctx.get_selection().get_selected_prim_paths()
+                 view = render_scene.read_view(stage, selection_paths)
++                if args.get('purpose') == 'camera-handoff':
++                    # This live camera/scene transaction cannot authorize grid
++                    # appearance. Ordinary reads still verify the full receipt.
++                    self._render_ack(request_id, ok=True, view=view,
++                                     primitives=sum(len(x) for x in self._render_uid_paths.values()),
++                                     sceneRevision=self._scene_revision, projectHash=self._render_project_hash,
++                                     sceneRequestId=self._last_scene_request_id)
++                    self._trace_source_selection('state-query', selection_paths, view.get('selectedUids'))
++                    return
+                 # Idempotent state query: also the scene identity a scene ack
+                 # carries, so a lost scene ack is recoverable (ovProtocol).
+                 self._render_ack(request_id, ok=True, view=view,

@@ -1,0 +1,111 @@
+# Pre-existing test failures BEFORE the v4 refactor (captured 2026-06-12, commit 440be6b;
+# augmented same day with server-up-only suites — see the last section).
+# Exit-gate rule: no NEW `FAILED` line vs this ledger. Compare `^FAILED` only; the
+# `ERROR conda.cli.main_run...` lines are conda's non-zero-exit wrappers (they vary
+# with how the pytest command is split: backend+frontend separately here vs one
+# combined run at the gate) and are NOT test failures.
+
+## backend (pytest src/backend/tests)
+ERROR conda.cli.main_run:execute(127): `conda run python -m pytest src/backend/tests -q` failed. (See above for error)
+FAILED src/backend/tests/test_blanking_panel_type.py::TestBlankingPanelBCDispatch::test_fullblock_multi_solid_no_bridge_bc
+FAILED src/backend/tests/test_blanking_panel_type.py::TestBlankingPanelBCDispatch::test_fullblock_no_bridge_bc_registered
+FAILED src/backend/tests/test_blanking_panel_type.py::TestBlankingPanelSnappyDict::test_stale_createbafflesdict_removed
+FAILED src/backend/tests/test_blanking_panel_type.py::TestBlankingPanelSnappyDict::test_wallblankingpanel_no_faceType_internal
+FAILED src/backend/tests/test_blanking_panel_type.py::TestBlankingPanelSnappyDict::test_wallblankingpanel_not_in_createbaffles
+FAILED src/backend/tests/test_liquid/test_visualize.py::test_draw_network_cp_count_per_rack
+FAILED src/backend/tests/test_liquid/test_visualize.py::test_draw_network_creates_png
+FAILED src/backend/tests/test_liquid/test_visualize.py::test_draw_network_node_positions_cdu_leftmost
+FAILED src/backend/tests/test_liquid/test_visualize.py::test_draw_network_racks_grouped
+FAILED src/backend/tests/test_parallel_mesh.py::TestParallelMeshPipelineOrder::test_correct_command_order_for_parallel_mesh
+FAILED src/backend/tests/test_parallel_mesh.py::TestParallelMeshPipelineOrder::test_parallel_pipeline_includes_create_baffles_when_dict_exists
+
+## frontend collector crashes (module-level sys.exit; excluded from pytest runs)
+CRASH src/frontend/test/test_floor_room_boundary_frontend.py
+CRASH src/frontend/test/test_perforated_frontend.py
+
+## frontend (pytest src/frontend/test --ignore of the two crash files)
+ERROR conda.cli.main_run:execute(127): `conda run python -m pytest src/frontend/test -q --ignore=src/frontend/test/test_floor_room_boundary_frontend.py --ignore=src/frontend/test/test_perforated_frontend.py` failed. (See above for error)
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_acu_anchors_near_floor
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_blockmesh_bounds_y_is_height
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_bounds_y_is_height
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_bounds_z_is_depth
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_cfdroom_location_in_mesh
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_chimney_forms_closed_rectangle
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_chimney_has_endcaps_and_sidewalls
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_containment_baffles_exist
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_containment_baffles_have_cfd_role
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_containment_baffles_zero_thickness
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_endcap_baffles_on_floor
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_endcap_baffles_perpendicular_to_z
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_gravity_is_y_down
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_has_project_name
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_has_schema_version
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_no_containment_boxes
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_partition_baffles_on_floor
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_partition_baffles_z_is_depth
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_pillar_boxes_on_floor
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_pillar_boxes_preserved
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_quaternions_use_y_axis
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_rack_anchors_on_floor
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_rack_anchors_z_positive
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_sidewall_baffles_perpendicular_to_x
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_sidewall_starts_at_rack_top
+FAILED src/frontend/test/test_cmi_germany_yup_conversion.py::test_unpaired_endrow_chimney
+FAILED src/frontend/test/test_mesh_tab_auto_detect_frontend.py::test_applyprojectdata_resets_autoDetectDone
+FAILED src/frontend/test/test_mesh_tab_auto_detect_frontend.py::test_auto_detect_fns_set_done_true
+FAILED src/frontend/test/test_mesh_tab_auto_detect_frontend.py::test_setmeshrefinelevel_clears_autoDetectDone
+FAILED src/frontend/test/test_mesh_tab_auto_detect_frontend.py::test_switchlefttab_mesh_gated_by_autoDetectDone
+FAILED src/frontend/test/test_rack_door_frontend.py::test_auto_detect_rack_door_defined_and_wired_last
+FAILED src/frontend/test/test_rack_door_frontend.py::test_auto_detect_rack_door_preserves_higher_manual_values
+FAILED src/frontend/test/test_rack_door_frontend.py::test_build_cfd_export_json_emits_door_fields
+FAILED src/frontend/test/test_rack_door_frontend.py::test_collect_warnings_does_not_reference_door_state
+FAILED src/frontend/test/test_rack_door_frontend.py::test_compute_rack_min_u_span_helper_exists
+FAILED src/frontend/test/test_rack_door_frontend.py::test_i18n_has_rack_door_label_keys
+FAILED src/frontend/test/test_rack_door_frontend.py::test_initial_state_declares_door_refinement_keys
+FAILED src/frontend/test/test_rack_door_frontend.py::test_initial_state_door_refinement_defaults
+FAILED src/frontend/test/test_rack_door_frontend.py::test_refresh_panel_calls_door_category_section
+FAILED src/frontend/test/test_rack_door_frontend.py::test_scan_rack_door_min_unit_buckets_defined
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_auto_detect_category_sets_feature_equals_surface_max
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_build_cfd_export_emits_all_new_meshconfig_keys
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_build_grouped_stl_map_routes_per_bucket
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_build_grouped_stl_map_routes_wallBaffle_to_separate_file
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_compute_rack_partition_buckets_helper_exists
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_global_min_rack_internal_unit_span_helper_exists
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_i18n_has_partition_label
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_initial_state_new_per_bucket_feature_maps
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_partition_panel_row_rendered
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_rack_frame_row_completely_removed_from_refine_panel
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_rack_surface_refinement_label_renamed_to_rack_internals
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_render_category_section_supports_per_bucket_feature_input
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_server_bucket_uses_neighbor_thinness_for_patchheight
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_set_unified_rack_category_broadcasts_to_per_unit
+FAILED src/frontend/test/test_refinement_redesign_frontend.py::test_stl_export_groups_has_new_scene_filenames
+
+## server-up-only pre-existing failures (added 2026-06-12 during Plan-1 exit gate)
+# These suites carry `pytest.mark.skipif(not _server_up())` and drive the live
+# server's /api/browser/exec-js channel. The original ledger was captured with
+# the server DOWN, so they SKIPPED and never appeared. With the server up on
+# :8005 they run and fail — but the failures are PRE-EXISTING and independent of
+# the cfdproj-v4 refactor, proven three ways:
+#   1. `git diff 3a1346f..HEAD` touches ZERO lines of buildCfdExportJson / rack-door /
+#      refinement code (grep buildCfdExportJson over the diff = 0 occurrences).
+#   2. The asserted feature keys (e.g. serverFaceFeaturePerUnitLevel) are absent from
+#      STL_generate.html at BOTH 3a1346f (pre-refactor) and HEAD — the "2026-04-17
+#      refinement redesign" + rack-door-preflight features were never implemented.
+#   3. The only HEAD change to STL_generate.html is a single additive <script> tag
+#      (js/cfdproj_schema.js); it defines window.cfdprojSchema only and cannot alter
+#      buildCfdExportJson output.
+# Requires `jsdom` installed under src/frontend (npm install) for the sibling .mjs
+# node suites; pytest runtime suites here only need the server + curl.
+FAILED src/frontend/test/test_rack_door_runtime.py::test_auto_detect_fills_door_bucket_to_max_over_sources
+FAILED src/frontend/test/test_rack_door_runtime.py::test_auto_detect_forces_user_higher_value_down_to_safe
+FAILED src/frontend/test/test_rack_door_runtime.py::test_door_low_level_alone_does_not_trigger_preflight_dialog
+FAILED src/frontend/test/test_rack_door_runtime.py::test_each_source_category_low_DOES_trigger_preflight_dialog[blankingPlateRefinementLevel-blankingPlatePerUnitLevel-fallback_low1]
+FAILED src/frontend/test/test_rack_door_runtime.py::test_each_source_category_low_DOES_trigger_preflight_dialog[rackLeakageRefinementLevel-rackLeakagePerUnitLevel-fallback_low2]
+FAILED src/frontend/test/test_rack_door_runtime.py::test_each_source_category_low_DOES_trigger_preflight_dialog[serverFaceRefinementLevel-serverFacePerUnitLevel-fallback_low0]
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_auto_detect_writes_per_bucket_feature_levels
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_base_leakage_server_blanking_routed_to_per_bucket_stls
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_build_grouped_stl_map_emits_new_filenames
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_cfd_export_includes_all_new_keys
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_server_face_outward_normals_point_away_from_equipment_center
+FAILED src/frontend/test/test_refinement_redesign_runtime.py::test_unified_broadcast_updates_per_unit_keys

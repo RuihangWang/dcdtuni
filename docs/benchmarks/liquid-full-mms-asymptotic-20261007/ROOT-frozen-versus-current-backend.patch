@@ -1,0 +1,30 @@
+--- frozen/src/backend/liquidcooling/accepted_run_input.py
++++ current/src/backend/liquidcooling/accepted_run_input.py
+@@ -159,6 +159,16 @@
+             if edge_id is None:
+                 raise ValueError('primary_circuits entry lacks an edge id for the accepted inlet trace')
+             circuit['inlet_K']=[sample[edge_id] for sample in inlets]
++    benchmark=output.get('manufactured_benchmark')
++    if benchmark is not None:
++        # This derived artifact covers accepted samples only. Preserve the
++        # supplied source values and their layout; do not regenerate forcing.
++        from backend.liquidcooling.manufactured_benchmark import canonical_digest
++        benchmark['times_s']=benchmark['times_s'][:count]
++        for field in benchmark['sources'].values():
++            field['values']=[row[:count] for row in field['values']]
++        benchmark.pop('source_sha256')
++        benchmark['source_sha256']=canonical_digest(benchmark)
+     output['time']['N_t']=count
+     output['events']=[]
+     if not output['source'].endswith(':accepted-trace'):
+--- frozen/src/backend/liquidcooling/dae_experiment.py
++++ current/src/backend/liquidcooling/dae_experiment.py
+@@ -41,7 +41,7 @@
+         self._applied=[]
+         self._heat_history=[1.]
+         theta=definition.parameters(0,heat_multiplier=self._heat)
+-        benchmark=getattr(definition.manifest,'manufactured_benchmark',None)
++        benchmark=getattr(getattr(definition,'manifest',None),'manufactured_benchmark',None)
+         if benchmark is not None:
+             from backend.liquidcooling.manufactured_benchmark import initial_vectors
+             from backend.liquidcooling.solver.dae_newton import NewtonReport

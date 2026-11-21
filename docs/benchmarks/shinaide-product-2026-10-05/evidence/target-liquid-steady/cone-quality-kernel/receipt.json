@@ -1,0 +1,417 @@
+{
+  "schema": "dcdtuni.cone-quality-kernel-math.v1",
+  "date": "2026-10-05",
+  "source_commit_before_own_commit": "217fd5ed871d160bf0c12786cfbe81be48ecacf8",
+  "scope": "Pure offline geometry/mathematics; no CPP, binary, API, native solver/checker, browser or mesh mutation.",
+  "candidate_scope": "One traced new shared interior apex with frozen original polygon vertices, topology and locally complete fixed external neighbours. No whole-mesh acceptance or CFD accuracy claim.",
+  "thresholds": {
+    "weight": 0.05,
+    "volumeRatio": 0.01,
+    "determinant": 0.001,
+    "skew": 4,
+    "nonOrthogonalityPareto": 70,
+    "unchangedNativePlanarityFraction": 1e-10,
+    "unchangedKernelMarginM": 3e-06
+  },
+  "exact_formula": {
+    "side_area": ".5*(Q-P) cross (AP-P)",
+    "cell_centre": "(3*B+AP)/4 for an exact planar convex base",
+    "owner_distance": ".75*Sf(AP) dot (P-Bowner)",
+    "neighbour_distance": ".75*Sf(AP) dot (Bneighbour-P)",
+    "volume": "outwardBaseSf dot (B-AP)/3",
+    "weight_halfspaces": "(1-w)*dOwn-w*dNei-w*VSMALL>=0 and its symmetric row, on positive-pyramid branch",
+    "ratio_halfspaces": "Vo-r*Vn-r*VSMALL>=0 and its symmetric row",
+    "VSMALL": "exact stored binary64 1e-300",
+    "certificate": "Nonnegative rational linear combination of normalized >=0 rows has exactly zero AP coefficient and strictly negative constant."
+  },
+  "near_planarity": "Frozen written quads differ by 1-2e-16m. No point is projected. Exact necessary subset omits unsupported moving bases/faces/source planes, enlarging its admissible domain. Near-planar affine candidates are proposals only; the complete actual floating OF stencil is reevaluated, including every quad V/CC, all children and all affected local faces.",
+  "test": {
+    "command": "python -m pytest src/backend/tests/test_cone_quality_kernel.py -q --basetemp .codex-tmp/cone-quality-kernel/pytest-final",
+    "passed": 21,
+    "seconds": 3.01,
+    "raw": "pytest-output.txt"
+  },
+  "independent_review": {
+    "reviewer": "project_context",
+    "reported_checks": "Fraction verification of p30263 certificate (lambda1=lambda2=1/2), exact zero gradient and -0.005737378636550152 constant; 50 arbitrary/nondegenerate direct shared-face identities including outside projections. Parent message, no source/file mutation. Final primary verification remains available from these exact rows."
+  },
+  "representatives": [
+    {
+      "source": "joint-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9731,
+      "children": 35,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.789993772577579,
+        1.4930813400001104,
+        1.5633940963940016
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005216306854617017,
+        "minimumWeight": 0.09608439807369559,
+        "minimumRatio": 0.1062979750199367,
+        "maximumSkewness": 0.9406773160490493,
+        "maximumNonOrthogonalityDegrees": 64.67616947401862,
+        "minimumParentPlaneMarginM": 0.023636895750110624,
+        "relativeVolumeDifference": 2.1330146714507175e-16,
+        "firstMomentDifference": 1.3010426069826053e-18,
+        "maximumNativePlanarityGateFraction": 0.0005007254569102858,
+        "minimumFaceAreaM2": 0.0002716225253742071,
+        "minimumContextFixedPointDistanceM": 0.050361670288804304
+      },
+      "passesLocalFiveMetricPareto": true,
+      "paretoRefusals": {}
+    },
+    {
+      "source": "joint-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9732,
+      "children": 35,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.789993772577579,
+        1.4930813400001095,
+        2.8701309036059985
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005216306854617221,
+        "minimumWeight": 0.09608439807370935,
+        "minimumRatio": 0.10629797501993794,
+        "maximumSkewness": 0.9406773160490882,
+        "maximumNonOrthogonalityDegrees": 64.67616947401761,
+        "minimumParentPlaneMarginM": 0.023636895750108862,
+        "relativeVolumeDifference": 0.0,
+        "firstMomentDifference": 2.7769124835677133e-18,
+        "maximumNativePlanarityGateFraction": 0.00011777435640220148,
+        "minimumFaceAreaM2": 0.00027162252537420644,
+        "minimumContextFixedPointDistanceM": 0.05036167028880378
+      },
+      "passesLocalFiveMetricPareto": true,
+      "paretoRefusals": {}
+    },
+    {
+      "source": "joint-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9836,
+      "children": 36,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.79378393066301,
+        2.3339698489851957,
+        1.567079678855182
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005632875913363702,
+        "minimumWeight": 0.1508932137613938,
+        "minimumRatio": 0.15938096353605424,
+        "maximumSkewness": 1.2192332922994678,
+        "maximumNonOrthogonalityDegrees": 72.12388131310203,
+        "minimumParentPlaneMarginM": 0.02988393066301054,
+        "relativeVolumeDifference": 2.1330146631041404e-16,
+        "firstMomentDifference": 2.876713442418084e-18,
+        "maximumNativePlanarityGateFraction": 0.0002503627276607891,
+        "minimumFaceAreaM2": 0.0002521125763907707,
+        "minimumContextFixedPointDistanceM": 0.04608531369784566
+      },
+      "passesLocalFiveMetricPareto": false,
+      "paretoRefusals": {
+        "nonOrthogonality": {
+          "newlyBad": [
+            1467321
+          ],
+          "oldWorstFailedSeverity": 1.0001008729446532,
+          "candidateWorstFailedSeverity": 1.0303411616157434
+        }
+      }
+    },
+    {
+      "source": "joint-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9885,
+      "children": 35,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.794484124910385,
+        2.723611134966858,
+        1.5678578634957514
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.010584755631063958,
+        "minimumWeight": 0.09555693428371739,
+        "minimumRatio": 0.10565279109972107,
+        "maximumSkewness": 0.8338705760501327,
+        "maximumNonOrthogonalityDegrees": 61.882537023883444,
+        "minimumParentPlaneMarginM": 0.023611087283141874,
+        "relativeVolumeDifference": 2.1500108531706794e-16,
+        "firstMomentDifference": 3.9747508192403134e-18,
+        "maximumNativePlanarityGateFraction": 0.00017878325702373635,
+        "minimumFaceAreaM2": 0.0002980838461073251,
+        "minimumContextFixedPointDistanceM": 0.049761464385370706
+      },
+      "passesLocalFiveMetricPareto": true,
+      "paretoRefusals": {}
+    },
+    {
+      "source": "latest-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9836,
+      "children": 36,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.79378393066301,
+        2.3339698489851957,
+        1.567079678855182
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005632875913363702,
+        "minimumWeight": 0.1508932137613938,
+        "minimumRatio": 0.15938096353605424,
+        "maximumSkewness": 1.1266625401465802,
+        "maximumNonOrthogonalityDegrees": 72.3403645596047,
+        "minimumParentPlaneMarginM": 0.02988393066301054,
+        "relativeVolumeDifference": 2.1330146631041404e-16,
+        "firstMomentDifference": 2.876713442418084e-18,
+        "maximumNativePlanarityGateFraction": 0.0002503627276607891,
+        "minimumFaceAreaM2": 0.0002521125763907707,
+        "minimumContextFixedPointDistanceM": 0.04608531369784566
+      },
+      "passesLocalFiveMetricPareto": false,
+      "paretoRefusals": {
+        "nonOrthogonality": {
+          "newlyBad": [
+            1467321
+          ],
+          "oldWorstFailedSeverity": 1.0001008729446532,
+          "candidateWorstFailedSeverity": 1.0334337794229242
+        }
+      }
+    },
+    {
+      "source": "latest-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9777,
+      "children": 36,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.7899937725775787,
+        1.8764146735001104,
+        2.8701309036059985
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005216306854616911,
+        "minimumWeight": 0.09608439807368079,
+        "minimumRatio": 0.10629797501993624,
+        "maximumSkewness": 1.1671536254737556,
+        "maximumNonOrthogonalityDegrees": 71.06486127620668,
+        "minimumParentPlaneMarginM": 0.023636895750109972,
+        "relativeVolumeDifference": 0.0,
+        "firstMomentDifference": 1.2266347333466993e-18,
+        "maximumNativePlanarityGateFraction": 9.998488571108329e-05,
+        "minimumFaceAreaM2": 0.00027162252537420845,
+        "minimumContextFixedPointDistanceM": 0.05036167028880451
+      },
+      "passesLocalFiveMetricPareto": false,
+      "paretoRefusals": {
+        "nonOrthogonality": {
+          "newlyBad": [],
+          "oldWorstFailedSeverity": 1.0105919228685378,
+          "candidateWorstFailedSeverity": 1.0152123039458099
+        }
+      }
+    },
+    {
+      "source": "latest-rank3-analysis.json",
+      "rank": 3,
+      "parent": 9792,
+      "children": 36,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        3.793783930659018,
+        1.9506365152666953,
+        2.8664453211487
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.005632875844292341,
+        "minimumWeight": 0.15089321366020966,
+        "minimumRatio": 0.17770817061849753,
+        "maximumSkewness": 1.2196835747937251,
+        "maximumNonOrthogonalityDegrees": 72.12388138101116,
+        "minimumParentPlaneMarginM": 0.029883930659018176,
+        "relativeVolumeDifference": 0.0,
+        "firstMomentDifference": 4.2491873609703695e-18,
+        "maximumNativePlanarityGateFraction": 0.00010347479244208093,
+        "minimumFaceAreaM2": 0.00025211257637680395,
+        "minimumContextFixedPointDistanceM": 0.04608531369929887
+      },
+      "passesLocalFiveMetricPareto": false,
+      "paretoRefusals": {
+        "nonOrthogonality": {
+          "newlyBad": [],
+          "oldWorstFailedSeverity": 1.0105919228685047,
+          "candidateWorstFailedSeverity": 1.0303411625858736
+        }
+      }
+    },
+    {
+      "source": "latest-rank3-analysis.json",
+      "rank": 3,
+      "parent": 621818,
+      "children": 29,
+      "exactSubsetStatus": 0,
+      "exactSubsetInfeasibleCertified": false,
+      "candidateAP": [
+        4.065249066607703,
+        1.1598499444112962,
+        1.973545215188726
+      ],
+      "actualCandidateMetrics": {
+        "minimumDeterminant": 0.00019479571115551856,
+        "minimumWeight": 0.12010004740596893,
+        "minimumRatio": 0.10236963337584974,
+        "maximumSkewness": 1.3529275161099608,
+        "maximumNonOrthogonalityDegrees": 73.62617963144147,
+        "minimumParentPlaneMarginM": 0.0033547663099922076,
+        "relativeVolumeDifference": 2.7666263149834575e-16,
+        "firstMomentDifference": 1.6940658945086007e-21,
+        "maximumNativePlanarityGateFraction": 0.0005431657907564456,
+        "minimumFaceAreaM2": 1.4456926306514547e-05,
+        "minimumContextFixedPointDistanceM": 0.006789231285991574
+      },
+      "passesLocalFiveMetricPareto": false,
+      "paretoRefusals": {
+        "determinant": {
+          "newlyBad": [
+            701958,
+            701959
+          ],
+          "oldWorstFailedSeverity": 1122.547847399024,
+          "candidateWorstFailedSeverity": 5.133583250206328
+        },
+        "nonOrthogonality": {
+          "newlyBad": [
+            1846716
+          ],
+          "oldWorstFailedSeverity": 1.209292853761942,
+          "candidateWorstFailedSeverity": 1.0518025661634496
+        }
+      }
+    },
+    {
+      "source": "latest-rank1-analysis.json",
+      "rank": 1,
+      "parent": 30503,
+      "children": 21,
+      "exactSubsetStatus": 2,
+      "exactSubsetInfeasibleCertified": true,
+      "certificateNames": [
+        "1500633:ratioNeighbour",
+        "1500639:weightNeighbour",
+        "1500671:weightNeighbour"
+      ],
+      "certificateNegativeConstant": -0.021023558732279773
+    },
+    {
+      "source": "latest-rank1-analysis.json",
+      "rank": 1,
+      "parent": 25237,
+      "children": 17,
+      "exactSubsetStatus": 2,
+      "exactSubsetInfeasibleCertified": true,
+      "certificateNames": [
+        "1466112:weightNeighbour",
+        "1466115:weightNeighbour",
+        "1466122:ratioNeighbour"
+      ],
+      "certificateNegativeConstant": -0.08337627211287933
+    },
+    {
+      "source": "latest-rank1-analysis.json",
+      "rank": 1,
+      "parent": 30263,
+      "children": 15,
+      "exactSubsetStatus": 2,
+      "exactSubsetInfeasibleCertified": true,
+      "certificateNames": [
+        "1496129:weightNeighbour",
+        "1496152:weightNeighbour"
+      ],
+      "certificateNegativeConstant": -0.005737378636550152
+    },
+    {
+      "source": "latest-rank1-analysis.json",
+      "rank": 1,
+      "parent": 54186,
+      "children": 23,
+      "exactSubsetStatus": 2,
+      "exactSubsetInfeasibleCertified": true,
+      "certificateNames": [
+        "1780851:weightNeighbour",
+        "1780876:weightNeighbour",
+        "1780887:ratioNeighbour"
+      ],
+      "certificateNegativeConstant": -0.05362370788788372
+    }
+  ],
+  "installed_formula_sources": {
+    "polyMeshTools.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshTools.C",
+      "sha256": "73a36732d9b4ea615fb2c2b16b2faa818caa1dc97f155ea1b45918fd19d0feef",
+      "lines": "175-288"
+    },
+    "primitiveMeshTools.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshTools.C",
+      "sha256": "db2868dc5ccb66f8e3e8c4b919afb8abf8bb3b0fc290c704f9ad4c65b645a712",
+      "lines": "262-377,829-931"
+    },
+    "doubleScalar.H": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/doubleScalar.H",
+      "sha256": "203bfab6352c85210645802c7cac63c5e55cdf117070a90937e3829ed4991dbe",
+      "lines": "64-65"
+    },
+    "polyMeshCheck.C": {
+      "path": "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/polyMeshCheck.C",
+      "sha256": "898bbdddf4f44aeb0b51eabcf5ded4f4f4ba009297d79a360c54adc5cceb1797",
+      "lines": "500-675"
+    }
+  },
+  "dependencies": {
+    "tools/audit_air_cone_quality_kernel.py": "17f3985c044100cf67bf53a173684f198c76e464c91eaab0584ac125786a5d2e",
+    "tools/audit_air_cone_remaining_quality.py": "69a3d2f4a7bc0eedda037367d3f2f5153ac43aff23eb4bf67cbdd7d1c3efe09f",
+    "tools/audit_air_refan_remaining_ancestry.py": "fd312d66894f700391ab4d3347bad4eac9f75b9601630b8168117a8e28835670",
+    "tools/audit_air_cone_candidate_independent.py": "03476681de9736cf01b4a1b4fb272a4e91cc105d36d0a1878a8c3f65f2c2dc8d",
+    "tools/audit_air_mesh_geometry.py": "9f973fa74084aa0f007958666dfae61dcb990e4c6d430c1db0f5a13a8464fec6"
+  },
+  "input_cfdrun_sha256": {
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-refan-axis-pareto/Shinaide_liquid_1d98c44a/model/Shinaide.cfdrun": "e4dcecbb12b3df6cfcf58c206aec8e1eaf9e6dfd6a106d99f2357efc1cd85efc",
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-refan-axis-candidates/Shinaide_liquid_1d98c44a/model/Shinaide.cfdrun": "30d53b6faf55e6585d534456384d721be368898172a933d22365d22c588514ce"
+  },
+  "mesh_identity_unchanged_after_offline_analysis": {
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-refan-axis-pareto/Shinaide_liquid_1d98c44a/Mesh#rank3": true,
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-refan-axis-candidates/Shinaide_liquid_1d98c44a/Mesh#rank3": true,
+    "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-refan-axis-candidates/Shinaide_liquid_1d98c44a/Mesh#rank1": true
+  },
+  "runtime": {
+    "numpy": "installed",
+    "scipy": "1.15.3",
+    "cpu": "24-31",
+    "openblas_threads": 1,
+    "omp_threads": 1,
+    "cuda_visible_devices": "",
+    "all_temp_and_basetemp_inside_worktree": true
+  },
+  "limitations": [
+    "Fixed outside CC/V excludes simultaneous multi-parent optimization. Exact single-AP contradictions do not forbid topology changes or joint neighbour motions.",
+    "Only coupled-free local stencils are used for the complete representative metrics; unknown remote neighbours are reported unsupported.",
+    "A candidate meeting W/R can create new determinant or nonorthogonality failures, or worsen the worst old failure. These real rejected proposals remain recorded.",
+    "New apex distance is measured against compact-stencil fixed points only; the full native all-source-point 3um guard remains mandatory.",
+    "All original native geometry, topology, coupled-coordinate, five-metric Pareto, full checkMesh and 300s total deadline gates remain mandatory."
+  ]
+}

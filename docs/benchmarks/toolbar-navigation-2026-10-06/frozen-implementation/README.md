@@ -1,0 +1,1 @@
+Frontend toolbar/navigation repair on2026-10-06.9 owned files,7 test files/56 tests PASS,typecheck PASS,production build PASS. Browser visuals pending root. Sourcesbefore/after,review patch,normal build/test logs,sourceSHA anddistSHA bindings preserved;no native/server/git/business mutations. Manifest schema maps each path to{sha256,bytes}.

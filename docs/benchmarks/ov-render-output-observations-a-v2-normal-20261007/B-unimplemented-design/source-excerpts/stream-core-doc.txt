@@ -1,0 +1,40 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.livestream.core-9.0.0+109.0.0.lx64.r.cp312/docs/Overview.md
+FULL_SHA256 3098d196bf8dafe5903d36dd1ef13cbaea2e50b715829b93f6aa9db8399ea904
+LINES 9–16
+9: ## Architecture
+10: 
+11: The `omni.kit.livestream.core` extension is built around a server factory pattern, consisting of:
+12: 
+13: - **IServerFactory Interface**: Provides methods to register, deregister, and create streaming server instances based on type.
+14: - **ServerFactory Implementation**: Implements the factory interface to manage registration of different server types and create instances on demand.
+15: - **IServer Interface**: Defines the common interface that all streaming server implementations must follow, enabling consistent handling regardless of the underlying streaming technology.
+16: 
+LINES 28–45
+28: To create a streaming server in C++:
+29: 
+30: 1. Acquire the server factory interface:
+31: ```cpp
+32: auto serverFactory = carb::getCachedInterface<omni::kit::livestream::IServerFactory>();
+33: ```
+34: 
+35: 2. Create a server of the desired type:
+36: ```cpp
+37: // Create a WebRTC server
+38: auto server = serverFactory->createServer("webrtc");
+39: 
+40: // Configure and start the server
+41: omni::kit::livestream::IServer::Config config;
+42: config.width = 1920;
+43: config.height = 1080;
+44: config.targetFPS = 60;
+45: server->start(config);
+LINES 63–71
+63: ## Integration with Other Extensions
+64: 
+65: The `omni.kit.livestream.core` extension integrates with:
+66: 
+67: - **omni.kit.livestream.webrtc**: Provides WebRTC and native streaming implementations.
+68: - **omni.kit.livestream.app**: Handles streaming the entire application framebuffer.
+69: - **omni.kit.livestream.aov**: Handles streaming specific render product AOVs.
+70: - **omni.kit.livestream.messaging**: Enables structured messaging between server and clients.
+71: - **omni.services.livestream.session**: Manages livestream sessions and provides control endpoints.

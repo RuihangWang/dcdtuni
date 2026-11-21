@@ -1,0 +1,236 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/viewportScreenshot.test.tsx (7 tests | 5 failed) 202ms
+   × the actual screenshot button saves the decoded OV frame at native dimensions, without rendering hidden Three 138ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array []
+
+
+Number of calls: 1
+
+   × an OV stream without a current decoded frame reports an error and never falls back or posts Three 10ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+   × an empty OV video with no native frame size cannot produce a screenshot 13ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+   × a mounted OV viewport with no video explicitly refuses the screenshot 9ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+   × OV frame drawing errors are logged without a hidden-Three fallback or invalid POST 9ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array []
+
+
+Number of calls: 1
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/viewportScreenshot.test.tsx > the actual screenshot button saves the decoded OV frame at native dimensions, without rendering hidden Three
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array []
+
+
+Number of calls: 1
+
+ ❯ test/viewportScreenshot.test.tsx:81:27
+     79|   const video = ovVideo(2, 1920, 1080)
+     80|   await pressScreenshot()
+     81|   expect(renderThree).not.toHaveBeenCalled()
+       |                           ^
+     82|   expect(drawImage).toHaveBeenCalledExactlyOnceWith(video, 0, 0, 1920,…
+     83|   expect([saveCanvas!.width, saveCanvas!.height]).toEqual([1920, 1080])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/viewportScreenshot.test.tsx > an OV stream without a current decoded frame reports an error and never falls back or posts Three
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/viewportScreenshot.test.tsx:94:31
+     92|   ovVideo(1)
+     93|   await pressScreenshot()
+     94|   expect(fetchScreenshot).not.toHaveBeenCalled()
+       |                               ^
+     95|   expect(renderThree).not.toHaveBeenCalled()
+     96|   expect(drawImage).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/viewportScreenshot.test.tsx > an empty OV video with no native frame size cannot produce a screenshot
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/viewportScreenshot.test.tsx:104:31
+    102|   ovVideo(4, 0, 0)
+    103|   await pressScreenshot()
+    104|   expect(fetchScreenshot).not.toHaveBeenCalled()
+       |                               ^
+    105|   expect(renderThree).not.toHaveBeenCalled()
+    106|   expect(store.getLog()[0].detail).toMatch(/Omniverse.*decoded current…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/viewportScreenshot.test.tsx > a mounted OV viewport with no video explicitly refuses the screenshot
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "/api/screenshot",
+      Object {
+        "body": "{"imageData":"data:image/png;base64,THREE"}",
+        "headers": Object {
+          "Content-Type": "application/json",
+        },
+        "method": "POST",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/viewportScreenshot.test.tsx:114:31
+    112|   document.getElementById('center-view')!.append(overlay)
+    113|   await pressScreenshot()
+    114|   expect(fetchScreenshot).not.toHaveBeenCalled()
+       |                               ^
+    115|   expect(renderThree).not.toHaveBeenCalled()
+    116|   expect(store.getLog()[0].detail).toMatch(/Omniverse.*video/i)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/viewportScreenshot.test.tsx > OV frame drawing errors are logged without a hidden-Three fallback or invalid POST
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array []
+
+
+Number of calls: 1
+
+ ❯ test/viewportScreenshot.test.tsx:150:27
+    148|   drawImage.mockImplementation(() => { throw new Error('decoded frame …
+    149|   await pressScreenshot()
+    150|   expect(renderThree).not.toHaveBeenCalled()
+       |                           ^
+    151|   expect(fetchScreenshot).not.toHaveBeenCalled()
+    152|   expect(store.getLog()[0].detail).toContain('decoded frame became una…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 2 passed (7)
+   Start at  10:33:37
+   Duration  12.93s (transform 708ms, setup 0ms, collect 1.37s, tests 202ms, environment 10.62s, prepare 398ms)
+

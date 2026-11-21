@@ -1,0 +1,300 @@
+[
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py",
+    "bytes": 40961,
+    "sha256": "ee626ef2489ea8900660c116fc54e87778f341f6af4827200fb2989dfdf79ab3",
+    "ranges": [
+      {
+        "first": 437,
+        "last": 461,
+        "lines": {
+          "437": "    def _render_ack(self, request_id, **result):",
+          "438": "        self._ack_queue.append({'requestId': request_id, **result})",
+          "439": "        if not self._ack_flushing:",
+          "440": "            self._ack_flushing = True",
+          "441": "            asyncio.ensure_future(self._flush_acks())",
+          "442": "",
+          "443": "    async def _flush_acks(self):",
+          "444": "        \"\"\"Push queued acks once the inbound side has been quiet for",
+          "445": "        ACK_QUIET_FRAMES frames (capped, so a steady inbound stream such as a",
+          "446": "        camera drag cannot starve them). See ACK_QUIET_FRAMES.\"\"\"",
+          "447": "        app = omni.kit.app.get_app()",
+          "448": "        event = carb.events.type_from_string('dcdtuni:renderAck')",
+          "449": "        try:",
+          "450": "            while self._ack_queue:",
+          "451": "                quiet = waited = 0",
+          "452": "                while quiet < self.ACK_QUIET_FRAMES and waited < self.ACK_MAX_WAIT_FRAMES:",
+          "453": "                    seen = self._inbound_seq",
+          "454": "                    await app.next_update_async()",
+          "455": "                    waited += 1",
+          "456": "                    quiet = quiet + 1 if self._inbound_seq == seen else 0",
+          "457": "                batch, self._ack_queue = self._ack_queue, []",
+          "458": "                for payload in batch:",
+          "459": "                    app.get_message_bus_event_stream().push(event, payload=payload)",
+          "460": "        finally:",
+          "461": "            self._ack_flushing = False"
+        }
+      },
+      {
+        "first": 625,
+        "last": 650,
+        "lines": {
+          "625": "            if command == 'loadRenderScene':",
+          "626": "                packet = self._render_transfer.finish(request_id)",
+          "627": "                project_hash = args.get('projectHash')",
+          "628": "                if project_hash is not None and (not isinstance(project_hash, str) or",
+          "629": "                        not re.fullmatch(r'[0-9a-f]{64}', project_hash)):",
+          "630": "                    raise ValueError('Invalid project content hash')",
+          "631": "                print(f'[dc.cfd_bridge] scene load begin primitives={len(packet[\"primitives\"])}')",
+          "632": "                cache = os.environ.get('DCDTUNI_RENDER_TEXTURE_CACHE', '/tmp/dcdtuni-render-textures')",
+          "633": "                result = render_scene.author_scene(stage, packet, cache, validated=True)",
+          "634": "                print(f'[dc.cfd_bridge] scene load authored primitives={result[\"primitives\"]}')",
+          "635": "                self._render_uid_paths = result['uidPaths']",
+          "636": "                self._render_primitive_ids = {p['id']: p['modelUid'] for p in packet['primitives']}",
+          "637": "                self._render_project_hash = project_hash",
+          "638": "                self._last_scene_request_id = request_id",
+          "639": "                self._scene_project_uid = packet['project']['uid']",
+          "640": "                if (self._display_project_uid is not None and self._scene is not None",
+          "641": "                        and self._scene_project_uid != self._display_project_uid):",
+          "642": "                    asyncio.ensure_future(self._clear_display(stage))",
+          "643": "                # The scene's materials were re-authored: saved originals are gone.",
+          "644": "                self._liquid_saved = {}",
+          "645": "                if self._liquid is not None:",
+          "646": "                    if packet['project']['uid'] != self._liquid['grant']['projectUid']:",
+          "647": "                        self._liquid = None  # a different project: the result no longer applies",
+          "648": "                    elif self._liquid['sample'] is not None:",
+          "649": "                        self._paint_liquid(stage, self._liquid['sample'], self._liquid['domains'])",
+          "650": "                self._scene_revision += 1"
+        }
+      },
+      {
+        "first": 725,
+        "last": 748,
+        "lines": {
+          "725": "                # Idempotent state query: also the scene identity a scene ack",
+          "726": "                # carries, so a lost scene ack is recoverable (ovProtocol).",
+          "727": "                self._render_ack(request_id, ok=True, view=view,",
+          "728": "                                 primitives=sum(len(x) for x in self._render_uid_paths.values()),",
+          "729": "                                 sceneRevision=self._scene_revision, projectHash=self._render_project_hash,",
+          "730": "                                 sceneRequestId=self._last_scene_request_id)",
+          "731": "                return",
+          "732": "            if view.get('camera'):",
+          "733": "                from omni.kit.viewport.utility import get_active_viewport",
+          "734": "                viewport = get_active_viewport()",
+          "735": "                if viewport:",
+          "736": "                    viewport.camera_path = render_scene.CAMERA",
+          "737": "            paths = [path for uid in view['selectedUids'] for path in self._render_uid_paths.get(uid, [])]",
+          "738": "            self._suppress_ov_pick = True",
+          "739": "            try:",
+          "740": "                ctx.get_selection().set_selected_prim_paths(paths, True)",
+          "741": "            finally:",
+          "742": "                self._suppress_ov_pick = False",
+          "743": "            self._render_ack(request_id, ok=True, view=view,",
+          "744": "                             primitives=sum(len(x) for x in self._render_uid_paths.values()),",
+          "745": "                             sceneRevision=self._scene_revision, projectHash=self._render_project_hash)",
+          "746": "        except Exception as exc:",
+          "747": "            print(f'[dc.cfd_bridge] render command {command} rejected: {exc}')",
+          "748": "            self._render_ack(request_id, ok=False, error=str(exc))"
+        }
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/.cache/packman/chk/kit-kernel/109.0.3+production.263267.62477c11.gl.manylinux_2_35_x86_64.release/kernel/py/carb/__init__.py",
+    "bytes": 3964,
+    "sha256": "ff2cc445b795a340d68bfe04b0d1a43520e562beba14ae60cc6c8d6848f55d3c",
+    "ranges": [
+      {
+        "first": 102,
+        "last": 112,
+        "lines": {
+          "102": "        else:  # a function",
+          "103": "",
+          "104": "            @wraps(obj)",
+          "105": "            def wrapped(*args, **kwargs):",
+          "106": "                log_deprecation(",
+          "107": "                    \"`{}` is deprecated. {}. Callstack: {}\".format(",
+          "108": "                        obj.__name__, message, \"\".join(traceback.format_stack(limit=4))[:-1]",
+          "109": "                    )",
+          "110": "                )",
+          "111": "                return obj(*args, **kwargs)",
+          "112": ""
+        }
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/react/src/components/LogPanel.tsx",
+    "bytes": 10191,
+    "sha256": "1b17e9c68ad70c702dfebf0e6f69d1c7971a78d86ae3c0b15b79a372c0022f64",
+    "ranges": [
+      {
+        "first": 6,
+        "last": 34,
+        "lines": {
+          "6": "/**",
+          "7": " * Save the viewport as a PNG under the case directory.",
+          "8": " *",
+          "9": " * The canvas is re-rendered first. A WebGL canvas without `preserveDrawingBuffer`",
+          "10": " * is CLEARED after each present, so `toDataURL` on a canvas that has not just",
+          "11": " * drawn returns a blank image \u2014 and a blank screenshot looks like a broken",
+          "12": " * viewport rather than a mistimed read.",
+          "13": " */",
+          "14": "async function captureScreenshot() {",
+          "15": "  const handle = (window as unknown as { __viewportRender?: () => HTMLCanvasElement | null })",
+          "16": "    .__viewportRender",
+          "17": "  const canvas = handle?.() ?? document.querySelector<HTMLCanvasElement>('#center-view canvas')",
+          "18": "  if (!canvas) {",
+          "19": "    store.logOperation('captureScreenshot', 'no canvas')",
+          "20": "    return",
+          "21": "  }",
+          "22": "  try {",
+          "23": "    const imageData = canvas.toDataURL('image/png')",
+          "24": "    const resp = await fetch('/api/screenshot', {",
+          "25": "      method: 'POST',",
+          "26": "      headers: { 'Content-Type': 'application/json' },",
+          "27": "      body: JSON.stringify({ imageData }),",
+          "28": "    })",
+          "29": "    const result = (await resp.json()) as { path?: string; error?: string }",
+          "30": "    store.logOperation('captureScreenshot', result.error ?? result.path ?? 'saved')",
+          "31": "  } catch (e) {",
+          "32": "    store.logOperation('captureScreenshot', e instanceof Error ? e.message : String(e))",
+          "33": "  }",
+          "34": "}"
+        }
+      },
+      {
+        "first": 207,
+        "last": 218,
+        "lines": {
+          "207": "            className={view === 'log' ? 'active' : undefined}",
+          "208": "            onClick={() => setView('log')}",
+          "209": "          >",
+          "210": "            Log",
+          "211": "          </button>",
+          "212": "          <button onClick={toggleDock}>Toggle</button>",
+          "213": "          <button",
+          "214": "            id=\"btn-screenshot\"",
+          "215": "            onClick={() => void captureScreenshot()}",
+          "216": "            style={{",
+          "217": "              background: 'rgba(0,255,136,0.08)',",
+          "218": "              borderColor: 'rgba(0,255,136,0.35)',"
+        }
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/react/src/renderer/OvViewport.tsx",
+    "bytes": 11072,
+    "sha256": "3672a1f20ee0108f976e0bf6069dccdbaa519b69ca5bc4f266209986fe30043f",
+    "ranges": [
+      {
+        "first": 19,
+        "last": 20,
+        "lines": {
+          "19": "/** Mount over the retained Three viewport. Failure never mutates the project or local scene. */",
+          "20": "export function OvViewport(props: OvViewportProps) {"
+        }
+      },
+      {
+        "first": 194,
+        "last": 199,
+        "lines": {
+          "194": "  return <div className=\"ov-render-viewport\" style={{ position: 'absolute', inset: 0, background: '#172027', zIndex: 5 }}>",
+          "195": "    {/* tabIndex=-1: the streaming library turns input forwarding on from a",
+          "196": "        focusin on this element's parent; an unfocusable video never raises",
+          "197": "        one, so viewport clicks/drags (seed sphere, slice disc) never reach Kit. */}",
+          "198": "    <video id={`${id}-video`} autoPlay playsInline muted tabIndex={-1} style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none' }} />",
+          "199": "    <audio id={`${id}-audio`} autoPlay />"
+        }
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/server/server.py",
+    "bytes": 240041,
+    "sha256": "60d46e470f549129f51a40c07b64ccbc9f8627b9db0188b011433421346c9b4f",
+    "ranges": [
+      {
+        "first": 3627,
+        "last": 3639,
+        "lines": {
+          "3627": "def handle_browser_screenshot(handler) -> None:",
+          "3628": "    \"\"\"GET /api/browser/screenshot?name=xxx\"\"\"",
+          "3629": "    if not _ensure_browser(handler):",
+          "3630": "        _send_json(handler, 500, {\"error\": \"Failed to start headless browser\"})",
+          "3631": "        return",
+          "3632": "    parsed = urlparse(handler.path)",
+          "3633": "    query = parse_qs(parsed.query)",
+          "3634": "    name = query.get(\"name\", [\"api_debug\"])[0]",
+          "3635": "    try:",
+          "3636": "        path = _browser_call(\"screenshot\", name)",
+          "3637": "        _send_json(handler, 200, {\"path\": path})",
+          "3638": "    except Exception as e:",
+          "3639": "        _send_json(handler, 500, {\"error\": str(e)})"
+        }
+      },
+      {
+        "first": 4683,
+        "last": 4699,
+        "lines": {
+          "4683": "def handle_screenshot(handler: http.server.BaseHTTPRequestHandler) -> None:",
+          "4684": "    \"\"\"Save a base64-encoded screenshot from the browser to a file.\"\"\"",
+          "4685": "    data = _read_body(handler)",
+          "4686": "    image_data = data.get(\"imageData\", \"\")  # data:image/png;base64,...",
+          "4687": "    if not image_data:",
+          "4688": "        _send_json(handler, 400, {\"error\": \"missing imageData\"})",
+          "4689": "        return",
+          "4690": "    # Strip data URL prefix",
+          "4691": "    if \",\" in image_data:",
+          "4692": "        image_data = image_data.split(\",\", 1)[1]",
+          "4693": "    screenshot_dir = CASE_DIR / \"screenshots\" if CASE_DIR else Path(\"screenshots\")",
+          "4694": "    screenshot_dir.mkdir(parents=True, exist_ok=True)",
+          "4695": "    import datetime",
+          "4696": "    timestamp = datetime.datetime.now().strftime(\"%Y%m%d_%H%M%S\")",
+          "4697": "    filepath = screenshot_dir / f\"ui_screenshot_{timestamp}.png\"",
+          "4698": "    filepath.write_bytes(base64.b64decode(image_data))",
+          "4699": "    _send_json(handler, 200, {\"path\": str(filepath), \"timestamp\": timestamp})"
+        }
+      }
+    ]
+  },
+  {
+    "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py",
+    "bytes": 36440,
+    "sha256": "701a23d4867d3e33b58bb99356d7e2d7a97fe8b825b434a6f6a011bff000f79e",
+    "ranges": [
+      {
+        "first": 378,
+        "last": 402,
+        "lines": {
+          "378": "def author_scene(stage, packet, texture_dir, asset_prefix=None, validated=False):",
+          "379": "    \"\"\"Build a validated layer; optional relative asset prefix makes disk exports portable.",
+          "380": "",
+          "381": "    Kit's in-memory stages retain absolute cache references by default. The CLI",
+          "382": "    writes textures beside the exported stage and supplies its relative prefix.",
+          "383": "    validated=True only for a packet SceneTransfer.finish() has just validated:",
+          "384": "    the pure-Python walk over every vertex is a large share of the Kit-side",
+          "385": "    load, and running it twice doubled that.",
+          "386": "    \"\"\"",
+          "387": "    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade, UsdLux",
+          "388": "    if not validated:",
+          "389": "        validate_snapshot(packet)",
+          "390": "    texture_dir = Path(texture_dir)",
+          "391": "    if asset_prefix is not None and Path(asset_prefix).is_absolute():",
+          "392": "        raise ValueError('Export asset prefix must be relative to the USD file')",
+          "393": "    assets = {}",
+          "394": "    for key, uri in packet['textures'].items():",
+          "395": "        data, suffix = texture_bytes(uri)",
+          "396": "        texture_dir.mkdir(parents=True, exist_ok=True)",
+          "397": "        file = texture_dir / (hashlib.sha256(data).hexdigest() + suffix)",
+          "398": "        if not file.exists():",
+          "399": "            file.write_bytes(data)",
+          "400": "        assets[key] = ((Path(asset_prefix) / file.name).as_posix()",
+          "401": "                       if asset_prefix is not None else str(file.resolve()))",
+          "402": "    work = Usd.Stage.CreateInMemory()"
+        }
+      }
+    ]
+  }
+]

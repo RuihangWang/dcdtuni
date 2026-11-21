@@ -1,0 +1,28 @@
+diff --git a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
+index d4ca0a3a..5519486a 100644
+--- a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
++++ b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
+@@ -57,6 +57,7 @@ Description
+ // docs/benchmarks/pressure-component-gauge-2026-10-05/upstream-v2412/source-receipt.json.
+ // UEqn.H and TEqn.H retain the upstream equations byte-for-byte.
+ #include "fvCFD.H"
++#include "coupledFvPatch.H"
+ #include "dynamicFvMesh.H"
+ #include "singlePhaseTransportModel.H"
+ #include "turbulentTransportModel.H"
+diff --git a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/createFields.H b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/createFields.H
+index cd6cb03f..d6cd94e2 100644
+--- a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/createFields.H
++++ b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/createFields.H
+@@ -42,6 +42,11 @@ volVectorField U
+     mesh
+ );
+ 
++// A processor patch without value starts from its LOCAL internal field.
++// Exchange its true neighbour before Euler can copy that cache into U.oldTime().
++// Evaluate only coupled patches; preserve the configured physical boundaries.
++U.boundaryFieldRef().evaluateCoupled<coupledFvPatch>();
++
+ #include "createPhi.H"
+ 
+ #include "readTransportProperties.H"

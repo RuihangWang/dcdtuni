@@ -1,0 +1,68 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/ov-shared-previews-private/reviewtree/src/frontend/react
+
+ ❯ test/sharedOvPreviewInteraction.test.ts (24 tests | 1 failed) 189ms
+   × refuses current readback if accepted source or acknowledged scene changes outside the packet 34ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      Object {
+        "kind": "ring",
+        "position": Array [
+          1,
+          2,
+          3,
+        ],
+        "setId": 42,
+      },
+    ]
+
+
+Number of calls: 1
+
+ ✓ test/ovProtocol.test.ts (60 tests) 763ms
+ ✓ test/sharedOvPostprocessAdapter.test.ts (21 tests) 172ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/sharedOvPreviewInteraction.test.ts > refuses current readback if accepted source or acknowledged scene changes outside the packet
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      Object {
+        "kind": "ring",
+        "position": Array [
+          1,
+          2,
+          3,
+        ],
+        "setId": 42,
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ test/sharedOvPreviewInteraction.test.ts:114:43
+    112| it('refuses current readback if accepted source or acknowledged scene …
+    113|  const s=setup();s.driver.present(s.value);await s.driver.whenIdle();c…
+    114|  receive(s.client,e);expect(s.events).not.toHaveBeenCalled()
+       |                                           ^
+    115|  s.scene.sceneRevision--;setLiveAirResultSelection(null);receive(s.cli…
+    116| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 104 passed (105)
+   Start at  11:19:15
+   Duration  15.46s (transform 1.26s, setup 0ms, collect 5.70s, tests 1.12s, environment 18.96s, prepare 959ms)
+

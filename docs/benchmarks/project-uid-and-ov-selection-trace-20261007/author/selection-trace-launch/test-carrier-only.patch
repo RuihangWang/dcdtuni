@@ -1,0 +1,11 @@
+--- a/src/frontend/omniverse/cfd_demo/tests/test_source_selection.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_source_selection.py
+@@ -44,7 +44,7 @@
+     tree = ast.parse(Path(source or BRIDGE / "extension.py").read_text())
+     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "CfdBridgeExtension")
+     methods = [n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+-               and n.name in ("_emit_source_pick", "_apply_render_view")]
++               and n.name in ("_emit_source_pick", "_apply_render_view", "_trace_source_selection")]
+     unit = ast.Module(body=[ast.ClassDef(name="Extension", bases=[], keywords=[],
+         body=methods, decorator_list=[])], type_ignores=[])
+     exec(compile(ast.fix_missing_locations(unit), str(source or BRIDGE / "extension.py"), "exec"), namespace)

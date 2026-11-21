@@ -1,0 +1,29 @@
+SOURCE /mnt/lv/home/litianyu/.local/share/ov/data/exts/v2/omni.kit.widget.viewport-e33603573147cc56/omni/kit/widget/viewport/impl/texture.py
+FULL_SHA256 e803cd662fa7c163d1dfb7bb59ee7bce99656b81099639aa7170664144de3f80
+LINES 359–384
+359:     def __create_subscription_to_drawable_changed(self, callback_fn: Callable = None):
+360:         self.__drawable_changed_fn = callback_fn if callback_fn else self.__drawable_changed_fn
+361: 
+362:         # We need to react ASAP on the drawable change - so subscribing to PUSH to specific event type
+363:         def on_drawable_changed(event: Event):
+364:             result_handle = event["result_handle"]
+365:             self.__frame_info = self.__hydra_texture.get_frame_info(result_handle)
+366:             # Store the "viewport_handle" into frame_info
+367:             self.__set_viewport_handle(event["viewport_handle"])
+368:             aov_desc = self.__hydra_texture.get_aov_info(result_handle, aov_name=self.__display_var, include_texture=True)
+369:             # Fallback to color if not found for now
+370:             if not aov_desc and self.__display_var:
+371:                 aov_desc = self.__hydra_texture.get_aov_info(result_handle, aov_name="", include_texture=True)
+372:             texture = aov_desc[0]["texture"]
+373: 
+374:             self.__drawable_changed_fn(texture["rp_resource"], event["presentation_key"] or 0)
+375: 
+376:             if self.__capture_delegates:
+377:                 # Swap the list locally in case anybody tries to re-add durring iteration
+378:                 delegates, self.__capture_delegates = self.__capture_delegates, None
+379:                 all_aovs = self.__hydra_texture.get_aov_info(result_handle, include_texture=True)
+380:                 all_aovs = {aov["name"]: aov for aov in all_aovs}
+381:                 frame_info = self.__frame_info.copy()
+382:                 for delegate in delegates:
+383:                     try:
+384:                         delegate.capture(all_aovs, frame_info, weakref.proxy(self.__hydra_texture), result_handle)

@@ -1,0 +1,139 @@
+--- a/src/frontend/shared/js/liquid_mode.js
++++ b/src/frontend/shared/js/liquid_mode.js
+@@ -1169,6 +1169,25 @@
+       return null;
+     }
+ 
++    const srcCool = pipe.cooling || {};
++    const srcConn = srcCool.connection || {};
++    const blindEnds = srcConn.blindEnds;
++    // Inline/branch devices are owned by this pipe; the schema provides no
++    // allocation rule for new A/B owners. Do not delete them while splitting.
++    const unallocatedInline = srcCool.valves != null &&
++      (!Array.isArray(srcCool.valves) || srcCool.valves.length > 0);
++    const unallocatedJunctions = srcConn.junctions != null &&
++      (!Array.isArray(srcConn.junctions) || srcConn.junctions.length > 0);
++    const invalidBlindEnds = blindEnds != null && (
++      typeof blindEnds !== 'object' || Array.isArray(blindEnds) ||
++      Object.keys(blindEnds).some(key => key !== 'start' && key !== 'end') ||
++      ['start', 'end'].some(key => blindEnds[key] !== undefined && typeof blindEnds[key] !== 'boolean')
++    );
++    if (unallocatedInline || unallocatedJunctions || invalidBlindEnds) {
++      alert(t('liquid.alert_upgrade_unassigned_metadata'));
++      return null;
++    }
++
+     // Verify factories exist BEFORE pushing undo checkpoint to avoid orphan checkpoints on failure
+     if (typeof createPipeJunctionModel !== 'function') {
+       console.error('[liquid_mode] createPipeJunctionModel not found');
+@@ -1189,8 +1208,6 @@
+       physicalDiameter
+     );
+     // The bridge factory owns the explicitly authored physical T contract.
+-    const srcConn = (pipe.cooling && pipe.cooling.connection) || {};
+-    const srcCool = pipe.cooling || {};
+     junction.connectedPipes = [];
+ 
+     // 2. Create Pipe_A (original start → junction.port_1)
+@@ -1205,6 +1222,8 @@
+     pipeA.geometry.waypoints = wps.slice(0, waypointIndex + 1).map(p => ({x: p.x, y: p.y, z: p.z}));
+     pipeA.cooling.spec = srcCool.spec;
+     pipeA.geometry.diameterM = physicalDiameter;
++    // Graph compilation binds start/end blind flags to the outer waypoints.
++    pipeA.cooling.connection.blindEnds = { start: !!(blindEnds && blindEnds.start), end: false };
+ 
+     // 3. Create Pipe_B (junction.port_2 → original end)
+     const pipeB = createPipeSegmentModel(
+@@ -1218,6 +1237,7 @@
+     pipeB.geometry.waypoints = wps.slice(waypointIndex).map(p => ({x: p.x, y: p.y, z: p.z}));
+     pipeB.cooling.spec = srcCool.spec;
+     pipeB.geometry.diameterM = physicalDiameter;
++    pipeB.cooling.connection.blindEnds = { start: false, end: !!(blindEnds && blindEnds.end) };
+ 
+     // 4. Wire up port connections on the junction
+     junction.cooling.ports[0].connectedPipeId = pipeA.uid;
+--- a/src/frontend/react/test/authoredTBranch.test.ts
++++ b/src/frontend/react/test/authoredTBranch.test.ts
+@@ -1,5 +1,5 @@
+ import {afterEach, beforeEach, expect, it, vi} from 'vitest'
+-import {createPipeJunction, createPipeSegment} from '../src/legacy/factories'
++import {createModel, createPipeJunction, createPipeSegment} from '../src/legacy/factories'
+ import {stateV4} from '../src/legacy/cfdprojModules'
+ import {installLiquidGlobals, _resetLiquidUidCounter} from '../src/legacy/liquidGlobals'
+ import * as store from '../src/projectStore'
+@@ -74,3 +74,57 @@
+  const manifest={geometryExport:{coordinateSystem:'Y-up',unit:'m',stlFiles:{},solids:{}}} as CfdrunV2;bindStlFileHashes(manifest,files,live());const rows=Object.values(manifest.geometryExport.sourceRegions??{});expect(new Set(rows.map(row=>row.sourceEntityUid))).toEqual(new Set(ids));expect(rows.every(row=>row.carrierContributorUids!.join(',')===[...ids].sort().join(','))).toBe(true)
+  expect((store.findConstruction(live(),id)!.model.cooling as Bag).fittingDiameterM).toBe(.073);expect(JSON.stringify(live())).toBe(before)
+ })
++
++
++// These controls call the production legacy bridge API. They do not invoke
++// transport export or the whole project graph/compiler.
++it.each([{start:true,end:false},{start:false,end:true},{start:true,end:true}])('split semantics preserves authored blind outer endpoints %j',blindEnds=>{
++ const pipe=sourcePipe();pipe.cooling.connection.blindEnds=blindEnds
++ if(blindEnds.start)pipe.cooling.connection.startPortId=null
++ if(blindEnds.end)pipe.cooling.connection.endPortId=null
++ const id=w._upgradeToTBranch(pipe.uid,1),parts=Object.values(live().constructions!.pipeSegments!) as Bag[]
++ console.info('ACTUAL_SPLIT_BLIND',JSON.stringify({input:blindEnds,result:parts.map(part=>({waypoints:part.geometry.waypoints,connection:part.cooling.connection}))}))
++ expect(id).toBeTruthy();expect(parts).toHaveLength(2)
++ expect(parts[0]!.cooling.connection.blindEnds).toEqual({start:blindEnds.start,end:false})
++ expect(parts[1]!.cooling.connection.blindEnds).toEqual({start:false,end:blindEnds.end})
++ expect(parts[0]!.geometry.waypoints[0]).toEqual(pipe.geometry.waypoints[0])
++ expect(parts[1]!.geometry.waypoints.at(-1)).toEqual(pipe.geometry.waypoints.at(-1))
++ expect(parts[0]!.cooling.connection.endPortId).toBe(id+'.port_1')
++ expect(parts[1]!.cooling.connection.startPortId).toBe(id+'.port_2')
++})
++const unallocatedDeclarations:[string,(pipe:Bag)=>void][]=[
++ ['inline flow-control valve',pipe=>{pipe.cooling.valves=[{id:'authored_valve',type:'flow_control',side:'below',position:{x:-.5,y:.25,z:0},connectedManifoldPortId:'',connectedRackId:''}]}],
++ ['tee branch with physical diameter and waypoints',pipe=>{pipe.cooling.valves=[{id:'authored_tee',type:'tee_junction',side:'below',position:{x:.5,y:.25,z:0},connectedManifoldPortId:'',connectedRackId:'',branchDiameterM:.031,branchWaypoints:[{x:.5,y:.25,z:0},{x:.5,y:.25,z:.6}]}]}],
++ // Migration preserves this container but defines no element/owner contract.
++ ['opaque connection junction declaration',pipe=>{pipe.cooling.connection.junctions=[{declared:'unallocated'}]}],
++ ['malformed valve container',pipe=>{pipe.cooling.valves={id:'not-an-array'}}],
++ ['malformed junction container',pipe=>{pipe.cooling.connection.junctions='not-an-array'}],
++ ['malformed blind endpoint flag',pipe=>{pipe.cooling.connection.blindEnds={start:'yes',end:false}}],
++ ['unknown blind endpoint declaration',pipe=>{pipe.cooling.connection.blindEnds={start:false,end:false,authoredUnknown:true}}],
++]
++it.each(unallocatedDeclarations)('split semantics rejects %s before factories, undo, store or map mutation',(_label,declare)=>{
++ const pipe=sourcePipe();declare(pipe);const before=JSON.stringify(live()),map=w._modelMap,entries=[...map.entries()]
++ const checkpoint=vi.fn(store.pushUndoCheckpoint),junctionFactory=vi.fn(w.createPipeJunctionModel),pipeFactory=vi.fn(w.createPipeSegmentModel)
++ vi.stubGlobal('pushUndoCheckpoint',checkpoint);vi.stubGlobal('createPipeJunctionModel',junctionFactory);vi.stubGlobal('createPipeSegmentModel',pipeFactory)
++ const remove=vi.spyOn(w,'removeModelByUid'),add=vi.spyOn(w,'addModel'),notify=vi.fn(),unsubscribe=store.subscribe(notify)
++ try{
++  const id=w._upgradeToTBranch(pipe.uid,1)
++  console.info('ACTUAL_SPLIT_METADATA',JSON.stringify({label:_label,input:{valves:pipe.cooling.valves,connection:pipe.cooling.connection},returned:id,originalStillPresent:!!store.findConstruction(live(),pipe.uid),parts:Object.values(live().constructions!.pipeSegments!).map(part=>({cooling:part.cooling}))}))
++  expect(id).toBeNull();expect(checkpoint).not.toHaveBeenCalled();expect(junctionFactory).not.toHaveBeenCalled();expect(pipeFactory).not.toHaveBeenCalled()
++  expect(remove).not.toHaveBeenCalled();expect(add).not.toHaveBeenCalled();expect(notify).not.toHaveBeenCalled();expect(w.rebuildGeometry).not.toHaveBeenCalled();expect(w.setSelection).not.toHaveBeenCalled()
++  expect(JSON.stringify(live())).toBe(before);expect(store.findConstruction(live(),pipe.uid)!.model).toBe(pipe);expect(w._modelMap).toBe(map);expect([...map.entries()]).toEqual(entries);expect(w.alert).toHaveBeenCalledWith('liquid.alert_upgrade_unassigned_metadata')
++ }finally{unsubscribe()}
++})
++it('split semantics permits empty declarations and preserves unrelated real CDU and network pump owners',()=>{
++ const cduMade=createModel(live(),'cdu');store.addModel(cduMade.bucket,cduMade.model)
++ const cdu=store.findConstruction(live(),cduMade.model.uid)!.model as Bag;cdu.cooling.advancedMode=true;cdu.constructions.pump.rpm=2450
++ const networks=live().constructions!.liquidFlowNetworks as Bag
++ // This is the independent legacy chain producer's actual pump record shape.
++ // net_main's canonical creation shape is authored by liquidScene.ts:316-323.
++ networks.net_main={uid:'net_main',geometry:{},meta:{name:'main',enabled:true},chains:[{id:'owner_chain',path:[{pump:'pump_default',rpm:2350}]}]}
++ const pumpBefore=JSON.stringify(cdu.constructions.pump),networkBefore=JSON.stringify(networks),pipe=sourcePipe();pipe.cooling.valves=[];pipe.cooling.connection.junctions=[]
++ const id=w._upgradeToTBranch(pipe.uid,1)
++ expect(id).toBeTruthy();expect((store.findConstruction(live(),cdu.uid)!.model as Bag).constructions.pump).toEqual(JSON.parse(pumpBefore))
++ expect(JSON.stringify(live().constructions!.liquidFlowNetworks)).toBe(networkBefore)
++ expect((store.findConstruction(live(),id)!.model as Bag).cooling.fittingDiameterM).toBe(.073)
++})
+--- a/src/frontend/shared/i18n/en-US.json
++++ b/src/frontend/shared/i18n/en-US.json
+@@ -2289,5 +2289,6 @@
+   "liquid.t_fitting_declare": "Declare standard T layout",
+   "liquid.t_fitting_declare_help": "Enter the physical diameter, then explicitly declare local −X/+X through ports and a +Z branch. Existing port IDs and connections are retained.",
+   "liquid.t_fitting_invalid": "Use a positive finite diameter. Unrecognised port IDs need explicit rebuilding before declaring this standard layout.",
++  "liquid.alert_upgrade_unassigned_metadata": "Cannot split: inline fittings or connection declarations have no defined assignment to the new pipes, or blind-end metadata is invalid. Explicitly reassign these declarations before splitting.",
+   "liquid.alert_upgrade_physical_diameter": "Cannot split this pipe: set a positive physical pipe diameter in Properties first."
+ }
+--- a/src/frontend/shared/i18n/zh-CN.json
++++ b/src/frontend/shared/i18n/zh-CN.json
+@@ -2289,5 +2289,6 @@
+   "liquid.t_fitting_declare": "声明标准三通布局",
+   "liquid.t_fitting_declare_help": "先填写物理口径，再声明局部 −X/+X 直通口及 +Z 支路。现有端口标识和连接会保留。",
+   "liquid.t_fitting_invalid": "请输入有限正值口径；无法识别的端口标识需先明确重建，不能直接替换为标准布局。",
++  "liquid.alert_upgrade_unassigned_metadata": "无法拆管：管上的配件或连接声明尚未确定拆分后的归属，或者盲端参数无效。请先明确重新分配这些声明，再进行拆分。",
+   "liquid.alert_upgrade_physical_diameter": "无法拆分此管道：请先在属性中填写有限正值的物理管径。"
+ }

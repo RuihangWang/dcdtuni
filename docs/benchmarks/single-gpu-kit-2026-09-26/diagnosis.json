@@ -1,0 +1,145 @@
+{
+  "status": "positive_stream_acceptance_failed",
+  "client_observation": {
+    "source": "main task browser verification",
+    "attempts": 2,
+    "message": "Omniverse connection timed out",
+    "fallback_renderer": "Three.js",
+    "video_elements_after_fallback": 0,
+    "scene_ack_received": false,
+    "retained_time_at_failure_s": 0,
+    "exact_client_action_epochs": "not captured in this Kit receipt; no exact per-attempt correlation claimed",
+    "retained_run_id": "737a0ecc25e342acb7932356222e566f",
+    "final_display_time_s": 600,
+    "final_sample": 30,
+    "final_samples": 31,
+    "temperature_overlays_enabled": [
+      "pipe",
+      "chip"
+    ]
+  },
+  "server_timeline_utc": [
+    [
+      "15:10:39",
+      "Duplicate NVIDIA ICD error"
+    ],
+    [
+      "15:10:56",
+      "Worktree bridge and official messaging extension started"
+    ],
+    [
+      "15:11:29",
+      "World0.usd and its session layer loaded"
+    ],
+    [
+      "15:11:31",
+      "Kit app ready"
+    ],
+    [
+      "15:11:34",
+      "Stream server signal TCP8301 / media UDP47998; native UI hidden"
+    ],
+    [
+      "15:12:16",
+      "Optix 7.5 adapter initialization for device0"
+    ],
+    [
+      "15:13:17",
+      "Shared deadline cleanup initiated"
+    ]
+  ],
+  "diagnosis": {
+    "stage_absence": "contradicted by World0.usd load; scene snapshot authoring not reached",
+    "signaling_connectivity": "established TCP observed from external browser; does not prove WebRTC/media",
+    "ice_failure": "unproven; no chosen candidate-pair/ICE status evidence retained",
+    "encoder_failure": "unproven; no encoder-ready/failure evidence retained",
+    "runtime_initialization": "proven continued RTX/Optix initialization after app-ready",
+    "duplicate_driver_manifests": "proven /etc/vulkan/icd.d/nvidia_icd.json and /usr/share/vulkan/icd.d/nvidia_icd.json both map NVIDIA libGLX; GPU-foundation logged error",
+    "tasking_starvation_warnings": 58,
+    "viewport_create_log_count": 4460,
+    "streamsdk_channel": "official runtime config restricts omni.kit.livestream.streamsdk to error",
+    "root_cause": "not yet isolated; no timeout-only fix claimed"
+  },
+  "cpu_preparation_candidates": [
+    "Pin a single existing NVIDIA Vulkan ICD via process-local VK_DRIVER_FILES; do not remove system drivers. Verify actual active GPU PCI in future authorized run.",
+    "Capture SDK onUpdate/onStart statuses and streamStats, plus StreamSDK diagnostic channel, before another live test.",
+    "Keep existing bounded deadline and local fallback; do not mark positive acceptance from a TCP listener or app-ready message."
+  ],
+  "future_gpu_validation_required": true,
+  "remaining_gpu_authorization": false,
+  "logs": {
+    "attempt1": {
+      "sha256": "41b88e55b2d08bf9c18b2db89f64519fd196ebfec7b28aad0b877190db8af5e4",
+      "bytes": 1083658
+    },
+    "attempt2": {
+      "sha256": "f02903651448f841e992878f48ec6b7b1975b58db045fbef7078eb41e4f17259",
+      "bytes": 1944472
+    }
+  },
+  "cpu_harness_corrections": {
+    "gpu_executed": false,
+    "xvfb_or_kit_started": false,
+    "plan_tests_passed": 12,
+    "icd_default": "/etc/vulkan/icd.d/nvidia_icd.json",
+    "driver_env": [
+      "VK_DRIVER_FILES",
+      "VK_ICD_FILENAMES"
+    ],
+    "tasking_workers": {
+      "executed_attempts": 1,
+      "prepared_next_run": 2
+    },
+    "cpu_affinity": [
+      0
+    ],
+    "omp_blas_threads": 1,
+    "stream_debug_opt_in": "--/log/channels/omni.kit.livestream.streamsdk=info",
+    "harness_sha256": "8230c71a4421af1f9e2ef1e64c852f9d59f06dd3827319e4cf896ab1ab18f94c",
+    "tests_sha256": "8cb2793d4da94880f0c9410ee9af8c2b5f8b2fc66683bfe8992708f6583920d6",
+    "timeout_fix_verified": false
+  },
+  "cpu_resource_update_2026_09_27": {
+    "scope": "CPU-only harness plan update; not a GPU launch or renewed GPU permission",
+    "candidate": {
+      "cpu_affinity": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "tasking_workers": 4,
+      "numeric_threads": 2,
+      "tbb_max_threads": 2,
+      "nice": 10
+    },
+    "default": {
+      "cpu_affinity": [
+        0
+      ],
+      "numeric_threads": 1,
+      "tasking_workers": 2
+    },
+    "cli": {
+      "legacy": "--cpu N",
+      "explicit_set": "--cpus 0,1,2,3",
+      "numeric_budget": "--numeric-threads 2",
+      "max_explicit_cpus": 8
+    },
+    "validation": {
+      "cpu_tests_passed": 32,
+      "seconds": 0.64,
+      "actual_short_python_child_affinity_cases": [
+        1,
+        4
+      ],
+      "gpu_enumerated": false,
+      "kit_started": false,
+      "xvfb_started": false
+    },
+    "harness_sha256": "c3cad3d9604edd412296858ef402f2ccf87f7322b91fed4aa93a97ed92fba853",
+    "tests_sha256": "895b76dcb3a43579c28db82b439c74d724e82b54c70facd4edff4316e6a5e02e",
+    "old_attempt_receipts_modified": false,
+    "live_ov_fix_verified": false
+  }
+}

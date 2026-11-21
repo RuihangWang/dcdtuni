@@ -1,0 +1,11 @@
+# Fixed-grid trajectory AD/FD v2 — review only
+
+This is the isolated replacement of the original six-file AD design. Its numerical worker body is byte-identical (SHA in receipt.json). Twenty stdlib tests pass: the eight complete-input gates and twelve worker identity/fuser authorization tests. The finalized four production files pass JSON-only preflight, with all four bytes and hashes verified against ROOT's completed manifest. input.liquidrun is the normalized input accepted by the production entry, not a captured browser Blob/export event.
+
+No numerical solver, torch/backend numerical import, fake worker, real fuser action, API or service was executed. Mocked tests establish the identity gate; actual file-sentinel process lifecycle remains pending ROOT review/operation.
+
+Only --worker creates/opens the unique0600 O_EXCL/O_NOFOLLOW sentinel and keeps its FD. The parent never opens it. Parent checks exact PID/startticks/UID/PPID/cwd/executable/argv, child-held device/inode and FD, sole fuser holder, and absence of subprocess descendants before TERM, and repeats everything before KILL. Missing/stale/split/foreign identity fails closed and records incomplete without signaling. Standard proc disappearance is recorded visibly. File-backed stdout/stderr avoid a blocked pipe drain. No os.kill, killpg, terminate or broad matching is used.
+
+The 180-second parent deadline includes worker startup; the original cooperative numerical checks remain175s. Each verified TERM/KILL is followed by at most3s wait. fuser query/signal time is included in elapsed measurement but is not bounded by a process-killing subprocess timeout. Ownership ambiguity may leave a worker alive; this is explicitly incomplete and not advertised as unconditional cleanup.
+
+To perform the reviewed numerical probe later, use the exact argv in receipt.json's JSON preflight entry, replace output-dir with a NEW path under this directory and add --execute. Never reuse an existing execution output/sentinel. All exact graph,50sample grid, static regime, accepted ledger, parameter series and the five-trajectory cap remain unchanged. Current online commands are read from the accepted ledger, not reconstructed from suggested UI percentages.

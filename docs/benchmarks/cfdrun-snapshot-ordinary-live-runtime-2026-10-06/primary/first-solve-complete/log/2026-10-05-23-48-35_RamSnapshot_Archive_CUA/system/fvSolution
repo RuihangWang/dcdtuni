@@ -1,0 +1,91 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2406                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    p_rgh
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       1e-8;
+            relTol          0.01;
+            nVcycles        2;
+            smoother        GaussSeidel;
+        }
+        tolerance       1e-12;
+        relTol          0.0;
+        maxIter         1000;
+    }
+
+    p_rghFinal
+    {
+        $p_rgh;
+        relTol          0;
+    }
+
+    "(U|T|k|epsilon|R)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0.01;
+    }
+
+    "(U|T|k|epsilon|R)Final"
+    {
+        $U;
+        relTol          0;
+    }
+}
+
+PIMPLE
+{
+    momentumPredictor   no;
+    nOuterCorrectors    20;
+    nCorrectors         2;
+    nNonOrthogonalCorrectors 0;
+    pRefCell            0;
+    pRefValue           0;
+    // PIMPLE checks fields actually recorded in solverPerformance. With
+    // momentumPredictor=no U has no separate residual; turbulence updates
+    // when corrected (by default on the final outer iteration).
+    residualControl
+    {
+        p_rgh           { tolerance 0.001; relTol 0; }
+        U               { tolerance 0.0001; relTol 0; }
+        T               { tolerance 0.0001; relTol 0; }
+        "(k|epsilon)"   { tolerance 0.0001; relTol 0; }
+    }
+}
+
+relaxationFactors
+{
+    fields
+    {
+        p_rgh           0.3;
+    }
+    equations
+    {
+        U               0.7;
+        T               0.7;
+        "(k|epsilon)"   0.3;
+    }
+}
+
+// ************************************************************************* //

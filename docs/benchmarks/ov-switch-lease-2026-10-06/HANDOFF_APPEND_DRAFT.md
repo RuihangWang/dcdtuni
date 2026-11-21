@@ -1,0 +1,5 @@
+## 2026-10-06 — OV ordinary sequential switching regression closure (draft for ROOT)
+
+Minimal WebRTC viewer-lease repair is integrated at MAIN f8795d2946eb3414e6f17f634a3474277f95a886 / IT3c181f16ddf5c67fc6be5929df50521ea0f804f1. Two actual normal single-browser OV -> Three.js -> OV roundtrips completed, with three scene ACKs including initial entry, decoded1600x900/readyState4 video and errors0. Normal engineering Load/Save before/after is byte-exact444441B/SHA0ca2730b7891cf34c6a98267d690f8c9212016c2c024348116665f05a490dd1a. Original reconnect timeout/restoration remains failed evidence, not a pass.
+
+Controlled source regressions13PASS/tsc0 and normal MAIN/IT builds are distinct from the installed-SDK runtime gate. No rapid-toggle/multi-client/full-postprocessing/transient/material or CFD/fullcase acceptance is claimed. Publication: docs/benchmarks/ov-switch-lease-2026-10-06. Preserve raw ignored .log files when staging exact declared paths. This draft does not state a remote push status.

@@ -1,0 +1,286 @@
+--- src/frontend/react/src/components/OvPostProcessPanel.tsx
++++ src/frontend/react/src/components/OvPostProcessPanel.tsx
+@@ -4,13 +4,16 @@
+ } from '../renderer/ovProtocol'
+ import { listOvRuns, requestLiquidResultGrant, requestOvDatasetGrant, type OvRun } from '../renderer/ovDataset'
+ import { OV_LIQUID_RAMP, OV_SLICE_RAMP, OV_VOLUME_RAMP, sampleRamp, type Ramp } from '../renderer/ovColormaps'
+-import { airDisplayPreference, selectedAirDisplayRun, rememberAirDisplay, type AirDisplayPreference, liquidDisplayPreference, rememberLiquidDisplay } from '../renderer/ovDisplayPreferences'
++import { airDisplayPreference, selectedAirDisplayRun, rememberAirDisplay, airFramePreference, rememberAirFrame, type AirDisplayPreference, liquidDisplayPreference, rememberLiquidDisplay } from '../renderer/ovDisplayPreferences'
+ import { ovSession, setOvSession } from '../renderer/ovSession'
+ import { fetchLiquidResults, liquidRunState, subscribeLiquid } from '../liquid/liquidSession'
+ import { runtimeState, subscribeRuntime } from '../liquid/liquidRuntimeClient'
+ import { getCaseStatus, getServerInfo, subscribeSession, type CaseStatus, type ServerInfo } from '../run/session'
+ import { liquidGlobalDomains, selectedResultSample, setResultSample, subscribeResultSample } from '../liquid/liquidTempColor'
+ import { useTranslation } from '../useTranslation'
++import * as store from '../projectStore'
++import { nearestIndex, projectIsTransient } from '../transient/resultPlayback'
++import { currentLiveAirResultSelection, currentResultLayerContext } from '../renderer/resultLayerRevision'
+ 
+ /** OV-side post-processing controls (display-only, Stage 3).
+  *
+@@ -243,6 +246,10 @@
+   const { t } = useTranslation()
+   const [runs, setRuns] = useState<OvRun[] | null>(null)
+   const [runId, setRunId] = useState('')
++  const [selectedTime, setSelectedTime] = useState<number | null>(null)
++  const selectedTimeRef = useRef<number | null>(null)
++  const anchor = useRef(store.playheadTime())
++  const playhead = useSyncExternalStore(store.subscribePlayhead, store.playheadTime)
+   const [dataset, setDataset] = useState<OvDatasetInfo | null>(null)
+   const [loadingData, setLoadingData] = useState(false)
+   const [volume, setVolume] = useState<OvVolumeState>({ field: 'off', visible: false })
+@@ -269,16 +276,23 @@
+     streamOn, streamField, seed, seedVisible })
+   display.current = { volume: { field: volume.field, domain: volume.domain ?? null }, slice, normalKey,
+     streamOn, streamField, seed, seedVisible }
+-  type DatasetJob = { id: string; restore: AirDisplayPreference | null; token: number; serial: number }
++  type DatasetJob = { id: string; time: number | null; restore: AirDisplayPreference | null; token: number; serial: number }
+   const serial = useRef(0)
++  const requestedRun = useRef<string | null>(null)
+   const loading = useRef(false)
+   const pendingData = useRef<DatasetJob | null>(null)
+   const loadRef = useRef<(job: DatasetJob) => Promise<void>>(async () => {})
+   const restored = useRef('')
+   type FireName = Parameters<OvCommandClient['fireCommand']>[0]
+-  type FireJob = { name: FireName; args: object; patch?: Partial<AirDisplayPreference>; token: number; id: string | null }
++  type FireJob = { name: FireName; args: object; patch?: Partial<AirDisplayPreference>; token: number; id: string | null; generation: number }
+   const fireJobs = useRef(new Map<FireName, FireJob>())
+   const firing = useRef(false)
++  const displayMutations = useRef(new Set<Promise<unknown>>())
++  function trackDisplay<T>(promise: Promise<T>): Promise<T> {
++    displayMutations.current.add(promise)
++    void promise.then(() => displayMutations.current.delete(promise), () => displayMutations.current.delete(promise))
++    return promise
++  }
+   const drainFireRef = useRef<() => Promise<void>>(async () => {})
+   const isCurrent = (token = lifetime.current) => mounted.current && token === lifetime.current &&
+     scope.current.client === client && scope.current.projectUid === projectUid && scope.current.runsKey === runsKey
+@@ -298,7 +312,7 @@
+     setSliceResult(null); setAdopted(false); setNormalKey('y')
+     setStreamOn(false); setStreamField('T'); setSeed({ center: [0, 1, 0], radius: 1, nSeeds: 27 }); setSeedVisible(false)
+     return () => {
+-      mounted.current = false; lifetime.current += 1; pendingData.current = null; fireJobs.current.clear()
++      mounted.current = false; lifetime.current += 1; serial.current += 1; pendingData.current = null; fireJobs.current.clear()
+       if (sliceTimer.current) clearTimeout(sliceTimer.current)
+       sliceTimer.current = null
+     }
+@@ -337,34 +351,40 @@
+   // The slice lives in Kit; a viewport drag moves it without the panel knowing.
+   // Reading back makes Kit adopt the drag, re-cut there, and report it.
+   async function readBackSlice() {
+-    const token = lifetime.current
++    const token = lifetime.current, generation = serial.current
+     try {
+       const idle = ovSession().sceneIdle
+       if (idle) await idle()
+-      if (!isCurrent(token)) return
+-      const ack = await client.getSliceState()
+-      if (!isCurrent(token)) return
++      if (!isCurrent(token) || generation !== serial.current) return
++      const ack = await trackDisplay(client.getSliceState())
++      if (!isCurrent(token) || generation !== serial.current) return
+       if (ack.slice) adoptSliceAck(ack.slice)
+       setAdopted(Boolean(ack.adopted))
+       if (ack.sliceResult !== undefined) setSliceResult(ack.sliceResult ?? null)
+       setNote('')
+-    } catch (e) { if (isCurrent(token)) setNote(errText(e)) }
++    } catch (e) { if (isCurrent(token) && generation === serial.current) setNote(errText(e)) }
+   }
+   useEffect(() => { if (!selectedAirDisplayRun(projectUid)) void readBackSlice() }, [client, projectUid])  // eslint-disable-line react-hooks/exhaustive-deps
+ 
+   async function performDataset(job: DatasetJob) {
+     loading.current = true
+-    setLoadingData(true); setNote('')
++    setLoadingData(true); setVolumeBusy(false); setNote('')
+     const current = () => isCurrent(job.token) && job.serial === serial.current
+     try {
+       const idle = ovSession().sceneIdle
+       if (idle) await idle()
+       if (!current()) return
+-      const granted = await requestOvDatasetGrant(job.id)
++      const granted = await requestOvDatasetGrant(job.id, undefined, job.time ?? undefined)
++      if (!current()) return
++      // Old volume/slice/fire mutations must finish before a new import.
++      // Generation checks alone would hide their ACK, not stop Kit mutation.
++      await Promise.allSettled([...displayMutations.current])
+       if (!current()) return
+       const ack = await client.loadResultDataset(granted.grant)
+       if (!current()) return
+       if (!ack.dataset || ack.dataset.runId !== job.id) throw new Error('Kit acknowledged a different air run')
++      if (ack.dataset.time !== granted.time || (job.time !== null && Number(granted.time) !== job.time))
++        throw new Error('Kit acknowledged a different air frame')
+       setDataset(ack.dataset); activeDataset.current = job.id
+       const b = ack.dataset.bounds
+       let nextSlice: OvSliceParams = { visible: false, origin: [0, 1, 0], normal: [0, 1, 0], radius: 2, field: 'T', domain: null }
+@@ -417,12 +437,72 @@
+     }
+   }
+   loadRef.current = performDataset
+-  function loadDataset(id = runId, restore: AirDisplayPreference | null = airDisplayPreference(projectUid, id)) {
++  function loadDataset(id = runId, restore: AirDisplayPreference | null = airDisplayPreference(projectUid, id), time = selectedTimeRef.current) {
+     if (!id || degraded || !isCurrent()) return
+-    const job = { id, restore, token: lifetime.current, serial: ++serial.current }
++    requestedRun.current = id
++    const job = { id, time, restore, token: lifetime.current, serial: ++serial.current }
++    fireJobs.current.clear()
++    if (sliceTimer.current) clearTimeout(sliceTimer.current)
++    sliceTimer.current = null
++    rememberAirFrame(projectUid, id, { time, anchor: anchor.current, threeSelectionKey: threeFrame(id)?.key ?? null })
+     if (loading.current) pendingData.current = job
+     else void performDataset(job)
+   }
++  function threeFrame(id: string) {
++    const context = currentResultLayerContext()
++    const selection = currentLiveAirResultSelection()
++    const accepted = context?.selection
++    if (!context || context.source.projectUid !== projectUid || accepted?.owner !== 'air-postprocess' ||
++        selection?.session.runId !== id || accepted.session.runId !== id ||
++        accepted.session.timeValue !== selection.session.timeValue || accepted.session.revision !== selection.session.revision ||
++        selection.session.timeValue === null) return null
++    return { time: selection.session.timeValue,
++      key: JSON.stringify([id, selection.session.timeValue, selection.session.revision, context.source.projectContentSha256]) }
++  }
++  function initialFrame(id: string) {
++    const run = runs?.find(r => r.runId === id)
++    const times = run?.timesteps ?? []
++    const saved = airFramePreference(projectUid, id)
++    const three = threeFrame(id)
++    // An exact Three pick may snap to the same project clock as the previous
++    // OV frame. Detect a new accepted Three selection without overriding an OV
++    // pick merely because the older Three context remains in memory.
++    if (three && times.includes(three.time) && (!saved || three.key !== saved.threeSelectionKey)) return three.time
++    if (saved && (saved.time === null || times.includes(saved.time))) {
++      if (saved.anchor === store.playheadTime() || !run?.transient || !projectIsTransient()) return saved.time
++    }
++    if (run?.transient && projectIsTransient() && store.playheadTime() > 0) {
++      return times[nearestIndex(times, store.playheadTime())] ?? null
++    }
++    return null
++  }
++  useEffect(() => {
++    const time = initialFrame(runId)
++    selectedTimeRef.current = time; setSelectedTime(time); anchor.current = store.playheadTime()
++  }, [runId, runs])
++  function chooseFrame(time: number | null) {
++    if (time !== null && !runs?.find(r => r.runId === runId)?.timesteps?.includes(time)) return
++    selectedTimeRef.current = time; setSelectedTime(time)
++    if (time !== null && projectIsTransient()) store.setPlayhead(time)
++    anchor.current = store.playheadTime()
++    rememberAirFrame(projectUid, runId, { time, anchor: anchor.current, threeSelectionKey: threeFrame(runId)?.key ?? null })
++    if (activeDataset.current === runId || (loading.current && requestedRun.current === runId))
++      loadDataset(runId, display.current, time)
++  }
++  useEffect(() => {
++    const run = runs?.find(r => r.runId === runId)
++    if (!run?.transient || !projectIsTransient() || playhead === anchor.current) return
++    const time = run.timesteps?.[nearestIndex(run.timesteps, playhead)]
++    if (time === undefined) return
++    const handle = setTimeout(() => {
++      anchor.current = playhead
++      selectedTimeRef.current = time; setSelectedTime(time)
++      rememberAirFrame(projectUid, runId, { time, anchor: playhead, threeSelectionKey: threeFrame(runId)?.key ?? null })
++      if (activeDataset.current === runId || (loading.current && requestedRun.current === runId))
++        loadDataset(runId, display.current, time)
++    }, 250)
++    return () => clearTimeout(handle)
++  }, [playhead, runId, runs])
+   useEffect(() => {
+     if (degraded || !runs || listedKey.current !== runsKey) return
+     const selected = selectedAirDisplayRun(projectUid)
+@@ -431,22 +511,24 @@
+     const key = JSON.stringify([lifetime.current, projectUid, runsKey, selected])
+     if (restored.current === key) return
+     restored.current = key
+-    setRunId(selected); loadDataset(selected, saved)
++    const time = initialFrame(selected)
++    selectedTimeRef.current = time; setSelectedTime(time); anchor.current = store.playheadTime()
++    setRunId(selected); loadDataset(selected, saved, time)
+   }, [client, projectUid, degraded, runsKey, runs]) // Restore ordinary choices only after a fresh scoped grant/ACK.
+ 
+   async function showVolume(field: 'off' | 'T' | 'U', domain: [number, number] | null) {
+-    const token = lifetime.current, id = activeDataset.current
++    const token = lifetime.current, id = activeDataset.current, generation = serial.current
+     setVolumeBusy(true)
+     setNote('')
+     try {
+-      const ack = await client.setVolumeDisplay(field, domain)
+-      if (!isCurrent(token) || id !== activeDataset.current) return
++      const ack = await trackDisplay(client.setVolumeDisplay(field, domain))
++      if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
+       if (ack.volume) {
+         setVolume(ack.volume)
+         if (ack.volume.domain) setVolumeRange(ack.volume.domain)
+         saveDisplay({ volume: { field: ack.volume.field, domain: ack.volume.domain ?? null } })
+       }
+-    } catch (e) { if (isCurrent(token) && id === activeDataset.current) setNote(errText(e)) } finally { if (mounted.current) setVolumeBusy(false) }
++    } catch (e) { if (isCurrent(token) && id === activeDataset.current && generation === serial.current) setNote(errText(e)) } finally { if (isCurrent(token) && generation === serial.current) setVolumeBusy(false) }
+   }
+ 
+   function sendSlice(next: OvSliceParams) {
+@@ -454,15 +536,15 @@
+     setAdopted(false)
+     if (sliceTimer.current) clearTimeout(sliceTimer.current)
+     // Drag-grade edits from the panel should not spam the ack channel.
+-    const token = lifetime.current, id = activeDataset.current
++    const token = lifetime.current, id = activeDataset.current, generation = serial.current
+     sliceTimer.current = setTimeout(() => {
+-      if (!isCurrent(token) || id !== activeDataset.current) return
+-      void client.setSlice(next).then(ack => {
+-        if (!isCurrent(token) || id !== activeDataset.current) return
++      if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
++      void trackDisplay(client.setSlice(next)).then(ack => {
++        if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
+         saveDisplay({ slice: next })
+         setNote('')
+         if (ack.sliceResult !== undefined) setSliceResult(ack.sliceResult ?? null)
+-      }).catch(e => { if (isCurrent(token) && id === activeDataset.current) setNote(errText(e)) })
++      }).catch(e => { if (isCurrent(token) && id === activeDataset.current && generation === serial.current) setNote(errText(e)) })
+     }, 200)
+   }
+   const patchSlice = (p: Partial<OvSliceParams>) => sendSlice({ ...slice, ...p })
+@@ -472,17 +554,17 @@
+     const job = fireJobs.current.values().next().value as FireJob | undefined
+     if (!job) return
+     fireJobs.current.delete(job.name)
+-    if (!isCurrent(job.token) || job.id !== activeDataset.current) { void drainFireRef.current(); return }
++    if (!isCurrent(job.token) || job.id !== activeDataset.current || job.generation !== serial.current) { void drainFireRef.current(); return }
+     firing.current = true
+     try {
+-      await client.fireCommand(job.name, job.args)
+-      if (isCurrent(job.token) && job.id === activeDataset.current && !fireJobs.current.has(job.name) && job.patch) saveDisplay(job.patch)
+-    } catch (e) { if (isCurrent(job.token)) setNote(errText(e)) }
++      await trackDisplay(client.fireCommand(job.name, job.args))
++      if (isCurrent(job.token) && job.id === activeDataset.current && job.generation === serial.current && !fireJobs.current.has(job.name) && job.patch) saveDisplay(job.patch)
++    } catch (e) { if (isCurrent(job.token) && job.generation === serial.current) setNote(errText(e)) }
+     finally { firing.current = false; if (mounted.current) void drainFireRef.current() }
+   }
+   drainFireRef.current = drainFire
+   const fire = (name: FireName, args: object, patch?: Partial<AirDisplayPreference>) => {
+-    fireJobs.current.set(name, { name, args, patch, token: lifetime.current, id: activeDataset.current })
++    fireJobs.current.set(name, { name, args, patch, token: lifetime.current, id: activeDataset.current, generation: serial.current })
+     void drainFire()
+   }
+ 
+@@ -497,14 +579,20 @@
+     <summary style={{ cursor: 'pointer' }}>{t('ovpp.title')}{degraded ? ` · ${t('ovpp.degraded_suffix')}` : ''}</summary>
+     {degraded && <p role="note">{t('ovpp.degraded_note')}</p>}
+     <OvLiquidSection key={projectUid ?? 'anonymous'} client={client} degraded={degraded} projectUid={projectUid} />
+-    <fieldset disabled={degraded || loadingData}>
++    <fieldset disabled={degraded}>
+       <legend>{t('ovpp.dataset')}</legend>
+       {runs && runs.length === 0 && <p>{t('ovpp.no_runs')}</p>}
+       {runs && runs.length > 0 && <label>{t('ovpp.dataset_run')} <select aria-label={t('ovpp.dataset_run')} value={runId}
+         onChange={e => setRunId(e.target.value)}>
+         {runs.map(r => <option key={r.runId} value={r.runId}>{r.name}</option>)}
+       </select></label>}
+-      <button className="btn" disabled={!runId} onClick={() => void loadDataset()}>
++      {runs?.find(r => r.runId === runId)?.timesteps?.length ? <label>{t('pp.time_label')} <select
++        id="ov-air-time" aria-label={t('pp.time_label')} value={selectedTime ?? ''}
++        onChange={e => chooseFrame(e.target.value === '' ? null : Number(e.target.value))}>
++        <option value="">{t('pp.latest_complete_time')}</option>
++        {runs.find(r => r.runId === runId)!.timesteps!.map(time => <option key={time} value={time}>{time}</option>)}
++      </select></label> : null}
++      <button className="btn" disabled={!runId || loadingData} onClick={() => void loadDataset()}>
+         {loadingData ? t('ovpp.dataset_loading') : t('ovpp.dataset_load')}</button>
+       {dataset && <p role="status" data-ov-dataset={dataset.run}>{t('ovpp.dataset_loaded', { run: dataset.run, time: dataset.time })}</p>}
+       <p className="liquid-experiment-note">{t('ovpp.dataset_hint')}</p>

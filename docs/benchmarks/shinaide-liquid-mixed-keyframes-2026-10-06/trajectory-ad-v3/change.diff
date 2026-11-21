@@ -1,0 +1,82 @@
+--- v2-preserved
++++ v3-separate-physical-observables
+@@ -66,13 +66,27 @@
+         seen.add(seq)
+     return {"N_t":n,"dt_s":dt,"end_s":(n-1)*dt,"run_id":cp["run_id"],"online_events":len(events)}
+ 
++def validate_actual_result(actual,clock):
++    if actual.get('run_id')!=clock['run_id'] or actual.get('status')!='completed' or actual.get('completed') is not True or actual.get('converged') is not True or actual.get('time_s')!=[i*clock['dt_s'] for i in range(clock['N_t'])]:
++        raise ValueError('actual completed result identity/grid/status differs')
++    for field in ['edge_flow_kg_s','cell_temp_K','chip_temp_K','secondary_supply_K','primary_return_K']:
++        rows=actual.get(field)
++        if not isinstance(rows,list) or not rows:raise ValueError('actual result has no rows: '+field)
++        for row in rows:
++            if not isinstance(row,list) or len(row)!=clock['N_t'] or any(isinstance(x,bool) or not isinstance(x,(float,int)) or not math.isfinite(x) for x in row):
++                raise ValueError('actual result grid/finiteness differs: '+field)
++
+ def inputs(args):
+     bundle={};identities={}
+     for name in NAMES:
+         path=owned(getattr(args,name));data=path.read_bytes()
+         bundle[name]=json.loads(data)
+         identities[name]={"path":str(path),"bytes":len(data),"sha256":digest(data)}
+-    return bundle,identities,preflight(bundle)
++    clock=preflight(bundle)
++    actual_path=owned(args.checkpoint).parent/'result.json';data=actual_path.read_bytes();actual=json.loads(data)
++    validate_actual_result(actual,clock)
++    bundle['actual_result']=actual;identities['actual_result']={'path':str(actual_path),'bytes':len(data),'sha256':digest(data)}
++    return bundle,identities,clock
+ 
+ def source_guard():
+     rows=json.loads((HERE/"source-identity.json").read_text())["sources"]
+@@ -117,7 +131,7 @@
+     for part in (heat,inlet):
+         if not any(not torch.equal(x[part],theta[0][part]) for x in theta[1:]):
+             raise ValueError("missing realized post-t0 thermal waveform")
+-    runs=[]
++    runs=[];baseline_match={}
+     def trajectory(alpha,beta,label):
+         gate();definition=admit_dae_runtime_input(bundle["executed"])
+         graph=definition.equation_graph;producer=definition.parameters;base=producer(0).detach().clone()
+@@ -141,16 +155,27 @@
+         flow=stack[:,graph.state_layout["flow"]].detach()
+         if not bool((torch.sign(flow)==torch.sign(flow[0])).all()):
+             raise ValueError("flow sign regime changed")
+-        objective=experiment.tensor_series("solid_temperature")[:,-1].mean()
+-        if not bool(torch.isfinite(objective.detach())):
++        objective=torch.stack([experiment.tensor_series('solid_temperature')[:,-1].mean(),experiment.tensor_series('primary_return_temperature')[:,-1].mean()])
++        if label=='AD exact accepted waveform':
++            actual=bundle['actual_result']
++            if actual['node_ids']!=graph.graph.node_ids or actual['edge_ids']!=graph.graph.edge_str_ids:
++                raise ValueError('actual result graph identity differs')
++            components={'flow':'edge_flow_kg_s','water_temperature':'cell_temp_K','solid_temperature':'chip_temp_K','hx_secondary_temperature':'secondary_supply_K','primary_return_temperature':'primary_return_K'}
++            for key,field in components.items():
++                reference=torch.tensor(actual[field],dtype=stack.dtype,device=stack.device).T;observed=stack[:,graph.state_layout[key]].detach()
++                if not bool(torch.isfinite(reference).all()):raise ValueError('nonfinite actual result: '+field)
++                if observed.shape!=reference.shape:raise ValueError('actual result shape differs: '+field)
++                mismatch=float((observed-reference).abs().max());baseline_match[field]=mismatch
++                if mismatch>=1e-7:raise ValueError('exact accepted waveform does not reproduce actual output: '+field)
++        if not bool(torch.isfinite(objective.detach()).all()):
+             raise ValueError("nonfinite objective")
+-        runs.append({"label":label,"samples":int(stack.shape[0]),"state_size":int(stack.shape[1]),"objective_K":float(objective.detach()),"max_flow_change":float((flow-flow[0]).abs().max())})
++        runs.append({"label":label,"samples":int(stack.shape[0]),"state_size":int(stack.shape[1]),"objectives_K":{"mean_solid":float(objective[0].detach()),"mean_primary_return":float(objective[1].detach())},"max_flow_change":float((flow-flow[0]).abs().max())})
+         return objective
+     a=torch.tensor(1.,dtype=torch.float64,requires_grad=True)
+     b=torch.tensor(1.,dtype=torch.float64,requires_grad=True)
+     objective=trajectory(a,b,"AD exact accepted waveform")
+-    gradients=torch.autograd.grad(objective,(a,b));epsilon=1e-4
+-    fd=[(trajectory(1+epsilon,1.,"heat+h")-trajectory(1-epsilon,1.,"heat-h"))/(2*epsilon),(trajectory(1.,1+epsilon,"inlet+h")-trajectory(1.,1-epsilon,"inlet-h"))/(2*epsilon)]
++    heat_ad=torch.autograd.grad(objective[0],a,retain_graph=True)[0];inlet_ad=torch.autograd.grad(objective[1],b)[0];gradients=(heat_ad,inlet_ad);epsilon=1e-4
++    fd=[(trajectory(1+epsilon,1.,"heat+h")[0]-trajectory(1-epsilon,1.,"heat-h")[0])/(2*epsilon),(trajectory(1.,1+epsilon,"inlet+h")[1]-trajectory(1.,1-epsilon,"inlet-h")[1])/(2*epsilon)]
+     directions={}
+     for name,ad,center in zip(("post_t0_heat_amplitude","post_t0_primary_inlet_amplitude"),gradients,fd):
+         x,y=float(ad.detach()),float(center.detach());error=abs(x-y)/max(abs(x),abs(y),1e-10)
+@@ -159,7 +184,7 @@
+     for identity in identities.values():
+         if digest(Path(identity["path"]).read_bytes())!=identity["sha256"]:
+             raise ValueError("input changed during probe")
+-    return {"executed":True,"passed":all(x["passed"] for x in directions.values()),"clock":clock,"input_identities":identities,"original_config_hash":oh,"executed_config_hash":eh,"production_accepted_manifest_exact":True,"online_applied_inputs":cp["applied_inputs"],"objective":"mean all cold-plate solid temperatures at actual final sample","epsilon":epsilon,"directions":directions,"runs":runs,"elapsed_seconds":time.monotonic()-start,"scope":"first-order local accepted thermal waveform amplitudes; fixed graph and static hydraulic/property regime, not JSON/UI/event-time or second order"}
++    return {"executed":True,"passed":all(x["passed"] for x in directions.values()),"clock":clock,"input_identities":identities,"original_config_hash":oh,"executed_config_hash":eh,"production_accepted_manifest_exact":True,"online_applied_inputs":cp["applied_inputs"],"objectives":{"post_t0_heat_amplitude":"mean all cold-plate solid temperatures at actual final sample","post_t0_primary_inlet_amplitude":"mean primary-return fluid temperature at actual final sample"},"baseline_actual_full_trajectory_max_errors":baseline_match,"v2_red_preserved":"inlet-to-solid objective insensitive in short horizon; threshold not relaxed","epsilon":epsilon,"directions":directions,"runs":runs,"elapsed_seconds":time.monotonic()-start,"scope":"first-order local accepted thermal waveform amplitudes; fixed graph and static hydraulic/property regime, not JSON/UI/event-time or second order"}
+ 
+ def main():
+     from owned_worker import hold_worker_sentinel, run_owned

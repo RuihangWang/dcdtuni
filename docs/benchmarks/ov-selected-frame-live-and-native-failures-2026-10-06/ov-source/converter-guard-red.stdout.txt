@@ -1,0 +1,35 @@
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_uniform_time_metadata_change_during_conversion_is_refused ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-converter-red/test_uniform_time_metadata_cha0')
+
+    def test_uniform_time_metadata_change_during_conversion_is_refused(tmp_path):
+        run=make_run(tmp_path, uniform=True)
+        def convert(mirror):
+            (run/"2/uniform/time").write_text("value 99;")
+            return fake_foam([])(mirror)
+>       with pytest.raises(ovd.DatasetError) as error:
+E       Failed: DID NOT RAISE <class 'ov_result_dataset.DatasetError'>
+
+src/server/tests/test_ov_selected_frame.py:129: Failed
+___________ test_a_failed_converter_output_cannot_become_a_cache_hit ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-converter-red/test_a_failed_converter_output0')
+
+    def test_a_failed_converter_output_cannot_become_a_cache_hit(tmp_path):
+        run=make_run(tmp_path)
+        def failed(mirror):
+            fake_foam([])(mirror)
+            return 3,"partial output then failure"
+        with pytest.raises(ovd.DatasetError):
+            ovd.prepare_ensight(run,failed,time_value=1)
+        calls=[]
+>       assert ovd.prepare_ensight(run,fake_foam(calls),time_value=1)["cached"] is False
+E       assert True is False
+
+src/server/tests/test_ov_selected_frame.py:141: AssertionError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_ov_selected_frame.py::test_uniform_time_metadata_change_during_conversion_is_refused
+FAILED src/server/tests/test_ov_selected_frame.py::test_a_failed_converter_output_cannot_become_a_cache_hit
+2 failed, 1 passed, 22 deselected in 0.24s

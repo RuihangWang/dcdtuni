@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "source": "test",
+  "projectName": "ThermalLoop",
+  "gravity": [0, -9.81, 0],
+  "fluid": {
+    "rho_kg_m3": 997.0,
+    "cp_J_kgK": 4182.0,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1.0,
+    "N_t": 5,
+    "bdf_order": 1
+  },
+  "racks": [],
+  "nodes": [
+    {"id": "cdu_supply", "type": "pressure_bc", "position_m": [0,0,0], "bc": {"P_Pa": 200000, "T_K": 308.15}},
+    {"id": "cp_inlet", "type": "junction", "position_m": [1,0,0]},
+    {"id": "cp_outlet", "type": "junction", "position_m": [1.1,0,0]},
+    {"id": "cdu_return", "type": "pressure_bc", "position_m": [2,0,0], "bc": {"P_Pa": 100000}}
+  ],
+  "edges": [
+    {
+      "id": "pipe_supply", "type": "pipe",
+      "from": "cdu_supply", "to": "cp_inlet",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[0,0,0],[1,0,0]], "K_minor_per_bend": 0.5}
+    },
+    {
+      "id": "cold_plate_1", "type": "cold_plate",
+      "from": "cp_inlet", "to": "cp_outlet",
+      "params": {"dp_a": 500.0, "dp_b": 50.0, "UA_W_per_K": 150.0,
+                 "C_solid_J_per_K": 50.0, "V_fluid_m3": 5e-6, "Q_W": 350.0}
+    },
+    {
+      "id": "pipe_return", "type": "pipe",
+      "from": "cp_outlet", "to": "cdu_return",
+      "params": {"D_m": 0.025, "roughness_m": 1.5e-6, "n_cells": 3,
+                 "waypoints_m": [[1.1,0,0],[2,0,0]], "K_minor_per_bend": 0.5}
+    }
+  ],
+  "events": [],
+  "initial_conditions": {"T_fluid_K": 308.15, "T_solid_K": 340.0, "P_uniform_Pa": 150000},
+  "solver": {
+    "optimizer": "adam", "lr": 0.01, "max_epochs": 3000, "convergence_tol": 1e-4,
+    "weights": {"mass": 1.0, "momentum": 1e-5, "energy": 1.0, "bc": 100.0, "ic": 10.0}
+  }
+}

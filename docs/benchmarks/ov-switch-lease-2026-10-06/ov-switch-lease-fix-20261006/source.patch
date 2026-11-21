@@ -1,0 +1,353 @@
+--- baseline/ovStreamLease.ts
++++ src/frontend/react/src/renderer/ovStreamLease.ts
+@@ -1,40 +1,83 @@
+-/** AppStreamer resolves terminate(false) with inProgress while connecting.
+- * Its exported streamStatus becomes none only after successful termination
+- * has also cleared the singleton controller. Do not infer idle from a reply. */
++/** The SDK initialization promise and terminal onStart event are independent.
++ * A late inProgress initialization reply can overwrite connected/cancelled. */
++export interface OvStartReceipt {
++  readonly settled: boolean
++  readonly done: Promise<void>
++}
++export function createOvStartReceipt() {
++  let settled = false, finish!: () => void
++  const done = new Promise<void>(resolve => { finish = resolve })
++  return {
++    get settled() { return settled }, done,
++    record(message: unknown): boolean {
++      const status = message && typeof message === 'object'
++        ? (message as {status?: unknown}).status : undefined
++      if (settled || (status !== 'success' && status !== 'error' && status !== 'canceled')) return false
++      settled = true; finish(); return true
++    },
++  }
++}
++
++/** Hold the owner until initialization AND its terminal start event settle.
++ * Never destroy a Direct controller while its initialization continuation can
++ * still create a runtime. A connecting terminate reply only marks cancellation;
++ * after terminal onStart it may need one serial public-API completion attempt. */
+ export function terminateOvViewer(
+   terminate: () => Promise<unknown>,
+   isIdle: () => boolean,
+   started: Promise<unknown>,
+   timeoutMs = 15000,
+   pollMs = 50,
++  startEvent?: OvStartReceipt,
+ ): Promise<void> {
+   return new Promise((resolve, reject) => {
+-    let startSettled = false, stopSettled = false, failure: unknown
+-    let finished = false
++    let startSettled = false, startFailed = false, stopSettled = false
++    let failure: unknown, finished = false, attempts = 0, markedCancellation = false
+     const cleanup = () => { clearInterval(poll); clearTimeout(deadline) }
+     const check = () => {
+       if (finished || !startSettled || !stopSettled) return
+       try {
+-        if (!isIdle()) return
+-        finished = true; cleanup(); resolve()
++        if (startEvent && !startEvent.settled && !startFailed) return
++        if (isIdle()) { finished = true; cleanup(); resolve(); return }
++        // SDK onStart may have completed BEFORE the inProgress init reply.
++        // In that ordering no future event can complete its canceled marker.
++        // An SDK auto-termination may already be running: its public rejection
++        // is retained while polling for the same owner's eventual idle receipt.
++        if (markedCancellation && attempts === 1 && startEvent?.settled) stop()
+       } catch (error) { finished = true; cleanup(); reject(error) }
++    }
++    const stop = () => {
++      if (finished) return
++      stopSettled = false; attempts++
++      void Promise.resolve().then(() => { if (!finished) return terminate() }).then(
++        reply => {
++          if (finished) return
++          if (reply && typeof reply === 'object' && (reply as {status?:unknown}).status === 'inProgress')
++            markedCancellation = true
++          stopSettled = true; check()
++        },
++        error => { if (!finished) { failure = error; stopSettled = true; check() } },
++      )
+     }
+     const poll = setInterval(check, pollMs)
+     const deadline = setTimeout(() => {
+       finished = true; cleanup()
++      const detail = failure && typeof failure === 'object' && 'info' in failure
++        ? String((failure as {info:unknown}).info) : failure ? String(failure) : ''
+       reject(new Error('Omniverse viewer termination did not reach idle; reload the page before reconnecting' +
+-        (failure ? ': ' + String(failure) : '')))
++        ` (initialization ${startSettled ? 'settled' : 'pending'}, start event ${startEvent?.settled ? 'settled' : startEvent ? 'pending' : 'untracked'}, stop attempts ${attempts})` +
++        (detail ? ': ' + detail : '')))
+     }, timeoutMs)
+-    // A late connect promise can update SDK state after terminate has returned.
+-    // Its outcome must settle as well before none is a trustworthy idle receipt.
+-    void started.then(
+-      () => { startSettled = true; check() },
+-      () => { startSettled = true; check() },
+-    )
+-    void Promise.resolve().then(terminate).then(
+-      () => { stopSettled = true; check() },
+-      error => { failure = error; stopSettled = true; check() },
+-    )
++    const initialized = (failed: boolean) => {
++      if (finished) return
++      startSettled = true; startFailed = failed
++      try {
++        if (isIdle()) { stopSettled = true; check() }
++        else stop()
++      } catch (error) { finished = true; cleanup(); reject(error) }
++    }
++    void started.then(() => initialized(false), () => initialized(true))
++    void startEvent?.done.then(check, error => { failure = error; check() })
+   })
+ }
+ 
+--- baseline/OvViewport.tsx
++++ src/frontend/react/src/renderer/OvViewport.tsx
+@@ -2,7 +2,7 @@
+ import type { SceneSnapshot } from './sceneSnapshot'
+ import { OvCommandClient, ovAckTimeoutDegraded, type RenderAck, type SceneProgress } from './ovProtocol'
+ import { syncLatestOvScene } from './ovSceneTransfer'
+-import { ovStreamLeases, terminateOvViewer } from './ovStreamLease'
++import { createOvStartReceipt, ovStreamLeases, terminateOvViewer } from './ovStreamLease'
+ import { useTranslation } from '../useTranslation'
+ import type { TranslationKey } from '../i18n'
+ 
+@@ -30,6 +30,7 @@
+     let client: OvCommandClient | null = null
+     let lease: ReturnType<typeof ovStreamLeases.open> | null = null
+     let started = false
++    const startReceipt = createOvStartReceipt()
+     let lastStats = -Infinity
+     let customEvents = 0
+     // Keep a timestamped, small diagnostic trail without changing connection
+@@ -109,9 +110,17 @@
+             client?.receive(message)
+           },
+           onStart: (message: unknown) => {
+-            if (started || disposed) return
++            // This lifecycle receipt must survive disposal: the SDK invokes
++            // its own cancellation wrapper before forwarding this callback.
++            const terminal = startReceipt.record(message)
++            if (!terminal || started || disposed) return
+             diagnostic('start', message)
+             started = true
++            const result = message as {status?: unknown; info?: unknown}
++            if (result.status !== 'success') {
++              fail(new Error('Omniverse stream could not start: ' + String(result.info ?? result.status)))
++              return
++            }
+             clearTimeout(timeout)
+             setStatus('renderer.synchronizing')
+             client!.onSceneProgress(p => { if (!disposed) setProgress(p) })
+@@ -174,8 +183,8 @@
+             fail(new Error('Omniverse stream disconnected'))
+           },
+         },
+-      }), started => terminateOvViewer(() => AppStreamer.terminate(false),
+-        () => AppStreamer.streamStatus === StreamStatus.none, started))
++      }), initialized => terminateOvViewer(() => AppStreamer.terminate(false),
++        () => AppStreamer.streamStatus === StreamStatus.none, initialized, 15000, 50, startReceipt))
+       await lease.ready
+     }).catch(e => fail(e instanceof Error ? e : new Error(String(e))))
+     return () => {
+--- baseline/ovStreamLease.test.ts
++++ src/frontend/react/test/ovStreamLease.test.ts
+@@ -90,3 +90,131 @@
+     expect(start).not.toHaveBeenCalled()
+   } finally { vi.useRealTimers() }
+ })
++
++
++// Timelines below retain the installed 5.18.2 public SDK semantics: init's
++// inProgress promise and terminal onStart are independent; terminate while
++// connecting only marks cancelled, and real termination clears the controller.
++function receipt() {
++  const event = deferred()
++  return { settled: false, done: event.promise, settle() { this.settled = true; event.resolve() } }
++}
++it('does not orphan a controller by terminating before initialization finishes', async () => {
++  vi.useFakeTimers()
++  try {
++    const initialization = deferred(), startEvent = receipt()
++    let controller = true, status = 'none', initialized = false
++    const terminate = vi.fn(async () => {
++      if (status === 'connecting') { status = 'cancelled'; return {status: 'inProgress'} }
++      // Installed Direct teardown can clear _stream before its await continuation.
++      controller = false; status = 'none'; return {status: 'success'}
++    })
++    const stop = terminateOvViewer(terminate, () => status === 'none', initialization.promise, 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error}))
++    await vi.advanceTimersByTimeAsync(20)
++    expect(terminate).not.toHaveBeenCalled()
++    initialized = true; status = 'connected'; startEvent.settle(); initialization.resolve()
++    await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqual({ok:true})
++    expect(initialized && !controller).toBe(true)
++    expect(terminate).toHaveBeenCalledOnce()
++  } finally { vi.useRealTimers() }
++})
++it('finishes stale connecting after onStart already succeeded and inProgress arrived late', async () => {
++  vi.useFakeTimers()
++  try {
++    const startEvent = receipt(); startEvent.settle()
++    let status = 'connecting', controller = true
++    const terminate = vi.fn(async () => {
++      if (status === 'connecting') { status = 'cancelled'; return {status: 'inProgress'} }
++      controller = false; status = 'none'; return {status: 'success'}
++    })
++    const stop = terminateOvViewer(terminate, () => status === 'none', Promise.resolve({status:'inProgress'}), 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error}))
++    await vi.advanceTimersByTimeAsync(1100); expect(await guarded).toEqual({ok:true})
++    expect(status).toBe('none'); expect(controller).toBe(false)
++    expect(terminate).toHaveBeenCalledTimes(2)
++  } finally { vi.useRealTimers() }
++})
++it('keeps cancellation through late init then waits for the SDK terminal callback', async () => {
++  vi.useFakeTimers()
++  try {
++    const initialization = deferred(), startEvent = receipt()
++    let status = 'none', done = false
++    const terminate = vi.fn(async () => {
++      if (status === 'connecting') { status = 'cancelled'; return {status:'inProgress'} }
++      status = 'none'; return {status:'success'}
++    })
++    const stop = terminateOvViewer(terminate, () => status === 'none', initialization.promise, 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error})); void stop.then(() => { done = true }, () => {})
++    await vi.advanceTimersByTimeAsync(20)
++    expect(terminate).not.toHaveBeenCalled()
++    status = 'connecting'; initialization.resolve()
++    await vi.advanceTimersByTimeAsync(20)
++    expect(status).toBe('cancelled'); expect(done).toBe(false)
++    // The real SDK wrapper receives canceled and begins its own public terminate.
++    status = 'none'; startEvent.settle()
++    await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqual({ok:true})
++    expect(terminate).toHaveBeenCalledOnce(); expect(done).toBe(true)
++  } finally { vi.useRealTimers() }
++})
++it('does not trust none while a terminal start callback is still pending', async () => {
++  vi.useFakeTimers()
++  try {
++    const startEvent = receipt(); let status = 'connected', done = false
++    const terminate = vi.fn(async () => { status = 'none'; return {status:'success'} })
++    const stop = terminateOvViewer(terminate, () => status === 'none', Promise.resolve(), 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error})); void stop.then(() => { done = true }, () => {})
++    await vi.advanceTimersByTimeAsync(20)
++    expect(done).toBe(false)
++    startEvent.settle(); await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqual({ok:true})
++    expect(done).toBe(true)
++  } finally { vi.useRealTimers() }
++})
++it('does not overlap a retry with SDK automatic termination after canceled onStart', async () => {
++  vi.useFakeTimers()
++  try {
++    const startEvent = receipt(); let status = 'connecting', sdkTerminating = false, destroyed = 0
++    const terminate = vi.fn(async () => {
++      if (sdkTerminating) throw {action:'terminate',status:'error',info:'Stream is already terminating.'}
++      if (status === 'connecting') { status = 'cancelled'; return {status:'inProgress'} }
++      destroyed++; status = 'none'; return {status:'success'}
++    })
++    const stop = terminateOvViewer(terminate, () => status === 'none', Promise.resolve(), 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error}))
++    await vi.advanceTimersByTimeAsync(20)
++    sdkTerminating = true; startEvent.settle()
++    await vi.advanceTimersByTimeAsync(20)
++    // The already-terminating response never creates a second physical teardown.
++    expect(destroyed).toBe(0)
++    sdkTerminating = false; status = 'none'
++    await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqual({ok:true})
++    expect(terminate).toHaveBeenCalledTimes(2)
++  } finally { vi.useRealTimers() }
++})
++it('cleans up a rejected initialization even without an onStart receipt', async () => {
++  vi.useFakeTimers()
++  try {
++    const startEvent = receipt(); let status = 'error'
++    const terminate = vi.fn(async () => { status = 'none'; return {status:'success'} })
++    const stop = terminateOvViewer(terminate, () => status === 'none', Promise.reject(new Error('init')), 1000, 10, startEvent)
++    const guarded = stop.then(() => ({ok:true}), error => ({ok:false,error}))
++    await vi.advanceTimersByTimeAsync(20); expect(await guarded).toEqual({ok:true})
++    expect(terminate).toHaveBeenCalledOnce(); expect(startEvent.settled).toBe(false)
++  } finally { vi.useRealTimers() }
++})
++it('keeps a hung initialization blocked without later destructive calls', async () => {
++  vi.useFakeTimers()
++  try {
++    const initialization = deferred(), startEvent = receipt(), terminate = vi.fn(async () => {})
++    const leases = new OvStreamLeases()
++    const first = leases.open(() => initialization.promise, started => terminateOvViewer(terminate, () => false, started, 100, 10, startEvent))
++    await Promise.resolve()
++    const closing = first.close(), guarded = expect(closing).rejects.toThrow('did not reach idle')
++    const nextStart = vi.fn(async () => {}), next = leases.open(nextStart, async () => {})
++    const queued = expect(next.ready).rejects.toThrow('did not reach idle')
++    await vi.advanceTimersByTimeAsync(100); await guarded; await queued
++    initialization.resolve(); await first.ready
++    await vi.advanceTimersByTimeAsync(20); await next.close()
++    expect(terminate).not.toHaveBeenCalled(); expect(nextStart).not.toHaveBeenCalled()
++  } finally { vi.useRealTimers() }
++})
+--- baseline/ovViewportLifecycle.test.tsx
++++ src/frontend/react/test/ovViewportLifecycle.test.tsx
+@@ -0,0 +1,63 @@
++import { act } from 'react'
++import { createRoot } from 'react-dom/client'
++import { expect, it, vi } from 'vitest'
++
++const sdk = vi.hoisted(() => {
++  let resolve!: () => void
++  const init = new Promise<void>(r => { resolve = r })
++  return { init, resolve, status: 0, config: null as null | {onStart:(event:unknown)=>void} }
++})
++vi.mock('@nvidia/omniverse-webrtc-streaming-library', () => ({
++  StreamStatus: {none:0},
++  AppStreamer: {
++    get streamStatus() { return sdk.status },
++    connect: vi.fn((options:{streamConfig:typeof sdk.config}) => {
++      sdk.config = options.streamConfig
++      return sdk.init.then(() => { sdk.status = 1; return {status:'inProgress'} })
++    }),
++    terminate: vi.fn(async () => {
++      if(sdk.status === 1) {sdk.status = 3; return {status:'inProgress'}}
++      sdk.status = 0; return {status:'success'}
++    }),
++  },
++}))
++vi.mock('../src/useTranslation', () => ({useTranslation:() => ({t:(key:string)=>key})}))
++vi.mock('../src/renderer/ovProtocol', () => ({
++  OvCommandClient:class {dispose=vi.fn()}, ovAckTimeoutDegraded:() => false,
++}))
++vi.mock('../src/renderer/ovStreamLease', async importOriginal => {
++  const original = await importOriginal<typeof import('../src/renderer/ovStreamLease')>()
++  return {...original, ovStreamLeases:new original.OvStreamLeases(), terminateOvViewer:vi.fn(original.terminateOvViewer)}
++})
++import { OvViewport } from '../src/renderer/OvViewport'
++import { terminateOvViewer } from '../src/renderer/ovStreamLease'
++
++it('records terminal SDK start after disposal without starting scene synchronization', async () => {
++  vi.useFakeTimers()
++  const mount = document.createElement('div'); document.body.append(mount)
++  const root = createRoot(mount), snapshot = vi.fn(() => {throw new Error('disposed scene must not serialize')})
++  const onReady = vi.fn()
++  const previousAct = (globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT
++  ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT = true
++  try {
++    await act(async () => {root.render(<OvViewport server="not-contacted.invalid" snapshot={snapshot} projectHash={()=>'hash'} onReady={onReady}/> )})
++    expect(sdk.config).not.toBeNull()
++    await act(async () => {root.unmount()})
++    const calls = vi.mocked(terminateOvViewer).mock.calls
++    expect(calls).toHaveLength(1)
++    const startEvent = calls[0]![5]
++    expect(startEvent).toBeDefined()
++    sdk.config!.onStart({status:'warning'})
++    expect(startEvent!.settled).toBe(false)
++    sdk.config!.onStart({status:'success'})
++    expect(startEvent!.settled).toBe(true)
++    sdk.resolve()
++    await vi.advanceTimersByTimeAsync(50)
++    await expect(vi.mocked(terminateOvViewer).mock.results[0]!.value).resolves.toBeUndefined()
++    expect(sdk.status).toBe(0)
++    expect(snapshot).not.toHaveBeenCalled(); expect(onReady).not.toHaveBeenCalled()
++  } finally {
++    mount.remove(); vi.useRealTimers()
++    ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT = previousAct
++  }
++})

@@ -1,0 +1,30 @@
+..............................................FF.....                    [100%]
+=================================== FAILURES ===================================
+___ test_old_ordinary_and_withdrawn_native_ack_remain_object_path[ordinary] ____
+
+kind = 'ordinary'
+
+    @pytest.mark.parametrize('kind',['ordinary','withdrawn'])
+    def test_old_ordinary_and_withdrawn_native_ack_remain_object_path(kind):
+     payload=ack(native() if kind=='withdrawn' else None)
+     raw,wire=flush([payload],fresh={})
+>    assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
+E    assert ('renderAckJSON' not in {'renderAckJSON': '{"requestId":"controlled","ok":true,"view":{"timeSeconds":null,"selectedUids":[]},"gridDisplay":{"phase":"unsupported","reason":"stream-layout-unresolved","gridPixelVerified":false}}'})
+
+test_native_grid_ack_json_transport.py:56: AssertionError
+___ test_old_ordinary_and_withdrawn_native_ack_remain_object_path[withdrawn] ___
+
+kind = 'withdrawn'
+
+    @pytest.mark.parametrize('kind',['ordinary','withdrawn'])
+    def test_old_ordinary_and_withdrawn_native_ack_remain_object_path(kind):
+     payload=ack(native() if kind=='withdrawn' else None)
+     raw,wire=flush([payload],fresh={})
+>    assert 'renderAckJSON' not in raw[0] and 'nativeGeometry' not in raw[0]['gridDisplay']
+E    assert ('renderAckJSON' not in {'renderAckJSON': '{"requestId":"controlled","ok":true,"view":{"timeSeconds":null,"selectedUids":[]},"gridDisplay":{"phase":"unsupported","reason":"stream-layout-unresolved","gridPixelVerified":false}}'})
+
+test_native_grid_ack_json_transport.py:56: AssertionError
+=========================== short test summary info ============================
+FAILED test_native_grid_ack_json_transport.py::test_old_ordinary_and_withdrawn_native_ack_remain_object_path[ordinary]
+FAILED test_native_grid_ack_json_transport.py::test_old_ordinary_and_withdrawn_native_ack_remain_object_path[withdrawn]
+2 failed, 51 passed in 3.67s

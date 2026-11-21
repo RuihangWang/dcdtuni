@@ -1,0 +1,911 @@
+{
+  "scope": "Read-only extract from hash-bound frozen experimental native source, not current C++ or a source patch.",
+  "originalSourceBytes": 713946,
+  "originalSourceSha256": "c6558bfabc362f2341cd9cd39454c08efe06fc4d1a68896a6c4d61d166061812",
+  "originalArchivePath": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/docs/benchmarks/air-product-presets-2026-10-05/strict-stage-conforming-cones-thin-axis-boxes/dcCartCutCells.C.source.gz",
+  "snippets": [
+    {
+      "label": "Native writer Newell area",
+      "firstLine": 279,
+      "lastLine": 303,
+      "lines": [
+        {
+          "line": 279,
+          "text": "//- Newell normal (magnitude = area) and centroid of a polygon"
+        },
+        {
+          "line": 280,
+          "text": "void polygonNormalCentre"
+        },
+        {
+          "line": 281,
+          "text": "("
+        },
+        {
+          "line": 282,
+          "text": "    const std::vector<point>& pts,"
+        },
+        {
+          "line": 283,
+          "text": "    const std::vector<label>& poly,"
+        },
+        {
+          "line": 284,
+          "text": "    vector& n,"
+        },
+        {
+          "line": 285,
+          "text": "    point& c"
+        },
+        {
+          "line": 286,
+          "text": ")"
+        },
+        {
+          "line": 287,
+          "text": "{"
+        },
+        {
+          "line": 288,
+          "text": "    n = vector::zero;"
+        },
+        {
+          "line": 289,
+          "text": "    c = point::zero;"
+        },
+        {
+          "line": 290,
+          "text": "    const label k = label(poly.size());"
+        },
+        {
+          "line": 291,
+          "text": "    if (k < 3) { return; }"
+        },
+        {
+          "line": 292,
+          "text": "    for (label i = 0; i < k; ++i)"
+        },
+        {
+          "line": 293,
+          "text": "    {"
+        },
+        {
+          "line": 294,
+          "text": "        const point& a = pts[poly[i]];"
+        },
+        {
+          "line": 295,
+          "text": "        const point& b = pts[poly[(i + 1) % k]];"
+        },
+        {
+          "line": 296,
+          "text": "        n.x() += (a.y() - b.y()) * (a.z() + b.z());"
+        },
+        {
+          "line": 297,
+          "text": "        n.y() += (a.z() - b.z()) * (a.x() + b.x());"
+        },
+        {
+          "line": 298,
+          "text": "        n.z() += (a.x() - b.x()) * (a.y() + b.y());"
+        },
+        {
+          "line": 299,
+          "text": "        c += a;"
+        },
+        {
+          "line": 300,
+          "text": "    }"
+        },
+        {
+          "line": 301,
+          "text": "    n *= 0.5;"
+        },
+        {
+          "line": 302,
+          "text": "    c /= scalar(k);"
+        },
+        {
+          "line": 303,
+          "text": "}"
+        }
+      ]
+    },
+    {
+      "label": "Native OF area and centroid arithmetic",
+      "firstLine": 7127,
+      "lastLine": 7177,
+      "lines": [
+        {
+          "line": 7127,
+          "text": "inline void faceAreaCentreOF"
+        },
+        {
+          "line": 7128,
+          "text": "("
+        },
+        {
+          "line": 7129,
+          "text": "    const std::vector<Foam::point>& pts,"
+        },
+        {
+          "line": 7130,
+          "text": "    const std::vector<Foam::label>& poly,"
+        },
+        {
+          "line": 7131,
+          "text": "    Foam::vector& A,"
+        },
+        {
+          "line": 7132,
+          "text": "    Foam::point& C"
+        },
+        {
+          "line": 7133,
+          "text": ")"
+        },
+        {
+          "line": 7134,
+          "text": "{"
+        },
+        {
+          "line": 7135,
+          "text": "    using namespace Foam;"
+        },
+        {
+          "line": 7136,
+          "text": "    A = vector::zero;"
+        },
+        {
+          "line": 7137,
+          "text": "    C = point::zero;"
+        },
+        {
+          "line": 7138,
+          "text": "    const label k = label(poly.size());"
+        },
+        {
+          "line": 7139,
+          "text": "    if (k < 3)"
+        },
+        {
+          "line": 7140,
+          "text": "    {"
+        },
+        {
+          "line": 7141,
+          "text": "        for (label v : poly) { C += pts[v]; }"
+        },
+        {
+          "line": 7142,
+          "text": "        if (k) { C /= scalar(k); }"
+        },
+        {
+          "line": 7143,
+          "text": "        return;"
+        },
+        {
+          "line": 7144,
+          "text": "    }"
+        },
+        {
+          "line": 7145,
+          "text": "    if (k == 3)"
+        },
+        {
+          "line": 7146,
+          "text": "    {"
+        },
+        {
+          "line": 7147,
+          "text": "        C = (pts[poly[0]] + pts[poly[1]] + pts[poly[2]]) / 3.0;"
+        },
+        {
+          "line": 7148,
+          "text": "        A = 0.5 * ((pts[poly[1]] - pts[poly[0]]) ^ (pts[poly[2]] - pts[poly[0]]));"
+        },
+        {
+          "line": 7149,
+          "text": "        return;"
+        },
+        {
+          "line": 7150,
+          "text": "    }"
+        },
+        {
+          "line": 7151,
+          "text": "    point fc = point::zero;"
+        },
+        {
+          "line": 7152,
+          "text": "    for (label i = 0; i < k; ++i) { fc += pts[poly[i]]; }"
+        },
+        {
+          "line": 7153,
+          "text": "    fc /= scalar(k);"
+        },
+        {
+          "line": 7154,
+          "text": "    vector sumN = vector::zero;"
+        },
+        {
+          "line": 7155,
+          "text": "    vector sumAc = vector::zero;"
+        },
+        {
+          "line": 7156,
+          "text": "    scalar sumA = 0;"
+        },
+        {
+          "line": 7157,
+          "text": "    for (label i = 0; i < k; ++i)"
+        },
+        {
+          "line": 7158,
+          "text": "    {"
+        },
+        {
+          "line": 7159,
+          "text": "        const point& p = pts[poly[i]];"
+        },
+        {
+          "line": 7160,
+          "text": "        const point& q = pts[poly[(i + 1) % k]];"
+        },
+        {
+          "line": 7161,
+          "text": "        const vector n = (q - p) ^ (fc - p);"
+        },
+        {
+          "line": 7162,
+          "text": "        const scalar a = mag(n);"
+        },
+        {
+          "line": 7163,
+          "text": "        sumN += n;"
+        },
+        {
+          "line": 7164,
+          "text": "        sumA += a;"
+        },
+        {
+          "line": 7165,
+          "text": "        sumAc += a * (p + q + fc);"
+        },
+        {
+          "line": 7166,
+          "text": "    }"
+        },
+        {
+          "line": 7167,
+          "text": "    if (sumA < ROOTVSMALL)"
+        },
+        {
+          "line": 7168,
+          "text": "    {"
+        },
+        {
+          "line": 7169,
+          "text": "        C = fc;"
+        },
+        {
+          "line": 7170,
+          "text": "        return;"
+        },
+        {
+          "line": 7171,
+          "text": "    }"
+        },
+        {
+          "line": 7172,
+          "text": "    // Match primitiveMeshTools operation order, including rounding at the"
+        },
+        {
+          "line": 7173,
+          "text": "    // strict skewness limit. Algebraically equivalent expressions can fall"
+        },
+        {
+          "line": 7174,
+          "text": "    // on opposite sides of checkMesh's boundary threshold."
+        },
+        {
+          "line": 7175,
+          "text": "    C = (1.0 / 3.0) * sumAc / sumA;"
+        },
+        {
+          "line": 7176,
+          "text": "    A = 0.5 * sumN;"
+        },
+        {
+          "line": 7177,
+          "text": "}"
+        }
+      ]
+    },
+    {
+      "label": "Own candidate vertex clean-plane screen",
+      "firstLine": 9395,
+      "lastLine": 9405,
+      "lines": [
+        {
+          "line": 9395,
+          "text": "            auto clean=[&](scalar plane)"
+        },
+        {
+          "line": 9396,
+          "text": "            {"
+        },
+        {
+          "line": 9397,
+          "text": "                if (!std::isfinite(plane)) { return false; }"
+        },
+        {
+          "line": 9398,
+          "text": "                const scalar share=min(plane-bb.min()[axis],bb.max()[axis]-plane)/span[axis];"
+        },
+        {
+          "line": 9399,
+          "text": "                if (!(share>=.02)) { return false; }"
+        },
+        {
+          "line": 9400,
+          "text": "                for (label v:vertices)"
+        },
+        {
+          "line": 9401,
+          "text": "                {"
+        },
+        {
+          "line": 9402,
+          "text": "                    const scalar distance=mag(m.points[v][axis]-plane);"
+        },
+        {
+          "line": 9403,
+          "text": "                    if (distance!=0 && distance<max(3e-6,.02*span[axis])) { return false; }"
+        },
+        {
+          "line": 9404,
+          "text": "                }"
+        },
+        {
+          "line": 9405,
+          "text": "                return true;"
+        }
+      ]
+    },
+    {
+      "label": "Exact side and actual-double crossing",
+      "firstLine": 9448,
+      "lastLine": 9466,
+      "lines": [
+        {
+          "line": 9448,
+          "text": "            std::vector<signed char> side(m.points.size());"
+        },
+        {
+          "line": 9449,
+          "text": "            for (label p=0;p<label(m.points.size());++p)"
+        },
+        {
+          "line": 9450,
+          "text": "            {"
+        },
+        {
+          "line": 9451,
+          "text": "                const scalar delta=m.points[p][axis]-plane;"
+        },
+        {
+          "line": 9452,
+          "text": "                side[p]=delta==0?0:(delta<0?-1:1);"
+        },
+        {
+          "line": 9453,
+          "text": "            }"
+        },
+        {
+          "line": 9454,
+          "text": "            std::unordered_map<uint64_t,label> crossings;"
+        },
+        {
+          "line": 9455,
+          "text": "            auto crossing=[&](label a,label b)->label"
+        },
+        {
+          "line": 9456,
+          "text": "            {"
+        },
+        {
+          "line": 9457,
+          "text": "                const uint64_t key=edgeKey(a,b);"
+        },
+        {
+          "line": 9458,
+          "text": "                const auto it=crossings.find(key);"
+        },
+        {
+          "line": 9459,
+          "text": "                if (it!=crossings.end()) { return it->second; }"
+        },
+        {
+          "line": 9460,
+          "text": "                if (side[a]==0 || side[b]==0) { return -2; }"
+        },
+        {
+          "line": 9461,
+          "text": "                const scalar da=m.points[a][axis]-plane,db=m.points[b][axis]-plane;"
+        },
+        {
+          "line": 9462,
+          "text": "                point p=m.points[a]+(da/(da-db))*(m.points[b]-m.points[a]);"
+        },
+        {
+          "line": 9463,
+          "text": "                p[axis]=plane;"
+        },
+        {
+          "line": 9464,
+          "text": "                const label id=m.points.size();m.points.push_back(p);side.push_back(0);crossings[key]=id;"
+        },
+        {
+          "line": 9465,
+          "text": "                return id;"
+        },
+        {
+          "line": 9466,
+          "text": "            };"
+        }
+      ]
+    },
+    {
+      "label": "Face split preflight",
+      "firstLine": 12014,
+      "lastLine": 12049,
+      "lines": [
+        {
+          "line": 12014,
+          "text": "        if (!m.faceAlive[f]) { continue; }"
+        },
+        {
+          "line": 12015,
+          "text": "        const auto& poly=m.faces[f];canonical[f]=canonicalCycle(poly);"
+        },
+        {
+          "line": 12016,
+          "text": "        faceAreaCentreOF(m.points,canonical[f],areas[f],centres[f]);"
+        },
+        {
+          "line": 12017,
+          "text": "        vector original;point originalCentre;faceAreaCentreOF(m.points,poly,original,originalCentre);"
+        },
+        {
+          "line": 12018,
+          "text": "        if ((areas[f]&original)<0) { areas[f]=-areas[f]; }"
+        },
+        {
+          "line": 12019,
+          "text": "        const scalar ar=mag(areas[f]);scalar span=0;"
+        },
+        {
+          "line": 12020,
+          "text": "        for (label p:poly) { span=max(span,mag(m.points[p]-centres[f])); }"
+        },
+        {
+          "line": 12021,
+          "text": "        if (poly.size()<3 || !std::isfinite(ar) || ar<=VSMALL || span<=VSMALL"
+        },
+        {
+          "line": 12022,
+          "text": "         || !std::isfinite(centres[f].x()) || !std::isfinite(centres[f].y()) || !std::isfinite(centres[f].z()))"
+        },
+        {
+          "line": 12023,
+          "text": "        { badFace[f]=true;badReason[f]|=1;++unsupportedFaces;continue; }"
+        },
+        {
+          "line": 12024,
+          "text": "        const vector normal=areas[f]/ar;"
+        },
+        {
+          "line": 12025,
+          "text": "        bool convex=true,collinear=false,planar=true;"
+        },
+        {
+          "line": 12026,
+          "text": "        std::set<std::tuple<scalar,scalar,scalar>> unique;"
+        },
+        {
+          "line": 12027,
+          "text": "        for (size_t j=0;j<poly.size();++j)"
+        },
+        {
+          "line": 12028,
+          "text": "        {"
+        },
+        {
+          "line": 12029,
+          "text": "            const label q=poly[j],a=poly[(j+poly.size()-1)%poly.size()],b=poly[(j+1)%poly.size()];"
+        },
+        {
+          "line": 12030,
+          "text": "            const point& x=m.points[q];unique.emplace(x.x(),x.y(),x.z());"
+        },
+        {
+          "line": 12031,
+          "text": "            offPlane[f]=max(offPlane[f],mag((x-centres[f])&normal));"
+        },
+        {
+          "line": 12032,
+          "text": "            if (!std::isfinite(x.x()) || !std::isfinite(x.y()) || !std::isfinite(x.z())"
+        },
+        {
+          "line": 12033,
+          "text": "             || mag((x-centres[f])&normal)>1e-10*span) { planar=false; }"
+        },
+        {
+          "line": 12034,
+          "text": "            const vector edge=m.points[b]-x;const scalar len=mag(edge);"
+        },
+        {
+          "line": 12035,
+          "text": "            if (len<=VSMALL) { planar=false;break; }"
+        },
+        {
+          "line": 12036,
+          "text": "            for (label v:poly)"
+        },
+        {
+          "line": 12037,
+          "text": "            { if ((((edge^(m.points[v]-x))&normal)/len)<-1e-12*span) { convex=false; } }"
+        },
+        {
+          "line": 12038,
+          "text": "            const vector da=m.points[a]-x,db=m.points[b]-x;"
+        },
+        {
+          "line": 12039,
+          "text": "            if ((da&db)<0 && mag(da^db)<=1e-12*mag(da)*mag(db)) { collinear=true; }"
+        },
+        {
+          "line": 12040,
+          "text": "        }"
+        },
+        {
+          "line": 12041,
+          "text": "        splitFace[f]=collinear || !convex;"
+        },
+        {
+          "line": 12042,
+          "text": "        if (!planar) { badReason[f]|=2; }"
+        },
+        {
+          "line": 12043,
+          "text": "        if (unique.size()!=poly.size()) { badReason[f]|=4; }"
+        },
+        {
+          "line": 12044,
+          "text": "        if (mag(original-areas[f])/ar>1e-10 || mag(originalCentre-centres[f])/span>1e-10) { badReason[f]|=8; }"
+        },
+        {
+          "line": 12045,
+          "text": "        // Keeping one original warped base changes neither its discrete"
+        },
+        {
+          "line": 12046,
+          "text": "        // polygon nor its area/centre. Only split warped bases are refused."
+        },
+        {
+          "line": 12047,
+          "text": "        const bool keepWarped=getenv(\"DCCART_CONES_KEEP_UNSPLIT_WARPED\")!=nullptr && !splitFace[f];"
+        },
+        {
+          "line": 12048,
+          "text": "        if ((!planar && !keepWarped) || unique.size()!=poly.size() || (badReason[f]&8))"
+        },
+        {
+          "line": 12049,
+          "text": "        { badFace[f]=true;++unsupportedFaces; }"
+        }
+      ]
+    },
+    {
+      "label": "Split face seeds incident cell",
+      "firstLine": 12151,
+      "lastLine": 12164,
+      "lines": [
+        {
+          "line": 12151,
+          "text": "        bool flag=false;"
+        },
+        {
+          "line": 12152,
+          "text": "        for (label f:cf[c])"
+        },
+        {
+          "line": 12153,
+          "text": "        {"
+        },
+        {
+          "line": 12154,
+          "text": "            if (splitFace[f] || badFace[f]) { flag=true;break; }"
+        },
+        {
+          "line": 12155,
+          "text": "            vector normal=areas[f]/max(mag(areas[f]),VSMALL);if (m.owner[f]!=c) { normal=-normal; }"
+        },
+        {
+          "line": 12156,
+          "text": "            for (label other:cf[c]) if (other!=f)"
+        },
+        {
+          "line": 12157,
+          "text": "            {"
+        },
+        {
+          "line": 12158,
+          "text": "                const vector d=centres[other]-centres[f];"
+        },
+        {
+          "line": 12159,
+          "text": "                if ((d&normal)/max(mag(d),VSMALL)>-1e-6) { flag=true;break; }"
+        },
+        {
+          "line": 12160,
+          "text": "            }"
+        },
+        {
+          "line": 12161,
+          "text": "            if (flag) { break; }"
+        },
+        {
+          "line": 12162,
+          "text": "        }"
+        },
+        {
+          "line": 12163,
+          "text": "        if (flag) { marked[c]=true;++seeded; }"
+        },
+        {
+          "line": 12164,
+          "text": "    }"
+        }
+      ]
+    },
+    {
+      "label": "Unchanged writer area gate",
+      "firstLine": 12359,
+      "lastLine": 12368,
+      "lines": [
+        {
+          "line": 12359,
+          "text": "    // Match the writer's absolute area gate, as well as the signed fan"
+        },
+        {
+          "line": 12360,
+          "text": "    // criterion. Roundoff-positive collinear triangles would otherwise be"
+        },
+        {
+          "line": 12361,
+          "text": "    // discarded by toPolyMesh, leaving a three-faced open tetrahedron."
+        },
+        {
+          "line": 12362,
+          "text": "    auto writablePolygon=[&](const std::vector<label>& poly)"
+        },
+        {
+          "line": 12363,
+          "text": "    {"
+        },
+        {
+          "line": 12364,
+          "text": "        vector n;point c;polygonNormalCentre(m.points,poly,n,c);"
+        },
+        {
+          "line": 12365,
+          "text": "        return std::isfinite(n.x()) && std::isfinite(n.y()) && std::isfinite(n.z())"
+        },
+        {
+          "line": 12366,
+          "text": "            && std::isfinite(c.x()) && std::isfinite(c.y()) && std::isfinite(c.z())"
+        },
+        {
+          "line": 12367,
+          "text": "            && mag(n)>1e-12;"
+        },
+        {
+          "line": 12368,
+          "text": "    };"
+        }
+      ]
+    },
+    {
+      "label": "Convex vertex fan and centre fallback",
+      "firstLine": 12717,
+      "lastLine": 12736,
+      "lines": [
+        {
+          "line": 12717,
+          "text": "        if (convex)"
+        },
+        {
+          "line": 12718,
+          "text": "        {"
+        },
+        {
+          "line": 12719,
+          "text": "            if (getenv(\"DCCART_CONES_PREFER_VERTEX_FAN\")!=nullptr) for (size_t k=0;k<poly.size();++k)"
+        },
+        {
+          "line": 12720,
+          "text": "            {"
+        },
+        {
+          "line": 12721,
+          "text": "                std::vector<std::vector<label>> trial;bool positive=true;"
+        },
+        {
+          "line": 12722,
+          "text": "                for (size_t j=1;j+1<poly.size();++j)"
+        },
+        {
+          "line": 12723,
+          "text": "                {"
+        },
+        {
+          "line": 12724,
+          "text": "                    const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];"
+        },
+        {
+          "line": 12725,
+          "text": "                    const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;"
+        },
+        {
+          "line": 12726,
+          "text": "                    if (!std::isfinite(area) || area<=1e-15*mag(av)"
+        },
+        {
+          "line": 12727,
+          "text": "                     || !writablePolygon({a,b,c})) { positive=false;break; }trial.push_back({a,b,c});"
+        },
+        {
+          "line": 12728,
+          "text": "                }"
+        },
+        {
+          "line": 12729,
+          "text": "                if (positive) { pieces=std::move(trial);break; }"
+        },
+        {
+          "line": 12730,
+          "text": "            }"
+        },
+        {
+          "line": 12731,
+          "text": "            if (!pieces.empty()) { ++anchorFan; }"
+        },
+        {
+          "line": 12732,
+          "text": "            else"
+        },
+        {
+          "line": 12733,
+          "text": "            {"
+        },
+        {
+          "line": 12734,
+          "text": "                const label q=insertPoint(fc,true);if (q<0) { ++closePoints;continue; }"
+        },
+        {
+          "line": 12735,
+          "text": "                for (size_t j=0;j<poly.size();++j) { pieces.push_back({poly[j],poly[(j+1)%poly.size()],q}); }"
+        },
+        {
+          "line": 12736,
+          "text": "                ++faceFan;"
+        }
+      ]
+    },
+    {
+      "label": "Nonconvex no-anchor and final piece counters",
+      "firstLine": 12763,
+      "lastLine": 12786,
+      "lines": [
+        {
+          "line": 12763,
+          "text": "            {"
+        },
+        {
+          "line": 12764,
+          "text": "                std::vector<std::vector<label>> trial;bool positive=true;"
+        },
+        {
+          "line": 12765,
+          "text": "                for (size_t j=1;j+1<poly.size();++j)"
+        },
+        {
+          "line": 12766,
+          "text": "                {"
+        },
+        {
+          "line": 12767,
+          "text": "                    const label a=poly[k],b=poly[(k+j)%poly.size()],c=poly[(k+j+1)%poly.size()];"
+        },
+        {
+          "line": 12768,
+          "text": "                    const scalar area=(((m.points[b]-m.points[a])^(m.points[c]-m.points[a]))&normal)*.5;"
+        },
+        {
+          "line": 12769,
+          "text": "                    if (!std::isfinite(area) || area<=1e-15*mag(av)"
+        },
+        {
+          "line": 12770,
+          "text": "                     || !writablePolygon({a,b,c})) { positive=false;break; }"
+        },
+        {
+          "line": 12771,
+          "text": "                    trial.push_back({a,b,c});"
+        },
+        {
+          "line": 12772,
+          "text": "                }"
+        },
+        {
+          "line": 12773,
+          "text": "                if (positive) { pieces=std::move(trial);break; }"
+        },
+        {
+          "line": 12774,
+          "text": "            }"
+        },
+        {
+          "line": 12775,
+          "text": "            if (pieces.empty()) { ++partitionFailures;continue; }++anchorFan;"
+        },
+        {
+          "line": 12776,
+          "text": "        }"
+        },
+        {
+          "line": 12777,
+          "text": "        const label priorQualityFanChanges=qualityFanChanged;"
+        },
+        {
+          "line": 12778,
+          "text": "        if (getenv(\"DCCART_CONES_REFAN_QUALITY\"))"
+        },
+        {
+          "line": 12779,
+          "text": "        { improveCanonicalFan(poly,normal,n<0 && !coupled[f],pieces); }"
+        },
+        {
+          "line": 12780,
+          "text": "        const bool qualityRefanSelected=qualityFanChanged>priorQualityFanChanges;"
+        },
+        {
+          "line": 12781,
+          "text": "        scalar totalArea=0;point areaMoment(point::zero);vector totalVector(vector::zero);"
+        },
+        {
+          "line": 12782,
+          "text": "        for (const auto& p:pieces)"
+        },
+        {
+          "line": 12783,
+          "text": "        {"
+        },
+        {
+          "line": 12784,
+          "text": "            vector a;point c;faceAreaCentreOF(m.points,p,a,c);const scalar amount=mag(a);"
+        },
+        {
+          "line": 12785,
+          "text": "            if (!std::isfinite(amount) || !std::isfinite(c.x()) || !std::isfinite(c.y()) || !std::isfinite(c.z())"
+        },
+        {
+          "line": 12786,
+          "text": "             || !std::isfinite(a&av) || (a&av)<=0 || amount<=VSMALL || !writablePolygon(p)) { ++partitionFailures; }"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/domainProject.test.ts (39 tests | 3 failed | 36 skipped) 50ms
+   × document extensions remain separate from strict solver snapshots > preserves the existing migration 'coldPlateSpec' dictionary own __proto__ definition 33ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > preserves the existing migration 'fluid.type' dictionary own __proto__ definition 3ms
+     → expected false to be true // Object.is equality
+   × document extensions remain separate from strict solver snapshots > keeps existing migration server physics matched by own equipmentId and rejects inherited phantom rows 11ms
+     → expected { volumeFlowRate: 0.42, …(1) } to deeply equal {}
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 36 skipped (39)
+   Start at  20:25:23
+   Duration  4.50s (transform 1.55s, setup 0ms, collect 3.27s, tests 50ms, environment 841ms, prepare 83ms)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > preserves the existing migration 'coldPlateSpec' dictionary own __proto__ definition
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > preserves the existing migration 'fluid.type' dictionary own __proto__ definition
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/domainProject.test.ts:536:75
+    534|     if (!loaded.ok) return
+    535|     const dictionary = path.reduce((value, key) => value[key], loaded.…
+    536|     expect(Object.prototype.hasOwnProperty.call(dictionary, '__proto__…
+       |                                                                           ^
+    537|     expect(Object.getPrototypeOf(dictionary)).toBe(Object.prototype)
+    538|     const reopened = readProjectFileText(serializeProjectState(loaded.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/domainProject.test.ts > document extensions remain separate from strict solver snapshots > keeps existing migration server physics matched by own equipmentId and rejects inherited phantom rows
+AssertionError: expected { volumeFlowRate: 0.42, …(1) } to deeply equal {}
+
+- Expected
++ Received
+
+- Object {}
++ Object {
++   "fixedTemperature": 48,
++   "volumeFlowRate": 0.42,
++ }
+
+ ❯ test/domainProject.test.ts:598:38
+    596|       volumeFlowRate: .1, server_p: { volumeFlowRate: .42, fixedTemper…
+    597|     })
+    598|     expect(servers.server_p.cooling).toEqual({})
+       |                                      ^
+    599|     expect(Object.getPrototypeOf(servers)).toBe(Object.prototype)
+    600|     expect(Object.prototype).not.toHaveProperty('volumeFlowRate')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+

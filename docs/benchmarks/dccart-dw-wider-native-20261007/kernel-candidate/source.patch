@@ -1,0 +1,84 @@
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H
+@@ -8,6 +8,7 @@
+ #include <chrono>
+ #include <cmath>
+ #include <cstring>
++#include <cstdlib>
+ #include <cstdint>
+ #include <functional>
+ #include <limits>
+@@ -120,6 +121,11 @@
+     return out;
+ }
+ enum class ObjectiveKind { Ratio, DWeightCount };
++// Private policy gate: never expands parallel or Ratio searches.
++inline bool widerDWeightSearchEnabled(const char* flag,bool parallel)
++{
++    return !parallel && flag && std::strcmp(flag,"1")==0;
++}
+ 
+ struct Evaluation
+ {
+@@ -147,7 +153,8 @@
+     unsigned dimension,
+     const std::function<Evaluation(const Row&)>& evaluate,
+     const std::function<bool()>& available,
+-    ObjectiveKind objectiveKind=ObjectiveKind::Ratio
++    ObjectiveKind objectiveKind=ObjectiveKind::Ratio,
++    bool widerDWeightSearch=false
+ )
+ {
+     Search out; out.parameters.assign(dimension,0);
+@@ -163,6 +170,8 @@
+         return e.valid && std::isfinite(e.objective)
+             && !e.constraints.empty() && finite(e.constraints);
+     };
++    const bool widerDW=widerDWeightSearch && objectiveKind==ObjectiveKind::DWeightCount;
++    const double trustBound=widerDW ? .2 : .08;
+     Row q(dimension,0); Evaluation current;
+     if (!request(q,current)) return out;
+     const double initialHardDW=current.hardDW;
+@@ -188,18 +197,19 @@
+         bool accepted=false;
+         for (double radius:{.004,.002,.001,.0005})
+         {
++            if (widerDW) radius*=5; // DW only: .02/.01/.005/.0025.
+             Row desired=grad;
+             for (double& x:desired) x*=-radius/n;
+             Matrix a=jac; Row b=current.constraints;
+             for (unsigned k=0; k<dimension; ++k)
+             {
+                 Row row(dimension,0); row[k]=1;
+-                a.push_back(row); b.push_back(q[k]+.08);
++                a.push_back(row); b.push_back(q[k]+trustBound);
+             }
+             for (unsigned k=0; k<dimension; ++k)
+             {
+                 Row row(dimension,0); row[k]=-1;
+-                a.push_back(row); b.push_back(.08-q[k]);
++                a.push_back(row); b.push_back(trustBound-q[k]);
+             }
+             const Projection projected=project(desired,a,b);
+             out.projectionUpdates+=projected.updates;
+@@ -1398,6 +1408,11 @@
+     // cannot be interrupted. Total time is measured and overrun rejects changes.
+     auto available=[&]() { return allowance()>3; };
+     Result result;
++    const bool widerDWeightSearch=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
++        (std::getenv("DCCART_PRIVATE_DW_WIDER_SEARCH"),Pstream::parRun());
++    if (widerDWeightSearch)
++        Pout<< "PRIVATE wider DW search policy: trustBox=.2 radiusFactor=5"
++            << " requestsCap=256 iterationsCap=32 stageCap=20; actual guards retained" << nl;
+ 
+     // This is an unconditional initial installed boundary exchange, followed
+     // by one max reduction: the warning ceiling includes real coupled neighbours.
+@@ -1616,7 +1631,7 @@
+         };
+         ++result.proposed;if (dw) ++result.dwProposed;
+         const auto search=dcCartFiniteRepairKernel::propose
+-            (proposal.dimension,evaluate,available,proposal.kind);
++            (proposal.dimension,evaluate,available,proposal.kind,dw && widerDWeightSearch);
+         result.requests+=search.requests;
+         if (search.stoppedByRequestCap) ++result.requestCapStopped;
+         if (search.stoppedByTimeBudget) ++result.budgetStopped;

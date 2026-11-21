@@ -1,0 +1,237 @@
+{
+  "allPayloadSHAAndSizeExact": true,
+  "findings": [
+    {
+      "condition": "if (!relative || relative.startsWith(\"..\" + path.sep) || path.isAbsolute(relative)) {",
+      "coverage": "referenceConsumerPaths.test.ts tests /tmp/foreign.log, not exact checkout parent.",
+      "failure": "path.relative(CHECKOUT_ROOT, parent(CHECKOUT_ROOT)) is exactly ..; it is neither empty nor absolute and does not start with ../. Thus explicit checkout parent is accepted. It is ordinarily a directory so later file reading can fail, but ownership validation and possible log watching already crossed checkout boundary.",
+      "id": "vite-exact-parent",
+      "line": 14,
+      "priority": 2,
+      "requestedPrivateV2": "Reject relative===.. as well; add exact-parent negative case for every read channel.",
+      "source": "src/frontend/omniverse/cfd_demo/web/vite.config.ts",
+      "sourceSHA256": "4cbb9f8611a291687ee400c5e474b615c6a50843b68db441cd83cece77237328"
+    },
+    {
+      "authorSceneContract": "CopySpec into live RootLayer; finally restores previous edit target. No SessionLayer author or clear here.",
+      "authorSceneLines": [
+        471,
+        472,
+        487,
+        493,
+        520,
+        521
+      ],
+      "authorSceneSHA256": "b091f04a76a23bd1a9f0776e9feb4d8365ccdd504d2c9f594b95fc8673d1e484",
+      "authorSceneSource": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py",
+      "coverage": "Current focused CPU tests use CreateInMemory default RootLayer, no SetEditTarget/GetSessionLayer composition case. They demonstrate root-target mask behavior and pre-hidden preservation, not arbitrary-layer restoration.",
+      "failure": "Mask reads composed authored opinion/value and writes through current edit target, without selecting/restoring a mask layer. With caller SessionLayer target, MakeInvisible writes Session; author_scene only replaces RootLayer. On same hashed path reauthor, stale Session invisible remains. install deletes old RenderScene saves and captures stale mask as original invisible; Off reauthors invisible and leaves shell hidden. Restoration also cannot infer edited-layer absence from composed HasAuthoredValueOpinion.",
+      "id": "non-root-mask-reauthor-leakage",
+      "lines": [
+        279,
+        290,
+        304,
+        306,
+        307,
+        314,
+        317
+      ],
+      "priority": 2,
+      "requestedPrivateV2": "Define target-layer ownership and exact opinion restoration; preserve caller edit target in finally. Add real CPU USD Session/non-root edit target→author_scene→mask→same-path reauthor→Off RED/GREEN, plus author_scene RootLayer copy/edit-target restoration tests.",
+      "source": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py",
+      "sourceSHA256": "897705e6172001e2a8b599620e85440673c60930366c7fdfd479543daeb6ee89"
+    }
+  ],
+  "inputManifestSHA256": "4ed37a7f2bf2f8987618b18375817056d0b328524ad1643d412fd7ae5b61d906",
+  "inputPacket": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-room-mask-private-20261006",
+  "mismatches": [],
+  "observations": [
+    "Default-root tests exercise actual author_scene/mask code; legacy Room paths and derived roomShellPaths are both masked. Repeated On retains first save; default-root reauthor and frame/project teardown restore user pre-hidden state.",
+    "Production explicit target setters are render_scene.py483/517 and result_layers_usd.py410/426: temporary RootLayer then caller target restoration. handlers/extension do not pin mask target; scene.py738 recreates stage only. No guarantee that caller target remains RootLayer across global Kit edits was found in this bounded scope.",
+    "Managed launch overrides dataset/tree metadata destinations. JSON uses checkout validation, O_NOFOLLOW held directory fds, O_EXCL temporary and atomic replace; serialization failure preserves old file. NumPy/VTK/CPD outputs retain precondition-only safety claim.",
+    "Role tagging is walls/floors isRoomBoundary===true only, optional schema enum, no name fallback or physics/model visibility mutation.",
+    "load_dataset/reset_scene/_clear_display call mask Off; project clear additionally does so outside teardown exception handler. Actual Kit rendering/occlusion/frame switching was not exercised."
+  ],
+  "payloadBytes": 972784,
+  "payloadCount": 89,
+  "productionEditTargetSourceBindings": [
+    {
+      "editTargetSites": [
+        {
+          "line": 468,
+          "text": "previous_target = stage.GetEditTarget()"
+        },
+        {
+          "line": 483,
+          "text": "stage.SetEditTarget(root_layer)"
+        },
+        {
+          "line": 517,
+          "text": "stage.SetEditTarget(previous_target)"
+        }
+      ],
+      "newStageSites": [],
+      "sha256": "701a23d4867d3e33b58bb99356d7e2d7a97fe8b825b434a6f6a011bff000f79e",
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py"
+    },
+    {
+      "editTargetSites": [
+        {
+          "line": 404,
+          "text": "previous_target = stage.GetEditTarget()"
+        },
+        {
+          "line": 410,
+          "text": "stage.SetEditTarget(root_layer)"
+        },
+        {
+          "line": 426,
+          "text": "stage.SetEditTarget(previous_target)"
+        }
+      ],
+      "newStageSites": [],
+      "sha256": "d19e4243493835590dc66565062393d1eb941dd497546452a26a60253bd9fcdb",
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/result_layers_usd.py"
+    },
+    {
+      "editTargetSites": [],
+      "newStageSites": [],
+      "sha256": "026351eb3bac4e77096d4b7ab84c77d0eaf1b7ad7ae22e1a4d59231adf969808",
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py"
+    },
+    {
+      "editTargetSites": [],
+      "newStageSites": [],
+      "sha256": "9df86c19ad3f4b60da142cc292e804fd6e7ccd5cb4a719d967552aeea71f1989",
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py"
+    },
+    {
+      "editTargetSites": [],
+      "newStageSites": [
+        {
+          "line": 738,
+          "text": "await ctx.new_stage_async()"
+        }
+      ],
+      "sha256": "da5396b3b50dab66dc3cf0cda4fcdb79f083f7a2e79dd8706b9c745dcbacfbc9",
+      "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scene.py"
+    }
+  ],
+  "schema": "dcdtuni-ov-owned-output-mask-independent-review/v1",
+  "scope": {
+    "CPU": [
+      32,
+      33,
+      34,
+      35
+    ],
+    "CUDA_VISIBLE_DEVICES": "",
+    "TMP": "No temp/cache files created; only this receipt directory",
+    "execution": "Read-only source/raw-byte analysis; no tests/Kit/USD runtime/build/native CFD/API/UI/Git/service/restart",
+    "writes": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-owned-output-mask-independent-review-20261006"
+  },
+  "sourceBindings": [
+    {
+      "afterSHA256": "10fe87e166d8e2fed124316398e278fba39806571e3cad40b0f9cc055c79cc97",
+      "beforeSHA256": "aae44ef3e8dd6b971b48f0dd35820ca2f2ade56b9ef3ebbfd0504a66cc6461b0",
+      "liveOriginalHeld": true,
+      "liveSHA256": "aae44ef3e8dd6b971b48f0dd35820ca2f2ade56b9ef3ebbfd0504a66cc6461b0",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/owned_paths.py"
+    },
+    {
+      "afterSHA256": "dd6ba9b1fd11f913963d0f12fa22a8fd801189bf0aa043814ea1462f7fd77169",
+      "beforeSHA256": "da5396b3b50dab66dc3cf0cda4fcdb79f083f7a2e79dd8706b9c745dcbacfbc9",
+      "liveOriginalHeld": true,
+      "liveSHA256": "da5396b3b50dab66dc3cf0cda4fcdb79f083f7a2e79dd8706b9c745dcbacfbc9",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scene.py"
+    },
+    {
+      "afterSHA256": "5e5055d56f7a778d3888abfb72e7339b7e8ced8efb379181153d5dd8af9c6e8a",
+      "beforeSHA256": "25fedf47e0ce6e3f71b500bcba46cf55fa060fb24fa863bbd5fa19e173fa7502",
+      "liveOriginalHeld": true,
+      "liveSHA256": "25fedf47e0ce6e3f71b500bcba46cf55fa060fb24fa863bbd5fa19e173fa7502",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/scenetree.py"
+    },
+    {
+      "afterSHA256": "77648135c6ef753d455b5ef8a43433e5393c0d330b13707e1bab51deb74a671c",
+      "beforeSHA256": "57603ddb47d4ccd91447ac0b90f6a18db29b32130dba9d9a6c7946e39c0b8fa9",
+      "liveOriginalHeld": true,
+      "liveSHA256": "57603ddb47d4ccd91447ac0b90f6a18db29b32130dba9d9a6c7946e39c0b8fa9",
+      "relativePath": "src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py"
+    },
+    {
+      "afterSHA256": "4cbb9f8611a291687ee400c5e474b615c6a50843b68db441cd83cece77237328",
+      "beforeSHA256": "857134b301bfce10a95beb39697e47938ee688daa1f406402b876f0539677f05",
+      "liveOriginalHeld": true,
+      "liveSHA256": "857134b301bfce10a95beb39697e47938ee688daa1f406402b876f0539677f05",
+      "relativePath": "src/frontend/omniverse/cfd_demo/web/vite.config.ts"
+    },
+    {
+      "afterSHA256": "fc915c31d826a91048418e397580b9e4c85e3612c36fcb08766ad5b4043ac5e9",
+      "beforeSHA256": "0277265af35686ebf979516ff8f1d11e62234fa0d4f204da641cf86088610132",
+      "liveOriginalHeld": true,
+      "liveSHA256": "0277265af35686ebf979516ff8f1d11e62234fa0d4f204da641cf86088610132",
+      "relativePath": "src/frontend/react/src/renderer/sceneSnapshot.ts"
+    },
+    {
+      "afterSHA256": "4cc217daf2f447cd426714354265ee98700ef144e2c868693ac1a1a063fed808",
+      "beforeSHA256": "dbf1bb209ce0315c9ced8177c0d2d006bd195d1acabf10e899ab864599434834",
+      "liveOriginalHeld": true,
+      "liveSHA256": "dbf1bb209ce0315c9ced8177c0d2d006bd195d1acabf10e899ab864599434834",
+      "relativePath": "src/frontend/shared/schema/render-scene.schema.json"
+    },
+    {
+      "afterSHA256": "b091f04a76a23bd1a9f0776e9feb4d8365ccdd504d2c9f594b95fc8673d1e484",
+      "beforeSHA256": "701a23d4867d3e33b58bb99356d7e2d7a97fe8b825b434a6f6a011bff000f79e",
+      "liveOriginalHeld": true,
+      "liveSHA256": "701a23d4867d3e33b58bb99356d7e2d7a97fe8b825b434a6f6a011bff000f79e",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/render_scene.py"
+    },
+    {
+      "afterSHA256": "e4b4823c4a0a21dbfcc56417749a260ffda22acfeece970e8aa9015e7e15705f",
+      "beforeSHA256": "9df86c19ad3f4b60da142cc292e804fd6e7ccd5cb4a719d967552aeea71f1989",
+      "liveOriginalHeld": true,
+      "liveSHA256": "9df86c19ad3f4b60da142cc292e804fd6e7ccd5cb4a719d967552aeea71f1989",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py"
+    },
+    {
+      "afterSHA256": "897705e6172001e2a8b599620e85440673c60930366c7fdfd479543daeb6ee89",
+      "beforeSHA256": "026351eb3bac4e77096d4b7ab84c77d0eaf1b7ad7ae22e1a4d59231adf969808",
+      "liveOriginalHeld": true,
+      "liveSHA256": "026351eb3bac4e77096d4b7ab84c77d0eaf1b7ad7ae22e1a4d59231adf969808",
+      "relativePath": "src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py"
+    }
+  ],
+  "storedResultsScope": {
+    "originalActualWriterMaskRed": {
+      "failed": 5,
+      "scope": "actual writer, actual mask and legacy load_dataset functions; no outside file writes"
+    },
+    "originalCleanupErrorRed": {
+      "failed": 1
+    },
+    "originalFeRedValid": {
+      "failed": 4,
+      "passed": 1
+    },
+    "privateFrontendFinal": {
+      "passed": 5
+    },
+    "privatePythonFinal": {
+      "passed": 38,
+      "scope": "20 focused +18 existing render_scene tests; actual CPU in-memory USD, importer mocked; no converter"
+    },
+    "privateTypecheck": {
+      "returncode": 0,
+      "scope": "private copied renderer + tests, not production build"
+    }
+  },
+  "testSourceBinding": {
+    "GetSessionLayerMentions": 0,
+    "SetEditTargetMentions": 0,
+    "lines": 371,
+    "sha256": "e9c01cc451ef73db69237e5b404bb5bf7f1425008e9ddfba605c3b3391d973be",
+    "source": "tests/test_private_outputs_mask.py"
+  },
+  "verdict": "Normal application held by ROOT. Preserve this original89-payload packet; ROOT accepted both findings and authorized CTX to create a new PRIVATE v2 with negative controls. No production changes."
+}

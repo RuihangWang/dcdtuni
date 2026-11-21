@@ -1,0 +1,81 @@
+{
+  "scope": "SYNTHETIC ANALYTIC FIXTURE. Not NV topology, vendor data, measurements or simulation results.",
+  "project": {
+    "path": "case/MMS_Product/MMS_product.cfdproj",
+    "sha256": "c2711de1b2e9a8641f84d35701ef1547853c99fb7ac6b1dac5c42ca13cda7e9c"
+  },
+  "derived": {
+    "path": "docs/benchmarks/fixtures/mms-product-v3.liquidrun",
+    "sha256": "7271f03ed9fd6b42d5a25fbf183b97a6c3f8d7f9344643b91a353d7803963822",
+    "format": "liquidrun",
+    "version": "3.0"
+  },
+  "mms_targets": {
+    "ua_cp_W_per_K": 100,
+    "c_solid_J_per_K": 1000,
+    "v_fluid_m3": 0.002,
+    "ua_hx_W_per_K": 500,
+    "q_baseline_W": 100,
+    "primary_flow_kg_s": 0.1,
+    "primary_inlet_K": 290,
+    "primary_volume_m3": 0.001,
+    "secondary_volume_m3": 0.002,
+    "rho_kg_m3": 997,
+    "cp_J_kgK": 4182,
+    "dt_s": 1,
+    "n_t": 61
+  },
+  "source_provenance": {
+    "fixture_revision": "mms-product-1",
+    "source_project": "case/Shinaide_Liquid/Shinaide_hybrid_cpu.cfdproj",
+    "template_sha256": "d00c6a0b32c350ec680b604e9da014507916a4d07bd4a90d1a20207290ee68bb",
+    "topology": {
+      "source": "mock",
+      "reference": "tools/mms_product_project.ts",
+      "description": "Single CDU zone, single rack with one equivalent server cold plate; one energy valve + one return tee + supply/return isolation valves, all fixed open. One equivalent pump and a two-fluid-volume HX (no vendor internal topology)."
+    },
+    "geometry": {
+      "source": "mock",
+      "description": "6 x 4 x 3 m minimal room; generic construction shapes cloned from own Shinaide fixture; line lengths from the common geometry compiler."
+    },
+    "thermal": {
+      "source": "mock",
+      "description": "UA_cp=100 W/K, C_solid=1000 J/K, V_fluid=2 L, UA_hx=500 W/K, baseline load 100 W, primary 0.1 kg/s at 290 K FIXED supply, primary/secondary mixed volumes 1 L / 2 L, water rho 997 / cp 4182. Chosen for analytic tractability (lumped linear thermal ODE with closed-form step response); secondary flow comes from the hydraulic solve and is asserted constant by the acceptance script."
+    },
+    "missing": [
+      "everything real: this fixture exists only to verify the transient DAE solver against a manufactured closed form"
+    ]
+  },
+  "compiler_modules": [
+    "src/frontend/react/src/liquid/liquidExperiment.ts",
+    "src/frontend/react/src/liquid/dynamicLiquidGraph.ts",
+    "src/frontend/shared/js/liquid_graphgen.js"
+  ],
+  "validation": {
+    "source_project_unchanged": true,
+    "racks": 1,
+    "nodes": 14,
+    "edges": 14,
+    "edge_types": {
+      "pump": 1,
+      "heat_exchanger": 1,
+      "valve": 3,
+      "cold_plate": 1,
+      "pipe": 8
+    },
+    "connected_components": 1,
+    "time": {
+      "dt_s": 1,
+      "N_t": 61,
+      "bdf_order": 1
+    },
+    "primary_circuit": {
+      "edge_id": "mms_cdu_hx",
+      "flow_kg_s": 0.1,
+      "inlet_K": 290,
+      "primary_volume_m3": 0.001,
+      "secondary_volume_m3": 0.002
+    },
+    "solver_executed": false
+  }
+}

@@ -1,0 +1,100 @@
+--- src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H.before
++++ src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -37,6 +37,9 @@
+ #include "wordList.H"
+ #include <vector>
+ #include <functional>
++#include <memory>
++#include <map>
++#include <string>
+ 
+ namespace Foam
+ {
+@@ -47,6 +50,13 @@
+ class dcCartCutCells
+ {
+ public:
++
++    struct writerCoupledBaseline;
++    struct writerBindings
++    {
++        // Native input slot -> the actual compact polyMesh slot.
++        std::vector<label> cell, face, point, alias;
++    };
+ 
+     //- The mutable mesh the passes work on
+     struct cutMesh
+@@ -87,6 +97,34 @@
+         //- Points [0, nGridPoints) are octree grid corners, all further
+         //  apart than the coincident-point tolerance (0: not known)
+         label nGridPoints = 0;
++        // Empty unless the default-OFF literal experiment builds its one
++        // preoperator installed-writer oracle. Normal authorization never
++        // depends on optional TRACE files.
++        std::shared_ptr<writerCoupledBaseline> writerBaseline;
++    };
++
++    struct writerCoupledFace
++    {
++        label nativeFace=-1, nativeOwner=-1, nativeNeighbour=-1;
++        label rawPatch=-1, rawZone=-1, relativeFace=-1, compactFace=-1, compactOwner=-1;
++        std::string patchName, patchType, patchRole;
++        std::vector<label> nativePoints, pointAliases, ringAliases, compactPoints;
++        std::vector<point> coordinates;
++        vector area=vector::zero;
++        point faceCentre=point::zero, cellCentre=point::zero;
++        scalar volume=0;
++        std::vector<std::pair<std::string,bool>> zoneRoles;
++    };
++
++    struct writerCoupledBaseline
++    {
++        // Earliest immutable preoperator inputs; never updated after a union.
++        std::shared_ptr<const cutMesh> checkpoint;
++        std::vector<writerCoupledFace> faces;
++        std::map<std::string,std::string> patchRoles;
++        std::map<std::string,label> patchSizes;
++        scalar copySeconds=0, constructSeconds=0, snapshotSeconds=0;
++        std::size_t cutPayloadBytes=0, writerGeometryBytes=0;
+     };
+ 
+     struct settings
+@@ -568,7 +606,11 @@
+         );
+ 
+         //- One point id per position (duplicates from crossings and pieces)
+-        static void mergeCoincidentPoints(cutMesh& m, const boundBox* within = nullptr);
++        static void mergeCoincidentPoints
++        (
++            cutMesh& m, const boundBox* within = nullptr,
++            std::vector<label>* flattenedAlias = nullptr
++        );
+ 
+         //- Rewrite every live cell's cellPiece as a hash of its CURRENT
+         //  GEOMETRY (quantised centroid, bounding box and the sorted vertex
+@@ -702,7 +744,13 @@
+         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
+         //- Opt-in exact-outline cleanup with all-incidence and coupled veto.
+         //- Read-only, opt-in regular transition candidate audit.
+-        static label decomposeConformingCones(cutMesh& m, const wordList& patchNames, const wordList& patchTypes, const wordList& patchNeighbours, label myRank);
++        static label decomposeConformingCones
++        (
++            cutMesh& m, const wordList& patchNames, const wordList& patchTypes,
++            const wordList& patchNeighbours, label myRank,
++            const Time& runTime, const wordList& faceZoneNames,
++            const wordList& patchGroups
++        );
+ 
+         static label auditRegularTransitionRoofs(cutMesh& m, const boolList& coupledPatch);
+ 
+@@ -744,7 +792,9 @@
+             const wordList& patchTypes,
+             const wordList& faceZoneNames,
+             const wordList& patchNeighbours = wordList(),
+-            const wordList& patchGroups = wordList()
++            const wordList& patchGroups = wordList(),
++            const bool baselineOnly = false,
++            writerBindings* bindings = nullptr
+         );
+ 
+         //- Volume of a cell from its faces (outward-oriented sum)

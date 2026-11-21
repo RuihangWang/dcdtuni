@@ -1,0 +1,62 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/airSchedules.test.ts --maxWorkers=2 --minWorkers=2
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/airSchedules.test.ts > the real exporter > exports cfdrun v4: one simulationConfig, the root, carrying room temperature and monitoring
+[STLExport] rackStlCache: 3.63ms
+[STLExport] groups: 3.263ms
+[STLExport] buckets: 2.715ms
+
+stdout | test/airSchedules.test.ts > the real exporter > a transient air run without keyframes still carries its timeline start and duration
+[STLExport] rackStlCache: 1.938ms
+[STLExport] groups: 1.328ms
+[STLExport] buckets: 1.619ms
+
+stdout | test/airSchedules.test.ts > the real exporter > exports the timeline duration even when an imported solver mirror is stale, with and without moving keyframes
+[STLExport] rackStlCache: 3.546ms
+[STLExport] groups: 2.245ms
+[STLExport] buckets: 2.581ms
+
+stdout | test/airSchedules.test.ts > the real exporter > a server-power step reaches that server's fan bindings and nothing else
+[STLExport] rackStlCache: 17.872ms
+[STLExport] groups: 1.169ms
+[STLExport] buckets: 1.128ms
+
+stdout | test/airSchedules.test.ts > the real exporter > a server-power step reaches that server's fan bindings and nothing else
+[STLExport] rackStlCache: 2.835ms
+[STLExport] groups: 1.05ms
+[STLExport] buckets: 1.159ms
+
+ ❯ test/airSchedules.test.ts (9 tests | 1 failed) 452ms
+   × the real exporter > exports the timeline duration even when an imported solver mirror is stale, with and without moving keyframes 93ms
+     → expected 5 to be 600 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/airSchedules.test.ts > the real exporter > exports the timeline duration even when an imported solver mirror is stale, with and without moving keyframes
+AssertionError: expected 5 to be 600 // Object.is equality
+
+- Expected
++ Received
+
+- 600
++ 5
+
+ ❯ test/airSchedules.test.ts:145:49
+    143|       ;(source as any).runDefaults.simulationConfig.endTimeSeconds = 5
+    144|       const m = await air(source) as AirManifest & { simulationConfig:…
+    145|       expect(m.simulationConfig.endTimeSeconds).toBe(600)
+       |                                                 ^
+    146|       expect((m.transient as any).durationS).toBe(600)
+    147|       expect((source as any).runDefaults.simulationConfig.endTimeSecon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  19:49:25
+   Duration  9.75s (transform 1.37s, setup 0ms, collect 2.23s, tests 452ms, environment 6.52s, prepare 256ms)
+

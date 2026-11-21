@@ -1,0 +1,31 @@
+14200:     for (label c=0;c<oldCells;++c)
+14201:     {
+14202:         if (!marked[c]) { continue; }
+14203:         const label ap=insertPoint(apex[c],false);if (ap<0) { ++closePoints;continue; }
+14204:         struct edgeUse { label child,a,b; };
+14205:         std::map<std::pair<label,label>,std::vector<edgeUse>> edges;
+14206:         const bool orig=m.cellOrigAlive[c];const scalar refV=m.cellRefVol[c];const point refC=m.cellRefCentre[c];
+14207:         const label level=m.cellLevel[c],rank=m.cellRank[c];const uint64_t leaf=m.cellLeaf[c],piece=m.cellPiece[c];
+14208:         scalar childVolume=0;bool first=true;
+14209:         for (label f:bases[c])
+14210:         {
+14211:             const bool own=m.owner[f]==c;
+14212:             if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<"conforming base lost parent incidence"<<exit(FatalError); }
+14213:             vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);
+14214:             const scalar v=((own ? area : -area)&(centre-apex[c]))/3;
+14215:             if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;
+14216:             const label child=first ? c : m.nCells++;
+14217:             if (!first)
+14218:             {
+14219:                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
+14220:                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+14221:                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
+14222:                 if (literalUnions) { unionParent.push_back(c); }
+14223:                 m.completeCavityLineage.inherit(child,c,cavityAvailable);
+14224:             }
+14225:             first=false;
+14226:             const auto& poly=m.faces[f];
+14227:             for (size_t j=0;j<poly.size();++j)
+14228:             {
+14229:                 label a=poly[j],b=poly[(j+1)%poly.size()];if (!own) { std::swap(a,b); }
+14230:                 edges[std::minmax(a,b)].push_back(edgeUse{child,a,b});

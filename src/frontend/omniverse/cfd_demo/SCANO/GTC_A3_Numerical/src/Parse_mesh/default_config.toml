@@ -1,0 +1,30 @@
+[pde_theta]
+rho={value_type="constant","val"=1.0} # option: "constant": val=float, "parametirc": val=[start,step,end]
+mu={value_type="constant","val"=0.001}  # option: "constant": val=float, "parametirc": val=[start,step,end]
+dt=0.1 # for transient mode
+L=1 # for calculating Re
+source={value_type="constant","val"=0.0} # option: "constant": val=float, "parametirc": val=[start,step,end], "expression": val=python code, it will use eval() for calc
+
+[channel_gate]
+gate=[1,1,0,1] # u,v,w,p input to nerual network
+
+[fvSchemes]
+ddtSchemes="imex" # choice=["implicit", "imex"]
+divSchemes={U="Linear corrected", T="Linear corrected"} # choice=["Linear, Linear corrected, LinearUpwind, LimitedLinearV 1"]
+PressureSchemes="p_flux" # choice=["p_flux", "p_grad"]
+gradSchemes="1st" # choice=["1st, 2nd, 3rd, 4th, GG"]
+interpolation="Linear corrected" # choice=["Linear", "Linear corrected"]
+
+[fvSolution]
+pRefcell=0 # 用于定义压力原点的单元序号，如果0文件中没有显示给定压力的第一类边界条件，那么必须设置此项
+pRefvalue=0 # 压力原点的值
+
+[stencil]
+khops=2 # k-hop neighbors for WLSQ stencil
+
+[loss_weights]
+continuity=1e5 
+momentum=1e4
+phi_jump=1
+
+

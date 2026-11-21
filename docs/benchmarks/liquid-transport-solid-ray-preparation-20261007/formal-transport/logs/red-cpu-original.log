@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_explicit_shared_transport_carrier_does_not_replace_region_source_uid ___
+
+    def test_explicit_shared_transport_carrier_does_not_replace_region_source_uid():
+>       result = GeometryExport.model_validate(geometry())
+E       pydantic_core._pydantic_core.ValidationError: 3 validation errors for GeometryExport
+E       sourceRegions.stl_000:transport_a.operation
+E         Input should be 'modelBoundary', 'cellZone' or 'doorSheet' [type=literal_error, input_value='liquidTransportUnionBoundary', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+E       sourceRegions.stl_000:transport_a.carrierUid
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='project/liquid-transport/carrier/v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+E       sourceRegions.stl_000:transport_a.carrierContributorUids
+E         Extra inputs are not permitted [type=extra_forbidden, input_value=['pipe-a', 'tee-b'], input_type=list]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+src/backend/tests/test_liquid_transport_carrier.py:29: ValidationError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid_transport_carrier.py::test_explicit_shared_transport_carrier_does_not_replace_region_source_uid
+1 failed, 9 deselected in 1.09s

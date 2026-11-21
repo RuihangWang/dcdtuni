@@ -1,0 +1,147 @@
+from pathlib import Path
+import collections,hashlib,json,os,re,signal,time
+from fractions import Fraction as Q
+B=Path('/mnt/lv/home/litianyu/mycode/dcdtuni');F=B/'.codex-tmp/goal-20261005/air/.codex-tmp/genuine-wall-earliest-source-geometry-observer-private-v2-20261007';R=B/'.codex-tmp/source-plane-independent-review-20261007'
+os.sched_setaffinity(0,{30});signal.signal(signal.SIGALRM,lambda *_: (_ for _ in ()).throw(TimeoutError('55-second offline watchdog')));signal.alarm(55);start=time.monotonic()
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def bitsfrac(h):
+    assert re.fullmatch('[0-9a-f]{16}',h);v=int(h,16);sgn=-1 if v>>63 else 1;e=(v>>52)&2047;m=v&((1<<52)-1);assert e!=2047
+    power=(e-1023-52) if e else -1074;n=(m+(1<<52)) if e else m
+    return Q(sgn*n*(1<<power),1) if power>=0 else Q(sgn*n,1<<(-power))
+def point(b):return tuple(map(bitsfrac,b))
+def sub(a,b):return tuple(a[i]-b[i] for i in range(3))
+def cross(a,b):return (a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
+def dot(a,b):return sum((a[i]*b[i] for i in range(3)),Q(0))
+def rref(rows,n):
+    a=[list(row) for row in rows];piv=[];k=0
+    for col in range(n):
+        pick=next((i for i in range(k,len(a)) if a[i][col]),None)
+        if pick is None:continue
+        a[k],a[pick]=a[pick],a[k];d=a[k][col];a[k]=[x/d for x in a[k]]
+        for i in range(len(a)):
+            if i!=k:
+                d=a[i][col];a[i]=[x-d*y for x,y in zip(a[i],a[k])]
+        piv.append(col);k+=1
+    return a,piv
+
+def plane(r):
+    assert len(r)>=3;n=None
+    for i in range(1,len(r)-1):
+        c=cross(sub(r[i],r[0]),sub(r[i+1],r[0]))
+        if any(c):n=c;break
+    assert n is not None
+    first=next(x for x in n if x);n=tuple(x/first for x in n);d=dot(n,r[0]);assert all(dot(n,x)==d for x in r)
+    axes=[k for k in range(3) if all(x[k]==r[0][k] for x in r)];assert len(axes)==1
+    return n,d,axes[0]
+
+def moments(r):
+    av=[Q(0)]*3;mt=[[Q(0) for _ in range(3)] for _ in range(3)];a=r[0]
+    for i in range(1,len(r)-1):
+        b,c=r[i],r[i+1];n=cross(sub(b,a),sub(c,a));s=[a[j]+b[j]+c[j] for j in range(3)]
+        for k in range(3):
+            av[k]+=n[k]
+            for j in range(3):mt[k][j]+=n[k]*s[j]
+    return av,mt
+
+def sum_moments(rings):
+    av=[Q(0)]*3;mt=[[Q(0) for _ in range(3)] for _ in range(3)]
+    for ring in rings:
+        a,m=moments(ring)
+        for k in range(3):
+            av[k]+=a[k]
+            for j in range(3):mt[k][j]+=m[k][j]
+    return av,mt
+
+def enc(x):
+    if isinstance(x,Q):return str(x)
+    if isinstance(x,dict):return {str(k):enc(v) for k,v in x.items()}
+    if isinstance(x,(list,tuple)):return [enc(v) for v in x]
+    return x
+
+# Independent Foam quoted-string decoder: only native observed escapes accepted.
+s=(F/'logs/ON.stdout').read_text();needle='"PRIVATE physical-point geometry observation: ';cursor=0;decoded=[];wire=0
+while True:
+    i=s.find(needle,cursor)
+    if i<0:break
+    j=i+1;chars=[]
+    while True:
+        c=s[j];j+=1
+        if c=='"':break
+        if c=='\\':
+            c=s[j];j+=1;assert c in ('"','\\','\n'),repr(c)
+        chars.append(c)
+    text=''.join(chars);assert text.startswith(needle[1:]);decoded.append(json.loads(text[len(needle)-1:]));wire+=len(s[i:j].encode());cursor=j
+stored=json.loads((F/'logs/ON.geometry.json').read_text());assert decoded==stored and len(decoded)==16
+assert [r['compactPoint'] for r in decoded]==[1551,1690,1691,1612,1539,1611,1609,1552,699,698,1532,873,882,883,697,1608]
+assert all(r['observationComplete'] for r in decoded)
+source_global={};native_global={};face_global={};by_source=collections.defaultdict(dict);rows=[];group_rows=[];bindings=0;counts=collections.Counter();ranks=collections.Counter();max_coords=0
+for record in decoded:
+    events=record['events'];rep=[e for e in events if e['kind']=='representative'];assert len(rep)==1;rep=rep[0];q=point(rep['rawBits']);assert rep['native']==rep['alias'] and rep['compact']==record['compactPoint'] and rep['memberCount']==1
+    card=[e for e in events if e['kind']=='cardinality'];assert len(card)==1;card=card[0];sources={e['sourceFacet']:e for e in events if e['kind']=='source'}
+    assert card['bases']==sorted(sources) and card['baseCount']==len(sources);assert len(sources)<=64
+    incidents={e['nativeFace']:e for e in events if e['kind']=='incident'};bound=[e for e in events if e['kind']=='source-binding'];assert len(bound)==sum(not e['internal'] for e in incidents.values())
+    core=set();coord_count=1
+    for inc in incidents.values():
+        assert inc['alive'];core.add(inc['nativeOwner']);assert inc['nativeOwner']>=0
+        if inc['internal']:
+            core.add(inc['nativeNeighbour']);assert set([inc['rawOwner'],inc['rawNeighbour']])==set([inc['nativeOwner'],inc['nativeNeighbour']])
+        else:assert inc['nativeOwner']==inc['rawOwner'] and inc['rawNeighbour']==inc['nativeNeighbour']==-1
+        assert sum(v['alias']==rep['native'] for v in inc['ring'])==1
+        for v in inc['ring']:
+            key=v['native'];value=v['bits'];assert key not in native_global or native_global[key]==value;native_global[key]=value
+            if v['alias']==rep['native']:assert value==rep['rawBits']
+        ring=[v['bits'] for v in inc['ring']];coord_count+=len(ring)
+        ident={k:v for k,v in inc.items() if k not in ('compactFace','nativeOwner','nativeNeighbour')}
+        assert inc['nativeFace'] not in face_global or face_global[inc['nativeFace']]==ident;face_global[inc['nativeFace']]=ident
+    assert sorted(core)==card['core']
+    for e in bound:
+        bindings+=1;assert e['selectedPointCoveredByExistingBind'];inc=incidents[e['nativeFace']];src=sources[e['sourceFacet']];assert not inc['internal'];assert inc['patch']==src['patch'] and inc['zone']==src['zone']
+        by_source[e['sourceFacet']][e['nativeFace']]=[point(v['bits']) for v in inc['ring']]
+    normals=[];affine=[];source_rows=[];source_off=[]
+    for sid,src in sorted(sources.items()):
+        ident={k:v for k,v in src.items() if k not in ('nativeOwner','origins')};assert sid not in source_global or source_global[sid]==ident;source_global[sid]=ident
+        coord_count+=len(src['worldBits']);assert len(src['sourceRing'])==len(src['worldBits']) and len(set(src['sourceRing']))==len(src['sourceRing'])
+        ring=[point(x) for x in src['worldBits']];n,d,axis=plane(ring);normals.append(n);affine.append(list(n)+[d]);res=dot(n,q)-d
+        if res:source_off.append({'sourceFacet':sid,'residual':res,'axis':axis,'axisDelta':q[axis]-ring[0][axis]})
+        av,mt=moments(ring);source_rows.append({'sourceFacet':sid,'axis':axis,'normal':n,'offset':d,'pointPlaneResidual':res,'twiceArea':av,'sixFirst':mt,'originParents':[o['parent'] for o in src['origins']]})
+    matrix,piv=rref(normals,3);aug,apiv=rref(affine,4);rank=len(piv);assert len(apiv)==rank
+    null=[]
+    for free in [i for i in range(3) if i not in piv]:
+        v=[Q(0)]*3;v[free]=Q(1)
+        for k,col in enumerate(piv):v[col]=-matrix[k][free]
+        assert all(dot(n,v)==0 for n in normals);null.append(v)
+    counts[len(sources)]+=1;ranks[rank]+=1
+    for g in [e for e in events if e['kind']=='group']:
+        coord_count+=len(g['outlineBits'])+sum(len(f['worldBits']) for f in g['facets']);sid=g['sourceFacet'];src=sources[sid];target=[point(x) for x in g['outlineBits']];n,d,axis=plane(target);assert axis==g['axis']
+        original=[point(x) for x in src['worldBits']];assert plane(original)==(n,d,axis)
+        ta,tm=moments(target);sa,sm=sum_moments([[point(x) for x in f['worldBits']] for f in g['facets']]);a_delta=[sa[k]-ta[k] for k in range(3)];m_delta=[[sm[k][j]-tm[k][j] for j in range(3)] for k in range(3)]
+        off=[]
+        for f in g['facets']:
+            assert f['alive'] and f['patch']==g['patch'] and f['zone']==g['zone'] and f['rawNeighbour']==-1
+            for i,v in enumerate(f['worldBits']):
+                p=point(v);res=dot(n,p)-d
+                if res:off.append({'nativeFace':f['nativeFace'],'ringPosition':i,'rawBits':v,'residual':res,'axisDelta':p[axis]-target[0][axis]})
+        tangents=[j for j in range(3) if j!=axis];group_rows.append({'compactPoint':record['compactPoint'],'sourceFacet':sid,'axis':axis,'facets':len(g['facets']),'twiceAreaDelta':a_delta,'sixFirstDelta':m_delta,'wholeVectorAndTensorMomentsEqual':not any(a_delta) and not any(v for row in m_delta for v in row),'projectedAreaAndTangentialM1Equal':a_delta[axis]==0 and all(m_delta[axis][j]==0 for j in tangents),'offPlaneOccurrences':off,'targetTwiceArea':ta,'targetSixFirst':tm})
+    assert coord_count==record['coordinateCount'] and coord_count<=4096;max_coords=max(max_coords,coord_count)
+    failure=[e for e in events if e['kind']=='footprint-failure'];tail=[e for e in events if e['kind']=='coverage-tail']
+    if len(sources)!=2:assert record['existingRefusal']==5 and not failure and not tail
+    else:assert record['existingRefusal']==8 and failure==[{'kind':'footprint-failure','site':'exact-axis-plane','sourceFacet':3579,'nativeFace':3579,'i':-1,'j':-1}] and tail==[{'kind':'coverage-tail','result':'awake-not-evaluated'}]
+    rows.append({'compactPoint':record['compactPoint'],'nativePoint':rep['native'],'baseCount':len(sources),'sourceFacetHandles':sorted(sources),'planeRank':rank,'affineRank':len(apiv),'nullspaceDimension':3-rank,'nullspaceBasis':null,'pointOnEveryImmutableSourcePlane':not source_off,'offPlaneSources':source_off,'sources':source_rows,'originalRefusal':record['existingRefusal'],'completeFullFootprintCaptured':len(sources)==2})
+
+assert counts=={1:1,2:1,3:3,4:11} and ranks=={1:7,2:7,3:2};assert len(source_global)==23 and len(native_global)==90
+# Secondary exact observed-subset moment replay covers all23 sources without pretending each subset is complete.
+subsets=[]
+for sid,src in sorted(source_global.items()):
+    target=[point(x) for x in src['worldBits']];n,d,axis=plane(target);ta,tm=moments(target);sa,sm=sum_moments(list(by_source[sid].values()));ad=[sa[k]-ta[k] for k in range(3)];md=[[sm[k][j]-tm[k][j] for j in range(3)] for k in range(3)]
+    subsets.append({'sourceFacet':sid,'distinctObservedPhysicalFacets':sorted(by_source[sid]),'globalCompletenessIndependentAuthority':sid in (3575,3579),'twiceAreaDeltaObservedSubset':ad,'sixFirstDeltaObservedSubset':md,'planeResidualOccurrences':sum(dot(n,p)!=d for r in by_source[sid].values() for p in r),'equalityIsNotCoveragePermission':True})
+
+guards=json.loads((F/'guards/after.json').read_text());held={}
+for key in ('source39','Main29','pair'):
+    bad=[]
+    for name,h in guards[key].items():
+        p=Path(name);b=p.read_bytes()
+        if len(b)!=h['bytes'] or hashlib.sha256(b).hexdigest()!=h['sha256']:bad.append(name)
+    held[key]={'count':len(guards[key]),'changed':bad};assert not bad
+result={'scope':'Independent exact binary64 source/incident-star review only; no native run, source apply, repair, authority grant or strict check','manifestSha256':sha(F/'manifest.json'),'rawNativeStdoutSha256':sha(F/'logs/ON.stdout'),'storedDecodedRecordSha256':sha(F/'logs/ON.geometry.json'),'rawQuotedRecordsIndependentlyDecodeAndEqualStored':True,'records':len(rows),'sourceCount':len(source_global),'observedNativePoints':len(native_global),'originalSuccessfulSourceBindings':bindings,'baseCountHistogram':dict(counts),'planeRankHistogram':dict(ranks),'maxCoordinateCount':max_coords,'actualQuotedWireBytes':wire,'recordsReplay':rows,'completeGroupsReplay':group_rows,'allSourceObservedSubsetReplay':subsets,'normalGuardsHeld':held,'seconds':time.monotonic()-start,'cpu':list(os.sched_getaffinity(0))}
+(R/'INDEPENDENT-exact-replay.json').write_text(json.dumps(enc(result),indent=2)+'\n');signal.alarm(0)
+print(json.dumps(enc({k:v for k,v in result.items() if k not in ('recordsReplay','allSourceObservedSubsetReplay')}),indent=2))

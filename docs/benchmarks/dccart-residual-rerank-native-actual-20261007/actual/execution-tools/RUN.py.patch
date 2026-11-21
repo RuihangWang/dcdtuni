@@ -1,0 +1,85 @@
+--- actual-tail-tools/RUN.py
++++ residual-tools/RUN.py
+@@ -54,7 +54,6 @@
+   assert all(p[k] in (0,1) for k in ['improved','bestHardImproved','requestCap','timeCap'])
+   assert all(type(p[k]) is int for k in ('restorationAttempts','restorationRequests'))
+   assert 0<=p['restorationAttempts']<=1 and 0<=p['restorationRequests']<=2 and p['restorationRequests']<=p['requests']
+-  if kind=='TAIL_OFF':assert p['restorationAttempts']==0 and p['restorationRequests']==0,'Tail OFF counters must be zero'
+   summary_row(p['before'])
+  for r in fs:
+   assert type(r['proposal']) is int and 0<=r['proposal']<len(ps) and type(r['checkpoint']) is int and r['checkpoint'] in (0,1)
+@@ -105,16 +104,16 @@
+  return {'groups':groups,'fingerprint':hashlib.sha256(json.dumps(groups,sort_keys=True,separators=(',',':')).encode()).hexdigest(),'pair':ACTUAL_PAIR,'kernelBlockLiteralEqual':True}
+ def env_for(kind):
+  assert kind in plan['variants'];env={k:v for k,v in os.environ.items() if not k.startswith(('DCCART_','CART_')) and k not in ['LD_PRELOAD','LD_AUDIT','LD_DEBUG','LD_LIBRARY_PATH']};env.update(plan['commonFlags']);env.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',LD_LIBRARY_PATH='',CUDA_VISIBLE_DEVICES='',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1',FOAM_API='2412',PYTHONDONTWRITEBYTECODE='1',PYTHONPYCACHEPREFIX=str(T/'cache/pycache'),TMPDIR=str(T/'tmp'),TMP=str(T/'tmp'),TEMP=str(T/'tmp'),XDG_CACHE_HOME=str(T/'cache'),CCACHE_DIR=str(T/'cache/ccache'))
+- if kind=='TAIL_ON':env.update(plan['traceOnlyDelta'])
+- assert not any(k in env for k in plan['forbiddenVariables']);assert not any(k.startswith('CART_') for k in env);assert {k:v for k,v in env.items() if k.startswith('DCCART_')}=={**plan['commonFlags'],**(plan['traceOnlyDelta'] if kind=='TAIL_ON' else {})};return env
++ if kind=='RESIDUAL_ON':env.update(plan['traceOnlyDelta'])
++ assert not any(k in env for k in plan['forbiddenVariables']);assert not any(k.startswith('CART_') for k in env);assert {k:v for k,v in env.items() if k.startswith('DCCART_')}=={**plan['commonFlags'],**(plan['traceOnlyDelta'] if kind=='RESIDUAL_ON' else {})};return env
+ 
+ def bounded(name,argv,cwd,env):
+- rec={'argv':argv,'cwd':str(cwd),'startUTC':datetime.datetime.now(datetime.timezone.utc).isoformat(),'watchdogSeconds':120,'nativeFlags':{k:v for k,v in env.items() if k.startswith('DCCART_')},'environment':{k:env.get(k) for k in ['CUDA_VISIBLE_DEVICES','OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','TMPDIR','XDG_CACHE_HOME']}};start=time.monotonic()
++ rec={'argv':argv,'cwd':str(cwd),'startUTC':datetime.datetime.now(datetime.timezone.utc).isoformat(),'watchdogSeconds':(plan['nativeWatchdogSeconds'] if name.endswith('.native') else plan['checkWatchdogSeconds']),'nativeFlags':{k:v for k,v in env.items() if k.startswith('DCCART_')},'environment':{k:env.get(k) for k in ['CUDA_VISIBLE_DEVICES','OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','TMPDIR','XDG_CACHE_HOME']}};start=time.monotonic()
+  write(T/'logs'/f'{name}.started.json',rec)
+  try:
+   with (T/'logs'/f'{name}.stdout').open('xb') as so,(T/'logs'/f'{name}.stderr').open('xb') as se:
+    proc=subprocess.Popen(argv,cwd=cwd,env=env,stdout=so,stderr=se,start_new_session=True);rec['pid']=proc.pid;rec['startTicks']=Path('/proc',str(proc.pid),'stat').read_text().rsplit(')',1)[1].split()[19];timed=False
+-   try:rc=proc.wait(timeout=120)
++   try:rc=proc.wait(timeout=rec['watchdogSeconds'])
+    except subprocess.TimeoutExpired:
+     timed=True
+     if proc.poll() is None:
+@@ -205,24 +204,24 @@
+  return {n:info(mesh/n) for n in SCIENTIFIC_NAMES}
+ def pair_scientific_readback(baseline,cases):
+  baseline=Path(baseline);cases=Path(cases)
+- paths={'originalActualTRACE_ON':baseline/plan['baselineComparison']['meshRelativePath'],
+-        'newTAIL_OFF':cases/'TAIL_OFF/Mesh/constant/polyMesh',
+-        'newTAIL_ON':cases/'TAIL_ON/Mesh/constant/polyMesh'}
++ paths={'originalActualTAIL_ON':baseline/plan['baselineComparison']['meshRelativePath'],
++        'newRESIDUAL_OFF':cases/'RESIDUAL_OFF/Mesh/constant/polyMesh',
++        'newRESIDUAL_ON':cases/'RESIDUAL_ON/Mesh/constant/polyMesh'}
+  required={k:require_mesh(p) for k,p in paths.items()}
+  result={'scope':'required pure offline actual written science comparison; stock checker alone retains strict quality authority',
+-         'baseline':'actual TRACE_ON111, never re-executed','requiredMeshes':{k:{'path':str(paths[k]),'files':v} for k,v in required.items()},
++         'baseline':'actual nonlinearTAIL_ON200, never re-executed','requiredMeshes':{k:{'path':str(paths[k]),'files':v} for k,v in required.items()},
+          'allRequired8x3Present':True,
+-         'originalActualTRACE_ON_vs_newTAIL_OFF':compare_science(paths['originalActualTRACE_ON'],paths['newTAIL_OFF']),
+-         'newTAIL_OFF_vs_TAIL_ON':compare_science(paths['newTAIL_OFF'],paths['newTAIL_ON'])}
+- for key,root in [('originalActualTRACE_ON',baseline/'cases/TRACE_ON'),('newTAIL_OFF',cases/'TAIL_OFF'),('newTAIL_ON',cases/'TAIL_ON')]:
++         'originalActualTAIL_ON_vs_newRESIDUAL_OFF':compare_science(paths['originalActualTAIL_ON'],paths['newRESIDUAL_OFF']),
++         'newRESIDUAL_OFF_vs_RESIDUAL_ON':compare_science(paths['newRESIDUAL_OFF'],paths['newRESIDUAL_ON'])}
++ for key,root in [('originalActualTAIL_ON',baseline/'cases/TAIL_ON'),('newRESIDUAL_OFF',cases/'RESIDUAL_OFF'),('newRESIDUAL_ON',cases/'RESIDUAL_ON')]:
+   q=root/'Mesh/constant/dcCartSourceRegions.json';assert q.is_file() and not q.is_symlink(),'Required derived metadata missing/nonliteral:'+str(q)
+   result[key+'Metadata']=info(q)
+  result['comparisonsCompleted']=2
+- a=result['originalActualTRACE_ON_vs_newTAIL_OFF'];b=result['newTAIL_OFF_vs_TAIL_ON']
++ a=result['originalActualTAIL_ON_vs_newRESIDUAL_OFF'];b=result['newRESIDUAL_OFF_vs_RESIDUAL_ON']
+  sameSets=a['allRawSets']['before']['sets']==a['allRawSets']['after']['sets'] and a['allRawSets']['before']['classes']==a['allRawSets']['after']['classes']
+- result['unchangedEvidence']={'baseline_vs_TAIL_OFF_raw8_and_sets_exact':a['allEightScientificBytesExact'] and sameSets,
+-   'TAIL_OFF_vs_TAIL_ON_topology_zones_boundary_bits_held':b['topologyFourAndZonesThreeExact'] and b.get('allBoundaryPointBitsHeld') is True,
+-   'TAIL_OFF_vs_TAIL_ON_no_added_stock_sets':b.get('allAddedStockSetsEmpty') is True}
++ result['unchangedEvidence']={'baseline_vs_RESIDUAL_OFF_raw8_and_sets_exact':a['allEightScientificBytesExact'] and sameSets,
++   'RESIDUAL_OFF_vs_RESIDUAL_ON_topology_zones_boundary_bits_held':b['topologyFourAndZonesThreeExact'] and b.get('allBoundaryPointBitsHeld') is True,
++   'RESIDUAL_OFF_vs_RESIDUAL_ON_no_added_stock_sets':b.get('allAddedStockSetsEmpty') is True}
+  result['allDeclaredUnchangedEvidenceHeld']=all(result['unchangedEvidence'].values())
+  result['unchangedEvidenceIsNotMeshAcceptance']=True
+  return result
+@@ -247,7 +246,7 @@
+  ACTUAL_PAIR,buildBinding=fresh_build_binding(a.approved_build_manifest_sha)
+  before=guards()
+  baseline=Path(plan['baselineComparison']['root']);bm=json.loads((baseline/'MANIFEST.json').read_text());assert all(info(baseline/r)==v for r,v in bm['files'].items()),'Immutable actual WIDER_ON primary109 drift'
+- inputs=json.loads((F/'input-bindings.json').read_text());e0=env_for('TAIL_OFF');e1=env_for('TAIL_ON');delta={k:[e0.get(k),e1.get(k)] for k in set(e0)|set(e1) if e0.get(k)!=e1.get(k)};assert delta=={'DCCART_PRIVATE_DW_NONLINEAR_FEASIBILITY_TAIL':[None,'1']},'All14 commonflags same; only tail absent ->exact1'
++ inputs=json.loads((F/'input-bindings.json').read_text());e0=env_for('RESIDUAL_OFF');e1=env_for('RESIDUAL_ON');delta={k:[e0.get(k),e1.get(k)] for k in set(e0)|set(e1) if e0.get(k)!=e1.get(k)};assert delta=={'DCCART_PRIVATE_DW_RESIDUAL_RESELECT':[None,'1']},'All15 commonflags held; only residual absent ->exact1'
+  T.mkdir();CASE.mkdir()
+  for name in ['logs','guards','tmp','cache']:(T/name).mkdir()
+  (T/'runtime.once').open('x').close();write(T/'authorization-binding.json',{'exactApprovedPlanManifestSHA':a.approved_plan_manifest_sha,'pair':ACTUAL_PAIR,'scope':plan['scope'],'variantCount':2,'approvedFreshBuildManifest':buildBinding});write(T/'environment-difference.json',delta);write(T/'guards/run-before.json',before)
+@@ -275,7 +274,7 @@
+   write(T/'logs/pair-summary.json',summary)
+   try:comparison=pair_scientific_readback(baseline,CASE)
+   except BaseException as e:
+-   write(T/'logs/pair-scientific-comparison-refused.json',{'collectorException':type(e).__name__+': '+str(e),'requiredArms':['TAIL_OFF','TAIL_ON'],'scientificComparisonComplete':False,'strictAcceptanceClaim':False,'automaticRetry':False})
++   write(T/'logs/pair-scientific-comparison-refused.json',{'collectorException':type(e).__name__+': '+str(e),'requiredArms':['RESIDUAL_OFF','RESIDUAL_ON'],'scientificComparisonComplete':False,'strictAcceptanceClaim':False,'automaticRetry':False})
+    raise
+   write(T/'logs/pair-scientific-comparison.json',comparison);status['collectorReturncode']=0
+  except BaseException as e:status['collectorReturncode']=1;status['collectorException']=type(e).__name__+': '+str(e);raise

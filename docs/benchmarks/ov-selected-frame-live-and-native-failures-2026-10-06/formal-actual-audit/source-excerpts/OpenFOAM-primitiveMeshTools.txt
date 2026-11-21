@@ -1,0 +1,175 @@
+===== /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src/OpenFOAM/lnInclude/primitiveMeshTools.C lines 204-377 =====
+204: void Foam::primitiveMeshTools::makeFaceCentresAndAreas
+205: (
+206:     const UList<face>& fcs,
+207:     const pointField& p,
+208:     vectorField& fCtrs,
+209:     vectorField& fAreas
+210: )
+211: {
+212:     // Safety first - ensure properly sized
+213:     fCtrs.resize_nocopy(fcs.size());
+214:     fAreas.resize_nocopy(fcs.size());
+215: 
+216:     forAll(fcs, facei)
+217:     {
+218:         const face& f = fcs[facei];
+219:         const label nPoints = f.size();
+220: 
+221:         // If the face is a triangle, do a direct calculation for efficiency
+222:         // and to avoid round-off error-related problems
+223:         if (nPoints == 3)
+224:         {
+225:             fCtrs[facei] = triPointRef::centre(p[f[0]], p[f[1]], p[f[2]]);
+226:             fAreas[facei] = triPointRef::areaNormal(p[f[0]], p[f[1]], p[f[2]]);
+227:         }
+228:         else
+229:         {
+230:             solveVector sumN = Zero;
+231:             solveScalar sumA = Zero;
+232:             solveVector sumAc = Zero;
+233: 
+234:             solveVector fCentre = p[f[0]];
+235:             for (label pi = 1; pi < nPoints; ++pi)
+236:             {
+237:                 fCentre += solveVector(p[f[pi]]);
+238:             }
+239:             fCentre /= nPoints;
+240: 
+241:             for (label pi = 0; pi < nPoints; ++pi)
+242:             {
+243:                 const solveVector thisPoint(p[f.thisLabel(pi)]);
+244:                 const solveVector nextPoint(p[f.nextLabel(pi)]);
+245: 
+246:                 solveVector c = thisPoint + nextPoint + fCentre;
+247:                 solveVector n = (nextPoint - thisPoint)^(fCentre - thisPoint);
+248:                 solveScalar a = mag(n);
+249: 
+250:                 sumN += n;
+251:                 sumA += a;
+252:                 sumAc += a*c;
+253:             }
+254: 
+255:             // This is to deal with zero-area faces. Mark very small faces
+256:             // to be detected in e.g., processorPolyPatch.
+257:             if (sumA < ROOTVSMALL)
+258:             {
+259:                 fCtrs[facei] = fCentre;
+260:                 fAreas[facei] = Zero;
+261:             }
+262:             else
+263:             {
+264:                 fCtrs[facei] = (1.0/3.0)*sumAc/sumA;
+265:                 fAreas[facei] = 0.5*sumN;
+266:             }
+267:         }
+268:     }
+269: }
+270: 
+271: 
+272: void Foam::primitiveMeshTools::makeFaceCentresAndAreas
+273: (
+274:     const primitiveMesh& mesh,
+275:     const pointField& p,
+276:     vectorField& fCtrs,
+277:     vectorField& fAreas
+278: )
+279: {
+280:     makeFaceCentresAndAreas(mesh.faces(), p, fCtrs, fAreas);
+281: }
+282: 
+283: 
+284: void Foam::primitiveMeshTools::makeCellCentresAndVols
+285: (
+286:     const primitiveMesh& mesh,
+287:     const vectorField& fCtrs,
+288:     const vectorField& fAreas,
+289:     vectorField& cellCtrs_s,
+290:     scalarField& cellVols_s
+291: )
+292: {
+293:     PrecisionAdaptor<solveVector, vector> tcellCtrs(cellCtrs_s, false);
+294:     PrecisionAdaptor<solveScalar, scalar> tcellVols(cellVols_s, false);
+295:     Field<solveVector>& cellCtrs = tcellCtrs.ref();
+296:     Field<solveScalar>& cellVols = tcellVols.ref();
+297: 
+298:     // Clear the fields for accumulation
+299:     cellCtrs = Zero;
+300:     cellVols = Zero;
+301: 
+302:     const labelList& own = mesh.faceOwner();
+303:     const labelList& nei = mesh.faceNeighbour();
+304: 
+305:     // first estimate the approximate cell centre as the average of
+306:     // face centres
+307: 
+308:     Field<solveVector> cEst(mesh.nCells(), Zero);
+309:     labelField nCellFaces(mesh.nCells(), Zero);
+310: 
+311:     forAll(own, facei)
+312:     {
+313:         cEst[own[facei]] += solveVector(fCtrs[facei]);
+314:         ++nCellFaces[own[facei]];
+315:     }
+316: 
+317:     forAll(nei, facei)
+318:     {
+319:         cEst[nei[facei]] += solveVector(fCtrs[facei]);
+320:         ++nCellFaces[nei[facei]];
+321:     }
+322: 
+323:     forAll(cEst, celli)
+324:     {
+325:         cEst[celli] /= nCellFaces[celli];
+326:     }
+327: 
+328:     forAll(own, facei)
+329:     {
+330:         const solveVector fc(fCtrs[facei]);
+331:         const solveVector fA(fAreas[facei]);
+332: 
+333:         // Calculate 3*face-pyramid volume
+334:         solveScalar pyr3Vol = fA & (fc - cEst[own[facei]]);
+335: 
+336:         // Calculate face-pyramid centre
+337:         solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[own[facei]];
+338: 
+339:         // Accumulate volume-weighted face-pyramid centre
+340:         cellCtrs[own[facei]] += pyr3Vol*pc;
+341: 
+342:         // Accumulate face-pyramid volume
+343:         cellVols[own[facei]] += pyr3Vol;
+344:     }
+345: 
+346:     forAll(nei, facei)
+347:     {
+348:         const solveVector fc(fCtrs[facei]);
+349:         const solveVector fA(fAreas[facei]);
+350: 
+351:         // Calculate 3*face-pyramid volume
+352:         solveScalar pyr3Vol = fA & (cEst[nei[facei]] - fc);
+353: 
+354:         // Calculate face-pyramid centre
+355:         solveVector pc = (3.0/4.0)*fc + (1.0/4.0)*cEst[nei[facei]];
+356: 
+357:         // Accumulate volume-weighted face-pyramid centre
+358:         cellCtrs[nei[facei]] += pyr3Vol*pc;
+359: 
+360:         // Accumulate face-pyramid volume
+361:         cellVols[nei[facei]] += pyr3Vol;
+362:     }
+363: 
+364:     forAll(cellCtrs, celli)
+365:     {
+366:         if (mag(cellVols[celli]) > VSMALL)
+367:         {
+368:             cellCtrs[celli] /= cellVols[celli];
+369:         }
+370:         else
+371:         {
+372:             cellCtrs[celli] = cEst[celli];
+373:         }
+374:     }
+375: 
+376:     cellVols *= (1.0/3.0);
+377: }

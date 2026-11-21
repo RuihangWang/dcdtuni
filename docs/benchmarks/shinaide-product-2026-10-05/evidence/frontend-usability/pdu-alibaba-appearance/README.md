@@ -1,0 +1,5 @@
+# Actual Alibaba PDU appearance browser receipt
+
+Real m252 PDU - 125 kVA BOX in the isolated byte-preserving Alibaba copy was tested before at served66a08df7 and after at production03ece2b4. The K/-Z service face visibly shows a graphite cabinet, framed static HMI, six breaker controls, handle, hinges and louvers. Ordinary canvas click selects original front face; Shift from empty selection selects the whole original UID. Clearing selection restores display detail. Other models remained enabled; no Save/Export/run occurred. Model opacity 0/100 endpoints were observed through the real slider. The dark silhouette at zero has a source-confirmed rear rack candidate, not yet pixel-picked, and is not claimed as a source defect or full opacity visual acceptance.
+
+The copy differs from the protected main Alibaba only in meta.casePath; copy SHA43aaf55068ac21f89d52a7a6198db5245e87da9401481ff8f3bc959872560e66 and main SHA0ea6f039511ed0526126ccf156fdfcd9a027108c1c8a10c4adf8a1d6caec4c49 remain intact. PNGs are actual1900x995 WebGL captures, not surrounding controls. Actual OV video remains unaccepted.

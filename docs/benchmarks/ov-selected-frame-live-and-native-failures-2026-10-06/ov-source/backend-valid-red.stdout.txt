@@ -1,0 +1,244 @@
+FFFFFFFFFFFFFFF....FF                                                    [100%]
+=================================== FAILURES ===================================
+______ test_explicit_serial_frame_is_not_latest_and_its_grant_binds_time _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_serial_frame_is_0')
+
+    def test_explicit_serial_frame_is_not_latest_and_its_grant_binds_time(tmp_path):
+        run = make_run(tmp_path, times=("0", "1e-02", "2"))
+        calls = []
+>       out = ovd.prepare_ensight(run, fake_foam(calls), time_value=.01)
+E       TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:18: TypeError
+_______ test_explicit_common_mpi_frame_preserves_each_directory_spelling _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_common_mpi_frame0')
+
+    def test_explicit_common_mpi_frame_preserves_each_directory_spelling(tmp_path):
+        run = make_decomposed_run(tmp_path, n=2, times=("0", "1e-02", "2"))
+        complete_processors(run)
+        (run / "processor1/1e-02").rename(run / "processor1/0.01")
+        seen = []
+        def convert(mirror, nprocs=None):
+            seen.append(nprocs)
+            assert (mirror / "processor1/1e-02/T").resolve() == run / "processor1/0.01/T"
+            return fake_foam([])(mirror)
+>       assert ovd.prepare_ensight(run, convert, time_value=.01)["time"] == "1e-02"
+E       TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:34: TypeError
+____________ test_specific_time_missing_one_rank_does_not_fall_back ____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_specific_time_missing_one0')
+
+    def test_specific_time_missing_one_rank_does_not_fall_back(tmp_path):
+        run = make_decomposed_run(tmp_path, n=2)
+        complete_processors(run)
+        (run / "processor1/5/T").unlink()
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(run, lambda *a, **k: pytest.fail("must not convert"), time_value=5)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:42: TypeError
+__________ test_explicit_time_requires_positive_finite_numeric[True] ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po0')
+value = True
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+__________ test_explicit_time_requires_positive_finite_numeric[False] __________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po1')
+value = False
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+__________ test_explicit_time_requires_positive_finite_numeric[None] ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po2')
+value = None
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+____________ test_explicit_time_requires_positive_finite_numeric[1] ____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po3')
+value = '1'
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+___________ test_explicit_time_requires_positive_finite_numeric[inf] ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po4')
+value = inf
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+___________ test_explicit_time_requires_positive_finite_numeric[nan] ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po5')
+value = nan
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+____________ test_explicit_time_requires_positive_finite_numeric[0] ____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po6')
+value = 0
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+___________ test_explicit_time_requires_positive_finite_numeric[-1] ____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_explicit_time_requires_po7')
+value = -1
+
+    @pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
+    def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:48: TypeError
+___________________ test_numeric_alias_ambiguity_is_refused ____________________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_numeric_alias_ambiguity_i0')
+
+    def test_numeric_alias_ambiguity_is_refused(tmp_path):
+        run = make_run(tmp_path, times=("1", "1.0", "2"))
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(run, fake_foam([]), time_value=1)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:54: TypeError
+________ test_specific_partition_frame_can_be_newer_than_retained_root _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_specific_partition_frame_0')
+
+    def test_specific_partition_frame_can_be_newer_than_retained_root(tmp_path):
+        run = make_decomposed_run(tmp_path, n=2, times=("5",))
+        complete_processors(run)
+        mesh = run / "constant/polyMesh"; mesh.mkdir()
+        for name in ("points", "faces", "owner", "neighbour", "boundary"):
+            (mesh / name).write_text(name)
+        (run / "1").mkdir(); (run / "1/T").write_text("old")
+        seen = []
+        def convert(mirror, nprocs=None):
+            seen.append(nprocs); return fake_foam([])(mirror)
+>       assert ovd.prepare_ensight(run, convert, time_value=5)["time"] == "5"
+E       TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:67: TypeError
+___________ test_change_while_converter_runs_is_not_signed_or_cached ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_change_while_converter_ru0')
+
+    def test_change_while_converter_runs_is_not_signed_or_cached(tmp_path):
+        run = make_run(tmp_path)
+        def convert(mirror):
+            (run / "1/T").write_text("replaced during conversion")
+            return fake_foam([])(mirror)
+        with pytest.raises(ovd.DatasetError) as error:
+>           ovd.prepare_ensight(run, convert, time_value=1)
+E           TypeError: prepare_ensight() got an unexpected keyword argument 'time_value'
+
+src/server/tests/test_ov_selected_frame.py:76: TypeError
+_________________ test_route_legacy_latest_and_specific_frame __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc0bda69b10>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_route_legacy_latest_and_s0')
+
+    def test_route_legacy_latest_and_specific_frame(monkeypatch, tmp_path):
+        assert call_route(monkeypatch, tmp_path / "a", {})[1]["time"] == "2"
+        code, data = call_route(monkeypatch, tmp_path / "b", {"time":1})
+>       assert code == 200 and data["time"] == "1" and data["grant"]["payload"]["time"] == "1"
+E       assert (400 == 200)
+
+src/server/tests/test_ov_selected_frame.py:96: AssertionError
+_____________ test_case_switch_during_conversion_refuses_old_grant _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc0ba373e20>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_case_switch_during_conver0')
+
+    def test_case_switch_during_conversion_refuses_old_grant(monkeypatch, tmp_path):
+        def convert(mirror):
+            monkeypatch.setattr(server, "CASE_DIR", tmp_path / "new-case")
+            return fake_foam([])(mirror)
+        code, data = call_route(monkeypatch, tmp_path, {}, convert)
+>       assert code == 409 and data["code"] == "case_changed"
+E       assert (200 == 409)
+
+src/server/tests/test_ov_selected_frame.py:107: AssertionError
+______________ test_run_listing_uses_complete_actual_result_times ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc0ba37bc10>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-air-selected-frame-20261006/pytest-valid-red/test_run_listing_uses_complete0')
+
+    def test_run_listing_uses_complete_actual_result_times(monkeypatch, tmp_path):
+        run = make_decomposed_run(tmp_path, n=2, times=("0","5","10"))
+        complete_processors(run); (run / "processor1/10/T").unlink()
+        monkeypatch.setattr(server, "CASE_DIR", tmp_path)
+        replies=[]
+        monkeypatch.setattr(server, "_send_json", lambda _h, code, value: replies.append((code,value)))
+        server.handle_pp_runs(object())
+        data=replies[-1][1]["runs"][0]
+>       assert data["timesteps"] == [5] and data["runId"] == run_id(run)
+E       KeyError: 'timesteps'
+
+src/server/tests/test_ov_selected_frame.py:117: KeyError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_serial_frame_is_not_latest_and_its_grant_binds_time
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_common_mpi_frame_preserves_each_directory_spelling
+FAILED src/server/tests/test_ov_selected_frame.py::test_specific_time_missing_one_rank_does_not_fall_back
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[True]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[False]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[None]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[1]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[inf]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[nan]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[0]
+FAILED src/server/tests/test_ov_selected_frame.py::test_explicit_time_requires_positive_finite_numeric[-1]
+FAILED src/server/tests/test_ov_selected_frame.py::test_numeric_alias_ambiguity_is_refused
+FAILED src/server/tests/test_ov_selected_frame.py::test_specific_partition_frame_can_be_newer_than_retained_root
+FAILED src/server/tests/test_ov_selected_frame.py::test_change_while_converter_runs_is_not_signed_or_cached
+FAILED src/server/tests/test_ov_selected_frame.py::test_route_legacy_latest_and_specific_frame
+FAILED src/server/tests/test_ov_selected_frame.py::test_case_switch_during_conversion_refuses_old_grant
+FAILED src/server/tests/test_ov_selected_frame.py::test_run_listing_uses_complete_actual_result_times
+17 failed, 4 passed in 0.53s

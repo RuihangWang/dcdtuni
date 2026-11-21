@@ -1,0 +1,94 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+stdout | test/legacy/liquidClosedCabinetRender.test.ts > hands the original longitudinal UV buffers and path to the display-only adapter before PBR tiling
+[liquid_pipe_renderer.js] Pipe renderer loaded
+
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts (6 tests | 5 failed) 110ms
+   × removes the real saved rear-ring overrun and cabinet interior while preserving authored external U headers 5ms
+     → Cannot read properties of undefined (reading 'geometry')
+   × restores the complete original buffers on inspect without replacing materials, mesh, blind caps or inputs 1ms
+     → Cannot read properties of undefined (reading 'material')
+   × OV serializes selected actual buffers while input identity and result time stay fixed 7ms
+     → expected undefined to be defined
+   × returns the entire route when the actual shell is hidden or transparent 1ms
+     → Cannot read properties of undefined (reading 'userData')
+   × fails open visibly for an invalid cabinet frame without changing route data 3ms
+     → expected false to be true // Object.is equality
+ ✓ test/closedCabinetPipeClip.test.ts (10 tests) 79ms
+ ✓ test/components/ClosedCabinetDisplay.test.tsx (1 test) 43ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > removes the real saved rear-ring overrun and cabinet interior while preserving authored external U headers
+TypeError: Cannot read properties of undefined (reading 'geometry')
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:67:23
+     65|  actualFixture()
+     66|  const before=JSON.stringify(models)
+     67|  const p=pipe(),pos=p.geometry.getAttribute('position')
+       |                       ^
+     68|  let maxZ=-Infinity,maxX=-Infinity,minY=Infinity
+     69|  for(let i=0;i<pos.count;i++){maxZ=Math.max(maxZ,pos.getZ(i));maxX=Mat…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > restores the complete original buffers on inspect without replacing materials, mesh, blind caps or inputs
+TypeError: Cannot read properties of undefined (reading 'material')
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:78:28
+     76| it('restores the complete original buffers on inspect without replacin…
+     77|  actualFixture()
+     78|  const p=pipe(),material=p.material,blind=cap(),capGeometry=blind.geom…
+       |                            ^
+     79|  const clipped=Array.from(p.geometry.getAttribute('position').array),o…
+     80|  const rev=leafDisplayRevision()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > OV serializes selected actual buffers while input identity and result time stay fixed
+AssertionError: expected undefined to be defined
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:98:12
+     96|  const open=snapshot()
+     97|  const a=closed.primitives.find(p=>p.uid==='m_31'),b=open.primitives.f…
+     98|  expect(a).toBeDefined();expect(b).toBeDefined()
+       |            ^
+     99|  expect(JSON.stringify(a)).not.toBe(JSON.stringify(b))
+    100|  expect(closed.project).toEqual(open.project)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > returns the entire route when the actual shell is hidden or transparent
+TypeError: Cannot read properties of undefined (reading 'userData')
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:106:40
+    104| it('returns the entire route when the actual shell is hidden or transp…
+    105|  actualFixture()
+    106|  const p=pipe(),original=Array.from((p.userData._pipeDisplaySource.geo…
+       |                                        ^
+    107|  cduRoot.visible=false
+    108|  ;(window as unknown as Bag)._liquidPipeRenderer.refreshPipeDisplayGeo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/legacy/liquidClosedCabinetRender.test.ts > fails open visibly for an invalid cabinet frame without changing route data
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/legacy/liquidClosedCabinetRender.test.ts:123:76
+    121|  const before=JSON.stringify(models)
+    122|  ;(window as unknown as Bag)._liquidPipeRenderer.refreshPipeDisplayGeo…
+    123|  expect(closedCabinetDiagnostics().some(s=>s.includes('invalid-cabinet…
+       |                                                                            ^
+    124|  expect(pipe().userData.pipeDisplayDiagnostic).toBe('invalid-cabinet')
+    125|  expect(JSON.stringify(models)).toBe(before)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  5 failed | 12 passed (17)
+   Start at  05:11:59
+   Duration  18.95s (transform 2.78s, setup 0ms, collect 6.15s, tests 232ms, environment 11.43s, prepare 518ms)
+

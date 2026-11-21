@@ -1,0 +1,60 @@
+--- actual-H17b21/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H
++++ candidate/src/mesh/dcCartMesh/dcCartCutCells/dcCartFinitePointRepair.H
+@@ -1626,6 +1626,8 @@
+         (std::getenv("DCCART_PRIVATE_DW_WIDER_SEARCH"),Pstream::parRun());
+     const bool nonlinearFeasibilityTail=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
+         (std::getenv("DCCART_PRIVATE_DW_NONLINEAR_FEASIBILITY_TAIL"),Pstream::parRun());
++    const bool residualDWeightReselection=dcCartFiniteRepairKernel::widerDWeightSearchEnabled
++        (std::getenv("DCCART_PRIVATE_DW_RESIDUAL_RESELECT"),Pstream::parRun());
+     if (widerDWeightSearch)
+         Pout<< "PRIVATE wider DW search policy: trustBox=.2 radiusFactor=5"
+             << " requestsCap=256 iterationsCap=32 stageCap=20; actual guards retained" << nl;
+@@ -1949,23 +1951,33 @@
+         if (ratio.dimension==4) { mode.moving.push_back(ratio.pairA);mode.moving.push_back(ratio.pairB); }
+         attempt(mode);
+     }
+-    // One bounded census, then at most 256 finite DW searches per rank.
+-    // Every request and all setup/guards share the original 20-second clock.
+-    // Ranking is fixed at list construction; each attempt uses current state.
++    // The installed census remains the original topology seed pool. An exact1,
++    // serial-only opt-in may re-rank it once on the accepted current prefix.
++    // Both rounds share 256 admissions and the original 20-second clock.
+     if (localReady && available())
+     {
+-        const auto modes=selectDWModes
+-        (
+-            mesh,workingPoints,protectedFace,protectedPoint,currentCells,
+-            changedPoints,available,singletonSourceRoleContract,
+-            result.singletonContractRefused
+-        );
+-        if (modes.empty()) ++result.unsupported;
+-        for (const ProposalMode& mode:modes)
+-        {
+-            if (!available()) { ++result.budgetStopped;break; }
+-            attempt(mode);
+-        }
++        unsigned dwAdmissions=0;
++        const label commitsBeforeFirstDW=result.dwCommitted;
++        auto runDWRound=[&]()
++        {
++            const auto modes=selectDWModes
++            (
++                mesh,workingPoints,protectedFace,protectedPoint,currentCells,
++                changedPoints,available,singletonSourceRoleContract,
++                result.singletonContractRefused
++            );
++            if (modes.empty()) ++result.unsupported;
++            for (const ProposalMode& mode:modes)
++            {
++                if (dwAdmissions>=256) break;
++                if (!available()) { ++result.budgetStopped;break; }
++                ++dwAdmissions;
++                attempt(mode);
++            }
++        };
++        runDWRound();
++        if (residualDWeightReselection && result.dwCommitted>commitsBeforeFirstDW
++         && dwAdmissions<256 && available()) runDWRound();
+     }
+     result.proposalSeconds=seconds()-proposalStart;
+     // Every local stop reaches these collectives. No trial has communicated.

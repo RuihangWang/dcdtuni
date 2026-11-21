@@ -1,0 +1,118 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/PostprocessVolumeField.test.tsx (4 tests | 4 failed) 516ms
+   × removes a previous field and its limits until the newly selected volume is applied 271ms
+     → expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+   × shows small velocity limits and preserves their raw precision on focus and blur 85ms
+     → expected 0 to be greater than 0.004
+   × does not apply a late response range to a different selected field 94ms
+     → expected [ 0.002, 0.006 ] to deeply equal [ 295.15, 305.15 ]
+   × keeps the displayed volume labelled when its configuration section is collapsed 63ms
+     → expected undefined to be 'T (K)' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > removes a previous field and its limits until the newly selected volume is applied
+AssertionError: expected <div class="pp-colorbar" …(2)>…(4)</div> to be null
+
+- Expected: 
+null
+
++ Received: 
+<div
+  class="pp-colorbar"
+  id="pp-colorbar-volume"
+  style="right: 410px; top: 50%; transform: translateY(-50%);"
+>
+  <div
+    class="pp-colorbar-field"
+    title="Umag (m/s)"
+  >
+    Umag (m/s)
+  </div>
+  <div
+    class="pp-colorbar-max"
+  >
+    305.1
+  </div>
+  <canvas
+    height="196"
+    width="26"
+  />
+  <div
+    class="pp-colorbar-min"
+  >
+    295.1
+  </div>
+</div>
+
+ ❯ test/components/PostprocessVolumeField.test.tsx:92:57
+     90|   expect(apply.mock.lastCall![0].volume.payload).not.toBeNull()
+     91|   selectField('Umag')
+     92|   expect(document.querySelector('#pp-colorbar-volume')).toBeNull()
+       |                                                         ^
+     93|   expect(apply.mock.lastCall![0].volume.payload).toBeNull()
+     94|   expect(input('pp-vol-clim-min').value).toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > shows small velocity limits and preserves their raw precision on focus and blur
+AssertionError: expected 0 to be greater than 0.004
+ ❯ test/components/PostprocessVolumeField.test.tsx:106:29
+    104|   await act(async () => host.querySelector<HTMLButtonElement>('#pp-app…
+    105|   const max = input('pp-vol-clim-max')
+    106|   expect(Number(max.value)).toBeGreaterThan(0.004)
+       |                             ^
+    107|   expect(Number(max.step)).toBeLessThan(0.0001)
+    108|   const before = apply.mock.lastCall![0].volume.clim[1]
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > does not apply a late response range to a different selected field
+AssertionError: expected [ 0.002, 0.006 ] to deeply equal [ 295.15, 305.15 ]
+
+- Expected
++ Received
+
+  Array [
+-   295.15,
+-   305.15,
++   0.002,
++   0.006,
+  ]
+
+ ❯ test/components/PostprocessVolumeField.test.tsx:123:62
+    121|   await act(async () => resolve(payload('Umag')))
+    122|   expect(document.querySelector('#pp-colorbar-volume .pp-colorbar-fiel…
+    123|   expect(apply.mock.lastCall![0].volume.payload.scalarRange).toEqual([…
+       |                                                              ^
+    124|   expect(Number(document.querySelector('#pp-colorbar-volume .pp-colorb…
+    125|   expect(input('pp-vol-clim-min').value).toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/components/PostprocessVolumeField.test.tsx > keeps the displayed volume labelled when its configuration section is collapsed
+AssertionError: expected undefined to be 'T (K)' // Object.is equality
+
+- Expected: 
+"T (K)"
+
++ Received: 
+undefined
+
+ ❯ test/components/PostprocessVolumeField.test.tsx:133:89
+    131|   act(() => input('pp-vol-show').click())
+    132|   expect(host.querySelector<HTMLElement>('#pp-vol-config')!.style.disp…
+    133|   expect(document.querySelector('#pp-colorbar-volume .pp-colorbar-fiel…
+       |                                                                                         ^
+    134|   expect(apply.mock.lastCall![0].volume.payload.scalarRange).toEqual([…
+    135|   expect(apply.mock.lastCall![0].volume.visible).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  01:00:55
+   Duration  12.42s (transform 1.88s, setup 0ms, collect 3.79s, tests 516ms, environment 7.59s, prepare 270ms)
+

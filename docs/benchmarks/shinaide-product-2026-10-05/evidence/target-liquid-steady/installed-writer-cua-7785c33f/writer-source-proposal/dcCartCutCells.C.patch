@@ -1,0 +1,526 @@
+--- src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C.before
++++ src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -13,6 +13,10 @@
+ #include "clockTime.H"
+ #include "tetPointRef.H"
+ #include "symmTensor.H"
++#include "IOstreams.H"
++#include "IStringStream.H"
++#include "OStringStream.H"
++#include "OSspecific.H"
+ #include <fstream>
+ #include <sstream>
+ #include <iomanip>
+@@ -31,6 +35,7 @@
+ #include <tuple>
+ #include <numeric>
+ #include <limits>
++#include <type_traits>
+ 
+ // * * * * * * * * * * * * * * * Local helpers * * * * * * * * * * * * * * * //
+ 
+@@ -9107,7 +9112,10 @@
+ }
+ 
+ 
+-void Foam::dcCartCutCells::mergeCoincidentPoints(cutMesh& m, const boundBox* within)
++void Foam::dcCartCutCells::mergeCoincidentPoints
++(
++    cutMesh& m, const boundBox* within, std::vector<label>* flattenedAlias
++)
+ {
+     // Crossings, cap pieces and the octree's hanging vertices can put two
+     // ids on one position; the polyMesh must have one point there or the
+@@ -9145,6 +9153,7 @@
+         while (alias[r] != r && ++guard < 128) { r = alias[r]; }
+         alias[p] = r;
+     }
++    if (flattenedAlias) { *flattenedAlias=alias; }
+     // UNCONDITIONAL face rewrite — nDup is not a safe gate. canonMin's
+     // supersede path (canonical minimum arrives late) sets alias[got] = v
+     // and returns v, so neither v itself (c == p at the caller) nor the
+@@ -12273,10 +12282,305 @@
+ 
+ 
+ 
++namespace
++{
++using WriterCutMesh=Foam::dcCartCutCells::cutMesh;
++using WriterBindings=Foam::dcCartCutCells::writerBindings;
++using WriterBaseline=Foam::dcCartCutCells::writerCoupledBaseline;
++using WriterFace=Foam::dcCartCutCells::writerCoupledFace;
++
++// DP equality is a representation promise, not tolerance equality. In
++// particular -0/+0 differ and identical nonfinite bit patterns are refused.
++bool writerSameScalar(scalar a,scalar b)
++{
++    return std::isfinite(a) && std::isfinite(b)
++        && std::memcmp(&a,&b,sizeof(scalar))==0;
++}
++bool writerSamePoint(const vector& a,const vector& b)
++{
++    return writerSameScalar(a.x(),b.x()) && writerSameScalar(a.y(),b.y())
++        && writerSameScalar(a.z(),b.z());
++}
++bool writerFinitePoint(const vector& p)
++{
++    return std::isfinite(p.x()) && std::isfinite(p.y()) && std::isfinite(p.z());
++}
++bool writerCoupledType(const Foam::word& type)
++{
++    return type.find("cyclic")==0 || type.find("processor")==0
++        || type.find("mapped")==0 || type.find("AMI")!=std::string::npos;
++}
++std::string writerPatchRole(const Foam::polyPatch& patch)
++{
++    Foam::OStringStream stream;
++    stream.precision(std::numeric_limits<scalar>::max_digits10);
++    patch.write(stream);
++    Foam::IStringStream input(stream.str());
++    Foam::dictionary role(input);
++    // The sole offset excluded from the certificate. The actual face map
++    // and patch-relative index separately prove the remapped startFace.
++    role.remove("startFace");
++    Foam::OStringStream normalized;
++    normalized.precision(std::numeric_limits<scalar>::max_digits10);
++    role.writeEntries(normalized);
++    return normalized.str();
++}
++std::vector<std::pair<std::string,bool>> writerZoneRoles
++(
++    const Foam::polyMesh& mesh,label f
++)
++{
++    std::vector<std::pair<std::string,bool>> roles;
++    forAll(mesh.faceZones(),z)
++    {
++        const Foam::faceZone& zone=mesh.faceZones()[z];
++        const label local=zone.whichFace(f);
++        if (local>=0) { roles.emplace_back(std::string(zone.name()),zone.flipMap()[local]); }
++    }
++    return roles;
++}
++// Exact live-container payload estimate. Allocator headers, transient canon
++// hashes and OpenFOAM auxiliary caches are deliberately not called RSS.
++std::size_t writerCutPayloadBytes(const WriterCutMesh& m)
++{
++    std::size_t n=sizeof(m)+m.points.capacity()*sizeof(point)
++        +m.faces.capacity()*sizeof(std::vector<label>);
++    for (const auto& f:m.faces) { n+=f.capacity()*sizeof(label); }
++    for (const auto* v:{&m.owner,&m.neighbour,&m.patch,&m.zone,&m.cellLevel,
++        &m.cellRank,&m.coneEvidenceParent,&m.coneEvidenceBase})
++    { n+=v->capacity()*sizeof(label); }
++    for (const auto* v:{&m.faceAlive,&m.cellAlive,&m.cellOrigAlive})
++    { n+=(v->capacity()+7)/8; }
++    n+=m.cellRefVol.capacity()*sizeof(scalar)+m.cellRefCentre.capacity()*sizeof(point)
++        +(m.cellLeaf.capacity()+m.cellPiece.capacity())*sizeof(uint64_t);
++    return n;
++}
++std::string writerJsonQuote(const std::string& input)
++{
++    std::ostringstream out;out<<'"';
++    for (unsigned char c:input)
++    {
++        if (c=='"' || c=='\\') { out<<'\\'<<c; }
++        else if (c<32) { out<<"\\u"<<std::hex<<std::setw(4)<<std::setfill('0')<<unsigned(c)<<std::dec; }
++        else { out<<c; }
++    }
++    out<<'"';return out.str();
++}
++void writerHex(std::ostream& out,scalar value)
++{
++    const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
++    out<<'"';for (std::size_t j=0;j<sizeof(scalar);++j)
++    { out<<std::hex<<std::setw(2)<<std::setfill('0')<<unsigned(bytes[j]); }
++    out<<std::dec<<'"';
++}
++void writerPointBits(std::ostream& out,const vector& p)
++{
++    out<<'[';writerHex(out,p.x());out<<',';writerHex(out,p.y());out<<',';writerHex(out,p.z());out<<']';
++}
++bool writeWriterCertificate
++(
++    const WriterBaseline& baseline,const Foam::fileName& path,
++    const char* status,label failures,scalar verifySeconds
++)
++{
++    std::ofstream out(path.c_str());if (!out) { return false; }
++    const uint16_t endianMarker=1;
++    const char* byteOrder=*reinterpret_cast<const unsigned char*>(&endianMarker) ? "little" : "big";
++    out<<std::setprecision(17)
++        <<"{\"format\":\"installed-writer-coupled-certificate/v1\",\"byteOrder\":"<<writerJsonQuote(byteOrder)<<",\"status\":"<<writerJsonQuote(status)
++        <<",\"rank\":"<<Foam::Pstream::myProcNo()<<",\"scalarBytes\":"<<sizeof(scalar)
++        <<",\"failures\":"<<failures<<",\"copySeconds\":"<<baseline.copySeconds
++        <<",\"constructSeconds\":"<<baseline.constructSeconds<<",\"snapshotSeconds\":"<<baseline.snapshotSeconds
++        <<",\"verifySeconds\":"<<verifySeconds<<",\"cutPayloadBytes\":"<<baseline.cutPayloadBytes
++        <<",\"writerGeometryBytes\":"<<baseline.writerGeometryBytes
++        <<",\"baselineImmutable\":true,\"remoteQualityRecomputed\":false,\"coupledPatchRoles\":{";
++    bool first=true;
++    for (const auto& p:baseline.patchRoles)
++    { if (!first) { out<<','; }first=false;out<<writerJsonQuote(p.first)<<':'<<writerJsonQuote(p.second); }
++    out<<"},\"coupledPatchSizes\":{";first=true;
++    for (const auto& p:baseline.patchSizes)
++    { if (!first) { out<<','; }first=false;out<<writerJsonQuote(p.first)<<':'<<p.second; }
++    out<<"},\"faces\":[";
++    for (std::size_t k=0;k<baseline.faces.size();++k)
++    {
++        if (k) { out<<','; }const auto& f=baseline.faces[k];
++        out<<"{\"nativeFace\":"<<f.nativeFace<<",\"nativeOwner\":"<<f.nativeOwner
++            <<",\"nativeNeighbour\":"<<f.nativeNeighbour<<",\"rawPatch\":"<<f.rawPatch<<",\"rawZone\":"<<f.rawZone
++            <<",\"relativeFace\":"<<f.relativeFace<<",\"compactFace\":"<<f.compactFace
++            <<",\"compactOwner\":"<<f.compactOwner<<",\"patchName\":"<<writerJsonQuote(f.patchName)
++            <<",\"patchType\":"<<writerJsonQuote(f.patchType)<<",\"patchRole\":"<<writerJsonQuote(f.patchRole);
++        auto labels=[&](const char* name,const std::vector<label>& values)
++        {
++            out<<",\""<<name<<"\":[";for (std::size_t i=0;i<values.size();++i)
++            { if (i) { out<<','; }out<<values[i]; }out<<']';
++        };
++        labels("nativePoints",f.nativePoints);labels("pointAliases",f.pointAliases);labels("ringAliases",f.ringAliases);
++        labels("compactPoints",f.compactPoints);
++        out<<",\"coordinateBytes\":[";
++        for (std::size_t i=0;i<f.coordinates.size();++i)
++        { if (i) { out<<','; }writerPointBits(out,f.coordinates[i]); }
++        out<<"],\"SfBytes\":";writerPointBits(out,f.area);out<<",\"FCBytes\":";writerPointBits(out,f.faceCentre);
++        out<<",\"CCBytes\":";writerPointBits(out,f.cellCentre);out<<",\"VBytes\":";writerHex(out,f.volume);
++        out<<",\"zoneRoles\":[";
++        for (std::size_t i=0;i<f.zoneRoles.size();++i)
++        { if (i) { out<<','; }out<<'['<<writerJsonQuote(f.zoneRoles[i].first)<<','<<(f.zoneRoles[i].second?"true":"false")<<']'; }
++        out<<"]}";
++    }
++    out<<"]}\n";return bool(out);
++}
++bool writeWriterCheckpoint(const WriterCutMesh& m,const Foam::fileName& prefix)
++{
++    bool ok=true;
++    auto raw=[&](const char* name,const auto& values)
++    {
++        using Value=typename std::decay<decltype(values)>::type::value_type;
++        std::ofstream out((prefix+name).c_str(),std::ios::binary);
++        out.write(reinterpret_cast<const char*>(values.data()),values.size()*sizeof(Value));ok=ok&&bool(out);
++    };
++    raw("points.f64",m.points);raw("owner.i32",m.owner);raw("neighbour.i32",m.neighbour);
++    raw("patch.i32",m.patch);raw("zone.i32",m.zone);raw("cell-ref-volume.f64",m.cellRefVol);
++    raw("cell-ref-centre.f64",m.cellRefCentre);raw("cell-level.i32",m.cellLevel);raw("cell-rank.i32",m.cellRank);
++    raw("cell-leaf.u64",m.cellLeaf);raw("cell-piece.u64",m.cellPiece);
++    raw("cone-parent.i32",m.coneEvidenceParent);raw("cone-base.i32",m.coneEvidenceBase);
++    std::vector<label> offsets{0},vertices;
++    for (const auto& f:m.faces) { vertices.insert(vertices.end(),f.begin(),f.end());offsets.push_back(vertices.size()); }
++    raw("face-offsets.i32",offsets);raw("face-vertices.i32",vertices);
++    auto bits=[&](const char* name,const std::vector<bool>& values)
++    {
++        std::vector<unsigned char> expanded;expanded.reserve(values.size());
++        for (bool v:values) { expanded.push_back(v); }raw(name,expanded);
++    };
++    bits("face-alive.u8",m.faceAlive);bits("cell-alive.u8",m.cellAlive);bits("cell-original.u8",m.cellOrigAlive);
++    std::ofstream meta((prefix+"manifest.json").c_str());
++    meta<<"{\"format\":\"preoperator-cutmesh-checkpoint/v1\",\"cells\":"<<m.nCells
++        <<",\"points\":"<<m.points.size()<<",\"faces\":"<<m.faces.size()<<",\"nGridPoints\":"<<m.nGridPoints
++        <<",\"labelBytes\":"<<sizeof(label)<<",\"scalarBytes\":"<<sizeof(scalar)<<"}\n";
++    return ok&&bool(meta);
++}
++label snapshotWriterCoupled
++(
++    const WriterCutMesh& original,const Foam::polyMesh& mesh,
++    const WriterBindings& map,WriterBaseline& baseline
++)
++{
++    label bad=0;
++    if (map.cell.size()!=std::size_t(original.nCells) || map.face.size()!=original.faces.size()
++     || map.point.size()!=original.points.size() || map.alias.size()!=original.points.size()) { return 1; }
++    const auto& cc=mesh.cellCentres();const auto& v=mesh.cellVolumes();
++    const auto& sf=mesh.faceAreas();const auto& fc=mesh.faceCentres();
++    baseline.writerGeometryBytes=cc.size()*sizeof(point)+v.size()*sizeof(scalar)
++        +(sf.size()+fc.size())*sizeof(vector);
++    std::vector<label> nativePoint(mesh.nPoints(),-1);
++    for (label p=0;p<label(map.point.size());++p) if (map.point[p]>=0) { nativePoint[map.point[p]]=p; }
++    forAll(mesh.boundaryMesh(),pi)
++    {
++        const auto& patch=mesh.boundaryMesh()[pi];if (!patch.coupled() && !writerCoupledType(patch.type())) { continue; }
++        const std::string name=patch.name(),role=writerPatchRole(patch);
++        if (!baseline.patchRoles.emplace(name,role).second) { ++bad; }
++        baseline.patchSizes[name]=patch.size();
++    }
++    for (label nf=0;nf<label(original.faces.size());++nf)
++    {
++        const label f=map.face[nf];if (f<mesh.nInternalFaces()) { continue; }
++        if (f<0 || f>=mesh.nFaces()) { ++bad;continue; }
++        const label pi=mesh.boundaryMesh().whichPatch(f);
++        if (pi<0) { ++bad;continue; }const auto& patch=mesh.boundaryMesh()[pi];
++        if (!patch.coupled() && !writerCoupledType(patch.type())) { continue; }
++        WriterFace row;row.nativeFace=nf;row.nativeOwner=original.owner[nf];row.nativeNeighbour=original.neighbour[nf];
++        row.rawPatch=original.patch[nf];row.rawZone=original.zone[nf];row.relativeFace=f-patch.start();
++        row.patchName=patch.name();row.patchType=patch.type();row.patchRole=baseline.patchRoles.at(row.patchName);
++        row.nativePoints=original.faces[nf];
++        for (label p:row.nativePoints)
++        {
++            if (p<0 || p>=label(map.alias.size())) { ++bad;continue; }
++            row.pointAliases.push_back(map.alias[p]);
++        }
++        for (label p:mesh.faces()[f])
++        {
++            if (p<0 || p>=mesh.nPoints() || nativePoint[p]<0) { ++bad;continue; }
++            row.ringAliases.push_back(nativePoint[p]);row.compactPoints.push_back(p);
++            row.coordinates.push_back(mesh.points()[p]);
++            if (!writerFinitePoint(mesh.points()[p])) { ++bad; }
++        }
++        const label owner=mesh.faceOwner()[f];
++        if (row.nativeOwner<0 || row.nativeOwner>=label(map.cell.size()) || map.cell[row.nativeOwner]!=owner) { ++bad; }
++        row.compactFace=f;row.compactOwner=owner;
++        row.area=sf[f];row.faceCentre=fc[f];row.cellCentre=cc[owner];row.volume=v[owner];
++        row.zoneRoles=writerZoneRoles(mesh,f);
++        if (!writerFinitePoint(row.area) || !writerFinitePoint(row.faceCentre) || !writerFinitePoint(row.cellCentre)
++         || !std::isfinite(row.volume) || row.volume<=0 || row.coordinates.size()<3
++         || row.nativePoints.size()!=row.pointAliases.size()) { ++bad; }
++        baseline.faces.push_back(std::move(row));
++    }
++    return bad;
++}
++label verifyWriterCoupled
++(
++    const WriterCutMesh& m,const Foam::polyMesh& mesh,const WriterBindings& map,
++    const WriterBaseline& baseline
++)
++{
++    label bad=0;
++    const auto& cc=mesh.cellCentres();const auto& v=mesh.cellVolumes();
++    const auto& sf=mesh.faceAreas();const auto& fc=mesh.faceCentres();
++    if (!baseline.checkpoint || map.cell.size()!=std::size_t(m.nCells) || map.face.size()!=m.faces.size()
++     || map.point.size()!=m.points.size() || map.alias.size()!=m.points.size()) { return 1; }
++    std::map<std::string,std::string> roles;std::map<std::string,label> sizes;
++    forAll(mesh.boundaryMesh(),pi)
++    {
++        const auto& patch=mesh.boundaryMesh()[pi];if (!patch.coupled() && !writerCoupledType(patch.type())) { continue; }
++        if (!roles.emplace(std::string(patch.name()),writerPatchRole(patch)).second) { ++bad; }
++        sizes[std::string(patch.name())]=patch.size();
++    }
++    if (roles!=baseline.patchRoles || sizes!=baseline.patchSizes) { ++bad; }
++    label coupledFaces=0;for (const auto& p:sizes) { coupledFaces+=p.second; }
++    if (std::size_t(coupledFaces)!=baseline.faces.size()) { ++bad; }
++    for (const auto& row:baseline.faces)
++    {
++        const label nf=row.nativeFace,no=row.nativeOwner;
++        if (nf<0 || nf>=label(map.face.size()) || no<0 || no>=label(map.cell.size())
++         || !m.faceAlive[nf] || !m.cellAlive[no]) { ++bad;continue; }
++        const label f=map.face[nf],owner=map.cell[no];
++        if (f<mesh.nInternalFaces() || f>=mesh.nFaces() || owner<0 || owner>=mesh.nCells()) { ++bad;continue; }
++        const label pi=mesh.boundaryMesh().whichPatch(f);if (pi<0) { ++bad;continue; }
++        const auto& patch=mesh.boundaryMesh()[pi];const auto& ring=mesh.faces()[f];
++        bool same=mesh.faceOwner()[f]==owner && row.nativeNeighbour==-1
++            && m.neighbour[nf]==-1 && m.patch[nf]==row.rawPatch && m.zone[nf]==row.rawZone
++            && std::string(patch.name())==row.patchName && std::string(patch.type())==row.patchType
++            && f-patch.start()==row.relativeFace && roles.count(row.patchName)
++            && roles.at(row.patchName)==row.patchRole
++            && ring.size()==label(row.coordinates.size()) && ring.size()==label(row.ringAliases.size())
++            && row.nativePoints.size()==row.pointAliases.size()
++            && writerSamePoint(sf[f],row.area) && writerSamePoint(fc[f],row.faceCentre)
++            && writerSamePoint(cc[owner],row.cellCentre) && writerSameScalar(v[owner],row.volume)
++            && writerZoneRoles(mesh,f)==row.zoneRoles;
++        for (std::size_t j=0;same && j<row.nativePoints.size();++j)
++        {
++            const label p=row.nativePoints[j];
++            same=p>=0 && p<label(map.alias.size()) && map.alias[p]==row.pointAliases[j];
++            const label rep=same ? map.alias[p] : -1;
++            same=same && rep>=0 && rep<label(m.points.size())
++                && rep<label(baseline.checkpoint->points.size())
++                && writerSamePoint(m.points[rep],baseline.checkpoint->points[rep]);
++        }
++        for (label j=0;same && j<ring.size();++j)
++        {
++            const label rep=row.ringAliases[j];
++            same=rep>=0 && rep<label(map.point.size()) && map.point[rep]==ring[j]
++                && writerSamePoint(mesh.points()[ring[j]],row.coordinates[j]);
++        }
++        if (!same) { ++bad; }
++    }
++    return bad;
++}
++}
++
+ Foam::label Foam::dcCartCutCells::decomposeConformingCones
+ (
+     cutMesh& m, const wordList& patchNames, const wordList& patchTypes,
+-    const wordList& patchNeighbours, label myRank
++    const wordList& patchNeighbours, label myRank,
++    const Time& runTime, const wordList& faceZoneNames,
++    const wordList& patchGroups
+ )
+ {
+     // Optional conservative final subdivision. No original coordinate moves.
+@@ -13843,6 +14147,60 @@
+     { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
+     if (literalUnions)
+     {
++        // One all-rank, no-write installed oracle before ANY literal union.
++        // The immutable raw checkpoint survives all candidates until the final
++        // writer certificate. Its baseline is never refreshed after mutation.
++        clockTime oracleClock;
++        if (m.writerBaseline)
++        { FatalErrorInFunction<<"preoperator writer baseline must be captured once"<<exit(FatalError); }
++        auto baseline=std::make_shared<writerCoupledBaseline>();
++        baseline->cutPayloadBytes=writerCutPayloadBytes(m);
++        auto checkpoint=std::make_shared<cutMesh>(m);
++        checkpoint->writerBaseline.reset();
++        baseline->checkpoint=checkpoint;
++        cutMesh working(*checkpoint);
++        baseline->copySeconds=oracleClock.timeIncrement();
++        writerBindings oracleBindings;
++        label baselineFailures=0;
++        {
++            autoPtr<polyMesh> oracle=toPolyMesh
++            (
++                working,runTime,polyMesh::defaultRegion,patchNames,patchTypes,
++                faceZoneNames,patchNeighbours,patchGroups,true,&oracleBindings
++            );
++            // Demand-driven installed geometry is materialized before the
++            // construct clock stops; no quality checker/remote metric is run.
++            oracle->cellCentres();oracle->cellVolumes();oracle->faceAreas();oracle->faceCentres();
++            baseline->constructSeconds=oracleClock.timeIncrement();
++            baselineFailures=snapshotWriterCoupled(*checkpoint,*oracle,oracleBindings,*baseline);
++        }
++        // Working data and actual oracle must not remain aliases/references
++        // in the stored certificate. Every recorded value is an owned copy.
++        working=cutMesh();oracleBindings=writerBindings();
++        baseline->snapshotSeconds=oracleClock.timeIncrement();
++        if (getenv("DCCART_CONE_EVIDENCE"))
++        {
++            const fileName output=runTime.path()/("conforming-writer-baseline-rank"+std::to_string(Pstream::myProcNo())+".json");
++            if (!writeWriterCertificate(*baseline,output,"earliest-baseline",baselineFailures,0))
++            { ++baselineFailures; }
++        }
++        const label globalBaselineFailures=returnReduce(baselineFailures,sumOp<label>());
++        if (globalBaselineFailures)
++        {
++            const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
++            writeWriterCheckpoint(*checkpoint,prefix);
++            FatalErrorInFunction<<"preoperator installed writer baseline refused: "
++                <<globalBaselineFailures<<"; no mesh authorization"<<exit(FatalError);
++        }
++        m.writerBaseline=std::move(baseline);
++        Info<<"Conforming preoperator installed writer oracle: coupled faces "<<m.writerBaseline->faces.size()
++            <<", local copy/construct/snapshot "<<m.writerBaseline->copySeconds<<'/'
++            <<m.writerBaseline->constructSeconds<<'/'<<m.writerBaseline->snapshotSeconds
++            <<" s; cut payload "<<m.writerBaseline->cutPayloadBytes<<" bytes, DP geometry "
++            <<m.writerBaseline->writerGeometryBytes
++            <<" bytes; estimate excludes allocator headers/canon caches; full API deadline unchanged"<<endl;
++        std::unordered_set<label> writerCertifiedFaces;
++        for (const auto& record:m.writerBaseline->faces) { writerCertifiedFaces.insert(record.nativeFace); }
+         // Literal mode only deletes one unzoned internal face. A separate
+         // opt-in may synchronously join two physical triangles of the SAME
+         // source facet/patch/zone; all their outline nodes and inherited roles
+@@ -14191,7 +14549,7 @@
+                     for (label c:affected) for (label f:unionCF[c]) if (coupledType(f))
+                     {
+                         if (c==keep || c==drop) { protect=true;break; }
+-                        if (!m.faceAlive[f] || !supportedUnchangedCoupled(f) || m.owner[f]!=c
++                        if (!m.faceAlive[f] || !supportedUnchangedCoupled(f) || !writerCertifiedFaces.count(f) || m.owner[f]!=c
+                          || m.faces[f].size()<3 || !finiteUnionPoint(unionArea[f]) || !finiteUnionPoint(unionCentre[f]))
+                         { protect=true;outsideCoupledInvalid=true;break; }
+                         unionCoupledSnapshot snapshot{f,m.owner[f],m.neighbour[f],m.patch[f],m.zone[f],
+@@ -15310,9 +15668,16 @@
+     const wordList& patchTypes,
+     const wordList& faceZoneNames,
+     const wordList& patchNeighbours,
+-    const wordList& patchGroups
++    const wordList& patchGroups,
++    const bool baselineOnly,
++    writerBindings* requestedBindings
+ )
+ {
++    // The oracle executes this exact normalizer on a separate deep copy.
++    // It is unregistered/NO_WRITE and explicitly bypasses TRACE file output.
++    writerBindings finalBindings;
++    writerBindings* bindings=requestedBindings;
++    if (!baselineOnly && m.writerBaseline && !bindings) { bindings=&finalBindings; }
+     // ---- cells: compact ---------------------------------------------------
+     std::vector<label> newCell(m.nCells, -1);
+     label nC = 0;
+@@ -15321,7 +15686,8 @@
+         if (m.cellAlive[c]) { newCell[c] = nC++; }
+     }
+ 
+-    mergeCoincidentPoints(m);
++    if (bindings) { mergeCoincidentPoints(m,nullptr,&bindings->alias); }
++    else { mergeCoincidentPoints(m); }
+ 
+     // ---- faces: orient owner < neighbour, order --------------------------
+     std::vector<label> internalIds, boundaryIds;
+@@ -15546,7 +15912,14 @@
+         ++i;
+     }
+ 
+-    if (!m.coneEvidenceParent.empty())
++    if (bindings)
++    {
++        bindings->cell=newCell;bindings->point=newPoint;
++        bindings->face.assign(m.faces.size(),-1);label q=0;
++        for (label f:internalIds) { bindings->face[f]=q++; }
++        for (label f:boundaryIds) { bindings->face[f]=q++; }
++    }
++    if (!baselineOnly && !m.coneEvidenceParent.empty())
+     {
+         if (m.coneEvidenceParent.size()!=size_t(m.nCells) || m.coneEvidenceBase.size()!=m.faces.size())
+         { FatalErrorInFunction<<"inconsistent optional cone evidence addressing"<<exit(FatalError); }
+@@ -15751,11 +16124,12 @@
+         (
+             IOobject
+             (
+-                regionName,
++                baselineOnly ? word("dcCartPreOperatorWriterOracle") : regionName,
+                 runTime.constant(),
+                 runTime,
+                 IOobject::NO_READ,
+-                IOobject::AUTO_WRITE
++                baselineOnly ? IOobject::NO_WRITE : IOobject::AUTO_WRITE,
++                !baselineOnly
+             ),
+             std::move(pts),
+             std::move(fcs),
+@@ -15877,5 +16251,48 @@
+         );
+     }
+     mesh.addZones(pz, fz, cz);
++    if (!baselineOnly && m.writerBaseline)
++    {
++        clockTime verifyClock;
++        // This is the REAL final polyMesh after point aliasing, compact
++        // owner/face ordering, patch normalization and zone construction.
++        // Every rank enters the same reduction, including empty/cert-zero ranks.
++        label localFailures=bindings
++            ? verifyWriterCoupled(m,mesh,*bindings,*m.writerBaseline) : 1;
++        writerCoupledBaseline actual;
++        actual.checkpoint=m.writerBaseline->checkpoint;
++        actual.copySeconds=m.writerBaseline->copySeconds;
++        actual.constructSeconds=m.writerBaseline->constructSeconds;
++        actual.snapshotSeconds=m.writerBaseline->snapshotSeconds;
++        actual.cutPayloadBytes=m.writerBaseline->cutPayloadBytes;
++        // Evidence carries the REAL final compact bindings and installed
++        // bytes, not a second serialization of expected baseline values.
++        if (bindings) { localFailures+=snapshotWriterCoupled
++            (*actual.checkpoint,mesh,*bindings,actual); }
++        const scalar verifySeconds=verifyClock.elapsedTime();
++        label ioFailures=0;
++        if (getenv("DCCART_CONE_EVIDENCE") || localFailures)
++        {
++            const fileName output=runTime.path()/("conforming-writer-final-rank"+std::to_string(Pstream::myProcNo())+".json");
++            if (!writeWriterCertificate(actual,output,
++                localFailures?"local-rejected":"local-pass-awaiting-global",localFailures,verifySeconds)) { ++ioFailures; }
++        }
++        const label globalFailures=returnReduce(localFailures+ioFailures,sumOp<label>());
++        if (globalFailures)
++        {
++            // Preserve the raw PREOPERATOR input, never the altered candidate
++            // polyMesh. APP has not called write() and obtains no result.
++            const fileName prefix=runTime.path()/("conforming-preoperator-rank"+std::to_string(Pstream::myProcNo())+"-");
++            const bool preserved=writeWriterCheckpoint(*m.writerBaseline->checkpoint,prefix);
++            Pout<<"Conforming installed writer rejected: local "<<localFailures
++                <<", preoperator checkpoint preserved "<<preserved<<endl;
++            FatalErrorInFunction<<"coupled postwriter DP/ring/alias/role invariance failed on "
++                <<globalFailures<<" face/metadata record(s); no mesh written"<<exit(FatalError);
++        }
++        Pout<<"Conforming installed postwriter coupled certificate: rank "<<Pstream::myProcNo()
++            <<", faces "<<m.writerBaseline->faces.size()<<", failures "<<localFailures
++            <<", verify "<<verifySeconds<<" s; earliest installed baseline and real final DP bytes; full checkMesh required"<<endl;
++        m.writerBaseline.reset();
++    }
+     return meshPtr;
+ }

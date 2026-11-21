@@ -1,0 +1,30 @@
+--- src/frontend/react/src/renderer/ovDisplayPreferences.ts
++++ src/frontend/react/src/renderer/ovDisplayPreferences.ts
+@@ -25,6 +25,21 @@
+ }
+ const air = new Map<string, AirDisplayPreference>()
+ const airSelection = new Map<string, string>()
++/** Plain selection, not an ACK. Anchor prevents a snapped manual frame being retargeted. */
++export interface AirFramePreference { time: number | null; anchor: number; threeSelectionKey?: string | null }
++const airFrames = new Map<string, AirFramePreference>()
++export function airFramePreference(projectUid: string | null | undefined, runId: string | null) {
++  const id = key(projectUid, runId)
++  const value = id ? airFrames.get(id) : null
++  return value ? { ...value } : null
++}
++export function rememberAirFrame(projectUid: string | null | undefined, runId: string | null, value: AirFramePreference) {
++  const id = key(projectUid, runId)
++  if (id && projectUid && runId && Number.isFinite(value.anchor) &&
++      (value.time === null || (Number.isFinite(value.time) && value.time > 0))) {
++    airFrames.set(id, { ...value }); airSelection.set(projectUid, runId)
++  }
++}
+ const copyAir = (value: AirDisplayPreference): AirDisplayPreference => JSON.parse(JSON.stringify(value))
+ export function selectedAirDisplayRun(projectUid: string | null | undefined) {
+   return projectUid ? airSelection.get(projectUid) ?? null : null
+@@ -38,4 +53,4 @@
+   const id = key(projectUid, runId)
+   if (id && projectUid && runId) { air.set(id, copyAir(value)); airSelection.set(projectUid, runId) }
+ }
+-export function resetOvDisplayPreferences() { liquid.clear(); air.clear(); airSelection.clear() }
++export function resetOvDisplayPreferences() { liquid.clear(); air.clear(); airSelection.clear(); airFrames.clear() }

@@ -1,0 +1,101 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2406                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    p_rgh
+    {
+        solver          PCG;
+{% if pressure_preconditioner | default("DIC") == "GAMG" %}
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       1e-8;
+            relTol          0.01;
+            nVcycles        2;
+            smoother        GaussSeidel;
+        }
+{% else %}
+        preconditioner  DIC;
+{% endif %}
+        tolerance       {{ pressure_tolerance | default(1e-8) }};
+        relTol          {{ pressure_rel_tol | default(0.01) }};
+{% if pressure_max_iter | default(none) is not none %}
+        maxIter         {{ pressure_max_iter }};
+{% endif %}
+    }
+
+    p_rghFinal
+    {
+        $p_rgh;
+        relTol          0;
+    }
+
+    "(U|T|k|epsilon|R)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0.01;
+    }
+
+    "(U|T|k|epsilon|R)Final"
+    {
+        $U;
+        relTol          0;
+    }
+}
+
+PIMPLE
+{
+    momentumPredictor   no;
+    nOuterCorrectors    {{ n_outer_correctors }};
+    nCorrectors         {{ n_correctors }};
+    nNonOrthogonalCorrectors {{ n_non_ortho }};
+    pRefCell            0;
+    pRefValue           0;
+{% if n_outer_correctors > 1 %}
+    // PIMPLE checks fields actually recorded in solverPerformance. With
+    // momentumPredictor=no U has no separate residual; turbulence updates
+    // when corrected (by default on the final outer iteration).
+    residualControl
+    {
+        p_rgh           { tolerance {{ step_tolerance.p_rgh }}; relTol 0; }
+        U               { tolerance {{ step_tolerance.U }}; relTol 0; }
+        T               { tolerance {{ step_tolerance.T }}; relTol 0; }
+        "(k|epsilon)"   { tolerance {{ step_tolerance.k_epsilon }}; relTol 0; }
+    }
+{% endif %}
+}
+
+{% if n_outer_correctors > 1 %}
+relaxationFactors
+{
+    fields
+    {
+        p_rgh           {{ relax_p_rgh | default(0.7) }};
+    }
+    equations
+    {
+        U               {{ relax_U | default(0.3) }};
+        T               {{ relax_T | default(0.3) }};
+        "(k|epsilon)"   {{ relax_k_epsilon | default(0.3) }};
+    }
+}
+{% endif %}
+
+// ************************************************************************* //

@@ -1,0 +1,48 @@
+--- a/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -1377,6 +1377,35 @@
+     // cell and the surface is meshed rather than lost.
+     // ------------------------------------------------------------------
+     const bool cutCells = meshDict.getOrDefault<bool>("cutCells", true);
++    // Fixed all-rank agreement before either cutCells mode branch.
++    const char* earliestPhysicalFlag = getenv("DCCART_EARLIEST_PHYSICAL_POINT_REPAIR");
++    const bool earliestPhysicalRequested = earliestPhysicalFlag
++        && std::string(earliestPhysicalFlag) == "1";
++    label earliestPhysicalSetup = 0;
++    if (earliestPhysicalRequested)
++    {
++        const char* earliestWeight = getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
++        const char* earliestContext = getenv("DCCART_COMPLETE_CAVITY_CONTEXT");
++        const char* earliestRepair = getenv("DCCART_COMPLETE_CAVITY_REPAIR");
++        earliestPhysicalSetup = 1
++            + 2*label(getenv("DCCART_CONFORMING_CONES") != nullptr)
++            + 4*label(getenv("DCCART_CONE_LITERAL_UNIONS") != nullptr)
++            + 8*label(getenv("DCCART_CONE_SAME_PHYSICAL_ROLE") != nullptr)
++            + 16*label(earliestWeight && std::string(earliestWeight) == "1")
++            + 32*label(earliestContext && std::string(earliestContext) == "1")
++            + 64*label(earliestRepair && std::string(earliestRepair) == "1")
++            + 128*label(cutCells);
++    }
++    const label earliestPhysicalMin = returnReduce(earliestPhysicalSetup,minOp<label>());
++    const label earliestPhysicalMax = returnReduce(earliestPhysicalSetup,maxOp<label>());
++    if (earliestPhysicalMin != earliestPhysicalMax
++     || (earliestPhysicalMax != 0 && earliestPhysicalMax != 255))
++    {
++        FatalErrorInFunction
++            << "earliest physical point repair requires agreed cutCells/conforming/literal/same-role/W/context/repair flags; no mesh written"
++            << exit(FatalError);
++    }
++    const bool earliestPhysicalPointRepair = earliestPhysicalMax == 255;
+     dcCartCutCells::settings cutSettings;
+     cutSettings.minVolumeFraction =
+         meshDict.getOrDefault<scalar>("minCutVolumeFraction", 0.25);
+@@ -2894,7 +2923,8 @@
+             dcCartCutCells::decomposeConformingCones
+             (
+                 m,patchNames,patchTypes,patchNeighbours,myProc,
+-                runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority,cavityAuthority
++                runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority,cavityAuthority,
++                earliestPhysicalPointRepair
+             );
+             budgetCheck("conforming-mixed-cone-experiment");
+         }

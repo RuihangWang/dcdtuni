@@ -1,0 +1,13 @@
+# Optional redundant edge point cleanup — partial strict-quality repair
+
+The native experiment is disabled by default. Set `DCCART_REDUNDANT_EDGE_POINTS=1` to remove a point only when all incident polygons share the same two adjacent point labels and the point lies strictly between them. All incident faces are changed together. Coupled patch families and face zones are protected. Simultaneous deletion must preserve at least three distinct vertices, exact edge closure, planarity and OpenFOAM face area/centroid within the existing numerical guards.
+
+Actual React export and mesh API tests preserved the original project and STL geometry. Tri_angle mesh job `a74ee736` completed in 7.097 s but failed five complete geometry checks: face-tet events fell from 1914 to 80, while determinant, concave-or-planar, weight and volume-ratio counts stayed unchanged. Target Shinaide Liquid mesh job `8b0563bb` completed in 82.757 s but failed four checks: face-tet events fell from 35 to 24; the remaining counts stayed at 125598 concave-or-planar cells, 54 low weights and 46 low volume ratios. These are failures, not accepted meshes or solver seeds.
+
+The first prototype refused its Tri_angle mesh before writing because a polygon's implicit OpenFOAM centroid changed. Its source patch and raw failure are preserved in `../strict-stage-redundant/`. The final planar and area/centroid vetoes retain that geometry guard; no checkMesh threshold was relaxed.
+
+Both successful partial cleanup runs passed independent before/after audits over all eight ranks: cell/face counts, physical patch identity, oriented polygon outlines and total patch areas were preserved; coupled polygons retained their exact vertex-coordinate order. The audit does not substitute for checkMesh. The current implementation also passed a three-rank native smoke with local cell counts [4,4,0] and actual `checkMesh -allTopology -allGeometry -parallel`, without an empty-rank collective hang.
+
+Independent remaining-tet analysis found 32 unique bad faces before cleanup and 21 after it. The official events were 21 owner centroid-fan + 3 neighbour centroid-fan + 11 original-vertex-fan failures before cleanup, and 21 + 3 + 0 after it. The difference between event and unique-face counts is not MPI duplication. The remaining planar polygons are genuinely non-convex; removing more midpoint references cannot repair their negative face-centre fan.
+
+Raw API receipts, exact source patch and artifact hashes are in this directory and `../strict-stage-redundant-planar-liquid/`. Default production acceptance remains fail closed on both checker flags.

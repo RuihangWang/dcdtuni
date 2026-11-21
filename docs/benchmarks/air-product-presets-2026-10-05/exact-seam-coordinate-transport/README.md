@@ -1,0 +1,5 @@
+# Exact seam coordinate transport
+
+Seam plane IDs were quantized to a nanometre for deterministic grouping, then incorrectly reconstructed as geometry. A true STL coordinate 0.8999999761581421 became 0.899999976; subsequent intersections and retained original points formed three nonplanar internal polygons. IDs and their global order now stay unchanged, while all ranks transport finite actual candidate coordinate bounds before local skipping. A key containing distinct candidate coordinates is conservatively skipped on every rank. No current geometry, zone, descendant or share guard is removed.
+
+The same real React/API TargetLiquid export, in eight ranks, changes the experimental cone preflight from six unsupported base incidences to zero. All fourteen actual candidate groups have exactly zero spread. The job still refuses twenty-one later base partitions; it does not write an accepted mesh or reach final full checkMesh. Its 77.796 s API time is a refusal time. The existing serial and two-rank refined-box native smoke passed. This fixes a coordinate-transport error and does not establish whole-product geometry or performance acceptance.

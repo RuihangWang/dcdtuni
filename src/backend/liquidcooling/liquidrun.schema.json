@@ -1,0 +1,2033 @@
+{
+  "$defs": {
+    "Actuator": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "rpm_ratio",
+            "opening"
+          ],
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "field"
+      ],
+      "title": "Actuator",
+      "type": "object"
+    },
+    "ColdPlateEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "cold_plate",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ColdPlateParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "ColdPlateEdge",
+      "type": "object"
+    },
+    "ColdPlateParams": {
+      "additionalProperties": false,
+      "properties": {
+        "dp_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp A"
+        },
+        "dp_b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp B"
+        },
+        "UA_W_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ua W Per K"
+        },
+        "C_solid_J_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "C Solid J Per K"
+        },
+        "V_fluid_m3": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V Fluid M3"
+        },
+        "Q_W": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Q W"
+        }
+      },
+      "title": "ColdPlateParams",
+      "type": "object"
+    },
+    "Controller": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "measurement": {
+          "$ref": "#/$defs/Measurement"
+        },
+        "actuator": {
+          "$ref": "#/$defs/Actuator"
+        },
+        "pid": {
+          "$ref": "#/$defs/PID"
+        },
+        "sample_period_s": {
+          "exclusiveMinimum": 0,
+          "title": "Sample Period S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "measurement",
+        "actuator",
+        "pid",
+        "sample_period_s"
+      ],
+      "title": "Controller",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "time_s": {
+          "minimum": 0,
+          "title": "Time S",
+          "type": "number"
+        },
+        "target": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Target",
+          "type": "string"
+        },
+        "field": {
+          "enum": [
+            "rpm_ratio",
+            "opening",
+            "Q_W"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "time_s",
+        "target",
+        "field",
+        "value"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "Execution": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "const": "pytorch",
+          "title": "Backend",
+          "type": "string"
+        },
+        "device": {
+          "const": "cpu",
+          "title": "Device",
+          "type": "string"
+        },
+        "dtype": {
+          "const": "float64",
+          "title": "Dtype",
+          "type": "string"
+        },
+        "max_threads": {
+          "maximum": 1,
+          "minimum": 1,
+          "title": "Max Threads",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "backend",
+        "device",
+        "dtype",
+        "max_threads"
+      ],
+      "title": "Execution",
+      "type": "object"
+    },
+    "Fluid": {
+      "additionalProperties": false,
+      "properties": {
+        "rho_kg_m3": {
+          "exclusiveMinimum": 0,
+          "title": "Rho Kg M3",
+          "type": "number"
+        },
+        "cp_J_kgK": {
+          "exclusiveMinimum": 0,
+          "title": "Cp J Kgk",
+          "type": "number"
+        },
+        "mu_Pa_s": {
+          "exclusiveMinimum": 0,
+          "title": "Mu Pa S",
+          "type": "number"
+        },
+        "k_W_mK": {
+          "exclusiveMinimum": 0,
+          "title": "K W Mk",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rho_kg_m3",
+        "cp_J_kgK",
+        "mu_Pa_s",
+        "k_W_mK"
+      ],
+      "title": "Fluid",
+      "type": "object"
+    },
+    "HeatExchangerEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "heat_exchanger",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/HeatExchangerParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "HeatExchangerEdge",
+      "type": "object"
+    },
+    "HeatExchangerParams": {
+      "additionalProperties": false,
+      "properties": {
+        "dp_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp A"
+        },
+        "dp_b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dp B"
+        },
+        "UA_W_per_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ua W Per K"
+        },
+        "T_secondary_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T Secondary K"
+        }
+      },
+      "title": "HeatExchangerParams",
+      "type": "object"
+    },
+    "InitialConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "T_fluid_K": {
+          "exclusiveMinimum": 0,
+          "title": "T Fluid K",
+          "type": "number"
+        },
+        "T_solid_K": {
+          "exclusiveMinimum": 0,
+          "title": "T Solid K",
+          "type": "number"
+        },
+        "P_uniform_Pa": {
+          "title": "P Uniform Pa",
+          "type": "number"
+        }
+      },
+      "required": [
+        "T_fluid_K",
+        "T_solid_K",
+        "P_uniform_Pa"
+      ],
+      "title": "InitialConditions",
+      "type": "object"
+    },
+    "LegacyManifold": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "D_m": {
+          "default": 0.019,
+          "exclusiveMinimum": 0,
+          "title": "D M",
+          "type": "number"
+        },
+        "n_cells": {
+          "default": 3,
+          "minimum": 1,
+          "title": "N Cells",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "node_id"
+      ],
+      "title": "LegacyManifold",
+      "type": "object"
+    },
+    "LegacyPair": {
+      "additionalProperties": false,
+      "properties": {
+        "server_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Server Id",
+          "type": "string"
+        },
+        "cold_plate_edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Cold Plate Edge Id",
+          "type": "string"
+        },
+        "power_W": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Power W",
+          "type": "number"
+        },
+        "T_inlet_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T Inlet K"
+        }
+      },
+      "required": [
+        "server_id",
+        "cold_plate_edge_id"
+      ],
+      "title": "LegacyPair",
+      "type": "object"
+    },
+    "LegacySolverSettings": {
+      "additionalProperties": false,
+      "description": "Retained legacy ODIL settings; execution.backend selects the v2 forward path.",
+      "properties": {
+        "optimizer": {
+          "const": "adam",
+          "title": "Optimizer",
+          "type": "string"
+        },
+        "lr": {
+          "exclusiveMinimum": 0,
+          "title": "Lr",
+          "type": "number"
+        },
+        "max_epochs": {
+          "minimum": 1,
+          "title": "Max Epochs",
+          "type": "integer"
+        },
+        "convergence_tol": {
+          "exclusiveMinimum": 0,
+          "title": "Convergence Tol",
+          "type": "number"
+        },
+        "weights": {
+          "$ref": "#/$defs/LegacyWeights"
+        }
+      },
+      "required": [
+        "optimizer",
+        "lr",
+        "max_epochs",
+        "convergence_tol",
+        "weights"
+      ],
+      "title": "LegacySolverSettings",
+      "type": "object"
+    },
+    "LegacyWeights": {
+      "additionalProperties": false,
+      "properties": {
+        "mass": {
+          "minimum": 0,
+          "title": "Mass",
+          "type": "number"
+        },
+        "momentum": {
+          "minimum": 0,
+          "title": "Momentum",
+          "type": "number"
+        },
+        "energy": {
+          "minimum": 0,
+          "title": "Energy",
+          "type": "number"
+        },
+        "bc": {
+          "minimum": 0,
+          "title": "Bc",
+          "type": "number"
+        },
+        "ic": {
+          "minimum": 0,
+          "title": "Ic",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mass",
+        "momentum",
+        "energy",
+        "bc",
+        "ic"
+      ],
+      "title": "LegacyWeights",
+      "type": "object"
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "node_temperature",
+            "pressure_difference",
+            "solid_temperature",
+            "mass_flow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "reference_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Id"
+        }
+      },
+      "required": [
+        "kind",
+        "target_id"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "pressure_bc",
+            "junction"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "position_m": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Position M",
+          "type": "array"
+        },
+        "bc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NodeBC"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "position_m"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "NodeBC": {
+      "additionalProperties": false,
+      "properties": {
+        "P_Pa": {
+          "title": "P Pa",
+          "type": "number"
+        },
+        "T_K": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T K"
+        }
+      },
+      "required": [
+        "P_Pa"
+      ],
+      "title": "NodeBC",
+      "type": "object"
+    },
+    "ObjectBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Kind",
+          "type": "string"
+        },
+        "node_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "edge_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "parent_uid": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Uid"
+        }
+      },
+      "required": [
+        "label",
+        "kind",
+        "node_ids",
+        "edge_ids"
+      ],
+      "title": "ObjectBinding",
+      "type": "object"
+    },
+    "PID": {
+      "additionalProperties": false,
+      "properties": {
+        "kp": {
+          "minimum": 0,
+          "title": "Kp",
+          "type": "number"
+        },
+        "ki": {
+          "minimum": 0,
+          "title": "Ki",
+          "type": "number"
+        },
+        "kd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Kd",
+          "type": "number"
+        },
+        "setpoint": {
+          "default": 0.0,
+          "title": "Setpoint",
+          "type": "number"
+        },
+        "bias": {
+          "default": 0.0,
+          "title": "Bias",
+          "type": "number"
+        },
+        "output_min": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Output Min",
+          "type": "number"
+        },
+        "output_max": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Output Max",
+          "type": "number"
+        },
+        "action": {
+          "default": "reverse",
+          "enum": [
+            "direct",
+            "reverse"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "rate_limit_per_s": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate Limit Per S"
+        },
+        "derivative_tau_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Derivative Tau S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kp",
+        "ki"
+      ],
+      "title": "PID",
+      "type": "object"
+    },
+    "Pair": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "edge_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "Q_W": {
+          "minimum": 0,
+          "title": "Q W",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "edge_id",
+        "Q_W"
+      ],
+      "title": "Pair",
+      "type": "object"
+    },
+    "ParameterPack": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "mock",
+            "vendor",
+            "calibrated"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterProfile"
+          },
+          "minProperties": 1,
+          "title": "Profiles",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "revision",
+        "source",
+        "description",
+        "profiles"
+      ],
+      "title": "ParameterPack",
+      "type": "object"
+    },
+    "ParameterProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "pipe",
+            "pump",
+            "valve",
+            "cold_plate",
+            "heat_exchanger",
+            "fluid"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "minProperties": 1,
+          "title": "Params",
+          "type": "object"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "params",
+        "units"
+      ],
+      "title": "ParameterProfile",
+      "type": "object"
+    },
+    "ParameterProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Revision",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "mock",
+            "vendor",
+            "calibrated"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Description",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "resolved_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Resolved Sha256",
+          "type": "string"
+        },
+        "bindings": {
+          "$ref": "#/$defs/ProvenanceBindings"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "source",
+        "description",
+        "sha256",
+        "resolved_sha256",
+        "bindings"
+      ],
+      "title": "ParameterProvenance",
+      "type": "object"
+    },
+    "PipeEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "pipe",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PipeParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "PipeEdge",
+      "type": "object"
+    },
+    "PipeParams": {
+      "additionalProperties": false,
+      "properties": {
+        "D_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "D M"
+        },
+        "roughness_m": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roughness M"
+        },
+        "n_cells": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Cells"
+        },
+        "waypoints_m": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Waypoints M"
+        },
+        "K_minor_additional": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K Minor Additional"
+        },
+        "K_minor_per_bend": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K Minor Per Bend"
+        },
+        "heat_source_W_per_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heat Source W Per M"
+        }
+      },
+      "title": "PipeParams",
+      "type": "object"
+    },
+    "ProvenanceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Profile",
+          "type": "string"
+        },
+        "overrides": {
+          "additionalProperties": true,
+          "title": "Overrides",
+          "type": "object"
+        }
+      },
+      "required": [
+        "profile",
+        "overrides"
+      ],
+      "title": "ProvenanceBinding",
+      "type": "object"
+    },
+    "ProvenanceBindings": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProvenanceBinding"
+          },
+          "title": "Edges",
+          "type": "object"
+        },
+        "fluid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "edges"
+      ],
+      "title": "ProvenanceBindings",
+      "type": "object"
+    },
+    "PumpEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "pump",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PumpParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "PumpEdge",
+      "type": "object"
+    },
+    "PumpParams": {
+      "additionalProperties": false,
+      "properties": {
+        "H0_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H0 M"
+        },
+        "a_coef": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "A Coef"
+        },
+        "rpm_ratio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rpm Ratio"
+        }
+      },
+      "title": "PumpParams",
+      "type": "object"
+    },
+    "Rack": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "position_m": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position M"
+        },
+        "n_slots": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Slots"
+        },
+        "manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RackManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "servers": {
+          "items": {
+            "$ref": "#/$defs/Server"
+          },
+          "title": "Servers",
+          "type": "array"
+        },
+        "supply_manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "return_manifold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyManifold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "servers"
+      ],
+      "title": "Rack",
+      "type": "object"
+    },
+    "RackManifold": {
+      "additionalProperties": false,
+      "properties": {
+        "supply_node": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Supply Node",
+          "type": "string"
+        },
+        "return_node": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Return Node",
+          "type": "string"
+        },
+        "layout": {
+          "title": "Layout",
+          "type": "string"
+        },
+        "D_m": {
+          "exclusiveMinimum": 0,
+          "title": "D M",
+          "type": "number"
+        }
+      },
+      "required": [
+        "supply_node",
+        "return_node",
+        "layout",
+        "D_m"
+      ],
+      "title": "RackManifold",
+      "type": "object"
+    },
+    "Server": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "slot_range": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slot Range"
+        },
+        "z_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Z M"
+        },
+        "cp_cu_pairs": {
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "title": "Cp Cu Pairs",
+          "type": "array"
+        },
+        "inlet_node": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inlet Node"
+        },
+        "outlet_node": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outlet Node"
+        },
+        "slot_u": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Slot U",
+          "type": "integer"
+        },
+        "span_u": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Span U",
+          "type": "integer"
+        },
+        "cp_cu": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyPair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Server",
+      "type": "object"
+    },
+    "SourceProject": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "cfdproj",
+          "title": "Format",
+          "type": "string"
+        },
+        "schema_version": {
+          "enum": [
+            4,
+            5
+          ],
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "project_uid": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Project Uid",
+          "type": "string"
+        },
+        "project_name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Project Name",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        }
+      },
+      "required": [
+        "format",
+        "schema_version",
+        "project_uid",
+        "project_name"
+      ],
+      "title": "SourceProject",
+      "type": "object"
+    },
+    "Time": {
+      "additionalProperties": false,
+      "properties": {
+        "dt_s": {
+          "exclusiveMinimum": 0,
+          "title": "Dt S",
+          "type": "number"
+        },
+        "N_t": {
+          "minimum": 1,
+          "title": "N T",
+          "type": "integer"
+        },
+        "bdf_order": {
+          "const": 1,
+          "title": "Bdf Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dt_s",
+        "N_t",
+        "bdf_order"
+      ],
+      "title": "Time",
+      "type": "object"
+    },
+    "Units": {
+      "additionalProperties": false,
+      "properties": {
+        "length": {
+          "const": "m",
+          "title": "Length",
+          "type": "string"
+        },
+        "time": {
+          "const": "s",
+          "title": "Time",
+          "type": "string"
+        },
+        "temperature": {
+          "const": "K",
+          "title": "Temperature",
+          "type": "string"
+        },
+        "pressure": {
+          "const": "Pa",
+          "title": "Pressure",
+          "type": "string"
+        },
+        "mass_flow": {
+          "const": "kg/s",
+          "title": "Mass Flow",
+          "type": "string"
+        },
+        "power": {
+          "const": "W",
+          "title": "Power",
+          "type": "string"
+        }
+      },
+      "required": [
+        "length",
+        "time",
+        "temperature",
+        "pressure",
+        "mass_flow",
+        "power"
+      ],
+      "title": "Units",
+      "type": "object"
+    },
+    "ValveEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Id",
+          "type": "string"
+        },
+        "from": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "To",
+          "type": "string"
+        },
+        "parameter_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parameter Ref"
+        },
+        "type": {
+          "const": "valve",
+          "title": "Type",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ValveParams"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "params"
+      ],
+      "title": "ValveEdge",
+      "type": "object"
+    },
+    "ValveParams": {
+      "additionalProperties": false,
+      "properties": {
+        "D_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "D M"
+        },
+        "Kv_max": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kv Max"
+        },
+        "opening": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opening"
+        },
+        "characteristic": {
+          "anyOf": [
+            {
+              "enum": [
+                "linear",
+                "equal_percentage",
+                "quick_opening"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Characteristic"
+        }
+      },
+      "title": "ValveParams",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "liquidrun",
+      "title": "Format",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 2,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "version": {
+      "const": "2.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "source": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Source",
+      "type": "string"
+    },
+    "projectName": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Projectname",
+      "type": "string"
+    },
+    "source_project": {
+      "$ref": "#/$defs/SourceProject"
+    },
+    "units": {
+      "$ref": "#/$defs/Units"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution"
+    },
+    "gravity": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Gravity",
+      "type": "array"
+    },
+    "fluid": {
+      "$ref": "#/$defs/Fluid"
+    },
+    "time": {
+      "$ref": "#/$defs/Time"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "minItems": 1,
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "cold_plate": "#/$defs/ColdPlateEdge",
+            "heat_exchanger": "#/$defs/HeatExchangerEdge",
+            "pipe": "#/$defs/PipeEdge",
+            "pump": "#/$defs/PumpEdge",
+            "valve": "#/$defs/ValveEdge"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/PipeEdge"
+          },
+          {
+            "$ref": "#/$defs/PumpEdge"
+          },
+          {
+            "$ref": "#/$defs/ValveEdge"
+          },
+          {
+            "$ref": "#/$defs/ColdPlateEdge"
+          },
+          {
+            "$ref": "#/$defs/HeatExchangerEdge"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Edges",
+      "type": "array"
+    },
+    "racks": {
+      "items": {
+        "$ref": "#/$defs/Rack"
+      },
+      "title": "Racks",
+      "type": "array"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "initial_conditions": {
+      "$ref": "#/$defs/InitialConditions"
+    },
+    "solver": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LegacySolverSettings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "controllers": {
+      "items": {
+        "$ref": "#/$defs/Controller"
+      },
+      "title": "Controllers",
+      "type": "array"
+    },
+    "object_bindings": {
+      "patternProperties": {
+        "\\S": {
+          "$ref": "#/$defs/ObjectBinding"
+        }
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Object Bindings",
+      "type": "object"
+    },
+    "parameter_pack": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ParameterPack"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "parameter_provenance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ParameterProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "format",
+    "schemaVersion",
+    "version",
+    "source",
+    "projectName",
+    "source_project",
+    "units",
+    "execution",
+    "gravity",
+    "fluid",
+    "time",
+    "nodes",
+    "edges",
+    "racks",
+    "events",
+    "initial_conditions",
+    "controllers",
+    "object_bindings"
+  ],
+  "title": "LiquidrunV2",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcdtuni.local/schemas/liquidrun-v2.schema.json",
+  "description": "Liquid runtime v2 input. Strict structural schema; call parse_liquidrun for profile completeness, references, time-grid/series dimensions and actuator ownership. Parameters omitted on an edge must be supplied by its embedded parameter_pack profile."
+}

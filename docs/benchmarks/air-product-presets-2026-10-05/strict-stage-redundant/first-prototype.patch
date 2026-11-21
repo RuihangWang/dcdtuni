@@ -1,0 +1,174 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+index 83f1c819..7cd65075 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C
+@@ -2766,6 +2766,20 @@ int main(int argc, char *argv[])
+         }
+ 
+ 
++        if (getenv("DCCART_REDUNDANT_EDGE_POINTS") != nullptr)
++        {
++            boolList protectedPatch(patchTypes.size(),false);
++            forAll(patchTypes,pi)
++            {
++                const word& type=patchTypes[pi];
++                protectedPatch[pi]=type.find("cyclic")==0
++                 || type.find("processor")==0 || type.find("mapped")==0
++                 || type.find("AMI")!=std::string::npos;
++            }
++            dcCartCutCells::removeRedundantEdgePoints(m,protectedPatch);
++            budgetCheck("redundant-edge-point-experiment");
++        }
++
+         // The census: the three numbers that separate a mesh the steady RAS
+         // solve converges on from one it does not, printed on every run so a
+         // regression shows up at mesh time instead of three days later at
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 3d9a0d28..5964f3b6 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -11703,6 +11703,130 @@ void Foam::dcCartCutCells::coalesceCoplanarFaces
+ }
+ 
+ 
++Foam::label Foam::dcCartCutCells::removeRedundantEdgePoints
++(
++    cutMesh& m, const boolList& coupledPatch
++)
++{
++    // Remove a point only when EVERY incident live polygon uses the same
++    // unordered predecessor/successor pair and the point lies strictly on
++    // the segment between them. This replaces the same two edge segments
++    // everywhere, never a T junction. No coordinates, cell incidences or
++    // patch/zone identities change. Coupled and zone vertices are vetoed.
++    const label nPoints = label(m.points.size());
++    std::vector<unsigned char> state(nPoints, 0);
++    std::vector<std::pair<label,label>> neighbours(nPoints, {-1,-1});
++    for (label f = 0; f < label(m.faces.size()); ++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        const auto& poly = m.faces[f];
++        const label patch = m.patch[f];
++        const bool protectedFace = m.zone[f] >= 0
++         || (patch >= 0 && patch < coupledPatch.size() && coupledPatch[patch]);
++        for (size_t i = 0; i < poly.size(); ++i)
++        {
++            const label p = poly[i];
++            if (state[p] == 2) { continue; }
++            if (protectedFace || poly.size() < 4) { state[p] = 2; continue; }
++            const label a = poly[(i+poly.size()-1)%poly.size()];
++            const label b = poly[(i+1)%poly.size()];
++            const vector da = m.points[a]-m.points[p], db = m.points[b]-m.points[p];
++            const scalar scale = mag(da)*mag(db);
++            const scalar dot = da & db, cross = mag(da ^ db);
++            if (!std::isfinite(scale) || !std::isfinite(dot) || !std::isfinite(cross)
++             || scale <= VSMALL || dot >= 0 || cross > 1e-12*scale)
++            { state[p] = 2; continue; }
++            const std::pair<label,label> pair = std::minmax(a,b);
++            if (state[p] == 0) { state[p] = 1; neighbours[p] = pair; }
++            else if (neighbours[p] != pair) { state[p] = 2; }
++        }
++    }
++    // Removing several adjacent candidates together must leave a polygon.
++    // Veto all candidates of a too-small face, then propagate the veto.
++    bool changed = true;
++    while (changed)
++    {
++        changed = false;
++        for (label f = 0; f < label(m.faces.size()); ++f)
++        {
++            if (!m.faceAlive[f]) { continue; }
++            label first = -1, second = -1, retained = 0;
++            for (const label p : m.faces[f])
++            {
++                if (state[p] == 1 || p == first || p == second) { continue; }
++                if (retained == 0) { first = p; }
++                else if (retained == 1) { second = p; }
++                if (++retained == 3) { break; }
++            }
++            if (retained >= 3) { continue; }
++            for (const label p : m.faces[f])
++            { if (state[p] == 1) { state[p] = 2; changed = true; } }
++        }
++    }
++    std::map<label,std::vector<label>> replacement;
++    std::set<label> affected;
++    scalar largestAreaError = 0, largestCentreError = 0;
++    label removed = 0;
++    for (const unsigned char s : state) { removed += s == 1; }
++    for (label f = 0; f < label(m.faces.size()); ++f)
++    {
++        if (!m.faceAlive[f]) { continue; }
++        std::vector<label> poly;
++        for (const label p : m.faces[f]) { if (state[p] != 1) { poly.push_back(p); } }
++        if (poly.size() == m.faces[f].size()) { continue; }
++        vector before, after; point beforeCentre, afterCentre;
++        faceAreaCentreOF(m.points,m.faces[f],before,beforeCentre);
++        faceAreaCentreOF(m.points,poly,after,afterCentre);
++        point lo(GREAT,GREAT,GREAT), hi(-GREAT,-GREAT,-GREAT);
++        for (const label p : m.faces[f]) { lo=min(lo,m.points[p]); hi=max(hi,m.points[p]); }
++        const scalar areaError = mag(after-before)/max(mag(before),VSMALL);
++        const scalar centreError = mag(afterCentre-beforeCentre)/max(mag(hi-lo),scalar(1e-6));
++        largestAreaError = max(largestAreaError,areaError);
++        largestCentreError = max(largestCentreError,centreError);
++        if (!std::isfinite(areaError) || !std::isfinite(centreError)
++         || areaError > 1e-10 || centreError > 1e-10)
++        { FatalErrorInFunction << "redundant edge removal changed polygon geometry" << exit(FatalError); }
++        replacement.emplace(f,std::move(poly));
++        affected.insert(m.owner[f]);
++        if (m.neighbour[f] >= 0) { affected.insert(m.neighbour[f]); }
++    }
++    if (!replacement.empty())
++    {
++        std::vector<std::vector<label>> cf;
++        buildCellFaces(m,cf);
++        for (const label c : affected)
++        {
++            std::map<std::pair<label,label>,std::pair<label,label>> edges;
++            for (const label f : cf[c])
++            {
++                const auto found = replacement.find(f);
++                const auto& poly = found == replacement.end() ? m.faces[f] : found->second;
++                for (size_t i = 0; i < poly.size(); ++i)
++                {
++                    label a=poly[i], b=poly[(i+1)%poly.size()];
++                    if (m.owner[f] != c) { std::swap(a,b); }
++                    auto& usage = edges[std::minmax(a,b)];
++                    ++usage.first; usage.second += a < b ? 1 : -1;
++                }
++            }
++            for (const auto& edge : edges)
++            {
++                if (edge.second.first != 2 || edge.second.second != 0)
++                { FatalErrorInFunction << "redundant edge removal violated cell edge closure" << exit(FatalError); }
++            }
++        }
++        for (auto& face : replacement) { m.faces[face.first].swap(face.second); }
++    }
++    const label countAll = returnReduce(removed,sumOp<label>());
++    const label facesAll = returnReduce(label(replacement.size()),sumOp<label>());
++    reduce(largestAreaError,maxOp<scalar>()); reduce(largestCentreError,maxOp<scalar>());
++    Info<< "Redundant edge point experiment: removed " << countAll
++        << " point(s) from " << facesAll << " faces; max relative area error "
++        << largestAreaError << ", centre error " << largestCentreError << nl;
++    return countAll;
++}
++
++
+ void Foam::dcCartCutCells::dropGhostCells
+ (
+     cutMesh& m, label myRank, const std::vector<label>& procPatchOfRank
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+index a475d7bf..cccb3f4c 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H
+@@ -693,6 +693,9 @@ public:
+         //- Parallel: drop the halo cells of other ranks; a face between an
+         //  owned cell and a halo cell becomes a processor-patch face
+         //  (`procPatchOfRank[rank]`, -1 = none: the face is dropped).
++        //- Opt-in exact-outline cleanup with all-incidence and coupled veto.
++        static label removeRedundantEdgePoints(cutMesh& m, const boolList& coupledPatch);
++
+         static void dropGhostCells
+         (
+             cutMesh& m, label myRank, const std::vector<label>& procPatchOfRank

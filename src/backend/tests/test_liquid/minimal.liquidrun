@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "source": "frontend",
+  "projectName": "MinimalTest",
+  "gravity": [0, -9.81, 0],
+  "fluid": {
+    "rho_kg_m3": 997.0,
+    "cp_J_kgK": 4182.0,
+    "mu_Pa_s": 0.00089,
+    "k_W_mK": 0.606
+  },
+  "time": {
+    "dt_s": 1.0,
+    "N_t": 10,
+    "bdf_order": 1
+  },
+  "racks": [],
+  "nodes": [
+    {
+      "id": "supply",
+      "type": "pressure_bc",
+      "position_m": [0.0, 0.0, 0.0],
+      "bc": {"P_Pa": 200000, "T_K": 308.15}
+    },
+    {
+      "id": "return",
+      "type": "pressure_bc",
+      "position_m": [0.0, 0.0, 1.0],
+      "bc": {"P_Pa": 100000}
+    }
+  ],
+  "edges": [
+    {
+      "id": "pipe1",
+      "type": "pipe",
+      "from": "supply",
+      "to": "return",
+      "params": {
+        "D_m": 0.025,
+        "roughness_m": 1.5e-6,
+        "n_cells": 5,
+        "waypoints_m": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]],
+        "K_minor_per_bend": 0.5
+      }
+    }
+  ],
+  "events": [],
+  "initial_conditions": {
+    "T_fluid_K": 308.15,
+    "T_solid_K": 340.0,
+    "P_uniform_Pa": 150000
+  },
+  "solver": {
+    "optimizer": "adam",
+    "lr": 0.001,
+    "max_epochs": 1000,
+    "convergence_tol": 1e-6,
+    "weights": {
+      "mass": 1.0,
+      "momentum": 1e-5,
+      "energy": 1.0,
+      "bc": 100.0,
+      "ic": 10.0
+    }
+  }
+}

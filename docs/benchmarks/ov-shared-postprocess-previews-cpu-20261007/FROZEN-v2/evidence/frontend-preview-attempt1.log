@@ -1,0 +1,53 @@
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/ov-shared-previews-private/reviewtree/src/frontend/react
+
+ ❯ test/ovProtocol.test.ts (0 test)
+ ❯ test/sharedOvPreviewInteraction.test.ts (0 test)
+ ❯ test/sharedOvPostprocessAdapter.test.ts (21 tests | 1 failed) 167ms
+   × makes a disposed adapter inert while waiting for scene idle, with no new mutation 30ms
+     → release is not a function
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ovProtocol.test.ts [ test/ovProtocol.test.ts ]
+ FAIL  test/sharedOvPreviewInteraction.test.ts [ test/sharedOvPreviewInteraction.test.ts ]
+Error: Transform failed with 1 error:
+/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/ov-shared-previews-private/reviewtree/src/frontend/react/src/renderer/ovProtocol.ts:12:39: ERROR: Unexpected "sourcePickJSON"
+  Plugin: vite:esbuild
+  File: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/fresh-clone-actual-20261007/dcdtuni/.codex-tmp/ov-shared-previews-private/reviewtree/src/frontend/react/src/renderer/ovProtocol.ts:12:39
+  
+  Unexpected "sourcePickJSON"
+  10 |  export interface RenderAck {
+  11 |    postprocessPreviews?: PreviewAck
+  12 |    retiredPostprocessPreviews?: boolean sourcePickJSON?:string; diagnostics?:Record<string,unknown>; packetSha256?:string; source?:ResultSource;timeSeconds?:number|null;displayGeneration?:number;requestId: string; ok: boolean; error?: string; view?: RenderViewState; primitives?: number; received?: number; revision?: number; layers?: number; sceneRevision?: number; projectHash?: string;
+     |                                         ^
+  13 |    /** Common view decoration status; never a numeric/source authorisation. */
+  14 |    gridDisplay?: {phase:'pending'|'unsupported'|'rejected'|'rendered'|'hidden';reason?:string;viewRevision?:number}
+  
+ ❯ failureErrorWithLog ../../../../../../src/frontend/react/node_modules/esbuild/lib/main.js:1472:15
+ ❯ ../../../../../../src/frontend/react/node_modules/esbuild/lib/main.js:755:50
+ ❯ responseCallbacks.<computed> ../../../../../../src/frontend/react/node_modules/esbuild/lib/main.js:622:9
+ ❯ handleIncomingPacket ../../../../../../src/frontend/react/node_modules/esbuild/lib/main.js:677:12
+ ❯ Socket.readFromStdout ../../../../../../src/frontend/react/node_modules/esbuild/lib/main.js:600:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/sharedOvPostprocessAdapter.test.ts > makes a disposed adapter inert while waiting for scene idle, with no new mutation
+TypeError: release is not a function
+ ❯ test/sharedOvPostprocessAdapter.test.ts:88:46
+     86| it('makes a disposed adapter inert while waiting for scene idle, with …
+     87|  const s=setup(),d=new PostprocessDisplayDriver(s.adapter);let release…
+     88|  await Promise.resolve();s.adapter.dispose();release();await d.whenIdl…
+       |                                              ^
+     89| })
+     90| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ Test Files  3 failed (3)
+      Tests  1 failed | 20 passed (21)
+   Start at  11:18:07
+   Duration  11.23s (transform 1.19s, setup 0ms, collect 903ms, tests 167ms, environment 14.88s, prepare 862ms)
+

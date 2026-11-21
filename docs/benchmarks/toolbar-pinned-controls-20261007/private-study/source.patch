@@ -1,0 +1,198 @@
+--- a/src/frontend/react/src/components/Toolbar.tsx
++++ b/src/frontend/react/src/components/Toolbar.tsx
+@@ -157,12 +157,11 @@
+         {collapsed ? '⌄' : '⌃'}
+       </button>
+       <div id="toolbar-content">
+-        <div id="toolbar-body">
++        <div id="toolbar-header" tabIndex={0}>
+         <div className="toolbar-primary">
+           <ModeSwitch />
+           <div id="renderer-switch-slot" />
+         </div>
+-        <div className="toolbar-groups">
+           <div className="toolbar-group-tabs">
+             {([
+               ['model', 'toolbar.model_tools', 'toolbar-model-tools'],
+@@ -177,6 +176,9 @@
+               </button>
+             ))}
+           </div>
++        </div>
++        <div id="toolbar-body" tabIndex={0} hidden={expandedGroup === null}>
++        <div className="toolbar-groups">
+           <section className="toolbar-tool-group" id="toolbar-model-tools"
+             hidden={expandedGroup !== 'model'} aria-labelledby="toolbar-model-tools-toggle">
+             <div className="toolbar-tool-content">
+@@ -414,8 +416,8 @@
+           </section>
+         </div>
+         </div>
+-        {/* Reserve the whole wrapped timeline below the scrolling tools.
+-            It remains inside the collapse-owned content subtree. */}
++        {/* Header and timeline stay outside the independently scrolling tools;
++            all three remain in the same collapse-owned content subtree. */}
+         <TimelineStrip />
+       </div>
+       {shortcutsOpen && <ShortcutSettingsDialog onClose={() => setShortcutsOpen(false)} />}
+--- a/src/frontend/react/src/styles.css
++++ b/src/frontend/react/src/styles.css
+@@ -2838,9 +2838,13 @@
+ #toolbar[data-scrollable="true"] #toolbar-body { overflow-y: auto; overflow-x: hidden; }
+ #toolbar[data-footer-scrollable="true"] #timeline-strip { overflow-y: auto; overflow-x: hidden; }
+ #toolbar.collapsed { padding: 4px; min-height: 30px; width: 40px; right: auto; grid-template-columns: 1fr; }
+-#toolbar-content { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; height: 100%; grid-column: 1; grid-row: 1; }
++#toolbar-content { display: flex; flex-direction: column; gap: var(--toolbar-content-gap, 8px); min-width: 0; min-height: 0; height: 100%; grid-column: 1; grid-row: 1; }
++#toolbar-header { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; max-height: var(--toolbar-header-available-height, none); overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
++#toolbar-header > * { flex-shrink: 0; }
++#toolbar-header:focus-visible, #toolbar-body:focus-visible { outline: 2px solid var(--highlight); outline-offset: -2px; }
+ #toolbar-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; min-height: var(--toolbar-body-floor, 32px); overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+ #toolbar-body > * { flex-shrink: 0; }
++#toolbar-body[hidden] { display: none; }
+ #toolbar-content > #timeline-strip { flex: 0 0 auto; min-height: 0; max-height: var(--timeline-available-height, none); }
+ #toolbar-collapse-btn { position: absolute; top: 9px; right: 10px; width: 28px; height: 30px; padding: 0; font-size: 18px; line-height: 1; border-radius: 5px; }
+ #toolbar-collapse-btn:hover { background: var(--bg-input); }
+@@ -2848,7 +2852,7 @@
+ .toolbar-primary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; min-width: 0; min-height: 30px; padding-right: 36px; }
+ .toolbar-primary > * { min-width: 0; max-width: 100%; }
+ .toolbar-groups { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+-.toolbar-group-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-self: start; align-items: start; }
++.toolbar-group-tabs { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-self: stretch; align-items: start; }
+ .toolbar-group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-width: 0; height: 38px; min-height: 38px; align-self: start; padding: 4px 8px; font: inherit; font-size: 12px; line-height: 1.15; cursor: pointer; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-input); }
+ .toolbar-group-toggle > span:first-child { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+ .toolbar-group-toggle > span:last-child { flex: 0 0 auto; }
+@@ -2859,11 +2863,9 @@
+ .toolbar-tool-content { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); align-items: center; gap: 8px; padding: 9px 0 1px; }
+ .toolbar-tool-content > :is(.tool-inline, .flow-monitor) { grid-column: 1 / -1; }
+ .toolbar-tool-content > .rot-group { width: 100%; min-width: 0; }
+-#toolbar[data-layout="wide"] #toolbar-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 8px 10px; align-content: start; }
++#toolbar[data-layout="wide"] #toolbar-header { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 8px 10px; align-items: start; }
+ #toolbar[data-layout="wide"] .toolbar-primary { grid-column: 1; grid-row: 1; padding-right: 0; }
+-#toolbar[data-layout="wide"] .toolbar-groups { display: contents; }
+-#toolbar[data-layout="wide"] .toolbar-group-tabs { grid-column: 2; grid-row: 1; padding-right: 36px; }
+-#toolbar[data-layout="wide"] .toolbar-tool-group { grid-column: 1 / -1; }
++#toolbar[data-layout="wide"] .toolbar-group-tabs { grid-column: 2; grid-row: 1; padding-right: 36px; box-sizing: border-box; }
+ .toolbar-tool-content > * { max-width: 100%; }
+ .tool-btn { min-height: 29px; padding: 5px 9px; font-size: 12px; background: var(--bg-input); border-radius: 5px; line-height: 1.3; }
+ .tool-btn.active { background: var(--active); border-color: var(--highlight); box-shadow: none; }
+--- a/src/frontend/react/src/components/PanelResizers.tsx
++++ b/src/frontend/react/src/components/PanelResizers.tsx
+@@ -213,7 +213,10 @@
+     let timelineNatural = 0
+     let chrome = 0
+     let footerGap = 0
+-    const bodyFloor = 32
++    let headerGap = 0
++    let headerNatural = 0
++    let contentGap = 0
++    let bodyFloor = 32
+ 
+     // Measure without the pinned height so expanding a tool group is visible
+     // to the fit even while overflow is scrolled.
+@@ -222,6 +225,10 @@
+       toolbar.dataset.layout = toolbar.getBoundingClientRect().width >= 720 ? 'wide' : 'compact'
+       const savedTransform = toolbar.style.transform
+       const savedHeight = toolbar.style.height
++      const savedGap = toolbar.style.getPropertyValue('--toolbar-content-gap')
++      toolbar.style.removeProperty('--toolbar-content-gap')
++      const savedHeaderLimit = toolbar.style.getPropertyValue('--toolbar-header-available-height')
++      toolbar.style.removeProperty('--toolbar-header-available-height')
+       const savedFooterLimit = toolbar.style.getPropertyValue('--timeline-available-height')
+       toolbar.style.removeProperty('--timeline-available-height')
+       toolbar.style.transform = 'none'
+@@ -239,18 +246,28 @@
+       timelineNatural = timeline && getComputedStyle(timeline).display !== 'none'
+         ? Math.max(timeline.scrollHeight, timeline.getBoundingClientRect().height) : 0
+       const content = document.getElementById('toolbar-content')
+-      footerGap = timelineNatural && content ? Number.parseFloat(getComputedStyle(content).rowGap) || 0 : 0
++      const header = document.getElementById('toolbar-header')
++      headerNatural = header && !toolbar.classList.contains('collapsed')
++        ? Math.max(header.scrollHeight, header.getBoundingClientRect().height) : 0
++      contentGap = content ? Number.parseFloat(getComputedStyle(content).rowGap) || 0 : 0
+       const body = document.getElementById('toolbar-body')
++      const toolsVisible = !body || !body.hidden
++      bodyFloor = toolsVisible ? 32 : 0
++      headerGap = headerNatural && toolsVisible ? contentGap : 0
++      footerGap = timelineNatural && (toolsVisible || headerNatural) ? contentGap : 0
+       // A constrained grid can hide its children's overflow from the outer
+       // scrollHeight. Measure the unshrunk tools and footer independently.
+-      if (body && !toolbar.classList.contains('collapsed')) {
+-        h = Math.max(h, chrome + Math.max(body.scrollHeight, body.getBoundingClientRect().height)
+-          + timelineNatural + footerGap)
+-      }
++      if (body && toolsVisible && !toolbar.classList.contains('collapsed')) {
++        h = Math.max(h, chrome + headerNatural + headerGap
++          + Math.max(body.scrollHeight, body.getBoundingClientRect().height) + timelineNatural + footerGap)
++      }
++      h = Math.max(h, chrome + headerNatural + headerGap + bodyFloor + timelineNatural + footerGap)
+       toolbarReserved.current = toolbar.classList.contains('collapsed') ? MIN_SIZE.toolbar
+-        : Math.min(h, Math.max(MIN_SIZE.toolbar, chrome + bodyFloor + timelineNatural + footerGap))
++        : Math.min(h, Math.max(MIN_SIZE.toolbar, chrome + headerNatural + headerGap + bodyFloor + timelineNatural + footerGap))
+       toolbar.style.transform = savedTransform
+       toolbar.style.height = savedHeight
++      if (savedGap) toolbar.style.setProperty('--toolbar-content-gap', savedGap)
++      if (savedHeaderLimit) toolbar.style.setProperty('--toolbar-header-available-height', savedHeaderLimit)
+       if (savedFooterLimit) toolbar.style.setProperty('--timeline-available-height', savedFooterLimit)
+       return h
+     }
+@@ -269,11 +286,23 @@
+       const target = toolbarTargetHeight(natural, manual, window.innerHeight, toolbarReserved.current)
+       // When even the wrapped footer exceeds the window cap, keep both regions
+       // bounded and keyboard-scrollable rather than letting them cover the view.
+-      const available = Math.max(0, target - chrome - footerGap)
+-      const drawnBodyFloor = timelineNatural ? Math.min(bodyFloor, Math.max(0, available - 32)) : Math.min(bodyFloor, available)
++      const naturalGaps = headerGap + footerGap
++      const gapScale = naturalGaps ? Math.min(1, Math.max(0, target - chrome) / (4 * naturalGaps)) : 1
++      toolbar.style.setProperty('--toolbar-content-gap', `${contentGap * gapScale}px`)
++      const available = Math.max(0, target - chrome - naturalGaps * gapScale)
++      // Preserve the full controls whenever they fit. In an extremely short
++      // window all present regions retain bounded, keyboard-scrollable space;
++      // no text scaling and no remembered manual-height reset.
++      const floorTotal = headerNatural + bodyFloor + (timelineNatural ? 32 : 0)
++      const floorScale = floorTotal ? Math.min(1, available / floorTotal) : 1
++      const drawnHeader = headerNatural * floorScale
++      const drawnBodyFloor = bodyFloor * floorScale
++      const drawnFooter = Math.max(0, available - drawnHeader - drawnBodyFloor)
++      toolbar.style.setProperty('--toolbar-header-available-height', `${drawnHeader}px`)
+       toolbar.style.setProperty('--toolbar-body-floor', `${drawnBodyFloor}px`)
+-      toolbar.style.setProperty('--timeline-available-height', `${Math.max(0, available - drawnBodyFloor)}px`)
+-      toolbar.dataset.footerScrollable = String(timelineNatural > available - drawnBodyFloor)
++      toolbar.style.setProperty('--timeline-available-height', `${drawnFooter}px`)
++      toolbar.dataset.headerScrollable = String(headerNatural > drawnHeader)
++      toolbar.dataset.footerScrollable = String(timelineNatural > drawnFooter)
+       if (applied === null || Math.abs(applied - target) > 0.5) {
+         applied = target
+         // Keep labels readable. A constrained toolbar scrolls at its normal
+@@ -305,6 +334,23 @@
+       fit(toolbarManual.current)
+     })
+     observer.observe(toolbar)
++    const header = document.getElementById('toolbar-header')
++    let headerWidth = header?.offsetWidth ?? 0
++    let headerHeight = header?.scrollHeight ?? 0
++    const headerChanged = () => {
++      const width = header?.offsetWidth ?? 0
++      const height = header?.scrollHeight ?? 0
++      if (width !== headerWidth || height !== headerHeight) {
++        headerWidth = width
++        headerHeight = height
++        remeasure()
++      }
++    }
++    const headerObserver = new ResizeObserver(headerChanged)
++    if (header) headerObserver.observe(header)
++    // A clipped header can re-wrap without its drawn rectangle changing.
++    const headerText = new MutationObserver(headerChanged)
++    if (header) headerText.observe(header, { childList: true, subtree: true, characterData: true })
+ 
+     // Collapsing empties the toolbar, which changes its natural height without
+     // changing its measured one — the squeezed toolbar is pinned to the height
+@@ -323,6 +369,8 @@
+     fit(null)
+     return () => {
+       observer.disconnect()
++      headerObserver.disconnect()
++      headerText.disconnect()
+       classes.disconnect()
+       rows.disconnect()
+       if (refit === remeasure) refit = null

@@ -1,0 +1,12 @@
+{
+ "format": "dcdtuni.first-iteration/v1",
+ "description": "The first SIMPLE iteration as the DCTS dataset recorded it for SCANO (refine c018c80 src/Precompute/stage_unconverged.py, stage 2b): the linear solvers exit at once (tolerance 10, maxIter 1, one corrector), so the iteration writes the boundary values the conditions give the initial field. SIMPLEC off: the dataset's solver (stock buoyantBoussinesqSimpleFoam + boundary write, dcdtuni 7b53f528) has no consistent form, and the fixedFluxPressure faces' p_rgh follows rAU (with consistent on it comes out 0.57x). writeFormat binary: decomposePar writes the rank meshes in it (fast to read); the boundary write re-writes every volField in ASCII.",
+ "controlDict": {"startFrom": "startTime", "startTime": "0", "endTime": "1", "writeControl": "timeStep",
+                 "writeInterval": "1", "writeFormat": "binary"},
+ "explicitBoundaryValues": "fixedValue",
+ "fvSolution": {"relTol": "0", "tolerance": "10", "maxIter": "1", "nCorrectors": "1",
+                "nNonOrthogonalCorrectors": "0"},
+ "SIMPLE": {"consistent": "no"},
+ "processes": 8,
+ "time": "1"
+}

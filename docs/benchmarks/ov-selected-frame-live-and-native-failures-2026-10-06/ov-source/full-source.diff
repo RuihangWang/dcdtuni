@@ -1,0 +1,1768 @@
+--- src/server/server.py
++++ src/server/server.py
+@@ -3079,8 +3079,12 @@
+         if log_dir.exists():
+             for d in sorted(log_dir.iterdir(), reverse=True):
+                 if d.is_dir() and not d.name.startswith("."):
++                    from backend.aircooling.runner.mesh_layout import available_result_times
++                    from backend.aircooling.runner.convergence import run_is_transient
+                     runs.append({"name": d.name, "path": str(d.relative_to(cd)),
+-                                 "runId": hashlib.sha256(str(d.resolve()).encode("utf-8")).hexdigest()})
++                                 "runId": hashlib.sha256(str(d.resolve()).encode("utf-8")).hexdigest(),
++                                 "timesteps": [t for t in available_result_times(d) if t > 0],
++                                 "transient": run_is_transient(d)})
+         _send_json(handler, 200, {"runs": runs})
+     except Exception as e:
+         _send_json(handler, 500, {"error": str(e)})
+@@ -4220,10 +4224,12 @@
+             raise ValueError('request body too large')
+         raw = handler.rfile.read(length)
+         body = json.loads(raw) if raw else {}
+-        if not isinstance(body, dict) or set(body) != {'runId'}:
+-            raise ValueError('body must be exactly {"runId": <64-hex>}')
++        if not isinstance(body, dict) or set(body) not in ({'runId'}, {'runId', 'time'}):
++            raise ValueError('body must be {runId} or {runId, time}')
++        if 'time' in body:
++            ovd.validate_frame_time(body['time'])
+         with CASE_DIR_LOCK:
+-            captured = CASE_DIR
++            captured, captured_version = CASE_DIR, CASE_DIR_VERSION
+         if captured is None:
+             _send_json(handler, 400, {'code': 'case_not_selected', 'error': 'No case directory set'})
+             return
+@@ -4234,8 +4240,15 @@
+             return
+         from backend.aircooling.runner.postprocess import _foam_source_prefix
+         run = ovd.find_run(Path(captured), body['runId'])
+-        prepared = ovd.prepare_ensight(run, ovd.foam_to_ensight(_foam_source_prefix()))
+-        grant = ovd.issue_grant(prepared, run, body['runId'], key)
++        with CASE_DIR_LOCK:
++            if CASE_DIR != captured or CASE_DIR_VERSION != captured_version:
++                raise ovd.DatasetError(409, 'case_changed', 'Selected case changed before conversion')
++        options = {'time_value': body['time']} if 'time' in body else {}
++        prepared = ovd.prepare_ensight(run, ovd.foam_to_ensight(_foam_source_prefix()), **options)
++        with CASE_DIR_LOCK:
++            if CASE_DIR != captured or CASE_DIR_VERSION != captured_version:
++                raise ovd.DatasetError(409, 'case_changed', 'Selected case changed during conversion')
++            grant = ovd.issue_grant(prepared, run, body['runId'], key)
+         _send_json(handler, 200, {'grant': grant, 'run': run.name, 'time': prepared['time'],
+                                   'fields': prepared['fields'], 'cached': prepared['cached'],
+                                   'format': 'ensight'})
+--- src/server/ov_result_dataset.py
++++ src/server/ov_result_dataset.py
+@@ -1,7 +1,7 @@
+ """Prepare an OpenFOAM run for the OV display bridge and sign a display grant.
+ 
+ The browser picks a run by the same ``runId`` ``/api/pp/runs`` lists; nothing
+-it sends becomes a path. The server converts the run's latest time with
++it sends becomes a path. The server converts the run's latest time (or an explicit complete frame) with
+ ``foamToEnsight`` (Kit's bridge turns the EnSight ``.case`` into its own .vtu)
+ and signs a short-lived grant naming the converted file. Kit verifies the grant
+ with the key both processes received from ``start_server.sh``.
+@@ -28,6 +28,7 @@
+ import hashlib
+ import importlib.util
+ import json
++import math
+ import os
+ from pathlib import Path
+ import re
+@@ -123,11 +124,80 @@
+     return name, [proc / name for proc in procs]
+ 
+ 
++_LATEST = object()
++
++def validate_frame_time(value):
++    """Explicit frames are positive finite JSON numbers, never coercions."""
++    try:
++        valid = not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
++    except OverflowError:
++        valid = False
++    if not valid:
++        raise DatasetError(400, 'frame_time_invalid', 'time must be a positive finite numeric result time')
++    return value
++
++def _matching_time(parent: Path, value):
++    matches = []
++    for child in parent.iterdir():
++        if not child.is_dir():
++            continue
++        try:
++            numeric = float(child.name)
++        except ValueError:
++            continue
++        if math.isfinite(numeric) and numeric == value:
++            matches.append(child)
++    if len(matches) > 1:
++        raise DatasetError(409, 'frame_time_ambiguous', 'Multiple directory spellings name the selected time')
++    if not matches or not any((matches[0] / field).is_file() or (matches[0] / (field + '.gz')).is_file()
++                              for field in ('T', 'U', 'p_rgh', 'p')):
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time has no complete result fields')
++    return matches[0]
++
++def _selected_source(run: Path, time_value):
++    # Share normal postprocessing discovery: complete root or every contiguous
++    # complete processor mesh. Readiness is not a quality/provenance certificate.
++    from backend.aircooling.runner.mesh_layout import available_result_times, mesh_directories, processor_mesh_dirs
++    value = validate_frame_time(time_value)
++    if value not in available_result_times(run):
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time is not complete in this run')
++    root = run / 'constant/polyMesh'
++    meshes = mesh_directories(run)
++    if meshes == [root]:
++        try:
++            td = _matching_time(run, value)
++            return td.name, td, None
++        except DatasetError as exc:
++            if exc.code != 'frame_time_unavailable':
++                raise
++    meshes = processor_mesh_dirs(run)
++    if not meshes:
++        raise DatasetError(409, 'frame_time_unavailable', 'Selected time has no complete mesh')
++    dirs = [_matching_time(mesh.parent.parent, value) for mesh in meshes]
++    return dirs[0].name, dirs[0], dirs
++
++def _resolve_source(run: Path, time_value):
++    if time_value is not _LATEST:
++        return _selected_source(run, time_value)
++    try:
++        name, td = latest_field_time(run)
++        return name, td, None
++    except DatasetError as exc:
++        if exc.code != 'run_decomposed':
++            raise
++        name, dirs = latest_decomposed_time(run)
++        return name, dirs[0], dirs
++
++def _resolved_signature(run: Path, selection):
++    name, td, dirs = selection
++    return _source_signature(run, name, td) if dirs is None else _decomposed_signature(run, name, dirs)
++
++
+ def _stat_material(prefix: str, files):
+     out = []
+     for p in files:
+         st = p.stat()
+-        out.append([f'{prefix}/{p.name}', st.st_size, st.st_mtime_ns])
++        out.append([f'{prefix}/{p.name}', st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino])
+     return out
+ 
+ 
+@@ -136,17 +206,21 @@
+     mesh = run / 'constant' / 'polyMesh'
+     material += _stat_material('mesh', [p for p in sorted(mesh.iterdir()) if p.is_file()] if mesh.is_dir() else [])
+     material += _stat_material('field', _field_files(time_dir))
++    material += _stat_material('uniform', [time_dir / 'uniform/time'] if (time_dir / 'uniform/time').is_file() else [])
++    material += _stat_material('system', [p for p in sorted((run / 'system').iterdir()) if p.is_file()] if (run / 'system').is_dir() else [])
+     return hashlib.sha256(json.dumps(material, separators=(',', ':')).encode()).hexdigest()
+ 
+ 
+ def _decomposed_signature(run: Path, time_name: str, time_dirs) -> str:
+-    material = [time_name, 'decomposed', len(time_dirs)]
++    material = [time_name, 'decomposed', [str(td.relative_to(run)) for td in time_dirs]]
+     for td in time_dirs:
+         proc = td.parent
+         mesh = proc / 'constant' / 'polyMesh'
+         material += _stat_material(f'{proc.name}/mesh',
+                                    [p for p in sorted(mesh.iterdir()) if p.is_file()] if mesh.is_dir() else [])
+         material += _stat_material(f'{proc.name}/field', _field_files(td))
++        material += _stat_material(f'{proc.name}/uniform', [td / 'uniform/time'] if (td / 'uniform/time').is_file() else [])
++    material += _stat_material('system', [p for p in sorted((run / 'system').iterdir()) if p.is_file()] if (run / 'system').is_dir() else [])
+     return hashlib.sha256(json.dumps(material, separators=(',', ':')).encode()).hexdigest()
+ 
+ 
+@@ -201,25 +275,28 @@
+         _link_time(mirror / proc.name, time_name, td)
+ 
+ 
+-def prepare_ensight(run: Path, convert) -> dict:
+-    """Convert ``run``'s latest time for Kit. ``convert(mirror) -> (rc, log)``
+-    runs foamToEnsight on the mirror (injected so tests need no OpenFOAM); a
+-    decomposed run calls ``convert(mirror, nprocs=N)``."""
++def prepare_ensight(run: Path, convert, *, time_value=_LATEST) -> dict:
++    """Convert latest (legacy) or an explicitly selected complete frame.
++
++    The injected converter needs no OpenFOAM in CPU tests. Its mirror contains
++    just this frame on all required ranks. Explicit frames never fall back.
++    """
+     run = Path(run).resolve()
+-    try:
+-        time_name, time_dir = latest_field_time(run)
+-        time_dirs = None
+-        sig = _source_signature(run, time_name, time_dir)
+-    except DatasetError as exc:
+-        if exc.code != 'run_decomposed':
+-            raise
+-        time_name, time_dirs = latest_decomposed_time(run)
+-        time_dir = time_dirs[0]
+-        sig = _decomposed_signature(run, time_name, time_dirs)
+-    mirror = run / MIRROR_DIRNAME / sig[:16]
+     with _LOCK:
++        selection = _resolve_source(run, time_value)
++        time_name, time_dir, time_dirs = selection
++        sig = _resolved_signature(run, selection)
++        mirror = run / MIRROR_DIRNAME / sig[:16]
++        def unchanged():
++            try:
++                current = _resolve_source(run, time_value)
++                return _resolved_signature(run, current) == sig
++            except (DatasetError, OSError):
++                return False
+         case_file, ready = _ensight_output(mirror)
+         if ready:
++            if not unchanged():
++                raise DatasetError(409, 'dataset_source_changed', 'Result source changed while preparing display')
+             return {'path': str(case_file), 'time': time_name, 'cached': True,
+                     'fields': [p.name for p in _field_files(time_dir)], 'signature': sig}
+         if time_dirs is None:
+@@ -228,7 +305,13 @@
+         else:
+             _build_decomposed_mirror(run, mirror, time_name, time_dirs)
+             rc, log = convert(mirror, nprocs=len(time_dirs))
++        if not unchanged():
++            # A conversion from a moving source must not become a cache hit if
++            # source stats are later restored.
++            shutil.rmtree(mirror)
++            raise DatasetError(409, 'dataset_source_changed', 'Result source changed while preparing display')
+         if rc != 0:
++            shutil.rmtree(mirror)
+             raise DatasetError(500, 'ensight_conversion_failed',
+                                f'foamToEnsight exited {rc}: {str(log)[-400:]}')
+         case_file, ready = _ensight_output(mirror)
+--- src/frontend/react/src/renderer/ovDataset.ts
++++ src/frontend/react/src/renderer/ovDataset.ts
+@@ -4,7 +4,7 @@
+  * and Kit verifies the grant before reading anything. */
+ import type { OvDisplayGrant } from './ovProtocol'
+ 
+-export interface OvRun { name: string; runId: string }
++export interface OvRun { name: string; runId: string; timesteps?: number[]; transient?: boolean }
+ 
+ export interface OvDatasetGrantResponse {
+   grant: OvDisplayGrant
+@@ -27,13 +27,19 @@
+   const data = await body(await fetchImpl('/api/pp/runs'), '/api/pp/runs')
+   const runs = Array.isArray(data.runs) ? data.runs : []
+   return runs.filter((r): r is OvRun => typeof r?.name === 'string' && typeof r?.runId === 'string'
+-    && /^[0-9a-f]{64}$/.test(r.runId)).map(r => ({ name: r.name, runId: r.runId }))
++    && /^[0-9a-f]{64}$/.test(r.runId)).map(r => ({
++      name: r.name, runId: r.runId,
++      ...(Array.isArray(r.timesteps) && r.timesteps.every((time: unknown) => typeof time === 'number' && Number.isFinite(time))
++        ? { timesteps: [...new Set<number>(r.timesteps.filter((time: number) => time > 0))].sort((a, b) => a - b) } : {}),
++      ...(typeof r.transient === 'boolean' ? { transient: r.transient } : {}),
++    }))
+ }
+ 
+-export async function requestOvDatasetGrant(runId: string, fetchImpl: Fetch = fetch): Promise<OvDatasetGrantResponse> {
++export async function requestOvDatasetGrant(runId: string, fetchImpl: Fetch = fetch, time?: number): Promise<OvDatasetGrantResponse> {
+   const url = '/api/ov/result-dataset'
++  if (time !== undefined && (!Number.isFinite(time) || time <= 0)) throw new Error('Invalid air result time')
+   const data = await body(await fetchImpl(url, {
+-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runId }),
++    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(time === undefined ? { runId } : { runId, time }),
+   }), url)
+   const grant = data.grant as OvDisplayGrant | undefined
+   if (!grant || typeof grant.signature !== 'string' || typeof grant.payload !== 'object') {
+--- src/frontend/react/src/components/OvPostProcessPanel.tsx
++++ src/frontend/react/src/components/OvPostProcessPanel.tsx
+@@ -4,13 +4,16 @@
+ } from '../renderer/ovProtocol'
+ import { listOvRuns, requestLiquidResultGrant, requestOvDatasetGrant, type OvRun } from '../renderer/ovDataset'
+ import { OV_LIQUID_RAMP, OV_SLICE_RAMP, OV_VOLUME_RAMP, sampleRamp, type Ramp } from '../renderer/ovColormaps'
+-import { airDisplayPreference, selectedAirDisplayRun, rememberAirDisplay, type AirDisplayPreference, liquidDisplayPreference, rememberLiquidDisplay } from '../renderer/ovDisplayPreferences'
++import { airDisplayPreference, selectedAirDisplayRun, rememberAirDisplay, airFramePreference, rememberAirFrame, type AirDisplayPreference, liquidDisplayPreference, rememberLiquidDisplay } from '../renderer/ovDisplayPreferences'
+ import { ovSession, setOvSession } from '../renderer/ovSession'
+ import { fetchLiquidResults, liquidRunState, subscribeLiquid } from '../liquid/liquidSession'
+ import { runtimeState, subscribeRuntime } from '../liquid/liquidRuntimeClient'
+ import { getCaseStatus, getServerInfo, subscribeSession, type CaseStatus, type ServerInfo } from '../run/session'
+ import { liquidGlobalDomains, selectedResultSample, setResultSample, subscribeResultSample } from '../liquid/liquidTempColor'
+ import { useTranslation } from '../useTranslation'
++import * as store from '../projectStore'
++import { nearestIndex, projectIsTransient } from '../transient/resultPlayback'
++import { currentLiveAirResultSelection, currentResultLayerContext } from '../renderer/resultLayerRevision'
+ 
+ /** OV-side post-processing controls (display-only, Stage 3).
+  *
+@@ -243,6 +246,10 @@
+   const { t } = useTranslation()
+   const [runs, setRuns] = useState<OvRun[] | null>(null)
+   const [runId, setRunId] = useState('')
++  const [selectedTime, setSelectedTime] = useState<number | null>(null)
++  const selectedTimeRef = useRef<number | null>(null)
++  const anchor = useRef(store.playheadTime())
++  const playhead = useSyncExternalStore(store.subscribePlayhead, store.playheadTime)
+   const [dataset, setDataset] = useState<OvDatasetInfo | null>(null)
+   const [loadingData, setLoadingData] = useState(false)
+   const [volume, setVolume] = useState<OvVolumeState>({ field: 'off', visible: false })
+@@ -269,16 +276,23 @@
+     streamOn, streamField, seed, seedVisible })
+   display.current = { volume: { field: volume.field, domain: volume.domain ?? null }, slice, normalKey,
+     streamOn, streamField, seed, seedVisible }
+-  type DatasetJob = { id: string; restore: AirDisplayPreference | null; token: number; serial: number }
++  type DatasetJob = { id: string; time: number | null; restore: AirDisplayPreference | null; token: number; serial: number }
+   const serial = useRef(0)
++  const requestedRun = useRef<string | null>(null)
+   const loading = useRef(false)
+   const pendingData = useRef<DatasetJob | null>(null)
+   const loadRef = useRef<(job: DatasetJob) => Promise<void>>(async () => {})
+   const restored = useRef('')
+   type FireName = Parameters<OvCommandClient['fireCommand']>[0]
+-  type FireJob = { name: FireName; args: object; patch?: Partial<AirDisplayPreference>; token: number; id: string | null }
++  type FireJob = { name: FireName; args: object; patch?: Partial<AirDisplayPreference>; token: number; id: string | null; generation: number }
+   const fireJobs = useRef(new Map<FireName, FireJob>())
+   const firing = useRef(false)
++  const displayMutations = useRef(new Set<Promise<unknown>>())
++  function trackDisplay<T>(promise: Promise<T>): Promise<T> {
++    displayMutations.current.add(promise)
++    void promise.then(() => displayMutations.current.delete(promise), () => displayMutations.current.delete(promise))
++    return promise
++  }
+   const drainFireRef = useRef<() => Promise<void>>(async () => {})
+   const isCurrent = (token = lifetime.current) => mounted.current && token === lifetime.current &&
+     scope.current.client === client && scope.current.projectUid === projectUid && scope.current.runsKey === runsKey
+@@ -298,7 +312,7 @@
+     setSliceResult(null); setAdopted(false); setNormalKey('y')
+     setStreamOn(false); setStreamField('T'); setSeed({ center: [0, 1, 0], radius: 1, nSeeds: 27 }); setSeedVisible(false)
+     return () => {
+-      mounted.current = false; lifetime.current += 1; pendingData.current = null; fireJobs.current.clear()
++      mounted.current = false; lifetime.current += 1; serial.current += 1; pendingData.current = null; fireJobs.current.clear()
+       if (sliceTimer.current) clearTimeout(sliceTimer.current)
+       sliceTimer.current = null
+     }
+@@ -337,34 +351,40 @@
+   // The slice lives in Kit; a viewport drag moves it without the panel knowing.
+   // Reading back makes Kit adopt the drag, re-cut there, and report it.
+   async function readBackSlice() {
+-    const token = lifetime.current
++    const token = lifetime.current, generation = serial.current
+     try {
+       const idle = ovSession().sceneIdle
+       if (idle) await idle()
+-      if (!isCurrent(token)) return
+-      const ack = await client.getSliceState()
+-      if (!isCurrent(token)) return
++      if (!isCurrent(token) || generation !== serial.current) return
++      const ack = await trackDisplay(client.getSliceState())
++      if (!isCurrent(token) || generation !== serial.current) return
+       if (ack.slice) adoptSliceAck(ack.slice)
+       setAdopted(Boolean(ack.adopted))
+       if (ack.sliceResult !== undefined) setSliceResult(ack.sliceResult ?? null)
+       setNote('')
+-    } catch (e) { if (isCurrent(token)) setNote(errText(e)) }
++    } catch (e) { if (isCurrent(token) && generation === serial.current) setNote(errText(e)) }
+   }
+   useEffect(() => { if (!selectedAirDisplayRun(projectUid)) void readBackSlice() }, [client, projectUid])  // eslint-disable-line react-hooks/exhaustive-deps
+ 
+   async function performDataset(job: DatasetJob) {
+     loading.current = true
+-    setLoadingData(true); setNote('')
++    setLoadingData(true); setVolumeBusy(false); setNote('')
+     const current = () => isCurrent(job.token) && job.serial === serial.current
+     try {
+       const idle = ovSession().sceneIdle
+       if (idle) await idle()
+       if (!current()) return
+-      const granted = await requestOvDatasetGrant(job.id)
++      const granted = await requestOvDatasetGrant(job.id, undefined, job.time ?? undefined)
++      if (!current()) return
++      // Old volume/slice/fire mutations must finish before a new import.
++      // Generation checks alone would hide their ACK, not stop Kit mutation.
++      await Promise.allSettled([...displayMutations.current])
+       if (!current()) return
+       const ack = await client.loadResultDataset(granted.grant)
+       if (!current()) return
+       if (!ack.dataset || ack.dataset.runId !== job.id) throw new Error('Kit acknowledged a different air run')
++      if (ack.dataset.time !== granted.time || (job.time !== null && Number(granted.time) !== job.time))
++        throw new Error('Kit acknowledged a different air frame')
+       setDataset(ack.dataset); activeDataset.current = job.id
+       const b = ack.dataset.bounds
+       let nextSlice: OvSliceParams = { visible: false, origin: [0, 1, 0], normal: [0, 1, 0], radius: 2, field: 'T', domain: null }
+@@ -417,12 +437,72 @@
+     }
+   }
+   loadRef.current = performDataset
+-  function loadDataset(id = runId, restore: AirDisplayPreference | null = airDisplayPreference(projectUid, id)) {
++  function loadDataset(id = runId, restore: AirDisplayPreference | null = airDisplayPreference(projectUid, id), time = selectedTimeRef.current) {
+     if (!id || degraded || !isCurrent()) return
+-    const job = { id, restore, token: lifetime.current, serial: ++serial.current }
++    requestedRun.current = id
++    const job = { id, time, restore, token: lifetime.current, serial: ++serial.current }
++    fireJobs.current.clear()
++    if (sliceTimer.current) clearTimeout(sliceTimer.current)
++    sliceTimer.current = null
++    rememberAirFrame(projectUid, id, { time, anchor: anchor.current, threeSelectionKey: threeFrame(id)?.key ?? null })
+     if (loading.current) pendingData.current = job
+     else void performDataset(job)
+   }
++  function threeFrame(id: string) {
++    const context = currentResultLayerContext()
++    const selection = currentLiveAirResultSelection()
++    const accepted = context?.selection
++    if (!context || context.source.projectUid !== projectUid || accepted?.owner !== 'air-postprocess' ||
++        selection?.session.runId !== id || accepted.session.runId !== id ||
++        accepted.session.timeValue !== selection.session.timeValue || accepted.session.revision !== selection.session.revision ||
++        selection.session.timeValue === null) return null
++    return { time: selection.session.timeValue,
++      key: JSON.stringify([id, selection.session.timeValue, selection.session.revision, context.source.projectContentSha256]) }
++  }
++  function initialFrame(id: string) {
++    const run = runs?.find(r => r.runId === id)
++    const times = run?.timesteps ?? []
++    const saved = airFramePreference(projectUid, id)
++    const three = threeFrame(id)
++    // An exact Three pick may snap to the same project clock as the previous
++    // OV frame. Detect a new accepted Three selection without overriding an OV
++    // pick merely because the older Three context remains in memory.
++    if (three && times.includes(three.time) && (!saved || three.key !== saved.threeSelectionKey)) return three.time
++    if (saved && (saved.time === null || times.includes(saved.time))) {
++      if (saved.anchor === store.playheadTime() || !run?.transient || !projectIsTransient()) return saved.time
++    }
++    if (run?.transient && projectIsTransient() && store.playheadTime() > 0) {
++      return times[nearestIndex(times, store.playheadTime())] ?? null
++    }
++    return null
++  }
++  useEffect(() => {
++    const time = initialFrame(runId)
++    selectedTimeRef.current = time; setSelectedTime(time); anchor.current = store.playheadTime()
++  }, [runId, runs])
++  function chooseFrame(time: number | null) {
++    if (time !== null && !runs?.find(r => r.runId === runId)?.timesteps?.includes(time)) return
++    selectedTimeRef.current = time; setSelectedTime(time)
++    if (time !== null && projectIsTransient()) store.setPlayhead(time)
++    anchor.current = store.playheadTime()
++    rememberAirFrame(projectUid, runId, { time, anchor: anchor.current, threeSelectionKey: threeFrame(runId)?.key ?? null })
++    if (activeDataset.current === runId || (loading.current && requestedRun.current === runId))
++      loadDataset(runId, display.current, time)
++  }
++  useEffect(() => {
++    const run = runs?.find(r => r.runId === runId)
++    if (!run?.transient || !projectIsTransient() || playhead === anchor.current) return
++    const time = run.timesteps?.[nearestIndex(run.timesteps, playhead)]
++    if (time === undefined) return
++    const handle = setTimeout(() => {
++      anchor.current = playhead
++      selectedTimeRef.current = time; setSelectedTime(time)
++      rememberAirFrame(projectUid, runId, { time, anchor: playhead, threeSelectionKey: threeFrame(runId)?.key ?? null })
++      if (activeDataset.current === runId || (loading.current && requestedRun.current === runId))
++        loadDataset(runId, display.current, time)
++    }, 250)
++    return () => clearTimeout(handle)
++  }, [playhead, runId, runs])
+   useEffect(() => {
+     if (degraded || !runs || listedKey.current !== runsKey) return
+     const selected = selectedAirDisplayRun(projectUid)
+@@ -431,22 +511,24 @@
+     const key = JSON.stringify([lifetime.current, projectUid, runsKey, selected])
+     if (restored.current === key) return
+     restored.current = key
+-    setRunId(selected); loadDataset(selected, saved)
++    const time = initialFrame(selected)
++    selectedTimeRef.current = time; setSelectedTime(time); anchor.current = store.playheadTime()
++    setRunId(selected); loadDataset(selected, saved, time)
+   }, [client, projectUid, degraded, runsKey, runs]) // Restore ordinary choices only after a fresh scoped grant/ACK.
+ 
+   async function showVolume(field: 'off' | 'T' | 'U', domain: [number, number] | null) {
+-    const token = lifetime.current, id = activeDataset.current
++    const token = lifetime.current, id = activeDataset.current, generation = serial.current
+     setVolumeBusy(true)
+     setNote('')
+     try {
+-      const ack = await client.setVolumeDisplay(field, domain)
+-      if (!isCurrent(token) || id !== activeDataset.current) return
++      const ack = await trackDisplay(client.setVolumeDisplay(field, domain))
++      if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
+       if (ack.volume) {
+         setVolume(ack.volume)
+         if (ack.volume.domain) setVolumeRange(ack.volume.domain)
+         saveDisplay({ volume: { field: ack.volume.field, domain: ack.volume.domain ?? null } })
+       }
+-    } catch (e) { if (isCurrent(token) && id === activeDataset.current) setNote(errText(e)) } finally { if (mounted.current) setVolumeBusy(false) }
++    } catch (e) { if (isCurrent(token) && id === activeDataset.current && generation === serial.current) setNote(errText(e)) } finally { if (isCurrent(token) && generation === serial.current) setVolumeBusy(false) }
+   }
+ 
+   function sendSlice(next: OvSliceParams) {
+@@ -454,15 +536,15 @@
+     setAdopted(false)
+     if (sliceTimer.current) clearTimeout(sliceTimer.current)
+     // Drag-grade edits from the panel should not spam the ack channel.
+-    const token = lifetime.current, id = activeDataset.current
++    const token = lifetime.current, id = activeDataset.current, generation = serial.current
+     sliceTimer.current = setTimeout(() => {
+-      if (!isCurrent(token) || id !== activeDataset.current) return
+-      void client.setSlice(next).then(ack => {
+-        if (!isCurrent(token) || id !== activeDataset.current) return
++      if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
++      void trackDisplay(client.setSlice(next)).then(ack => {
++        if (!isCurrent(token) || (id !== activeDataset.current || generation !== serial.current)) return
+         saveDisplay({ slice: next })
+         setNote('')
+         if (ack.sliceResult !== undefined) setSliceResult(ack.sliceResult ?? null)
+-      }).catch(e => { if (isCurrent(token) && id === activeDataset.current) setNote(errText(e)) })
++      }).catch(e => { if (isCurrent(token) && id === activeDataset.current && generation === serial.current) setNote(errText(e)) })
+     }, 200)
+   }
+   const patchSlice = (p: Partial<OvSliceParams>) => sendSlice({ ...slice, ...p })
+@@ -472,17 +554,17 @@
+     const job = fireJobs.current.values().next().value as FireJob | undefined
+     if (!job) return
+     fireJobs.current.delete(job.name)
+-    if (!isCurrent(job.token) || job.id !== activeDataset.current) { void drainFireRef.current(); return }
++    if (!isCurrent(job.token) || job.id !== activeDataset.current || job.generation !== serial.current) { void drainFireRef.current(); return }
+     firing.current = true
+     try {
+-      await client.fireCommand(job.name, job.args)
+-      if (isCurrent(job.token) && job.id === activeDataset.current && !fireJobs.current.has(job.name) && job.patch) saveDisplay(job.patch)
+-    } catch (e) { if (isCurrent(job.token)) setNote(errText(e)) }
++      await trackDisplay(client.fireCommand(job.name, job.args))
++      if (isCurrent(job.token) && job.id === activeDataset.current && job.generation === serial.current && !fireJobs.current.has(job.name) && job.patch) saveDisplay(job.patch)
++    } catch (e) { if (isCurrent(job.token) && job.generation === serial.current) setNote(errText(e)) }
+     finally { firing.current = false; if (mounted.current) void drainFireRef.current() }
+   }
+   drainFireRef.current = drainFire
+   const fire = (name: FireName, args: object, patch?: Partial<AirDisplayPreference>) => {
+-    fireJobs.current.set(name, { name, args, patch, token: lifetime.current, id: activeDataset.current })
++    fireJobs.current.set(name, { name, args, patch, token: lifetime.current, id: activeDataset.current, generation: serial.current })
+     void drainFire()
+   }
+ 
+@@ -497,14 +579,20 @@
+     <summary style={{ cursor: 'pointer' }}>{t('ovpp.title')}{degraded ? ` · ${t('ovpp.degraded_suffix')}` : ''}</summary>
+     {degraded && <p role="note">{t('ovpp.degraded_note')}</p>}
+     <OvLiquidSection key={projectUid ?? 'anonymous'} client={client} degraded={degraded} projectUid={projectUid} />
+-    <fieldset disabled={degraded || loadingData}>
++    <fieldset disabled={degraded}>
+       <legend>{t('ovpp.dataset')}</legend>
+       {runs && runs.length === 0 && <p>{t('ovpp.no_runs')}</p>}
+       {runs && runs.length > 0 && <label>{t('ovpp.dataset_run')} <select aria-label={t('ovpp.dataset_run')} value={runId}
+         onChange={e => setRunId(e.target.value)}>
+         {runs.map(r => <option key={r.runId} value={r.runId}>{r.name}</option>)}
+       </select></label>}
+-      <button className="btn" disabled={!runId} onClick={() => void loadDataset()}>
++      {runs?.find(r => r.runId === runId)?.timesteps?.length ? <label>{t('pp.time_label')} <select
++        id="ov-air-time" aria-label={t('pp.time_label')} value={selectedTime ?? ''}
++        onChange={e => chooseFrame(e.target.value === '' ? null : Number(e.target.value))}>
++        <option value="">{t('pp.latest_complete_time')}</option>
++        {runs.find(r => r.runId === runId)!.timesteps!.map(time => <option key={time} value={time}>{time}</option>)}
++      </select></label> : null}
++      <button className="btn" disabled={!runId || loadingData} onClick={() => void loadDataset()}>
+         {loadingData ? t('ovpp.dataset_loading') : t('ovpp.dataset_load')}</button>
+       {dataset && <p role="status" data-ov-dataset={dataset.run}>{t('ovpp.dataset_loaded', { run: dataset.run, time: dataset.time })}</p>}
+       <p className="liquid-experiment-note">{t('ovpp.dataset_hint')}</p>
+--- src/frontend/react/src/renderer/ovDisplayPreferences.ts
++++ src/frontend/react/src/renderer/ovDisplayPreferences.ts
+@@ -25,6 +25,21 @@
+ }
+ const air = new Map<string, AirDisplayPreference>()
+ const airSelection = new Map<string, string>()
++/** Plain selection, not an ACK. Anchor prevents a snapped manual frame being retargeted. */
++export interface AirFramePreference { time: number | null; anchor: number; threeSelectionKey?: string | null }
++const airFrames = new Map<string, AirFramePreference>()
++export function airFramePreference(projectUid: string | null | undefined, runId: string | null) {
++  const id = key(projectUid, runId)
++  const value = id ? airFrames.get(id) : null
++  return value ? { ...value } : null
++}
++export function rememberAirFrame(projectUid: string | null | undefined, runId: string | null, value: AirFramePreference) {
++  const id = key(projectUid, runId)
++  if (id && projectUid && runId && Number.isFinite(value.anchor) &&
++      (value.time === null || (Number.isFinite(value.time) && value.time > 0))) {
++    airFrames.set(id, { ...value }); airSelection.set(projectUid, runId)
++  }
++}
+ const copyAir = (value: AirDisplayPreference): AirDisplayPreference => JSON.parse(JSON.stringify(value))
+ export function selectedAirDisplayRun(projectUid: string | null | undefined) {
+   return projectUid ? airSelection.get(projectUid) ?? null : null
+@@ -38,4 +53,4 @@
+   const id = key(projectUid, runId)
+   if (id && projectUid && runId) { air.set(id, copyAir(value)); airSelection.set(projectUid, runId) }
+ }
+-export function resetOvDisplayPreferences() { liquid.clear(); air.clear(); airSelection.clear() }
++export function resetOvDisplayPreferences() { liquid.clear(); air.clear(); airSelection.clear(); airFrames.clear() }
+--- src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
++++ src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/extension.py
+@@ -70,6 +70,12 @@
+         # overlay another's geometry.
+         self._scene_project_uid = None
+         self._display_project_uid = None
++        # A new editor scene invalidates pending display work immediately.
++        # Its authoring and dataset imports share a barrier: the VTK importer
++        # writes the live stage while awaiting, so a completion check alone
++        # cannot keep an old import away from new engineering geometry.
++        self._display_generation = 0
++        self._display_commit_lock = asyncio.Lock()
+         self._last_ov_pick = None
+         self._suppress_ov_pick = False
+         self._inbound_seq = 0
+@@ -292,11 +298,14 @@
+         elif command_name == "loadDataset":
+             handlers.handle_load_dataset(s, stage, parsers.parse_load_dataset(message))
+         elif command_name == "setStreamlines":
+-            handlers.handle_set_streamlines(s, stage, **parsers.parse_set_streamlines(message))
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_set_streamlines,
++                parsers.parse_set_streamlines(message), self._display_generation))
+         elif command_name == "setSeedSphere":
+-            handlers.handle_set_seed_sphere(s, stage, **parsers.parse_set_seed_sphere(message))
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_set_seed_sphere,
++                parsers.parse_set_seed_sphere(message), self._display_generation))
+         elif command_name == "syncFromViewport":
+-            handlers.handle_sync_from_viewport(s, stage)
++            asyncio.ensure_future(self._legacy_display(stage, handlers.handle_sync_from_viewport,
++                {}, self._display_generation))
+         elif command_name == "resetScene":
+             handlers.handle_reset_scene(s, stage)
+         else:
+@@ -375,6 +384,39 @@
+         return {'sample': frame['sample'], 'timeSeconds': frame['timeSeconds'], 'groups': frame['groups'],
+                 'targets': counts, 'painted': painted, 'unmatched': unmatched}
+ 
++    async def _display_mutation(self, generation, operation):
++        """Serialize actual display writers with dataset/scene installation.
++
++        operation is lazy: a queued old command cannot even change the new
++        scene's parameters. No new ACK is introduced for legacy fire commands.
++        """
++        async with self._display_commit_lock:
++            if generation != self._display_generation:
++                raise RuntimeError('display command refused: scene changed while queued')
++            return await operation()
++
++    async def _legacy_display(self, stage, handler, args, generation):
++        async def operation():
++            pending = []
++            try:
++                # Preserve handler arithmetic; capture its coroutine instead
++                # of launching a second background task outside the barrier.
++                handler(self._scene, stage, **args, _schedule=pending.append)
++                for coroutine in pending:
++                    await coroutine
++            finally:
++                for coroutine in pending:
++                    coroutine.close()
++        try:
++            await self._display_mutation(generation, operation)
++        except Exception as exc:  # legacy fire has no ACK; failure stays visible
++            print(f'[dc.cfd_bridge] display command {handler.__name__} failed: {exc}')
++
++    async def _set_slice(self, stage, parsed):
++        from . import handlers
++        handlers.handle_set_slice(self._scene, stage, **parsed)
++        return await self._slice_rebuild(stage)
++
+     async def _volume_display(self, stage, field, domain):
+         return {'volume': await self._scene.show_volume_display(stage, field, domain)}
+ 
+@@ -398,35 +440,110 @@
+             await s.show_volume_display(stage, 'off')
+         except Exception as exc:  # noqa: BLE001
+             print(f'[dc.cfd_bridge] display clear incomplete: {exc}')
++        if stage.GetPrimAtPath('/World/internal').IsValid():
++            stage.RemovePrim('/World/internal')
+         s.dataset_path = None
+         s.t_field = s.u_field = s.umag_field = None
+         s.field_stats = None
++        # Slice extraction also reads these source references directly.
++        s.vtu_path = s.source_vtu_path = None
++        s._slice_grid = s._slice_cache_key = s._slice_summary = None
+         self._display_project_uid = None
+-        print('[dc.cfd_bridge] result display cleared: the scene now shows another project')
+-
+-    async def _load_granted_dataset(self, stage, granted):
+-        ok = await self._scene.load_dataset(stage, granted['path'])
+-        if not ok:
+-            raise RuntimeError('dataset load failed (see the Kit log for the reader error)')
+-        self._display_project_uid = self._scene_project_uid
+-        s = self._scene
+-        # Bounds let the panel place the slice disc and seed sphere inside the
+-        # data. The same read primes the slice's grid cache.
+-        from . import slice_render
+-        src = getattr(s, 'source_vtu_path', None) or s.vtu_path
+-        grid = await asyncio.get_event_loop().run_in_executor(None, slice_render.read_grid, src)
+-        s._slice_grid = (src, grid)
+-        b = grid.GetBounds()
+-        bounds = [float(v) for v in b] if b[0] <= b[1] else None
+-        if s.slice_visible:
+-            await s.update_slice(stage)
+-        return {'dataset': {
+-            'bounds': bounds,
+-            'run': granted['run'], 'runId': granted['runId'], 'time': granted['time'],
+-            'fields': s.field_stats or {},
+-            'ranges': {k: [float(v[0]), float(v[1])] for k, v in (s.ranges or {}).items()},
+-            'hasT': bool(s.t_field), 'hasU': bool(s.u_field),
+-        }}
++        print('[dc.cfd_bridge] result display cleared')
++
++    async def _load_granted_dataset(self, stage, granted, generation):
++        async with self._display_commit_lock:
++            def require_current_scene():
++                if generation != self._display_generation:
++                    raise RuntimeError('dataset load refused: scene changed while loading')
++
++            # Reject a queued, superseded load without clearing a newer result.
++            require_current_scene()
++            try:
++                ok = await self._scene.load_dataset(stage, granted['path'])
++                require_current_scene()
++                if not ok:
++                    raise RuntimeError('dataset load failed (see the Kit log for the reader error)')
++                self._display_project_uid = self._scene_project_uid
++                s = self._scene
++                # Bounds let the panel place the slice disc and seed sphere inside the
++                # data. The same read primes the slice's grid cache.
++                from . import slice_render
++                src = getattr(s, 'source_vtu_path', None) or s.vtu_path
++                grid = await asyncio.get_event_loop().run_in_executor(None, slice_render.read_grid, src)
++                require_current_scene()
++                s._slice_grid = (src, grid)
++                b = grid.GetBounds()
++                bounds = [float(v) for v in b] if b[0] <= b[1] else None
++                if s.slice_visible:
++                    await s.update_slice(stage)
++                    require_current_scene()
++                return {'dataset': {
++                    'bounds': bounds,
++                    'run': granted['run'], 'runId': granted['runId'], 'time': granted['time'],
++                    'fields': s.field_stats or {},
++                    'ranges': {k: [float(v[0]), float(v[1])] for k, v in (s.ranges or {}).items()},
++                    'hasT': bool(s.t_field), 'hasU': bool(s.u_field),
++                }}
++            finally:
++                if generation != self._display_generation:
++                    # Let the importer settle, then remove its writes while the
++                    # new scene is still waiting on the same commit barrier.
++                    await self._clear_display(stage)
++
++    async def _author_render_scene(self, stage, packet, project_hash, request_id, generation):
++        from . import render_scene
++        async with self._display_commit_lock:
++            if generation != self._display_generation:
++                raise RuntimeError('scene load refused: a newer scene request superseded it')
++            if (self._display_project_uid is not None and self._scene is not None
++                    and packet['project']['uid'] != self._display_project_uid):
++                await self._clear_display(stage)
++            # A newer request may arrive while the previous display is retiring.
++            if generation != self._display_generation:
++                raise RuntimeError('scene load refused: a newer scene request superseded it')
++            print(f'[dc.cfd_bridge] scene load begin primitives={len(packet["primitives"])}')
++            from .owned_paths import render_texture_cache_path
++            cache = render_texture_cache_path()
++            result = render_scene.author_scene(stage, packet, cache, validated=True)
++            print(f'[dc.cfd_bridge] scene load authored primitives={result["primitives"]}')
++            self._render_uid_paths = result['uidPaths']
++            self._render_primitive_ids = {p['id']: p['modelUid'] for p in packet['primitives']}
++            self._render_project_hash = project_hash
++            self._last_scene_request_id = request_id
++            self._scene_project_uid = packet['project']['uid']
++            # The scene's materials were re-authored: saved originals are gone.
++            self._liquid_saved = {}
++            if self._liquid is not None:
++                if packet['project']['uid'] != self._liquid['grant']['projectUid']:
++                    self._liquid = None  # a different project: the result no longer applies
++                elif self._liquid['sample'] is not None:
++                    self._paint_liquid(stage, self._liquid['sample'], self._liquid['domains'])
++            self._scene_revision += 1
++            self._last_ov_pick = None
++            from pxr import UsdGeom
++            for path in ['/World/Geometry', '/World/FloorGrid']:
++                old = stage.GetPrimAtPath(path)
++                if old:
++                    UsdGeom.Imageable(old).MakeInvisible()
++            return self._apply_render_view(stage, packet['view'])
++
++    def _apply_render_view(self, stage, view):
++        from . import render_scene
++        if view.get('camera'):
++            from omni.kit.viewport.utility import get_active_viewport
++            viewport = get_active_viewport()
++            if viewport:
++                viewport.camera_path = render_scene.CAMERA
++        ctx = omni.usd.get_context()
++        paths = [path for uid in view['selectedUids'] for path in self._render_uid_paths.get(uid, [])]
++        self._suppress_ov_pick = True
++        try:
++            ctx.get_selection().set_selected_prim_paths(paths, True)
++        finally:
++            self._suppress_ov_pick = False
++        return {'view': view, 'primitives': sum(len(x) for x in self._render_uid_paths.values()),
++                'sceneRevision': self._scene_revision, 'projectHash': self._render_project_hash}
+ 
+     def _slice_state(self):
+         s = self._scene
+@@ -628,52 +745,26 @@
+                 if project_hash is not None and (not isinstance(project_hash, str) or
+                         not re.fullmatch(r'[0-9a-f]{64}', project_hash)):
+                     raise ValueError('Invalid project content hash')
+-                print(f'[dc.cfd_bridge] scene load begin primitives={len(packet["primitives"])}')
+-                from .owned_paths import render_texture_cache_path
+-                cache = render_texture_cache_path()
+-                result = render_scene.author_scene(stage, packet, cache, validated=True)
+-                print(f'[dc.cfd_bridge] scene load authored primitives={result["primitives"]}')
+-                self._render_uid_paths = result['uidPaths']
+-                self._render_primitive_ids = {p['id']: p['modelUid'] for p in packet['primitives']}
+-                self._render_project_hash = project_hash
+-                self._last_scene_request_id = request_id
+-                self._scene_project_uid = packet['project']['uid']
+-                if (self._display_project_uid is not None and self._scene is not None
+-                        and self._scene_project_uid != self._display_project_uid):
+-                    asyncio.ensure_future(self._clear_display(stage))
+-                # The scene's materials were re-authored: saved originals are gone.
+-                self._liquid_saved = {}
+-                if self._liquid is not None:
+-                    if packet['project']['uid'] != self._liquid['grant']['projectUid']:
+-                        self._liquid = None  # a different project: the result no longer applies
+-                    elif self._liquid['sample'] is not None:
+-                        self._paint_liquid(stage, self._liquid['sample'], self._liquid['domains'])
+-                self._scene_revision += 1
+-                self._last_ov_pick = None
+-                # The old standalone demo remains available; hide only its geometry
+-                # while displaying the editor-derived render scene.
+-                from pxr import UsdGeom
+-                for path in ['/World/Geometry', '/World/FloorGrid']:
+-                    old = stage.GetPrimAtPath(path)
+-                    if old:
+-                        UsdGeom.Imageable(old).MakeInvisible()
+-                view = packet['view']
++                self._display_generation += 1
++                self._ack_after(request_id, command, self._author_render_scene(
++                    stage, packet, project_hash, request_id, self._display_generation))
++                return
+             elif command == 'setSlice':
+                 from . import handlers, parsers
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 parsed = parsers.parse_set_slice(message)
+-                handlers.handle_set_slice(self._scene, stage, **parsed)
+-                # Ack only after the cut is authored, so "ok" means the slice
+-                # the user sees is the one the ack describes.
+-                self._ack_after(request_id, command, self._slice_rebuild(stage))
++                # Adopt parameters and author the cut inside the commit barrier.
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._set_slice(stage, parsed)))
+                 return
+             elif command == 'getSliceState':
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 # "Read back the viewport drag": adopt a dragged preview disc,
+                 # re-cut there, and report the state Kit now holds.
+-                self._ack_after(request_id, command, self._slice_readback(stage))
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._slice_readback(stage)))
+                 return
+             elif command == 'loadLiquidResult':
+                 from . import display_grant
+@@ -707,7 +798,8 @@
+                 if self._scene is None:
+                     raise ValueError('Kit scene is not initialised yet')
+                 parsed = parsers.parse_set_volume_display(message)
+-                self._ack_after(request_id, command, self._volume_display(stage, **parsed))
++                self._ack_after(request_id, command, self._display_mutation(
++                    self._display_generation, lambda: self._volume_display(stage, **parsed)))
+                 return
+             elif command == 'loadResultDataset':
+                 from . import display_grant
+@@ -717,7 +809,8 @@
+                 granted = display_grant.verify(
+                     args['grant'], os.environ.get('DCDTUNI_OV_GRANT_KEY', ''), now=_time.time(),
+                     roots=display_grant.roots_from_env(os.environ.get('DC_CFD_DATASET_ROOTS')))
+-                self._ack_after(request_id, command, self._load_granted_dataset(stage, granted))
++                self._ack_after(request_id, command, self._load_granted_dataset(
++                    stage, granted, self._display_generation))
+                 return
+             elif command == 'updateViewState':
+                 view = render_scene.apply_view(stage, args['view'])
+@@ -730,20 +823,7 @@
+                                  sceneRevision=self._scene_revision, projectHash=self._render_project_hash,
+                                  sceneRequestId=self._last_scene_request_id)
+                 return
+-            if view.get('camera'):
+-                from omni.kit.viewport.utility import get_active_viewport
+-                viewport = get_active_viewport()
+-                if viewport:
+-                    viewport.camera_path = render_scene.CAMERA
+-            paths = [path for uid in view['selectedUids'] for path in self._render_uid_paths.get(uid, [])]
+-            self._suppress_ov_pick = True
+-            try:
+-                ctx.get_selection().set_selected_prim_paths(paths, True)
+-            finally:
+-                self._suppress_ov_pick = False
+-            self._render_ack(request_id, ok=True, view=view,
+-                             primitives=sum(len(x) for x in self._render_uid_paths.values()),
+-                             sceneRevision=self._scene_revision, projectHash=self._render_project_hash)
++            self._render_ack(request_id, ok=True, **self._apply_render_view(stage, view))
+         except Exception as exc:
+             print(f'[dc.cfd_bridge] render command {command} rejected: {exc}')
+             self._render_ack(request_id, ok=False, error=str(exc))
+--- src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
++++ src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/handlers.py
+@@ -591,7 +591,7 @@
+ 
+ 
+ def handle_set_streamlines(scene, stage, enabled, field, seed_center, seed_radius,
+-                           n_seeds, max_steps, direction):
++                           n_seeds, max_steps, direction, *, _schedule=None):
+     """Generate (enabled) or remove (disabled) the streamlines. Integration ALWAYS uses
+     the vec3 U field; ``field`` (T|U) is only the COLOUR field. Seeds + lines are
+     confined to the ROI box when clipping is active (enforced in generate_streamlines)."""
+@@ -604,12 +604,12 @@
+     if direction in ("forward", "backward", "both"):
+         scene.sl_direction = direction
+     if enabled:
+-        asyncio.ensure_future(scene.generate_streamlines(stage))
++        (_schedule or asyncio.ensure_future)(scene.generate_streamlines(stage))
+     else:
+-        asyncio.ensure_future(scene.remove_streamlines(stage))
+-
+-
+-def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds):
++        (_schedule or asyncio.ensure_future)(scene.remove_streamlines(stage))
++
++
++def handle_set_seed_sphere(scene, stage, visible, center, radius, n_seeds, *, _schedule=None):
+     """Create / move / show / hide the draggable seed-sphere preview (no re-trace).
+     Mirrors the ROI-box show pattern: showing it selects the prim so the transform
+     gizmo attaches for dragging."""
+@@ -617,7 +617,7 @@
+     _resolve_seed_center(scene, stage, center)
+     scene.seed_radius = float(radius)
+     scene.n_seeds = int(n_seeds)
+-    asyncio.ensure_future(scene.update_seed_sphere(stage, bool(visible)))
++    (_schedule or asyncio.ensure_future)(scene.update_seed_sphere(stage, bool(visible)))
+ 
+ 
+ def handle_set_slice(scene, stage, visible, origin, normal, radius, field, domain):
+@@ -636,7 +636,7 @@
+     scene.resolve_slice_origin(stage, origin)
+ 
+ 
+-def handle_sync_from_viewport(scene, stage):
++def handle_sync_from_viewport(scene, stage, *, _schedule=None):
+     """Re-render whatever the user DRAGGED in the viewport.
+ 
+     Kit emits no drag events over the one-way command channel, so a gizmo drag cannot
+@@ -674,4 +674,4 @@
+             # Nothing to re-render, but the ROI numbers still moved — say so, otherwise
+             # the button looks dead when the user drags before showing a field.
+             print("[dc.cfd_bridge] syncFromViewport: ROI updated (nothing rendered yet)")
+-    asyncio.ensure_future(_apply())
++    (_schedule or asyncio.ensure_future)(_apply())
+--- /dev/null
++++ src/server/tests/test_ov_selected_frame.py
+@@ -0,0 +1,149 @@
++"""Selected OV frames, with fake converters only (no OpenFOAM/Kit)."""
++import io
++import json
++import math
++import pytest
++import server
++import ov_result_dataset as ovd
++from src.server.tests.test_ov_result_dataset import make_run, make_decomposed_run, fake_foam, run_id
++
++def complete_processors(run):
++    for proc in ovd.processor_dirs(run):
++        for name in ("points", "faces", "owner", "neighbour", "boundary"):
++            (proc / "constant/polyMesh" / name).write_text(name)
++
++def test_explicit_serial_frame_is_not_latest_and_its_grant_binds_time(tmp_path):
++    run = make_run(tmp_path, times=("0", "1e-02", "2"))
++    calls = []
++    out = ovd.prepare_ensight(run, fake_foam(calls), time_value=.01)
++    assert out["time"] == "1e-02"
++    assert not (calls[0] / "2").exists()
++    assert (calls[0] / "1e-02/T").resolve() == run / "1e-02/T"
++    grant = ovd.issue_grant(out, run, run_id(run), "g"*64, now=1000)
++    assert ovd._grant_module().verify(grant, "g"*64, now=1001, roots=[str(tmp_path)])["time"] == "1e-02"
++
++def test_explicit_common_mpi_frame_preserves_each_directory_spelling(tmp_path):
++    run = make_decomposed_run(tmp_path, n=2, times=("0", "1e-02", "2"))
++    complete_processors(run)
++    (run / "processor1/1e-02").rename(run / "processor1/0.01")
++    seen = []
++    def convert(mirror, nprocs=None):
++        seen.append(nprocs)
++        assert (mirror / "processor1/1e-02/T").resolve() == run / "processor1/0.01/T"
++        return fake_foam([])(mirror)
++    assert ovd.prepare_ensight(run, convert, time_value=.01)["time"] == "1e-02"
++    assert seen == [2]
++
++def test_specific_time_missing_one_rank_does_not_fall_back(tmp_path):
++    run = make_decomposed_run(tmp_path, n=2)
++    complete_processors(run)
++    (run / "processor1/5/T").unlink()
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(run, lambda *a, **k: pytest.fail("must not convert"), time_value=5)
++    assert error.value.status == 409
++
++@pytest.mark.parametrize("value", [True, False, None, "1", math.inf, math.nan, 0, -1])
++def test_explicit_time_requires_positive_finite_numeric(tmp_path, value):
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=value)
++    assert error.value.status == 400
++
++def test_numeric_alias_ambiguity_is_refused(tmp_path):
++    run = make_run(tmp_path, times=("1", "1.0", "2"))
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(run, fake_foam([]), time_value=1)
++    assert error.value.code == "frame_time_ambiguous"
++
++def test_specific_partition_frame_can_be_newer_than_retained_root(tmp_path):
++    run = make_decomposed_run(tmp_path, n=2, times=("5",))
++    complete_processors(run)
++    mesh = run / "constant/polyMesh"; mesh.mkdir()
++    for name in ("points", "faces", "owner", "neighbour", "boundary"):
++        (mesh / name).write_text(name)
++    (run / "1").mkdir(); (run / "1/T").write_text("old")
++    seen = []
++    def convert(mirror, nprocs=None):
++        seen.append(nprocs); return fake_foam([])(mirror)
++    assert ovd.prepare_ensight(run, convert, time_value=5)["time"] == "5"
++    assert seen == [2]
++
++def test_change_while_converter_runs_is_not_signed_or_cached(tmp_path):
++    run = make_run(tmp_path)
++    def convert(mirror):
++        (run / "1/T").write_text("replaced during conversion")
++        return fake_foam([])(mirror)
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(run, convert, time_value=1)
++    assert error.value.code == "dataset_source_changed"
++
++def call_route(monkeypatch, tmp_path, body, convert=None):
++    run = make_run(tmp_path)
++    monkeypatch.setattr(server, "CASE_DIR", tmp_path)
++    monkeypatch.setenv("DCDTUNI_OV_GRANT_KEY", "g"*64)
++    import backend.aircooling.runner.postprocess as pp
++    monkeypatch.setattr(pp, "_foam_source_prefix", lambda: "")
++    monkeypatch.setattr(ovd, "foam_to_ensight", lambda _: convert or fake_foam([]))
++    replies = []
++    monkeypatch.setattr(server, "_send_json", lambda _h, code, value: replies.append((code,value)))
++    raw = json.dumps({**body, "runId": run_id(run)}).encode()
++    handler = type("Handler", (), {"headers":{"Content-Length":str(len(raw))}, "rfile":io.BytesIO(raw)})()
++    server.handle_ov_result_dataset(handler)
++    return replies[-1]
++
++def test_route_legacy_latest_and_specific_frame(monkeypatch, tmp_path):
++    assert call_route(monkeypatch, tmp_path / "a", {})[1]["time"] == "2"
++    code, data = call_route(monkeypatch, tmp_path / "b", {"time":1})
++    assert code == 200 and data["time"] == "1" and data["grant"]["payload"]["time"] == "1"
++
++@pytest.mark.parametrize("body", [{"time":True},{"time":"1"},{"time":None},{"time":1,"path":"/x"}])
++def test_route_rejects_invalid_or_extra_selectors(monkeypatch, tmp_path, body):
++    assert call_route(monkeypatch, tmp_path, body)[0] == 400
++
++def test_case_switch_during_conversion_refuses_old_grant(monkeypatch, tmp_path):
++    def convert(mirror):
++        monkeypatch.setattr(server, "CASE_DIR", tmp_path / "new-case")
++        return fake_foam([])(mirror)
++    code, data = call_route(monkeypatch, tmp_path, {}, convert)
++    assert code == 409 and data["code"] == "case_changed"
++
++def test_run_listing_uses_complete_actual_result_times(monkeypatch, tmp_path):
++    run = make_decomposed_run(tmp_path, n=2, times=("0","5","10"))
++    complete_processors(run); (run / "processor1/10/T").unlink()
++    monkeypatch.setattr(server, "CASE_DIR", tmp_path)
++    replies=[]
++    monkeypatch.setattr(server, "_send_json", lambda _h, code, value: replies.append((code,value)))
++    server.handle_pp_runs(object())
++    data=replies[-1][1]["runs"][0]
++    assert data["timesteps"] == [5] and data["runId"] == run_id(run)
++
++def test_oversized_json_integer_is_a_validation_error_not_an_overflow(tmp_path):
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(make_run(tmp_path), fake_foam([]), time_value=10**400)
++    assert error.value.status == 400
++
++def test_uniform_time_metadata_change_during_conversion_is_refused(tmp_path):
++    run=make_run(tmp_path, uniform=True)
++    def convert(mirror):
++        (run/"2/uniform/time").write_text("value 99;")
++        return fake_foam([])(mirror)
++    with pytest.raises(ovd.DatasetError) as error:
++        ovd.prepare_ensight(run,convert,time_value=2)
++    assert error.value.code=="dataset_source_changed"
++
++def test_a_failed_converter_output_cannot_become_a_cache_hit(tmp_path):
++    run=make_run(tmp_path)
++    def failed(mirror):
++        fake_foam([])(mirror)
++        return 3,"partial output then failure"
++    with pytest.raises(ovd.DatasetError):
++        ovd.prepare_ensight(run,failed,time_value=1)
++    calls=[]
++    assert ovd.prepare_ensight(run,fake_foam(calls),time_value=1)["cached"] is False
++    assert len(calls)==1
++
++def test_case_generation_change_during_conversion_refuses_even_same_case(monkeypatch,tmp_path):
++    def convert(mirror):
++        monkeypatch.setattr(server,"CASE_DIR_VERSION",server.CASE_DIR_VERSION+2)
++        return fake_foam([])(mirror)
++    code,data=call_route(monkeypatch,tmp_path,{},convert)
++    assert code==409 and data["code"]=="case_changed"
+--- src/frontend/react/test/ovDataset.test.ts
++++ src/frontend/react/test/ovDataset.test.ts
+@@ -26,3 +26,15 @@
+   const g = vi.fn(async () => json({ run: 'r' }))
+   await expect(requestOvDatasetGrant(RID, g)).rejects.toThrow(/no display grant/)
+ })
++
++it('preserves actual complete positive times and the transient marker from the server', async () => {
++  const f = vi.fn(async () => json({ runs: [{ name: 'r', runId: RID, timesteps: [0, .01, .02], transient: true }] }))
++  expect(await listOvRuns(f)).toEqual([{ name: 'r', runId: RID, timesteps: [.01, .02], transient: true }])
++})
++
++it('sends an explicit numeric frame without changing the legacy request shape', async () => {
++  const grant = { payload: { kind: 'dataset', time: '1e-02', runId: RID }, signature: 'f'.repeat(64) }
++  const f = vi.fn(async (_u: string, _i?: RequestInit) => json({ grant, time: '1e-02' }))
++  await requestOvDatasetGrant(RID, f, .01)
++  expect(JSON.parse(String(f.mock.calls[0]![1]!.body))).toEqual({ runId: RID, time: .01 })
++})
+--- src/frontend/react/test/ovPostProcessPanel.test.tsx
++++ src/frontend/react/test/ovPostProcessPanel.test.tsx
+@@ -5,6 +5,9 @@
+ import type { OvCommandClient, RenderAck } from '../src/renderer/ovProtocol'
+ import { airDisplayPreference, rememberAirDisplay, resetOvDisplayPreferences, type AirDisplayPreference } from '../src/renderer/ovDisplayPreferences'
+ import { setOvSession } from '../src/renderer/ovSession'
++import * as store from '../src/projectStore'
++import { setSimulationMode } from '../src/transient/simulationMode'
++import { clearResultLayerSet, publishResultLayerSet, setLiveAirResultSelection, resultLayerRevision } from '../src/renderer/resultLayerRevision'
+ 
+ /** The OV panel reports what Kit acknowledged, not what it asked for: the
+  * dataset comes from a server grant, the legend from the domain IndeX was
+@@ -39,7 +42,7 @@
+     ? json({ runs: [{ name: 'run1', runId: RID }] })
+     : json({ grant: { payload: { kind: 'dataset' }, signature: 'c'.repeat(64) }, run: 'run1', time: '2', fields: ['T', 'U'], cached: true, format: 'ensight' }))
+ })
+-afterEach(() => { act(() => root.unmount()); host.remove(); resetOvDisplayPreferences(); setOvSession({ sceneIdle: null }); vi.restoreAllMocks() })
++afterEach(() => { act(() => root.unmount()); host.remove(); resetOvDisplayPreferences(); setOvSession({ sceneIdle: null }); clearResultLayerSet(); setLiveAirResultSelection(null); store.setPlayhead(0); vi.restoreAllMocks() })
+ 
+ const button = (text: RegExp) => [...host.querySelectorAll('button')].find(b => text.test(b.textContent ?? ''))!
+ 
+@@ -241,3 +244,126 @@
+   expect(calls.filter(c => c.name === 'setVolumeDisplay' || c.name === 'setSlice' || c.name === 'fireCommand')).toHaveLength(0)
+   expect(airDisplayPreference('project-a', RID)).toEqual(AIR_PREF)
+ })
++
++function frameServer(times = [.01, .02, .03]) {
++  vi.mocked(fetch).mockImplementation(async (input: any, init?: RequestInit) => {
++    if (String(input) === '/api/pp/runs') return json({ runs: [{ name: 'run1', runId: RID, timesteps: times, transient: true }] })
++    const body = JSON.parse(String(init?.body))
++    const time = String(body.time ?? times.at(-1))
++    return json({ grant: { payload: { kind: 'dataset', runId: RID, time }, signature: 'c'.repeat(64) }, run: 'run1', time, fields: ['T','U'], format: 'ensight' })
++  })
++}
++function frameClient(over: Partial<Record<string, (...a: any[]) => Promise<RenderAck>>> = {}) {
++  return fakeClient({ loadResultDataset: async grant => ({ requestId: 'f', ok: true, dataset: {
++    run: 'run1', runId: RID, time: String(grant.payload.time), fields: {}, ranges: {}, hasT: true, hasU: true,
++  } }), ...over })
++}
++function frameSelect() { return host.querySelector<HTMLSelectElement>('#ov-air-time')! }
++async function pickFrame(value: string) {
++  const node = frameSelect()
++  await act(async () => { node.value = value === "" ? "" : String(Number(value)); node.dispatchEvent(new Event('change', { bubbles:true })) })
++  await flush()
++}
++it('keeps a manual exact air frame across a fresh client and re-applies the real display', async () => {
++  frameServer()
++  const first = frameClient()
++  await act(async () => root.render(<OvPostProcessPanel client={first.client} degraded={false} projectUid="p" />))
++  await flush()
++  await act(async () => button(/Load into OV|载入 OV/).click()); await flush()
++  expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]?.body))).toEqual({ runId:RID })
++  await pickFrame('.01')
++  expect(host.querySelector('[data-ov-dataset]')!.textContent).toContain('0.01')
++  await act(async () => root.unmount()); root=createRoot(host)
++  const second=frameClient()
++  await act(async () => root.render(<OvPostProcessPanel client={second.client} degraded={false} projectUid="p" />)); await flush()
++  expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]?.body))).toEqual({ runId:RID, time:.01 })
++  expect(second.calls.filter(c=>c.name==='setVolumeDisplay')).toHaveLength(1)
++  expect(second.calls.filter(c=>c.name==='setSlice')).toHaveLength(1)
++})
++it('rejects an air ACK for the right run but wrong physical time', async () => {
++  frameServer()
++  const c=frameClient({ loadResultDataset: async () => ({ requestId:'bad',ok:true,dataset:{ run:'run1',runId:RID,time:'.02',fields:{},ranges:{},hasT:true,hasU:true } }) })
++  await act(async () => root.render(<OvPostProcessPanel client={c.client} degraded={false} projectUid="p" />)); await flush()
++  await pickFrame('.01')
++  await act(async () => button(/Load into OV|载入 OV/).click()); await flush()
++  expect(host.textContent).toContain('different air frame')
++  expect(host.querySelector('[data-ov-dataset]')).toBeNull()
++})
++it('queues only the final requested frame behind an in-flight dataset import', async () => {
++  frameServer()
++  const first=deferred<RenderAck>()
++  let n=0
++  const c=frameClient({ loadResultDataset: async grant => {
++    if (++n===1) return first.promise
++    return { requestId:'next',ok:true,dataset:{run:'run1',runId:RID,time:String(grant.payload.time),fields:{},ranges:{},hasT:true,hasU:true} }
++  } })
++  await act(async () => root.render(<OvPostProcessPanel client={c.client} degraded={false} projectUid="p" />)); await flush()
++  await act(async () => button(/Load into OV|载入 OV/).click()); await flush()
++  await pickFrame('.01'); await pickFrame('.02')
++  expect(n).toBe(1)
++  await act(async()=> first.resolve({requestId:'first',ok:true,dataset:{run:'run1',runId:RID,time:'.03',fields:{},ranges:{},hasT:true,hasU:true}})); await flush()
++  expect(n).toBe(2)
++  expect(host.querySelector('[data-ov-dataset]')!.textContent).toContain('0.02')
++  const requests=vi.mocked(fetch).mock.calls.filter(([u])=>u==='/api/ov/result-dataset')
++  expect(requests.map(([,i])=>JSON.parse(String(i?.body)))).toEqual([{runId:RID},{runId:RID,time:.02}])
++})
++
++it('waits for old display mutation to settle and ignores its ACK before replacing a frame', async () => {
++  frameServer()
++  const oldVolume=deferred<RenderAck>()
++  let volumeCalls=0
++  const c=frameClient({ setVolumeDisplay: async (field,domain) => {
++    if (++volumeCalls===1) return oldVolume.promise
++    return {requestId:'v',ok:true,volume:{field,visible:field!=='off',domain}}
++  } })
++  await act(async()=>root.render(<OvPostProcessPanel client={c.client} degraded={false} projectUid="p" />));await flush()
++  await act(async()=>button(/Load into OV|载入 OV/).click());await flush()
++  await act(async()=>[...host.querySelectorAll<HTMLInputElement>('input[name="ov-volume"]')][1]!.click());await flush()
++  await pickFrame('.01')
++  expect(c.calls.filter(c=>c.name==='loadResultDataset')).toHaveLength(1)
++  await act(async()=>oldVolume.resolve({requestId:'old',ok:true,volume:{field:'T',visible:true,domain:[999,1000]}}));await flush()
++  expect(c.calls.filter(c=>c.name==='loadResultDataset')).toHaveLength(2)
++  expect(host.querySelector('[data-ov-legend]')).toBeNull()
++  expect([...host.querySelectorAll<HTMLInputElement>('input[name="ov-volume"]')][0]!.checked).toBe(true)
++  expect(airDisplayPreference('p',RID)!.volume.domain).not.toEqual([999,1000])
++})
++it('uses actual nearest earlier time after playhead movement, while a snapped manual pick stays exact', async () => {
++  store.loadProject(structuredClone(store.getProject()!), null)
++  setSimulationMode('transient')
++  store.setPlayhead(0)
++  frameServer([.01,.02,.03,1,3])
++  const c=frameClient()
++  await act(async()=>root.render(<OvPostProcessPanel client={c.client} degraded={false} projectUid="p" />));await flush()
++  await act(async()=>button(/Load into OV|载入 OV/).click());await flush()
++  await pickFrame('.01')
++  expect(store.playheadTime()).toBe(0)
++  await act(async()=>{await new Promise(r=>setTimeout(r,270))})
++  expect(host.querySelector('[data-ov-dataset]')!.textContent).toContain('0.01')
++  await act(async()=>store.setPlayhead(2))
++  await act(async()=>{await new Promise(r=>setTimeout(r,270))});await flush()
++  const bodies=vi.mocked(fetch).mock.calls.filter(([u])=>u==='/api/ov/result-dataset').map(([,i])=>JSON.parse(String(i?.body)))
++  expect(bodies.at(-1)).toEqual({runId:RID,time:1})
++})
++
++function publishThreeFrame(time: number, revision: string) {
++  const source={ projectUid:'p',projectContentSha256:'a'.repeat(64),cfdrunSha256:'b'.repeat(64),
++    meshReceiptSha256:'c'.repeat(64),meshQuality:'accepted' as const,run:{uid:'execution',receiptSha256:'d'.repeat(64)} }
++  const selection={owner:'air-postprocess' as const,session:{runId:RID,timeValue:time,revision},surfaceField:'T',meshReceiptSha256:source.meshReceiptSha256}
++  setLiveAirResultSelection(selection)
++  publishResultLayerSet({schema:'dcdtuni.render-result-layers/v1',revision:resultLayerRevision()+1,
++    source,coordinateSystem:{upAxis:'Y',metersPerUnit:1,handedness:'right'},timeSeconds:time,
++    layers:[{kind:'meshEdges',layerId:'wall',visible:true,meshPatchName:'wall',sourceFaceUids:['wall/f'],
++      positions:[0,0,0,1,0,0],indices:[0,1],opacity:1}]},source,time,undefined,'air-postprocess',selection)
++}
++it('transfers a newly chosen Three frame even when grid snap equals the saved OV anchor', async () => {
++  store.loadProject(structuredClone(store.getProject()!),null);setSimulationMode('transient');store.setPlayhead(0)
++  frameServer()
++  const first=frameClient()
++  await act(async()=>root.render(<OvPostProcessPanel client={first.client} degraded={false} projectUid="p" />));await flush()
++  await pickFrame('.01');await act(async()=>button(/Load into OV|载入 OV/).click());await flush()
++  await act(async()=>root.unmount());root=createRoot(host)
++  publishThreeFrame(.02,'three-new')
++  const second=frameClient()
++  await act(async()=>root.render(<OvPostProcessPanel client={second.client} degraded={false} projectUid="p" />));await flush()
++  expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]?.body))).toEqual({runId:RID,time:.02})
++})
+--- src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
++++ src/frontend/omniverse/cfd_demo/tests/test_render_command_routing.py
+@@ -80,8 +80,10 @@
+     assert len(acks) == 1, "exactly the view-state reply reports sceneRequestId"
+     keys = {k.arg for k in acks[0].keywords}
+     assert {"view", "primitives", "sceneRevision", "projectHash", "sceneRequestId"} <= keys
+-    src = ast.unparse(route)
++    author = next(n for n in cls.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "_author_render_scene")
++    src = ast.unparse(author)
+     assert src.index("author_scene(") < src.index("self._last_scene_request_id = request_id")
++    assert "_author_render_scene(" in ast.unparse(route)
+ 
+ 
+ 
+@@ -95,9 +97,12 @@
+     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+     fn = {n.name: n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+     route = ast.unparse(fn["_route_render_command"])
+-    assert "self._scene_project_uid != self._display_project_uid" in route
+-    assert "self._clear_display(stage)" in route
++    author = ast.unparse(fn["_author_render_scene"])
++    assert "packet['project']['uid'] != self._display_project_uid" in author
++    assert "self._clear_display(stage)" in author
++    assert "_author_render_scene(" in route
+     assert "self._display_project_uid = self._scene_project_uid" in ast.unparse(fn["_load_granted_dataset"])
+     clear = ast.unparse(fn["_clear_display"])
+-    for call in ("remove_streamlines", "remove_slice", "show_volume_display(stage, 'off')", "dataset_path = None"):
++    for call in ("remove_streamlines", "remove_slice", "show_volume_display(stage, 'off')",
++                 "dataset_path = None", "source_vtu_path = None", "RemovePrim('/World/internal')"):
+         assert call in clear, call
+--- /dev/null
++++ src/frontend/omniverse/cfd_demo/tests/test_dataset_scene_race.py
+@@ -0,0 +1,297 @@
++"""CPU controlled interleavings of the real Kit dataset/scene commit methods.
++
++Kit-only APIs are fakes; the extension route, dataset loader and importer
++discovery execute from their actual AST. No Kit, service, CFD or GPU runs.
++"""
++import ast
++import asyncio
++import json
++import os
++from pathlib import Path
++import re
++import sys
++import types
++
++import pytest
++
++BRIDGE = Path(__file__).resolve().parents[1] / "kit/extensions/dc.cfd_bridge/dc/cfd_bridge"
++
++
++def _class_methods(file, class_name, names, namespace):
++    tree = ast.parse((BRIDGE / file).read_text())
++    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
++    methods = [n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
++    extracted = ast.Module(body=[ast.ClassDef(
++        name=class_name, bases=[], keywords=[], body=methods, decorator_list=[])], type_ignores=[])
++    exec(compile(ast.fix_missing_locations(extracted), str(BRIDGE / file), "exec"), namespace)
++    return namespace[class_name]
++
++
++class Prim:
++    def __init__(self, path="", kind=""):
++        self.path, self.kind = path, kind
++
++    def __bool__(self):
++        return bool(self.path)
++
++    def IsValid(self):
++        return bool(self.path)
++
++    def GetPath(self):
++        return self.path
++
++    def GetTypeName(self):
++        return self.kind
++
++    def GetName(self):
++        return self.path.rsplit("/", 1)[-1]
++
++
++class Stage:
++    def __init__(self):
++        self.project = "old-project"
++        self.prims = {}
++        self.events = []
++
++    def GetPrimAtPath(self, path):
++        return self.prims.get(path, Prim())
++
++    def RemovePrim(self, path):
++        self.prims = {p: prim for p, prim in self.prims.items()
++                      if p != path and not p.startswith(path + "/")}
++        self.events.append(("remove", path, self.project))
++        return True
++
++    def Traverse(self):
++        return list(self.prims.values())
++
++
++def _harness(monkeypatch, tmp_path, block):
++    started, release = asyncio.Event(), asyncio.Event()
++    stage = Stage()
++    package = types.ModuleType("race_bridge")
++    package.__path__ = []
++    monkeypatch.setitem(sys.modules, "race_bridge", package)
++
++    def module(name, **values):
++        value = types.ModuleType(name)
++        value.__dict__.update(values)
++        monkeypatch.setitem(sys.modules, name, value)
++        return value
++
++    async def wait_for_update():
++        await asyncio.sleep(0)
++
++    async def blocked(position):
++        if block == position:
++            stage.events.append(("blocked", position, stage.project))
++            started.set()
++            await release.wait()
++
++    async def import_to_stage(*, path, prim_path):
++        await blocked("import")
++        stage.events.append(("import", path, stage.project))
++        stage.prims[prim_path] = Prim(prim_path, "CaeDataSet")
++        stage.prims[prim_path + "/T"] = Prim(prim_path + "/T", "CaeField")
++
++    omni = module("omni")
++    usd = module("omni.usd")
++    omni.usd = usd
++    cae = module("omni.cae")
++    omni.cae = cae
++    cae.testing = module("omni.cae.testing", wait_for_update=wait_for_update)
++    cae.importer = module("omni.cae.importer")
++    cae.importer.vtk = module("omni.cae.importer.vtk", import_to_stage=import_to_stage)
++    selection = types.SimpleNamespace(
++        set_selected_prim_paths=lambda *args: None,
++        get_selected_prim_paths=lambda: [])
++    usd.get_context = lambda: types.SimpleNamespace(
++        get_stage=lambda: stage, get_selection=lambda: selection)
++    module("pxr", UsdGeom=types.SimpleNamespace(
++        Imageable=lambda prim: types.SimpleNamespace(MakeInvisible=lambda: None)))
++
++    def author_scene(target, packet, cache, **kwargs):
++        target.project = packet["project"]["uid"]
++        target.events.append(("scene", target.project))
++        return {"uidPaths": {}, "primitives": 0}
++
++    module("race_bridge.render_scene", author_scene=author_scene, CAMERA="/World/Camera")
++    module("race_bridge.owned_paths", render_texture_cache_path=lambda: str(tmp_path / "textures"))
++    module("race_bridge.display_grant", verify=lambda grant, *args, **kwargs: grant,
++           roots_from_env=lambda value: [str(tmp_path)])
++    grid = types.SimpleNamespace(GetBounds=lambda: (0, 1, 0, 1, 0, 1))
++    read_grid = lambda path: grid
++    module("race_bridge.slice_render", read_grid=read_grid)
++
++    async def executor(_pool, func, *args):
++        if func is read_grid:
++            await blocked("bounds")
++        return func(*args)
++
++    monkeypatch.setattr(asyncio.get_running_loop(), "run_in_executor", executor)
++    globals_ = {"__name__": "race_bridge.test", "__package__": "race_bridge",
++                "asyncio": asyncio, "json": json, "os": os, "re": re, "omni": omni}
++    Extension = _class_methods("extension.py", "CfdBridgeExtension",
++        {"_route_render_command", "_load_granted_dataset", "_clear_display", "_ack_after",
++         "_author_render_scene", "_apply_render_view"}, dict(globals_))
++    Scene = _class_methods("scene.py", "CfdScene",
++        {"load_dataset", "_ingest_dataset"}, dict(globals_))
++    scene = Scene()
++    scene.__dict__.update(
++        _loading=False, volume_path="/World/CAE/InternalVolume",
++        streamlines_path="/World/CAE/Streamlines", seed_sphere_path="/World/CAE/SeedSphere",
++        seed_source_path="/World/CAE/SeedPoints", slice_visible=False,
++        dataset_path=None, t_field=None, u_field=None, umag_field=None,
++        field_stats=None, ranges={}, vtu_path=None, source_vtu_path=None,
++        _slice_grid=None, _slice_cache_key=None, _slice_summary=None)
++    path = tmp_path / "old.case"
++    path.write_text("fake granted case")
++
++    async def convert(path):
++        await blocked("convert")
++        return str(tmp_path / "old.vtu")
++
++    async def no_op(*args):
++        await asyncio.sleep(0)
++
++    scene._convert_case = convert
++    scene.write_dataset_info = lambda path: stage.events.append(("info", path, stage.project))
++    scene.remove_streamlines = no_op
++    scene.remove_slice = no_op
++    scene.show_volume_display = no_op
++    ext = Extension()
++    ext.__dict__.update(
++        _scene=scene, _scene_revision=1, _scene_project_uid="old-project",
++        _display_project_uid=None, _render_project_hash="a" * 64,
++        _render_uid_paths={}, _render_primitive_ids={}, _last_scene_request_id="before",
++        _liquid=None, _liquid_saved={}, _last_ov_pick=None, _suppress_ov_pick=False,
++        _display_generation=0, _display_commit_lock=asyncio.Lock())
++    ext.acks = []
++    ext._render_ack = lambda request_id, **result: ext.acks.append({"requestId": request_id, **result})
++    ext._render_transfer = types.SimpleNamespace(finish=lambda request_id: {
++        "project": {"uid": "new-project"}, "primitives": [],
++        "view": {"camera": None, "selectedUids": []}})
++    granted = {"path": str(path), "run": "old-run", "runId": "old-run-id", "time": 0.005}
++    return ext, scene, stage, started, release, granted
++
++
++async def _drain_until(predicate):
++    for _ in range(100):
++        if predicate():
++            return
++        await asyncio.sleep(0)
++    raise AssertionError("controlled command did not settle")
++
++
++@pytest.mark.parametrize("block", ["convert", "import", "bounds"])
++def test_blocked_old_dataset_cannot_commit_over_a_new_engineering_scene(monkeypatch, tmp_path, block):
++    async def scenario():
++        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, block)
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "old-load", "grant": granted}))
++        await _drain_until(started.is_set)
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
++        await asyncio.sleep(0)
++        release.set()
++        await _drain_until(lambda: len(ext.acks) == 2)
++        old = next(a for a in ext.acks if a["requestId"] == "old-load")
++        new = next(a for a in ext.acks if a["requestId"] == "new-scene")
++        assert old["ok"] is False, (block, stage.events, ext.acks)
++        assert "scene changed" in old["error"].lower()
++        assert new["ok"] is True
++        assert stage.project == "new-project"
++        assert ext._scene_project_uid == "new-project"
++        assert ext._display_project_uid is None
++        assert scene.dataset_path is None and scene.t_field is None
++        assert scene.vtu_path is None and scene.source_vtu_path is None
++        assert scene._slice_grid is None and scene._slice_summary is None
++        assert not stage.GetPrimAtPath("/World/internal")
++        assert not any(event[0] == "import" and event[-1] == "new-project"
++                       for event in stage.events), stage.events
++    asyncio.run(scenario())
++
++
++def test_unchanged_scene_dataset_ack_preserves_grant_run_and_time(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "load", "grant": granted}))
++        await _drain_until(lambda: len(ext.acks) == 1)
++        ack = ext.acks[0]
++        assert ack["ok"] is True, ack
++        assert ack["dataset"]["runId"] == granted["runId"]
++        assert ack["dataset"]["time"] == granted["time"]
++        assert ack["dataset"]["hasT"] is True
++        assert ext._display_project_uid == "old-project"
++        assert scene.dataset_path == "/World/internal"
++    asyncio.run(scenario())
++
++
++def test_queued_old_load_refuses_without_clearing_the_new_scene_result(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
++        # All three commands are routed before their coroutine tasks begin.
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "old-queued", "grant": granted}))
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "new-scene"}))
++        new_grant = dict(granted, runId="new-run-id", time=0.01)
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "new-load", "grant": new_grant}))
++        await _drain_until(lambda: len(ext.acks) == 3)
++        acks = {a["requestId"]: a for a in ext.acks}
++        assert acks["old-queued"]["ok"] is False
++        assert acks["new-scene"]["ok"] is True
++        assert acks["new-load"]["ok"] is True
++        assert acks["new-load"]["dataset"]["runId"] == "new-run-id"
++        assert acks["new-load"]["dataset"]["time"] == 0.01
++        assert ext._display_project_uid == "new-project"
++        assert scene.dataset_path == "/World/internal"
++        assert stage.GetPrimAtPath("/World/internal")
++        assert len([e for e in stage.events if e[0] == "import"]) == 1
++    asyncio.run(scenario())
++
++
++def test_only_latest_scene_commits_after_a_blocked_import(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, "import")
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "old-load", "grant": granted}))
++        await _drain_until(started.is_set)
++        ext._render_transfer.finish = lambda request_id: {
++            "project": {"uid": "middle-project" if request_id == "middle" else "new-project"},
++            "primitives": [], "view": {"camera": None, "selectedUids": []}}
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "middle"}))
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "latest"}))
++        release.set()
++        await _drain_until(lambda: len(ext.acks) == 3)
++        acks = {a["requestId"]: a for a in ext.acks}
++        assert acks["old-load"]["ok"] is False
++        assert acks["middle"]["ok"] is False
++        assert "superseded" in acks["middle"]["error"]
++        assert acks["latest"]["ok"] is True
++        assert [e for e in stage.events if e[0] == "scene"] == [("scene", "new-project")]
++        assert ext._last_scene_request_id == "latest"
++        assert ext._scene_revision == 2
++        assert scene.dataset_path is None
++    asyncio.run(scenario())
++
++
++def test_completed_result_survives_same_project_scene_reauthor(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, started, release, granted = _harness(monkeypatch, tmp_path, None)
++        ext._route_render_command("loadResultDataset",
++            json.dumps({"requestId": "load", "grant": granted}))
++        await _drain_until(lambda: len(ext.acks) == 1)
++        old_source, old_grid = scene.source_vtu_path, scene._slice_grid
++        ext._render_transfer.finish = lambda request_id: {
++            "project": {"uid": "old-project"}, "primitives": [],
++            "view": {"camera": None, "selectedUids": []}}
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "same-project"}))
++        await _drain_until(lambda: len(ext.acks) == 2)
++        assert all(a["ok"] for a in ext.acks)
++        assert scene.dataset_path == "/World/internal"
++        assert scene.source_vtu_path == old_source and scene._slice_grid is old_grid
++        assert ext._display_project_uid == "old-project"
++        assert ext._scene_revision == 2
++        assert not any(e[0] == "remove" and e[1] == "/World/internal" for e in stage.events)
++    asyncio.run(scenario())
+--- /dev/null
++++ src/frontend/omniverse/cfd_demo/tests/test_display_frame_order.py
+@@ -0,0 +1,169 @@
++"""Real router/handlers with CPU blocked display writers; no Kit or GPU."""
++import ast
++import asyncio
++import json
++import sys
++import types
++
++import pytest
++
++from test_dataset_scene_race import BRIDGE, _harness, _drain_until
++
++
++def bind_display(monkeypatch, ext):
++    namespace = {"__name__": "race_bridge.test", "__package__": "race_bridge",
++                 "asyncio": asyncio, "omni": sys.modules["omni"]}
++    tree = ast.parse((BRIDGE / "extension.py").read_text())
++    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "CfdBridgeExtension")
++    names = {"_route_command", "_display_mutation", "_legacy_display", "_set_slice",
++             "_volume_display", "_slice_rebuild", "_slice_readback", "_slice_state"}
++    for method in cls.body:
++        if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)) and method.name in names:
++            exec(compile(ast.fix_missing_locations(ast.Module(body=[method], type_ignores=[])),
++                         str(BRIDGE / "extension.py"), "exec"), namespace)
++            setattr(type(ext), method.name, namespace[method.name])
++    ext.OV_DISPLAY_COMMANDS = {"setSlice", "getSliceState", "setVolumeDisplay", "loadResultDataset"}
++    for name in ("handlers", "parsers"):
++        mod = types.ModuleType("race_bridge." + name)
++        mod.__package__ = "race_bridge"
++        monkeypatch.setitem(sys.modules, mod.__name__, mod)
++        exec(compile((BRIDGE / (name + ".py")).read_text(), str(BRIDGE / (name + ".py")), "exec"), mod.__dict__)
++    sys.modules["race_bridge.slice_render"].normalize_plane = lambda o, n: (o, n)
++    geom = types.ModuleType("race_bridge.geom")
++    geom.moved = lambda a, b: a != b
++    monkeypatch.setitem(sys.modules, geom.__name__, geom)
++
++
++@pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport",
++                                    "setVolumeDisplay", "setSlice", "getSliceState"])
++def test_actual_old_writer_finishes_before_next_frame_import(monkeypatch, tmp_path, command):
++    async def scenario():
++        ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
++        bind_display(monkeypatch, ext)
++        started, release = asyncio.Event(), asyncio.Event()
++        events = []
++        async def writer(*args, **kwargs):
++            started.set()
++            await release.wait()
++            events.append("old-write")
++            return {"field": "T", "visible": True, "domain": [1, 2]} if command == "setVolumeDisplay" else {"tris": 1}
++        scene.generate_streamlines = writer
++        scene.update_seed_sphere = writer
++        scene.show_volume_display = writer
++        scene.update_slice = writer
++        scene.seed_center = [0, 0, 0]
++        scene._seed_ui_center = [0, 0, 0]
++        scene.adopt_dragged_seed = lambda stage: None
++        scene.bake_roi_xform = lambda stage: None
++        scene.adopt_dragged_slice = lambda stage: object()
++        scene.clip_enabled = False
++        scene.streamlines_enabled = True
++        scene.slice_visible = command in {"setSlice", "getSliceState"}
++        scene.slice_origin = [0, 0, 0]
++        scene.slice_normal = [0, 1, 0]
++        scene.slice_radius = 1
++        scene.slice_field = "T"
++        scene.slice_domain = None
++        scene.resolve_slice_origin = lambda stage, origin: None
++        original = scene.load_dataset
++        async def load(stage, path):
++            events.append("new-import")
++            return await original(stage, path)
++        scene.load_dataset = load
++        args = {"enabled": True, "visible": True}
++        if command == "setVolumeDisplay":
++            args = {"requestId": "old", "field": "T", "domain": None}
++        elif command == "setSlice":
++            args = {"requestId": "old", "visible": True, "origin": [0, 0, 0],
++                    "normal": [0, 1, 0], "radius": 1, "field": "T", "domain": None}
++        elif command == "getSliceState":
++            args = {"requestId": "old"}
++        ext._route_command({"command_name": command, "message": json.dumps(args)})
++        await _drain_until(started.is_set)
++        ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
++        for _ in range(10):
++            await asyncio.sleep(0)
++        assert "new-import" not in events, (command, events)
++        release.set()
++        await _drain_until(lambda: any(a["requestId"] == "new" for a in ext.acks))
++        assert events.index("old-write") < events.index("new-import")
++        assert next(a for a in ext.acks if a["requestId"] == "new")["ok"] is True
++    asyncio.run(scenario())
++
++
++@pytest.mark.parametrize("command", ["setStreamlines", "setSeedSphere", "syncFromViewport"])
++def test_queued_old_fire_cannot_touch_a_new_scene(monkeypatch, tmp_path, command):
++    async def scenario():
++        ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
++        bind_display(monkeypatch, ext)
++        events = []
++        async def writer(*args, **kwargs):
++            events.append(stage.project)
++        scene.generate_streamlines = writer
++        scene.update_seed_sphere = writer
++        scene.seed_center = [0, 0, 0]
++        scene._seed_ui_center = [0, 0, 0]
++        scene.adopt_dragged_seed = lambda stage: events.append("adopt")
++        scene.bake_roi_xform = lambda stage: events.append("bake")
++        scene.adopt_dragged_slice = lambda stage: None
++        scene.clip_enabled = False
++        scene.streamlines_enabled = True
++        ext._route_command({"command_name": command, "message": json.dumps({"enabled": True, "visible": True})})
++        ext._route_render_command("loadRenderScene", json.dumps({"requestId": "scene"}))
++        await _drain_until(lambda: len(ext.acks) == 1)
++        for _ in range(8):
++            await asyncio.sleep(0)
++        assert events == []
++        assert stage.project == "new-project"
++    asyncio.run(scenario())
++
++
++def test_dispatch_order_preserves_fire_before_load_without_a_scheduler_yield(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, _, _, granted = _harness(monkeypatch, tmp_path, None)
++        bind_display(monkeypatch, ext)
++        started, release = asyncio.Event(), asyncio.Event()
++        events = []
++        async def writer(*args, **kwargs):
++            events.append("fire-start")
++            started.set()
++            await release.wait()
++            events.append("fire-finish")
++        scene.update_seed_sphere = writer
++        scene.seed_center = scene._seed_ui_center = [0, 0, 0]
++        scene.adopt_dragged_seed = lambda stage: None
++        original = scene.load_dataset
++        async def load(stage, path):
++            events.append("import")
++            return await original(stage, path)
++        scene.load_dataset = load
++        # The real router creates both tasks synchronously in receipt order.
++        ext._route_command({"command_name": "setSeedSphere", "message": "{}"})
++        ext._route_render_command("loadResultDataset", json.dumps({"requestId": "new", "grant": granted}))
++        await _drain_until(started.is_set)
++        for _ in range(8):
++            await asyncio.sleep(0)
++        assert events == ["fire-start"]
++        release.set()
++        await _drain_until(lambda: len(ext.acks) == 1)
++        assert events == ["fire-start", "fire-finish", "import"]
++    asyncio.run(scenario())
++
++
++def test_legacy_handler_without_scheduler_still_schedules_its_one_coroutine(monkeypatch, tmp_path):
++    async def scenario():
++        ext, scene, stage, _, _, _ = _harness(monkeypatch, tmp_path, None)
++        bind_display(monkeypatch, ext)
++        events = []
++        async def writer(stage, visible):
++            events.append(visible)
++        scene.update_seed_sphere = writer
++        scene.seed_center = scene._seed_ui_center = [0, 0, 0]
++        scene.adopt_dragged_seed = lambda stage: None
++        result = sys.modules["race_bridge.handlers"].handle_set_seed_sphere(
++            scene, stage, True, [0, 0, 0], 0.25, 7)
++        assert result is None
++        await _drain_until(lambda: bool(events))
++        assert events == [True]
++        assert scene.seed_radius == 0.25 and scene.n_seeds == 7
++    asyncio.run(scenario())

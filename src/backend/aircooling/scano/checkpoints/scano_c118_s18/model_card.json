@@ -1,0 +1,45 @@
+{
+ "name": "SCANO (DCTS)",
+ "name_zh": "SCANO（DCTS）",
+ "recommended": true,
+ "description": "SCANO, the paper model: Transolver-type slice operator with BQA and AGS, one whole-room forward pass (about 1 s on an RTX 4090).",
+ "description_zh": "论文主模型 SCANO：切片算子 + 边界求积注意力（BQA）+ 锚定全局状态（AGS），整室一次前向（RTX 4090 约 1 秒）。",
+ "run": "c118 scano_decoupled_sample__lr1e-3 seed 18",
+ "parameters": "about 0.81 M",
+ "dataset": "DCTS (500 parametric GTC rooms; 400 train / 50 val / 50 test)",
+ "fields": [
+  "u",
+  "v",
+  "w",
+  "p_rgh",
+  "T"
+ ],
+ "adapter": "scano-dcts-v1",
+ "first_iteration": "../dcts_normalizer/first_iteration.json",
+ "mesh": {
+  "engine": "snappy",
+  "base_cell_m": 0.34,
+  "note": "snappyHexMesh with the DCTS recipe (case/DCTS/make_dcts_project.py)"
+ },
+ "metric": "mean over the five fields of the per-field relative L2 error",
+ "val_error": 0.3934,
+ "checkpoint_sha256": "9c1c7d831fe28666fb3ad6a37be15a35c4bfb84b8fa0e133491f9ee960932645",
+ "training_ranges": "../dcts_normalizer/training_ranges.json",
+ "source": "Google Drive SCANO/realtime_demo_20261027/model/scano_c118_s18",
+ "test_error": 0.3925,
+ "test_error_T": 0.1719,
+ "test_rmse_T_K": 0.796,
+ "paper_seconds_gh200": 0.6,
+ "paper_peak_gpu_gib": 13.2,
+ "memory": {
+  "node_bytes": 207,
+  "query_row_bytes": 6600,
+  "query_row_bytes_per_mface": 3900,
+  "anchor_row_bytes": 1900,
+  "rows_per_pivot": 7.7,
+  "sample_ratio": 0.05,
+  "anchor_ratio": 0.0125,
+  "anchor_fraction": true,
+  "note": "peak = node_bytes x nodes + query rows x (query_row_bytes + query_row_bytes_per_mface x boundary faces / 1e6) + anchor rows x anchor_row_bytes (every query row attends to the boundary records); rows = rows_per_pivot x pivots; fit on an RTX 4090, docs/benchmarks/scano-tta-2026-10-29"
+ }
+}

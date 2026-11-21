@@ -1,0 +1,32 @@
+
+> dcdtuni-editor@0.1.0 test
+> vitest run test/FileBrowserInteractions.test.tsx test/components/PostprocessUnitSync.test.tsx test/ppUnits.test.ts --maxWorkers=1 --minWorkers=1
+
+
+ RUN  v2.1.9 /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react
+
+ ❯ test/components/PostprocessUnitSync.test.tsx (8 tests | 1 failed) 439ms
+   × resynchronizes pp-vol sidebar labels and values without committing a stale focused draft 52ms
+     → expected 293.1 to be close to 293.15, received difference is 0.049999999999954525, but expected 5e-11
+ ✓ test/FileBrowserInteractions.test.tsx (5 tests) 211ms
+ ✓ test/ppUnits.test.ts (6 tests) 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/components/PostprocessUnitSync.test.tsx > resynchronizes pp-vol sidebar labels and values without committing a stale focused draft
+AssertionError: expected 293.1 to be close to 293.15, received difference is 0.049999999999954525, but expected 5e-11
+ ❯ test/components/PostprocessUnitSync.test.tsx:119:31
+    117|   const after = $<HTMLInputElement>('#'+prefix+'-clim-min')
+    118|   expect(after).not.toBe(initial)
+    119|   expect(Number(after.value)).toBeCloseTo(293.15, 10)
+       |                               ^
+    120|   act(() => { after.focus(); after.blur() })
+    121|   expect(Number($<HTMLInputElement>('#'+prefix+'-clim-min').value)).to…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 18 passed (19)
+   Start at  00:31:07
+   Duration  18.97s (transform 2.34s, setup 0ms, collect 5.30s, tests 655ms, environment 11.76s, prepare 524ms)
+

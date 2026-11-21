@@ -1,0 +1,52 @@
+diff --git a/src/frontend/react/src/components/LiquidExperimentPanel.tsx b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+index ad81e48a..5d7c4c4a 100644
+--- a/src/frontend/react/src/components/LiquidExperimentPanel.tsx
++++ b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+@@ -53,7 +53,7 @@ export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
+   const dae=experiment.dae
+   // Mode display follows the same pure choice as compilation. Reading a
+   // stale marked input must not show an independent clock or edit the project.
+-  const analysisMode=dae?(experiment.engine==='newton-dae'?domainModesOf(project).liquid:dae.analysis.mode):undefined
++  const analysisMode=experiment.engine==='newton-dae'?domainModesOf(project).liquid:dae?.analysis.mode
+   const initialization=experiment.engine==='newton-dae'&&analysisMode==='steady'?'steady'
+     :timeline&&analysisMode==='transient'?(timeline.start.kind==='uniform'?'consistent':'steady'):dae?.analysis.initialization
+   const newtonIntent=experiment.engine==='newton-dae'||!!dae
+diff --git a/src/frontend/react/test/liquidDefaultNewton.test.tsx b/src/frontend/react/test/liquidDefaultNewton.test.tsx
+index b9cbf5e7..25dab84a 100644
+--- a/src/frontend/react/test/liquidDefaultNewton.test.tsx
++++ b/src/frontend/react/test/liquidDefaultNewton.test.tsx
+@@ -157,6 +157,34 @@ describe('canonical and default Newton entry', () => {
+     expect(run.analysis).toEqual({mode:'steady',initialization:'steady'})
+     expect(run.time.N_t).toBe(1)
+   })
++  it.each(['missing','marker-only'] as const)('default intent gates time/load controls purely for %s configuration before materialization', async kind => {
++    const p=noExperiment() as any
++    if(kind==='marker-only')p.runDefaults.liquid.experiment=experiments.readExperiment(p)
++    const graph=vi.spyOn(dynamic,'compileDynamicLiquidGraph')
++    const host=await panel(p,true)
++    const saved=JSON.stringify((store.getProject() as any).runDefaults.liquid.experiment)
++    const loadStep=()=>[...host.querySelectorAll('label')].find(label=>label.textContent?.includes(t('lce.add_load_step')))?.querySelector('input') as HTMLInputElement|undefined
++    expect([...host.querySelectorAll('input')].some(el=>el.getAttribute('aria-label')===t('lce.duration'))).toBe(false)
++    expect(loadStep()?.disabled).toBe(true)
++    expect(graph).not.toHaveBeenCalled()
++    await act(async()=>setSimulationMode('transient','liquid'))
++    expect(host.querySelector('#lce-duration-timeline')).not.toBeNull()
++    expect(host.querySelector('#lce-keyframe-hint')).not.toBeNull()
++    expect(loadStep()).toBeUndefined()
++    expect(JSON.stringify((store.getProject() as any).runDefaults.liquid.experiment)).toBe(saved)
++    expect(experiments.readExperiment(store.getProject()).dae).toBeUndefined()
++    expect(graph).not.toHaveBeenCalled()
++  })
++  it('unmarked saved legacy v2 keeps its existing duration and load controls in a steady project', async () => {
++    const p=noExperiment() as any
++    const {engine,...legacy}=experiments.readExperiment(p)
++    p.runDefaults.liquid.experiment=legacy
++    const host=await panel(p,true)
++    expect([...host.querySelectorAll('input')].some(el=>el.getAttribute('aria-label')===t('lce.duration'))).toBe(true)
++    const load=[...host.querySelectorAll('label')].find(label=>label.textContent?.includes(t('lce.add_load_step')))?.querySelector('input') as HTMLInputElement
++    expect(load.disabled).toBe(false)
++    expect(experiments.readExperiment(store.getProject()).engine).toBeUndefined()
++  })
+   it('reading and rendering a missing experiment never compiles or edits even an unconnected project', async () => {
+     const p = noExperiment() as any
+     p.constructions = Object.fromEntries(schema().BUCKETS.map(bucket => [bucket, {}]))

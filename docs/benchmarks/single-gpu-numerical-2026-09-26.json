@@ -1,0 +1,103 @@
+{
+  "status": "passed",
+  "gpu_uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+  "physical_gpu_index": 0,
+  "logical_device": "cuda:0",
+  "episode_start_unix_s": 1790435127.078577,
+  "episode_deadline_unix_s": 1790435607.078577,
+  "numerical_phase_cap_s": 90,
+  "cpu_affinity": [
+    0
+  ],
+  "threads": 1,
+  "nice": 10,
+  "cases": [
+    {
+      "device": "cpu",
+      "states": 1604,
+      "parameters": 4396,
+      "nodes": 316,
+      "edges": 348,
+      "pipe_cells": 588,
+      "accepted_steps": 1,
+      "dt_s": 1.0,
+      "initializer": {
+        "method": "hydraulic_guess_then_full_dae_newton"
+      },
+      "heat_gradient": 0.19631667626512342,
+      "elapsed_s": 3.077001940982882
+    },
+    {
+      "device": "cuda:0",
+      "states": 1604,
+      "parameters": 4396,
+      "nodes": 316,
+      "edges": 348,
+      "pipe_cells": 588,
+      "accepted_steps": 1,
+      "dt_s": 1.0,
+      "initializer": {
+        "method": "hydraulic_guess_then_full_dae_newton"
+      },
+      "heat_gradient": 0.19631667626512342,
+      "elapsed_s": 10.51288700895384
+    }
+  ],
+  "torch_tests": [
+    {
+      "nodeid": "src/backend/tests/test_liquid/test_dae_devices.py::test_same_newton_and_adjoint_run_on_cuda_without_cpu_state_transfer",
+      "phase": "call",
+      "outcome": "passed",
+      "duration_s": 2.2190116139827296
+    },
+    {
+      "nodeid": "src/backend/tests/test_liquid/test_equation_graph_cuda.py::test_physical_equation_graph_steady_trajectory_and_gradients_match_cpu_cuda",
+      "phase": "call",
+      "outcome": "passed",
+      "duration_s": 2.81456002604682
+    }
+  ],
+  "prior_attempts": [
+    {
+      "status": "failed",
+      "gpu_uuid": "GPU-dd97ad37-4a36-19df-d789-0ee503ba4d93",
+      "physical_gpu_index": 0,
+      "logical_device": "cuda:0",
+      "episode_start_unix_s": 1790435127.078577,
+      "episode_deadline_unix_s": 1790435607.078577,
+      "numerical_phase_cap_s": 90,
+      "cpu_affinity": [
+        0
+      ],
+      "threads": 1,
+      "nice": 10,
+      "cases": [],
+      "torch_tests": [],
+      "elapsed_s": 8.342604637145996,
+      "torch_version": "2.5.1+cu121",
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "error": {
+        "type": "PluginValidationError",
+        "message": "Plugin '140502208272352' for hook 'pytest_runtest_logreport'\nhookimpl definition: pytest_runtest_logreport(value)\nArgument(s) {'value'} are declared in the hookimpl but can not be found in the hookspec",
+        "traceback": "Traceback (most recent call last):\n  File \"/mnt/lv/home/litianyu/mycode/dcdtuni-liquid-platform/docs/benchmarks/verify_single_gpu_acceptance.py\", line 75, in main\n    code = pytest.main(['-q',\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 193, in main\n    config = _prepareconfig(new_args, plugins)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 360, in _prepareconfig\n    pluginmanager.register(plugin)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 522, in register\n    plugin_name = super().register(plugin, name)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/pluggy/_manager.py\", line 168, in register\n    self._verify_hook(hook, hookimpl)\n  File \"/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/site-packages/pluggy/_manager.py\", line 343, in _verify_hook\n    raise PluginValidationError(\npluggy._manager.PluginValidationError: Plugin '140502208272352' for hook 'pytest_runtest_logreport'\nhookimpl definition: pytest_runtest_logreport(value)\nArgument(s) {'value'} are declared in the hookimpl but can not be found in the hookspec\n"
+      }
+    }
+  ],
+  "elapsed_s": 144.93150687217712,
+  "torch_version": "2.5.1+cu121",
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "fixture_sha256": "460f7e24498adb8c581b8e58034fbacf69a814352515c11f7e7a81511b2659b2",
+  "nv_parity": {
+    "max_scaled_state_difference": 1.2316074086508402e-13,
+    "heat_gradient_abs_difference": 0.0
+  },
+  "peak_gpu_allocated_bytes": 150168576,
+  "peak_gpu_reserved_bytes": 211812352,
+  "fixture_unchanged": true,
+  "source_sha256": {
+    "solver/dae_newton.py": "8ff0d1b2d0b4f8a8d6c0e844fd8caed0463cfa0b1ebab85672846d0712b86788",
+    "solver/equation_graph.py": "b1b3112e0e0bbd2add495f71dc00fe257ed35d7a0b18e72f24a676c1eadfe783",
+    "dae_experiment.py": "5532b5a2cbec7035c19438494679618baf23ba6debcbaa091fd8c0a2029e7e43",
+    "liquidrun_dae_schema.py": "434257213573f09553a09ef53927b6bc2c3ee6402d885f94a7912cc3b6c82b57"
+  }
+}

@@ -1,0 +1,105 @@
+diff --git a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+index 08bca869..739ffaa2 100644
+--- a/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -12001,7 +12001,8 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+             maxPackets=max(maxPackets,label(group.second.size()));
+             maxPoints=max(maxPoints,nMoved);maxStar=max(maxStar,label(star.size()));
+             label why=-1;
+-            if (!badPoints.empty()) { why=conflict; }
++            label witnessCell=-1,witnessFace=-1,witnessOtherFace=-1,witnessPoint=-1;
++            if (!badPoints.empty()) { why=conflict;witnessPoint=*badPoints.begin(); }
+             // Diagnostic workload cap, never an authorization of skipped cells.
+             if (why<0 && (star.size()>100000 || group.second.size()>10000))
+             { why=unsupportedSize; }
+@@ -12011,7 +12012,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                 {
+                     const label patch=m.patch[f];
+                     if (patch>=0 && patch<coupledPatch.size() && coupledPatch[patch])
+-                    { why=coupledStar;break; }
++                    { why=coupledStar;witnessCell=c;witnessFace=f;break; }
+                 }
+             }
+             std::set<label> qualityCells=star;
+@@ -12081,7 +12082,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                         {
+                             vertices.insert(q);
+                             const scalar off=mag((m.points[q]-g.centre)&normal);
+-                            if (!std::isfinite(off) || off>1e-10*span) { why=planarityFail;break; }
++                            if (!std::isfinite(off) || off>1e-10*span) { why=planarityFail;witnessCell=c;witnessFace=f;witnessPoint=q;break; }
+                         }
+                         if (why>=0) { break; }
+                         const auto& poly=m.faces[f];
+@@ -12123,7 +12124,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                         for (label q:vertices)
+                         {
+                             const scalar off=(m.points[q]-g.centre)&normal;
+-                            if (!std::isfinite(off) || off>1e-10*span) { why=cellPlaneFail;break; }
++                            if (!std::isfinite(off) || off>1e-10*span) { why=cellPlaneFail;witnessCell=c;witnessFace=f;witnessPoint=q;break; }
+                         }
+                         for (label other:cf[c])
+                         {
+@@ -12131,7 +12132,7 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                             const vector d=faceGeo(other).centre-g.centre;
+                             const scalar cosine=(d&normal)/max(mag(d),VSMALL);
+                             if (!std::isfinite(cosine) || cosine>=-1.0001e-6)
+-                            { why=cellPlaneFail;break; }
++                            { why=cellPlaneFail;witnessCell=c;witnessFace=f;witnessOtherFace=other;break; }
+                         }
+                         if (why>=0) { break; }
+                     }
+@@ -12224,10 +12225,12 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                     <<" (-1=all local gates pass; no mutation)"<<nl;
+             }
+ 
+-            if (emit && evidence.good())
++            if (emit && evidence.is_open() && evidence.good())
+             {
+                 const size_t np=min(group.second.size(),size_t(8));
+                 std::set<label> sampleCells,sampleFaces,samplePoints;
++                if (witnessCell>=0) { sampleCells.insert(witnessCell); }
++                if (witnessPoint>=0) { samplePoints.insert(witnessPoint); }
+                 for (label c:star) { if (sampleCells.size()==32) { break; } sampleCells.insert(c); }
+                 for (size_t j=0;j<np;++j)
+                 {
+@@ -12242,6 +12245,8 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                     <<",\"totalMovingPoints\":"<<nMoved<<",\"exactConflictPoints\":"<<badPoints.size()
+                     <<",\"exportedPackets\":"<<np<<",\"exportedCells\":"<<sampleCells.size()
+                     <<",\"truncated\":"<<((np<group.second.size() || sampleCells.size()<star.size()) ? "true" : "false")
++                    <<",\"witness\":{\"cell\":"<<witnessCell<<",\"face\":"<<witnessFace
++                    <<",\"otherFace\":"<<witnessOtherFace<<",\"point\":"<<witnessPoint<<'}'
+                     <<",\"scope\":\"Read-only native proposal witness; original coordinates restored. Limited sample does not prove whole-component quality.\",\"packets\":[";
+                 for (size_t j=0;j<np;++j)
+                 {
+@@ -12259,6 +12264,19 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                     }
+                     evidence<<"]}";
+                 }
++                evidence<<"],\"conflictWitnessProposals\":[";bool conflictFirst=true;
++                if (why==conflict) for (label index:group.second)
++                {
++                    const packet& p=packets[index];
++                    for (size_t k=0;k<p.proposalPoints.size();++k)
++                    {
++                        if (p.proposalPoints[k]!=witnessPoint) { continue; }
++                        if (!conflictFirst) { evidence<<','; }conflictFirst=false;
++                        evidence<<"{\"cell\":"<<p.cell<<",\"axis\":"<<p.axis<<",\"sign\":"<<p.sign
++                            <<",\"plane\":"<<p.plane<<",\"point\":"<<witnessPoint<<",\"delta\":";
++                        xyz(p.proposalDisplacement[k]);evidence<<'}';
++                    }
++                }
+                 evidence<<"],\"cells\":[";bool first=true;
+                 for (label c:sampleCells)
+                 {
+@@ -12283,7 +12301,10 @@ Foam::label Foam::dcCartCutCells::auditRegularTransitionRoofs
+                 {
+                     if (!first) { evidence<<','; }first=false;
+                     evidence<<"{\"point\":"<<q<<",\"protectedMask\":"<<label(protectedPoint[q])<<",\"original\":";
+-                    xyz(m.points[q]);evidence<<'}';
++                    xyz(m.points[q]);evidence<<",\"finalProposalDelta\":";
++                    auto proposed=proposals.find(q);
++                    xyz(proposed==proposals.end() ? vector::zero : proposed->second.delta);
++                    evidence<<",\"deltaFromCompleteComponent\":true}";
+                 }
+                 evidence<<"]}\n";
+             }

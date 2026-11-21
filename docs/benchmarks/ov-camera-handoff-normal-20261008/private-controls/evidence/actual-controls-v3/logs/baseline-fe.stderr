@@ -1,0 +1,109 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/cameraPurposeProtocol.test.ts > requests a camera handoff explicitly and waits for its matching ACK
+AssertionError: expected [ 'requestId' ] to deeply equal [ 'purpose', 'requestId' ]
+
+- Expected
++ Received
+
+  Array [
+-   "purpose",
+    "requestId",
+  ]
+
+ ❯ test/cameraPurposeProtocol.test.ts:12:36
+     10|   const args=JSON.parse(sent[0]!.message)
+     11|   expect(sent[0]!.command_name).toBe('getViewState')
+     12|   expect(Object.keys(args).sort()).toEqual(['purpose','requestId'])
+       |                                    ^
+     13|   expect(args.purpose).toBe('camera-handoff')
+     14|   client.receive({event_type:'dcdtuni:renderAck',payload:{requestId:'w…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/cameraPurposeProtocol.test.ts > rejects unknown purposes before any transport submission
+AssertionError: expected [Function] to throw error including 'Invalid Omniverse view purpose' but got 'Omniverse acknowledgement timed out'
+
+Expected: "Invalid Omniverse view purpose"
+Received: "Omniverse acknowledgement timed out"
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > uses the explicit camera handoff transaction when returning to Three
+AssertionError: expected "spy" to be called with arguments: [ 'camera-handoff' ]
+
+Received: 
+
+  1st spy call:
+
+- Array [
+-   "camera-handoff",
+- ]
++ Array []
+
+
+Number of calls: 1
+
+ ❯ test/cameraReadbackMounted.test.ts:102:28
+    100| it('uses the explicit camera handoff transaction when returning to Thr…
+    101|  const f=await mounted()
+    102|  expect(f.client.readView).toHaveBeenCalledWith('camera-handoff')
+       |                            ^
+    103|  await act(async()=>{f.finish(f.ack());await ticks()})
+    104|  expect(f.select.value).toBe('three')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > uses the explicit camera handoff before a same-project scene resync
+AssertionError: expected "spy" to be called with arguments: [ 'camera-handoff' ]
+
+Received: 
+
+  1st spy call:
+
+- Array [
+-   "camera-handoff",
+- ]
++ Array []
+
+
+Number of calls: 1
+
+ ❯ test/cameraReadbackMounted.test.ts:114:28
+    112|  })
+    113|  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,370…
+    114|  expect(f.client.readView).toHaveBeenCalledWith('camera-handoff')
+       |                            ^
+    115|  await act(async()=>{f.finish(f.ack());await ticks()})
+    116|  expect(f.select.value).toBe('ov');expect(f.client.loadScene).toHaveBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection when handoff primitive count is undefined
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection when handoff primitive count is -1
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection when handoff primitive count is 1
+ FAIL  test/cameraReadbackMounted.test.ts > keeps the local camera and selection when handoff primitive count is 0.5
+AssertionError: expected [ 4.8534, 1.1215, 17.1898 ] to deeply equal [ 12.5514, 7.2, 13.2277 ]
+
+- Expected
++ Received
+
+  Array [
+-   12.5514,
+-   7.2,
+-   13.2277,
++   4.8534,
++   1.1215,
++   17.1898,
+  ]
+
+ ❯ test/cameraReadbackMounted.test.ts:123:76
+    121|   const f=await mounted()
+    122|   await act(async()=>{f.finish(f.ack({primitives}));await ticks()})
+    123|   expect(f.select.value).toBe('three');expect(f.camera.position.toArra…
+       |                                                                            ^
+    124|  })
+    125| }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+

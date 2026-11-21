@@ -1,0 +1,77 @@
+{
+  "status": "passed",
+  "scope": "synthetic 34-rack NV inventory mock; numerical differentiation only",
+  "fixture_sha256": "460f7e24498adb8c581b8e58034fbacf69a814352515c11f7e7a81511b2659b2",
+  "source_sha256": {
+    "src/backend/liquidcooling/solver/dae_newton.py": "8ff0d1b2d0b4f8a8d6c0e844fd8caed0463cfa0b1ebab85672846d0712b86788",
+    "src/backend/liquidcooling/solver/equation_graph.py": "8b998a2cf750b7b8fa2afb3eae7cb097db3bea220ff28cc5214f2de20f0eb312",
+    "src/backend/liquidcooling/dae_experiment.py": "2d9420f0665b9fdcc4a01782b4f5524c7301106def89ca0299fe71e20bd6b5e9",
+    "src/backend/liquidcooling/liquidrun_dae_schema.py": "434257213573f09553a09ef53927b6bc2c3ee6402d885f94a7912cc3b6c82b57"
+  },
+  "variables": 1604,
+  "parameters": 4396,
+  "dt_s": 5.0,
+  "steps": 3,
+  "scales": [
+    1.2,
+    0.9,
+    0.8
+  ],
+  "input_policy": "initial equilibrium uses original coefficients; heat x1.2, all pumps x0.9 and all open valves x0.8 from the next accepted step; original 5s heat event replaced explicitly",
+  "objective": "mean primary-return K + 0.1 * mean equivalent rack solid K at t=15s",
+  "finite_difference_h": 0.0001,
+  "checks": {
+    "heat": {
+      "AD": 0.3218325428345349,
+      "FD": 0.3218325429088509,
+      "relative_error": 2.3091511233872944e-10
+    },
+    "pump_speed": {
+      "AD": 1.2451526638514347,
+      "FD": 1.2451526731638296,
+      "relative_error": 7.478918092494741e-09
+    },
+    "valve_opening": {
+      "AD": 0.03778615551076272,
+      "FD": 0.03778615678129427,
+      "relative_error": 3.3624259682700625e-08
+    }
+  },
+  "last_diagnostics": {
+    "heat_input_W": 408000.0,
+    "primary_rejection_W": 335282.7192978092,
+    "storage_rate_W": 72717.28070218708,
+    "boundary_exchange_W": 9.313225746154785e-10,
+    "energy_balance_W": 4.6566128730773926e-09,
+    "mass_residual_kg_s": 8.881784197001252e-16,
+    "momentum_residual_Pa": 5.820766091346741e-11,
+    "scaled_residual": 2.7939677238464353e-13
+  },
+  "initial_primary_return_K": [
+    301.28008130082003,
+    301.2800813008171
+  ],
+  "final_primary_return_K": [
+    301.16728166661557,
+    301.16728166661295
+  ],
+  "initial_pump_flow_kg_s": [
+    4.332140693520883,
+    4.332140693520883
+  ],
+  "final_pump_flow_kg_s": [
+    4.056021246909522,
+    4.056021246909521
+  ],
+  "walltime_seconds": {
+    "forward": 6.614190338994376,
+    "backward": 2.490306998952292,
+    "total": 36.411607077985536
+  },
+  "peak_rss_MiB": 740.5703125,
+  "cpu_affinity": [
+    0
+  ],
+  "threads": 1,
+  "cuda_validation": "not_run"
+}

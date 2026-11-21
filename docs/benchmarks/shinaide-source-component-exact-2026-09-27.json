@@ -1,0 +1,55 @@
+{
+  "date": "2026-09-27",
+  "status": "isolated_read_only_candidate_three_geometry_reds_green_rotated_export_positive_xfail_not_mergeable",
+  "base_commit": "329dda86",
+  "branch": "codex/source-component-exact-20260927",
+  "input": {
+    "original_package_40901": "/mnt/lv/home/litianyu/benchmarks/dcdtuni_blanking_source_binding_20260927",
+    "manifest_relative_path": "model/Shinaide.cfdrun",
+    "manifest_sha256": "c4e57c8022a29979401a887bcfa228071339e25a750a48cdaa7be6dc4a952dbc",
+    "original_stl_count": 12
+  },
+  "tests": {
+    "before": "3 failed, 15 passed",
+    "after_targeted": "23 passed, 1 strict xfailed",
+    "adjacent": "43 passed, 1 strict xfailed",
+    "rotated_export_positive": "strict XFAIL: Rz(.5) Ry(.4) Rx(.3) unit square after six-decimal export",
+    "full_backend": "12 failed, 1614 passed, 40 skipped, 1 strict xfailed, 3 subtests passed",
+    "baseline_reproduction": "the same 12 named full-backend failures reproduced on unchanged 329dda86 candidate",
+    "red_cases": [
+      "5e-13 m2 positive-area overlap",
+      "5e-13 m in-plane near gap",
+      "5e-8 m distinct 3D planes with coincident 2D edge"
+    ],
+    "additional_red_green": "two exact 3D contour vertices farther than 1e-10 m map to one rounded 2D summary point",
+    "positive_controls": [
+      "10 m rotated rectangle with exact shared diagonal",
+      "original Shinaide Raised_Floor nonconforming T-junctions"
+    ]
+  },
+  "shinaide": {
+    "source_faces": 354,
+    "components": 354,
+    "triangles": 752,
+    "raised_floor_boundary_segments": 45,
+    "canonical_summary_sha256": "e371429e53f168861a5460ae8abf766bfd7f516290a9f69917f9067bbcef9e91",
+    "previous_float_identity_summary_sha256": "1b34b954623ce3b86aa40ee9bf85c7540f7029686cca5e349a892918300f025e"
+  },
+  "performance": {
+    "machine": "local_mac",
+    "new_samples_s": [0.533318, 0.53257, 0.532449, 0.529043, 0.536285],
+    "new_median_s": 0.53257,
+    "old_samples_s": [0.051899, 0.047298, 0.047287, 0.047457, 0.051925],
+    "old_median_s": 0.047457,
+    "median_ratio": 11.222
+  },
+  "limits": [
+    "Not connected to mesher or geometryTopology admission",
+    "Exactly planar ASCII STL V1 only",
+    "Real frontend six-decimal export can break exact coplanarity of an ideal rotated source plane",
+    "Formal admission needs original project-plane identity and a versioned export quantization error budget",
+    "Vertex-by-edge exact scan is not yet budgeted for large CAD faces",
+    "Float summary fields are display-only; authoritative geometry is exactSourceTriangles",
+    "No mesh quality, CFD, or measured NV validation"
+  ]
+}

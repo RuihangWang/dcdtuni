@@ -1,0 +1,84 @@
+dcdtuni solver build env ready:
+  OpenFOAM  : v2412  (linux64GccDPInt32Opt)
+  compiler  : g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+  LIB_SRC   : /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/src
+  out lib   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/foam/platforms/linux64GccDPInt32Opt/lib
+  out bin   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/aircooling/third_parties/foam/platforms/linux64GccDPInt32Opt/bin
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_production_startup_initializes_remote_old_velocity_before_euler[missing] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pimple-startup-coupling/baseline-pytest/test_production_startup_initia0')
+executable = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pimple-startup-coupling/baseline-pytest/startup-kernel-build0/bin/pimpleStartupKernel')
+cache = 'missing'
+
+    @pytest.mark.parametrize("cache",["missing","stale"])
+    def test_production_startup_initializes_remote_old_velocity_before_euler(tmp_path,executable,cache):
+        case=_case(tmp_path/cache,cache)
+        stdout=_command(case,["mpirun","-np","2",str(executable),"-parallel"])
+        assert re.search(r"^End$",stdout,re.M)
+        rows=_rows(case);coupled=[row for row in rows if row["coupled"]]
+        assert len(coupled)==2
+        physical=[row for row in rows if not row["coupled"]]
+        cells=[float(line.split()[1]) for p in case.glob("processor*/startup-kernel-cells.csv")
+               for line in p.read_text().splitlines()]
+        audit={"format":"pimple-startup-coupled-kernel/v1","cache":cache,"ranks":2,
+               "rows":rows,"cellNetVolumeFluxM3s":cells,
+               "coupledDdtSum":sum(row["ddt"] for row in coupled),
+               "coupledPredictorSum":sum(row["predictor"] for row in coupled),
+               "coupledCorrectedSum":sum(row["corrected"] for row in coupled),
+               "physicalBoundaryNetM3s":sum(row["corrected"] for row in physical)}
+        (case/"audit.json").write_text(json.dumps(audit,indent=2)+"\n")
+        # A local pressure solve can force both cell balances to zero even with
+        # globally nonconservative processor input; check BOTH levels explicitly.
+        assert max(map(abs,cells))<1e-11
+>       assert coupled[0]["cache"]==pytest.approx(coupled[1]["own"],abs=1e-14)
+E       assert [2.0, 0.0, 0.0] == approx([0.5 ±....0 ± 1.0e-14])
+E         
+E         comparison failed. Mismatched elements: 1 / 3:
+E         Max absolute difference: 1.5
+E         Max relative difference: 0.75
+E         Index | Obtained | Expected     
+E         0     | 2.0      | 0.5 ± 1.0e-14
+
+src/backend/tests/test_pimple_startup_coupling.py:144: AssertionError
+_ test_production_startup_initializes_remote_old_velocity_before_euler[stale] __
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pimple-startup-coupling/baseline-pytest/test_production_startup_initia1')
+executable = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/pimple-startup-coupling/baseline-pytest/startup-kernel-build0/bin/pimpleStartupKernel')
+cache = 'stale'
+
+    @pytest.mark.parametrize("cache",["missing","stale"])
+    def test_production_startup_initializes_remote_old_velocity_before_euler(tmp_path,executable,cache):
+        case=_case(tmp_path/cache,cache)
+        stdout=_command(case,["mpirun","-np","2",str(executable),"-parallel"])
+        assert re.search(r"^End$",stdout,re.M)
+        rows=_rows(case);coupled=[row for row in rows if row["coupled"]]
+        assert len(coupled)==2
+        physical=[row for row in rows if not row["coupled"]]
+        cells=[float(line.split()[1]) for p in case.glob("processor*/startup-kernel-cells.csv")
+               for line in p.read_text().splitlines()]
+        audit={"format":"pimple-startup-coupled-kernel/v1","cache":cache,"ranks":2,
+               "rows":rows,"cellNetVolumeFluxM3s":cells,
+               "coupledDdtSum":sum(row["ddt"] for row in coupled),
+               "coupledPredictorSum":sum(row["predictor"] for row in coupled),
+               "coupledCorrectedSum":sum(row["corrected"] for row in coupled),
+               "physicalBoundaryNetM3s":sum(row["corrected"] for row in physical)}
+        (case/"audit.json").write_text(json.dumps(audit,indent=2)+"\n")
+        # A local pressure solve can force both cell balances to zero even with
+        # globally nonconservative processor input; check BOTH levels explicitly.
+        assert max(map(abs,cells))<1e-11
+>       assert coupled[0]["cache"]==pytest.approx(coupled[1]["own"],abs=1e-14)
+E       assert [0.0, 0.0, 0.0] == approx([0.5 ±....0 ± 1.0e-14])
+E         
+E         comparison failed. Mismatched elements: 1 / 3:
+E         Max absolute difference: 0.5
+E         Max relative difference: inf
+E         Index | Obtained | Expected     
+E         0     | 0.0      | 0.5 ± 1.0e-14
+
+src/backend/tests/test_pimple_startup_coupling.py:144: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pimple_startup_coupling.py::test_production_startup_initializes_remote_old_velocity_before_euler[missing]
+FAILED src/backend/tests/test_pimple_startup_coupling.py::test_production_startup_initializes_remote_old_velocity_before_euler[stale]
+2 failed in 23.98s

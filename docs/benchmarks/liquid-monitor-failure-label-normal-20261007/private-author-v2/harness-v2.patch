@@ -1,0 +1,12 @@
+--- FROZEN-v1/REPRO.py
++++ FROZEN-v2/REPRO.py
+@@ -42,7 +42,8 @@
+  (E/'stdout.log').write_text(run.stdout);(E/'stderr.log').write_text(run.stderr)
+  expected=1 if phase=='before' else 0
+  okay=run.returncode==expected
+- if phase=='before':okay=okay and bool(re.search(r'Tests\s+9 failed \| 2 passed \(11\)',run.stdout))
++ plain=re.sub(chr(27)+r'\[[0-?]*[ -/]*[@-~]', '', run.stdout)
++ if phase=='before':okay=okay and bool(re.search(r'Tests\s+9 failed \| 2 passed \(11\)',plain))
+  if phase!='types':
+   actual=json.loads((E/'actual-import-source.json').read_text())
+   for row in prod:

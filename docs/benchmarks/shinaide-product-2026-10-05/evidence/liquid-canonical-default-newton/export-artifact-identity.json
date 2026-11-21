@@ -1,0 +1,715 @@
+{
+  "canonical-steady-project.cfdproj": {
+    "bytes": 444408,
+    "sha256": "d053a1e1c965346110ea29db1ad2fa72357df638689ab1a9ea908ba9dc1552a0",
+    "valid_json": true,
+    "experiment": {
+      "engine": "newton-dae",
+      "duration_s": 180,
+      "dt_s": 1,
+      "settings": {
+        "mode": "manual",
+        "pumpId": "",
+        "measurementId": "",
+        "setpoint": 45,
+        "kp": 0.03,
+        "ki": 0.002,
+        "bias": 0.8,
+        "loadStep": false,
+        "stepTime": 60,
+        "loadFactor": 1.5
+      },
+      "dae": {
+        "equation_system": "incompressible_thermal_dae",
+        "analysis": {
+          "mode": "steady",
+          "initialization": "steady"
+        },
+        "newton": {
+          "max_iterations": 40,
+          "atol": 1e-10,
+          "rtol": 1e-10,
+          "max_backtracks": 18
+        },
+        "primary_circuits": [
+          {
+            "edge_id": "m_30_hx",
+            "flow_kg_s": 1,
+            "inlet_K": 293.15,
+            "cp_J_kgK": 4180,
+            "rho_kg_m3": 992.2,
+            "primary_volume_m3": 0.02,
+            "secondary_volume_m3": 0.02,
+            "source": "mock",
+            "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+          }
+        ],
+        "execution": {
+          "backend": "pytorch",
+          "device": "cpu",
+          "dtype": "float64",
+          "max_threads": 2
+        }
+      },
+      "parameterPack": {
+        "schema_version": "1.0",
+        "id": "liquid-demo-equipment",
+        "revision": "mock-1-dae-v3",
+        "source": "mock",
+        "description": "Synthetic single-phase water-loop parameters for software demonstrations only. These are not NVIDIA or Vertiv specifications. Replace this pack on the unresolved project input and rerun for vendor/calibrated data. Explicit mock two-mixed-volume HX interpretation; not NV measurements or calibrated vendor performance.",
+        "profiles": {
+          "water": {
+            "type": "fluid",
+            "params": {
+              "rho_kg_m3": 997,
+              "cp_J_kgK": 4182,
+              "mu_Pa_s": 0.00089,
+              "k_W_mK": 0.606
+            },
+            "units": {
+              "rho_kg_m3": "kg/m3",
+              "cp_J_kgK": "J/(kg*K)",
+              "mu_Pa_s": "Pa*s",
+              "k_W_mK": "W/(m*K)"
+            }
+          },
+          "pipe-25mm": {
+            "type": "pipe",
+            "params": {
+              "D_m": 0.025,
+              "roughness_m": 1.5e-06,
+              "K_minor_per_bend": 0.5,
+              "n_cells": 3
+            },
+            "units": {
+              "D_m": "m",
+              "roughness_m": "m",
+              "K_minor_per_bend": "1",
+              "n_cells": "1"
+            }
+          },
+          "pump-demo": {
+            "type": "pump",
+            "params": {
+              "H0_m": 6,
+              "a_coef": 20000000,
+              "rpm_ratio": 1
+            },
+            "units": {
+              "H0_m": "m",
+              "a_coef": "m/(m3/s)^2",
+              "rpm_ratio": "1"
+            }
+          },
+          "valve-demo": {
+            "type": "valve",
+            "params": {
+              "D_m": 0.025,
+              "Kv_max": 1.5,
+              "opening": 1,
+              "characteristic": "linear"
+            },
+            "units": {
+              "D_m": "m",
+              "Kv_max": "m3/h@1bar",
+              "opening": "1",
+              "characteristic": "enum"
+            }
+          },
+          "rack-equivalent": {
+            "type": "cold_plate",
+            "params": {
+              "dp_a": 2000000,
+              "dp_b": 10000,
+              "UA_W_per_K": 300,
+              "C_solid_J_per_K": 8000,
+              "V_fluid_m3": 0.0002
+            },
+            "units": {
+              "dp_a": "Pa/(kg/s)^2",
+              "dp_b": "Pa/(kg/s)",
+              "UA_W_per_K": "W/K",
+              "C_solid_J_per_K": "J/K",
+              "V_fluid_m3": "m3"
+            }
+          },
+          "hx-demo": {
+            "type": "heat_exchanger",
+            "params": {
+              "dp_a": 20000,
+              "dp_b": 5000,
+              "UA_W_per_K": 2000
+            },
+            "units": {
+              "dp_a": "Pa/(kg/s)^2",
+              "dp_b": "Pa/(kg/s)",
+              "UA_W_per_K": "W/K"
+            }
+          }
+        }
+      }
+    }
+  },
+  "canonical-transient-project.cfdproj": {
+    "bytes": 444417,
+    "sha256": "9f9abb9e32172fbea809d4b757f9390e7093ed71ef059a89ab06bd1fd76e9a8b",
+    "valid_json": true,
+    "experiment": {
+      "engine": "newton-dae",
+      "duration_s": 180,
+      "dt_s": 1,
+      "settings": {
+        "mode": "manual",
+        "pumpId": "",
+        "measurementId": "",
+        "setpoint": 45,
+        "kp": 0.03,
+        "ki": 0.002,
+        "bias": 0.8,
+        "loadStep": false,
+        "stepTime": 60,
+        "loadFactor": 1.5
+      },
+      "dae": {
+        "equation_system": "incompressible_thermal_dae",
+        "analysis": {
+          "mode": "transient",
+          "initialization": "steady"
+        },
+        "newton": {
+          "max_iterations": 40,
+          "atol": 1e-10,
+          "rtol": 1e-10,
+          "max_backtracks": 18
+        },
+        "primary_circuits": [
+          {
+            "edge_id": "m_30_hx",
+            "flow_kg_s": 1,
+            "inlet_K": 293.15,
+            "cp_J_kgK": 4180,
+            "rho_kg_m3": 992.2,
+            "primary_volume_m3": 0.02,
+            "secondary_volume_m3": 0.02,
+            "source": "mock",
+            "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+          }
+        ],
+        "execution": {
+          "backend": "pytorch",
+          "device": "cpu",
+          "dtype": "float64",
+          "max_threads": 2
+        }
+      },
+      "parameterPack": {
+        "schema_version": "1.0",
+        "id": "liquid-demo-equipment",
+        "revision": "mock-1-dae-v3",
+        "source": "mock",
+        "description": "Synthetic single-phase water-loop parameters for software demonstrations only. These are not NVIDIA or Vertiv specifications. Replace this pack on the unresolved project input and rerun for vendor/calibrated data. Explicit mock two-mixed-volume HX interpretation; not NV measurements or calibrated vendor performance.",
+        "profiles": {
+          "water": {
+            "type": "fluid",
+            "params": {
+              "rho_kg_m3": 997,
+              "cp_J_kgK": 4182,
+              "mu_Pa_s": 0.00089,
+              "k_W_mK": 0.606
+            },
+            "units": {
+              "rho_kg_m3": "kg/m3",
+              "cp_J_kgK": "J/(kg*K)",
+              "mu_Pa_s": "Pa*s",
+              "k_W_mK": "W/(m*K)"
+            }
+          },
+          "pipe-25mm": {
+            "type": "pipe",
+            "params": {
+              "D_m": 0.025,
+              "roughness_m": 1.5e-06,
+              "K_minor_per_bend": 0.5,
+              "n_cells": 3
+            },
+            "units": {
+              "D_m": "m",
+              "roughness_m": "m",
+              "K_minor_per_bend": "1",
+              "n_cells": "1"
+            }
+          },
+          "pump-demo": {
+            "type": "pump",
+            "params": {
+              "H0_m": 6,
+              "a_coef": 20000000,
+              "rpm_ratio": 1
+            },
+            "units": {
+              "H0_m": "m",
+              "a_coef": "m/(m3/s)^2",
+              "rpm_ratio": "1"
+            }
+          },
+          "valve-demo": {
+            "type": "valve",
+            "params": {
+              "D_m": 0.025,
+              "Kv_max": 1.5,
+              "opening": 1,
+              "characteristic": "linear"
+            },
+            "units": {
+              "D_m": "m",
+              "Kv_max": "m3/h@1bar",
+              "opening": "1",
+              "characteristic": "enum"
+            }
+          },
+          "rack-equivalent": {
+            "type": "cold_plate",
+            "params": {
+              "dp_a": 2000000,
+              "dp_b": 10000,
+              "UA_W_per_K": 300,
+              "C_solid_J_per_K": 8000,
+              "V_fluid_m3": 0.0002
+            },
+            "units": {
+              "dp_a": "Pa/(kg/s)^2",
+              "dp_b": "Pa/(kg/s)",
+              "UA_W_per_K": "W/K",
+              "C_solid_J_per_K": "J/K",
+              "V_fluid_m3": "m3"
+            }
+          },
+          "hx-demo": {
+            "type": "heat_exchanger",
+            "params": {
+              "dp_a": 20000,
+              "dp_b": 5000,
+              "UA_W_per_K": 2000
+            },
+            "units": {
+              "dp_a": "Pa/(kg/s)^2",
+              "dp_b": "Pa/(kg/s)",
+              "UA_W_per_K": "W/K"
+            }
+          }
+        }
+      }
+    }
+  },
+  "canonical-steady.liquidrun": {
+    "bytes": 220691,
+    "sha256": "c09cc11bd40a4c706719e184ff624bef7703d2d687421241db79b622c3717ac6",
+    "valid_json": true,
+    "schemaVersion": 3,
+    "analysis": {
+      "mode": "steady",
+      "initialization": "steady"
+    },
+    "time": {
+      "dt_s": 1,
+      "N_t": 1,
+      "bdf_order": 1
+    },
+    "source_project": {
+      "format": "cfdproj",
+      "schema_version": 5,
+      "project_uid": "proj_Shinaide",
+      "project_name": "Shinaide",
+      "sha256": "88de69c14df608d6ccd3831c2aaf686c3b7eb0e1e71f5dec9aed9b36e28825b1"
+    },
+    "primary_circuits": [
+      {
+        "edge_id": "m_30_hx",
+        "flow_kg_s": 1,
+        "inlet_K": 293.15,
+        "cp_J_kgK": 4180,
+        "rho_kg_m3": 992.2,
+        "primary_volume_m3": 0.02,
+        "secondary_volume_m3": 0.02,
+        "source": "mock",
+        "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+      }
+    ],
+    "events_count": 0,
+    "cold_plate_count": 56
+  },
+  "canonical-transient.liquidrun": {
+    "bytes": 227092,
+    "sha256": "4223316f5327b2b0fb00fc70c540e3ab9deed5f67f2d0e757a69107c5c552eb6",
+    "valid_json": true,
+    "schemaVersion": 4,
+    "analysis": {
+      "mode": "transient",
+      "initialization": "steady"
+    },
+    "time": {
+      "dt_s": 1,
+      "N_t": 181,
+      "bdf_order": 1
+    },
+    "source_project": {
+      "format": "cfdproj",
+      "schema_version": 5,
+      "project_uid": "proj_Shinaide",
+      "project_name": "Shinaide",
+      "sha256": "c74253279ed63deefaf98357725e628fb59b0cedd794d30efcf49c69752dbb84"
+    },
+    "primary_circuits": [
+      {
+        "edge_id": "m_30_hx",
+        "flow_kg_s": 1,
+        "inlet_K": 293.15,
+        "cp_J_kgK": 4180,
+        "rho_kg_m3": 992.2,
+        "primary_volume_m3": 0.02,
+        "secondary_volume_m3": 0.02,
+        "source": "mock",
+        "source_reference": "Synthetic default adopted at Prepare/export: 1 kg/s primary inlet at 293.15 K, 0.02 m3 on each HX side; primary fluid cp/rho follow the saved project fluid. Not measured or calibrated vendor data."
+      }
+    ],
+    "events_count": 0,
+    "cold_plate_count": 56,
+    "transient": {
+      "durationS": 180,
+      "start": {
+        "kind": "steadyConverged",
+        "uniform": {
+          "airT_C": 22,
+          "waterT_C": 30,
+          "solidT_C": 40
+        }
+      },
+      "tracks": [
+        {
+          "modelUid": "m_1",
+          "param": "cp.heat",
+          "target": "e_1/0"
+        },
+        {
+          "modelUid": "m_1",
+          "param": "cp.heat",
+          "target": "e_2/0"
+        },
+        {
+          "modelUid": "m_1",
+          "param": "cp.heat",
+          "target": "e_3/0"
+        },
+        {
+          "modelUid": "m_1",
+          "param": "cp.heat",
+          "target": "e_4/0"
+        },
+        {
+          "modelUid": "m_3",
+          "param": "cp.heat",
+          "target": "e_5/0"
+        },
+        {
+          "modelUid": "m_3",
+          "param": "cp.heat",
+          "target": "e_6/0"
+        },
+        {
+          "modelUid": "m_3",
+          "param": "cp.heat",
+          "target": "e_7/0"
+        },
+        {
+          "modelUid": "m_3",
+          "param": "cp.heat",
+          "target": "e_8/0"
+        },
+        {
+          "modelUid": "m_4",
+          "param": "cp.heat",
+          "target": "e_9/0"
+        },
+        {
+          "modelUid": "m_4",
+          "param": "cp.heat",
+          "target": "e_10/0"
+        },
+        {
+          "modelUid": "m_4",
+          "param": "cp.heat",
+          "target": "e_11/0"
+        },
+        {
+          "modelUid": "m_4",
+          "param": "cp.heat",
+          "target": "e_12/0"
+        },
+        {
+          "modelUid": "m_5",
+          "param": "cp.heat",
+          "target": "e_13/0"
+        },
+        {
+          "modelUid": "m_5",
+          "param": "cp.heat",
+          "target": "e_14/0"
+        },
+        {
+          "modelUid": "m_5",
+          "param": "cp.heat",
+          "target": "e_15/0"
+        },
+        {
+          "modelUid": "m_5",
+          "param": "cp.heat",
+          "target": "e_16/0"
+        },
+        {
+          "modelUid": "m_7",
+          "param": "cp.heat",
+          "target": "e_17/0"
+        },
+        {
+          "modelUid": "m_7",
+          "param": "cp.heat",
+          "target": "e_18/0"
+        },
+        {
+          "modelUid": "m_7",
+          "param": "cp.heat",
+          "target": "e_19/0"
+        },
+        {
+          "modelUid": "m_7",
+          "param": "cp.heat",
+          "target": "e_20/0"
+        },
+        {
+          "modelUid": "m_17",
+          "param": "cp.heat",
+          "target": "e_45/0"
+        },
+        {
+          "modelUid": "m_17",
+          "param": "cp.heat",
+          "target": "e_46/0"
+        },
+        {
+          "modelUid": "m_17",
+          "param": "cp.heat",
+          "target": "e_47/0"
+        },
+        {
+          "modelUid": "m_17",
+          "param": "cp.heat",
+          "target": "e_48/0"
+        },
+        {
+          "modelUid": "m_10",
+          "param": "cp.heat",
+          "target": "e_21/0"
+        },
+        {
+          "modelUid": "m_10",
+          "param": "cp.heat",
+          "target": "e_22/0"
+        },
+        {
+          "modelUid": "m_10",
+          "param": "cp.heat",
+          "target": "e_23/0"
+        },
+        {
+          "modelUid": "m_10",
+          "param": "cp.heat",
+          "target": "e_24/0"
+        },
+        {
+          "modelUid": "m_11",
+          "param": "cp.heat",
+          "target": "e_25/0"
+        },
+        {
+          "modelUid": "m_11",
+          "param": "cp.heat",
+          "target": "e_26/0"
+        },
+        {
+          "modelUid": "m_11",
+          "param": "cp.heat",
+          "target": "e_27/0"
+        },
+        {
+          "modelUid": "m_11",
+          "param": "cp.heat",
+          "target": "e_28/0"
+        },
+        {
+          "modelUid": "m_12",
+          "param": "cp.heat",
+          "target": "e_29/0"
+        },
+        {
+          "modelUid": "m_12",
+          "param": "cp.heat",
+          "target": "e_30/0"
+        },
+        {
+          "modelUid": "m_12",
+          "param": "cp.heat",
+          "target": "e_31/0"
+        },
+        {
+          "modelUid": "m_12",
+          "param": "cp.heat",
+          "target": "e_32/0"
+        },
+        {
+          "modelUid": "m_13",
+          "param": "cp.heat",
+          "target": "e_33/0"
+        },
+        {
+          "modelUid": "m_13",
+          "param": "cp.heat",
+          "target": "e_34/0"
+        },
+        {
+          "modelUid": "m_13",
+          "param": "cp.heat",
+          "target": "e_35/0"
+        },
+        {
+          "modelUid": "m_13",
+          "param": "cp.heat",
+          "target": "e_36/0"
+        },
+        {
+          "modelUid": "m_15",
+          "param": "cp.heat",
+          "target": "e_37/0"
+        },
+        {
+          "modelUid": "m_15",
+          "param": "cp.heat",
+          "target": "e_38/0"
+        },
+        {
+          "modelUid": "m_15",
+          "param": "cp.heat",
+          "target": "e_39/0"
+        },
+        {
+          "modelUid": "m_15",
+          "param": "cp.heat",
+          "target": "e_40/0"
+        },
+        {
+          "modelUid": "m_16",
+          "param": "cp.heat",
+          "target": "e_41/0"
+        },
+        {
+          "modelUid": "m_16",
+          "param": "cp.heat",
+          "target": "e_42/0"
+        },
+        {
+          "modelUid": "m_16",
+          "param": "cp.heat",
+          "target": "e_43/0"
+        },
+        {
+          "modelUid": "m_16",
+          "param": "cp.heat",
+          "target": "e_44/0"
+        },
+        {
+          "modelUid": "m_19",
+          "param": "cp.heat",
+          "target": "e_49/0"
+        },
+        {
+          "modelUid": "m_19",
+          "param": "cp.heat",
+          "target": "e_50/0"
+        },
+        {
+          "modelUid": "m_19",
+          "param": "cp.heat",
+          "target": "e_51/0"
+        },
+        {
+          "modelUid": "m_19",
+          "param": "cp.heat",
+          "target": "e_52/0"
+        },
+        {
+          "modelUid": "m_20",
+          "param": "cp.heat",
+          "target": "e_53/0"
+        },
+        {
+          "modelUid": "m_20",
+          "param": "cp.heat",
+          "target": "e_54/0"
+        },
+        {
+          "modelUid": "m_20",
+          "param": "cp.heat",
+          "target": "e_55/0"
+        },
+        {
+          "modelUid": "m_20",
+          "param": "cp.heat",
+          "target": "e_56/0"
+        },
+        {
+          "modelUid": "m_30",
+          "param": "pump.rpm",
+          "target": ""
+        },
+        {
+          "modelUid": "m_30",
+          "param": "pump.flow",
+          "target": ""
+        },
+        {
+          "modelUid": "m_30",
+          "param": "cdu.primaryInletT",
+          "target": ""
+        },
+        {
+          "modelUid": "m_30",
+          "param": "cdu.primaryFlow",
+          "target": ""
+        },
+        {
+          "modelUid": "m_30",
+          "param": "cdu.secondarySupplyT",
+          "target": ""
+        },
+        {
+          "modelUid": "m_30",
+          "param": "cdu.returnPressure",
+          "target": ""
+        }
+      ]
+    }
+  },
+  "canonical-steady.liquidrun.invalid-first-newline": {
+    "bytes": 220693,
+    "sha256": "486d8cda0c4c6f1d59f8626e0733afd7dd1e196bcac26d71af019ab12e2ccf1d",
+    "valid_json": false,
+    "accepted": false,
+    "reason": "The first optional test artifact writer appended a literal backslash-n; production download Blob was unchanged."
+  },
+  "canonical-transient.liquidrun.invalid-first-newline": {
+    "bytes": 227094,
+    "sha256": "5d7354616a583f0cb9f5193183f9766312e90e5c8686cedcc8839551b29eac0c",
+    "valid_json": false,
+    "accepted": false,
+    "reason": "The first optional test artifact writer appended a literal backslash-n; production download Blob was unchanged."
+  }
+}

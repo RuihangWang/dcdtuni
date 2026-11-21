@@ -1,0 +1,174 @@
+diff --git a/src/frontend/react/src/geometry/liquidEquipmentVisuals.ts b/src/frontend/react/src/geometry/liquidEquipmentVisuals.ts
+index 1c15d3b3..a39e67d1 100644
+--- a/src/frontend/react/src/geometry/liquidEquipmentVisuals.ts
++++ b/src/frontend/react/src/geometry/liquidEquipmentVisuals.ts
+@@ -12,10 +12,11 @@
+ import * as THREE from 'three'
+ import type { Construction } from '../schema/cfdproj'
+ import { geometryPure, pbrMaterials } from '../legacy/geometryBuilder'
++import { createCduDisplayTexture } from './equipmentDisplayTexture'
+ 
+ const STEEL = 0x879097
+-const CABINET = 0xaeb9c2
+-const PANEL = 0xcbd2d8
++const CABINET = 0x758896
++const PANEL = 0x8497a5
+ const DARK = 0x202831
+ const SUPPLY = 0x2d78a7
+ const RETURN = 0xa54b45
+@@ -37,14 +38,20 @@ function roleFor(color: number): SurfaceRole {
+   if (color === CABINET || color === PANEL || color === DARK || color === SUPPLY || color === RETURN) {
+     return 'painted-steel'
+   }
+-  return null // HMI screen and its text lines stay plain
++  return null // Display electronics use their own plain material
+ }
+ 
+-function material(color: number, metalness = 0.35, roughness = 0.55, role: SurfaceRole = roleFor(color)) {
++function material(color: number, metalness = 0.35, roughness = 0.55, role: SurfaceRole = roleFor(color), normalScale?: number) {
+   // One fresh material per mesh, as before; only the textures are shared.
+-  return role
++  const mat = role
+     ? pbrMaterials().material(role, { color, metalness, roughness })
+     : new THREE.MeshStandardMaterial({ color, metalness, roughness })
++  if (normalScale !== undefined) {
++    mat.normalScale.setScalar(normalScale)
++    // The shared loader reads this scalar when its cached maps land later.
++    if (role) mat.userData.pbrNormalScale = normalScale
++  }
++  return mat
+ }
+ 
+ function detailMesh(
+@@ -62,6 +69,24 @@ function detailMesh(
+     ...(owner ? { modelId: owner } : {}),
+   }
+   if (!owner) mesh.raycast = () => {}
++  // Detail materials are private to this mesh, while PBR textures are cached.
++  // Painting and opacity previews replace material with a clone. The shared
++  // scene disposer only sees that current clone, so release retained private
++  // materials when the owning geometry leaves the scene too.
++  let released = false
++  geometry.addEventListener('dispose', () => {
++    if (released) return
++    released = true
++    const list = (value: THREE.Material | THREE.Material[]) => Array.isArray(value) ? value : [value]
++    const current = new Set(list(mesh.material))
++    const retained = mesh.userData._origMaterial as THREE.Material | THREE.Material[] | undefined
++    const owned = new Set([mat, ...(retained ? list(retained) : [])])
++    for (const material of owned) {
++      if (!current.has(material) && !(material as THREE.Material & { _isCached?: boolean })._isCached) {
++        material.dispose()
++      }
++    }
++  })
+   return mesh
+ }
+ 
+@@ -75,6 +100,7 @@ function box(
+   roughness = 0.55,
+   bevel = 0,
+   roleOverride?: SurfaceRole,
++  normalScale?: number,
+ ) {
+   const geometry = bevel > 0 ? bevelledBox(size, bevel) : new THREE.BoxGeometry(size.x, size.y, size.z)
+   const role = roleOverride === undefined ? roleFor(color) : roleOverride
+@@ -82,7 +108,7 @@ function box(
+     if (bevel > 0) bevelUv(geometry, role)
+     else pbrMaterials().boxUv(geometry, role)
+   }
+-  const mesh = detailMesh(geometry, material(color, metalness, roughness, role), name, group.userData.modelId)
++  const mesh = detailMesh(geometry, material(color, metalness, roughness, role, normalScale), name, group.userData.modelId)
+   mesh.position.copy(position)
+   group.add(mesh)
+   return mesh
+@@ -196,7 +222,7 @@ function buildCdu(model: Construction, group: THREE.Group) {
+   box(group, 'generic-cdu-cabinet',
+     new THREE.Vector3(w + skin, bodyH, d + skin),
+     new THREE.Vector3(w / 2, bodyBottom + bodyH / 2, (d - skin) / 2),
+-    CABINET, 0.38, 0.5, skin * 0.7)
++    CABINET, 0.08, 0.64, skin * 0.7, undefined, 0.16)
+   box(group, 'generic-cdu-plinth',
+     new THREE.Vector3(w * 0.94, plinthH, d * 0.94),
+     new THREE.Vector3(w / 2, foot + plinthH / 2, d / 2),
+@@ -212,7 +238,7 @@ function buildCdu(model: Construction, group: THREE.Group) {
+   box(group, 'generic-cdu-service-door',
+     new THREE.Vector3(doorW, doorH, skin * 1.6),
+     new THREE.Vector3(w / 2, doorY, -skin * 1.8),
+-    PANEL, 0.3, 0.52, skin * 0.45)
++    PANEL, 0.06, 0.66, skin * 0.45, undefined, 0.16)
+ 
+   // A recessed grille and individual folded louvers read as fabricated metal,
+   // rather than dark texture rectangles. All parts remain within the body
+@@ -239,19 +265,22 @@ function buildCdu(model: Construction, group: THREE.Group) {
+     new THREE.Vector3(hmiW, hmiH, skin * 2.4),
+     new THREE.Vector3(w * 0.33, hmiY, -skin * 1.7),
+     DARK, 0.15, 0.44, skin * 0.7)
+-  const screen = box(group, 'generic-cdu-hmi-screen',
+-    new THREE.Vector3(hmiW * 0.79, hmiH * 0.67, skin * 0.4),
+-    new THREE.Vector3(w * 0.33, hmiY, -skin * 3.1),
+-    0x123138, 0.05, 0.22)
+-  const screenMaterial = screen.material as THREE.MeshStandardMaterial
+-  screenMaterial.emissive.setHex(0x143d46)
+-  screenMaterial.emissiveIntensity = 0.18
+-  for (let i = 0; i < 3; i += 1) {
+-    box(group, 'generic-cdu-hmi-line-' + i,
+-      new THREE.Vector3(hmiW * (0.47 - i * 0.06), hmiH * 0.055, skin * 0.3),
+-      new THREE.Vector3(w * 0.33, hmiY + hmiH * (0.15 - i * 0.15), -skin * 3.5),
+-      0x93c4bd, 0.05, 0.38)
+-  }
++  // This is a static equipment label, independent of the room lighting and
++  // display exposure. MeshBasic + map is also an explicit supported OV snapshot
++  // material; an emissiveMap would currently be rejected by that adapter.
++  const texture = createCduDisplayTexture()
++  const displayMaterial = new THREE.MeshBasicMaterial({
++    color: texture ? 0xffffff : 0x123138, map: texture, toneMapped: false,
++  })
++  const screen = detailMesh(
++    new THREE.BoxGeometry(hmiW * 0.79, hmiH * 0.67, skin * 0.4),
++    displayMaterial, 'generic-cdu-hmi-screen', group.userData.modelId,
++  )
++  screen.position.set(w * 0.33, hmiY, -skin * 3.1)
++  group.add(screen)
++  // Geometry owns the texture even while paint/opacity has removed its map
++  // from the current material. Disposal is idempotent with the material walk.
++  screen.geometry.addEventListener('dispose', () => texture?.dispose())
+ 
+   const handleH = bodyH * 0.15
+   box(group, 'generic-cdu-handle-recess',
+diff --git a/src/frontend/react/test/liquidEquipmentVisualInteraction.test.ts b/src/frontend/react/test/liquidEquipmentVisualInteraction.test.ts
+index 1e8c7a49..b2982165 100644
+--- a/src/frontend/react/test/liquidEquipmentVisualInteraction.test.ts
++++ b/src/frontend/react/test/liquidEquipmentVisualInteraction.test.ts
+@@ -51,6 +51,31 @@ describe('CDU rendered selection owner', () => {
+     } finally { dispose(group) }
+   })
+ 
++  it('the visible unlit HMI picks the CDU and survives whole-model paint and restoration', () => {
++    const group = visual()
++    try {
++      const screen = mesh(group, 'generic-cdu-hmi-screen')
++      const target = new THREE.Box3().setFromObject(screen).getCenter(new THREE.Vector3())
++      const ray = new THREE.Raycaster(new THREE.Vector3(target.x, target.y, -.5), new THREE.Vector3(0, 0, 1))
++      const hit = pickNearestHit(ray.intersectObject(group, true).filter(isSelectableHit))
++      expect(hit?.object).toBe(screen)
++      expect(hit?.object.userData.modelId).toBe('cdu-test')
++      const original = screen.material as THREE.MeshBasicMaterial
++      expect(original).toBeInstanceOf(THREE.MeshBasicMaterial)
++      paintSelectionHighlights([['cdu-test', group]], {
++        uid: 'cdu-test', node: null, uids: new Set(['cdu-test']),
++      }, () => () => null, NO_VIEW_FADES, () => 'cdu')
++      expect(screen.material).not.toBe(original)
++      expect((screen.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x66ead0)
++      paintSelectionHighlights([['cdu-test', group]], {
++        uid: null, node: null, uids: new Set(),
++      }, () => () => null, NO_VIEW_FADES, () => 'cdu')
++      expect(screen.material).toBe(original)
++      expect(original.color.getHex()).toBe(0x123138)
++      expect(original.toneMapped).toBe(false)
++    } finally { dispose(group) }
++  })
++
+   it('ownership survives the equipment world transform', () => {
+     const group = visual()
+     try {

@@ -1,0 +1,175 @@
+{
+ "format": "liquid-demo-browser-e2e/v1",
+ "date": "2026-09-29",
+ "stage": "5 (browser-use E2E final gate, liquid-supply-temp-mms-demo campaign)",
+ "verdict": "PASS 8/8 (item 6 passed after fixing the UI download byte-fidelity defect in-flight)",
+ "environment": {
+  "server": "NTU-Litianyu-40901, ~/mycode/dcdtuni, start_server.sh --app react --port 8390 --case-dir case/Shinaide_Liquid",
+  "server_env": "conda dcdtuni (torch 2.5.1+cu121 CPU), CUDA_VISIBLE_DEVICES='', OMP_NUM_THREADS=2; CONDA_EXE must be set explicitly in non-interactive shells (resolve_python silent-exit otherwise)",
+  "browser": "Playwright MCP (real Chromium) on Mac via SSH tunnel localhost:8390/8391",
+  "login": "repo dev account bootstrap admin (src/server/auth_manager.py:151-163; password not recorded)",
+  "repo_head_at_start": "3d86990d16739de9e6b087c0c7012a283f04ecbb",
+  "dist_index_html_sha256": {
+   "initial_bundle": "303fe374d91e7e87babbf6f7c59fe0dbbe60660763b35c61816a786fff0e3115",
+   "after_download_fix_e204eddc": "4ae54fbe24b4f0448e72ddfc6ded09a16ab869844527e2e5938d284dd69b7a01",
+   "final_after_shortcut_fix_6ed378d0": "e4b16fef88a1617449c83039e803df86c4cf013068d0b83a500bc4cded78b372"
+  }
+ },
+ "ports": {
+  "isolated": {
+   "http": 8390,
+   "ws": 8391,
+   "free_before": true,
+   "released_after": true
+  },
+  "protected": {
+   "http": 8360,
+   "ws": 8361,
+   "pid_before": 3282138,
+   "pid_after": 3282138,
+   "identity": "pre-existing SyntheticAirDisplay service, untouched"
+  }
+ },
+ "case_shas": {
+  "Shinaide_dae_cpu.cfdproj_before_and_after": "6501c68c0774cd86d99f01c0677a95ce3d099b17ed040f3b596dfc263601686c",
+  "MMS_product.cfdproj_after": "c2711de1b2e9a8641f84d35701ef1547853c99fb7ac6b1dac5c42ca13cda7e9c",
+  "tracked_files_modified_by_runs": 0
+ },
+ "runs": {
+  "shinaide_demo_e2e": {
+   "run_id": "6096b36ee9af46dfb22552505250db62",
+   "config_hash": "6d9121ddc7378c6161e9d51f6b428e0b917aadbc367e563d317a73a9a7740a1e",
+   "frames": 61,
+   "t_end_s": 600,
+   "online_commands": {
+    "heat_multiplier": 1.2,
+    "primary_inlet_K": {
+     "m_30_hx": 296
+    }
+   },
+   "measured": {
+    "T_pr_initial_C": 25.02,
+    "T_pr_final_C": 27.7,
+    "heat_input_kW": 37.8,
+    "energy_balance_max_W": 3.44e-06,
+    "heat_audit": "56 servers / 3416 samples, max residual 4.28e-8 W"
+   },
+   "replay": {
+    "source": "API-byte checkpoint",
+    "series_compared": 24,
+    "bitwise_identical": 24
+   }
+  },
+  "mms_overlay_s1": {
+   "run_id": "1c9a2c2fec36",
+   "config_hash": "92c9619636",
+   "frames": 61,
+   "scenario": "load step x2 @30 s (fixture S1)",
+   "overlay_gate": "comparable",
+   "ui_vs_analytic": {
+    "primary_return_C_ui": 17.11,
+    "primary_return_K_analytic_t60": 290.2629758443225,
+    "secondary_supply_C_ui": 17.35,
+    "secondary_supply_K_analytic_t60": 290.49651138046244
+   },
+   "pixel_probe": {
+    "chip_chart": {
+     "analytic_gray_px": 4493,
+     "run_orange_px": 3535
+    },
+    "hx_primary_chart": {
+     "analytic_gray_px": 5958,
+     "run_orange_px": 1872
+    }
+   }
+  },
+  "mms_download_fidelity": {
+   "run_id": "fa561b8cb4bb4ab5b77a26f7b330ecb1",
+   "ui_download_vs_api_bytes": "cmp identical (22451 B)",
+   "canonical_hash_match": true,
+   "replay_from_ui_bytes": "from_checkpoint OK, 61 frames, completed"
+  },
+  "post_fix_clean_run": {
+   "run_id": "065448f4b85c",
+   "console_errors": 0
+  }
+ },
+ "downloaded_artifacts_sha256": {
+  "shinaide_checkpoint_pre_fix_FLOAT_CORRUPTED_kept_as_finding_evidence": "0566fbb2d19dbc8471786a6c8599c4920b0c82e6b75a79e9e4c791cbdba0423e",
+  "shinaide_executed_input_pre_fix": "3989a78610ca4e1a46f756a19ecae45f06b7939cfc1a8b873653808da5a4d56d",
+  "shinaide_result_pre_fix": "955450d72360dc354aa0d51b66a25a5040f88c49a292ed9f60355f01936a5401",
+  "mms_ui_checkpoint_post_fix": "070f79d1c33ae06d53a96c1322354b22b6c971d371c4837062ab6f851bea3287"
+ },
+ "defects_found_and_fixed_in_flight": [
+  {
+   "id": "e204eddc",
+   "what": "UI artifact downloads round-tripped parsed JSON, rewriting float spellings (100.0->100) so downloaded checkpoints failed canonical config-hash and could not be replayed",
+   "fix": "fetchRuntimeArtifactText raw-byte passthrough",
+   "verified": "UI download cmp-identical to API bytes; replay OK"
+  },
+  {
+   "id": "6ed378d0",
+   "what": "document-level shortcut handler TypeError on synthetic key events with unset event.key (production console error)",
+   "fix": "normalizeKey guards non-string/empty key to inert ''",
+   "verified": "full interaction sequence 0 console errors on final bundle"
+  }
+ ],
+ "console_errors_log": {
+  "initial_bundle": [
+   "401 /api/set-case-dir (pre-login, expected)",
+   "TypeError unset event.key x1"
+  ],
+  "download_fix_bundle": [
+   "TypeError unset event.key x2"
+  ],
+  "final_bundle": []
+ },
+ "regressions": {
+  "backend_test_liquid": "597 passed / 5 skipped (40901)",
+  "backend_hybrid_handoff": "10 passed",
+  "frontend_vitest": "2998 passed / 291 files",
+  "frontend_build": "tsc -b + vite clean",
+  "generator_check": "mmsAnalytic.ts fresh"
+ },
+ "evidence_files": [
+  "e2e-01-editor-ready.png",
+  "e2e-02-project-loaded-logged-in.png",
+  "e2e-03-panel-demo-defaults.png",
+  "e2e-04-pending-commands.png",
+  "e2e-05-accepted-commands.png",
+  "e2e-06-running-midtransient.png",
+  "e2e-07-completed-600s.png",
+  "e2e-08-honesty-gate-incomparable.png",
+  "e2e-09-3d-coloring-600s.png",
+  "e2e-10-result-time-60s-linkage.png",
+  "e2e-11-mms-overlay-comparable.png",
+  "e2e-12-hx-charts-overlay-closeup.png",
+  "e2e-13-clean-run-after-fixes.png",
+  "ui-downloaded-checkpoint-fa561b8c.json"
+ ],
+ "boundaries": [
+  "synthetic mock fixtures and demo parameters, not field calibration",
+  "overlay comparison valid only for the MMS fixture replay (honesty gate enforced both ways)",
+  "OV render track out of scope (Three.js path only)",
+  "run records persist under case/*/Liquid/ (gitignored, append-only)"
+ ],
+ "post_review_addendum": {
+  "review": "independent senior-code-reviewer subagent over 019db670..4c95ed4e; verdict 'With fixes' (1 Important, 7 Minor)",
+  "important_1_fixed": "overlay honesty gate gained a fixture-IDENTITY term: the run's solid-temperature trace must follow the sha-bound receipt DAE trace (dae_solid_K) within 0.02 K, sample-for-sample. Axis alone was insufficient — any 60 s/1 s run axis-matched, and a same-fixture wrong-magnitude replay (x1.5 vs x2) was the most misleading case. Scenario identity (load vs supply) is thereby enforced as well. i18n incomparable copy and the generated-module header updated; unit tests cover pass/noise/over-tolerance/wrong-scenario/wrong-magnitude/foreign-physics; the integration test now injects the fixture trace and asserts the supply scenario refuses to compare against a load replay.",
+  "minor_dispositions": {
+   "2": "pre-fix corrupted checkpoint + executed-input committed under evidence/; result.json (3.4 MB) remains sha256-recorded only; CHECKLIST item 6 wording corrected",
+   "3": "fetchRuntimeResult/fetchRuntimeCheckpoint/fetchRuntimeExecutedInput deleted (zero production callers after the download rewrite; repo orphan-hygiene discipline); executedRunInputClient.test.ts retired",
+   "4": "run-swap guard test ported to fetchRuntimeArtifactText",
+   "5": "analyticSeries label param typed TranslationKey (removed 'as never')",
+   "6": "legend swatch draws the dash pattern for dashed series (reference never shows a solid swatch)",
+   "7": "REFUTED — committed smoke_load.json/smoke_supply.json DO contain dT_primary_return_K/dT_chip_max_K (verifiable: python3 -c \"import json;print('dT_primary_return_K' in json.load(open('docs/benchmarks/shinaide-demo-provenance-2026-09-28/smoke_load.json')))\")",
+   "8": "generated-module header + generator docstring now state dae_solid_K's identity-gate purpose"
+  },
+  "checklist_item5_reading": "'诚实门两侧均验' at receipt time meant the TIME AXIS verified both ways; after this addendum the gate also enforces fixture identity",
+  "regression_at_addendum": {
+   "vitest": "3003 passed / 290 files",
+   "build": "tsc -b + vite clean",
+   "generator_check": "fresh"
+  }
+ }
+}

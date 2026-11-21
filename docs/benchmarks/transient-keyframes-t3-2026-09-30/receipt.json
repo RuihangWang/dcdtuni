@@ -1,0 +1,43 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T3 (.liquidrun v4 + four DAE endpoint forms)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t3",
+  "code": "0d55b6c8",
+  "machine": "40901, isolated worktree ~/scratch/wt-t3 on 8390 (8360 untouched)",
+  "forms": {
+    "hx_setpoint": "secondary row G*(T_s - T_set); T_s algebraic; duty m*cp*(T_up - T_s) - C_s*dT_set/dt into primary row and storage diagnostic",
+    "pump_flow": "momentum row m - m_set(t), residual scale 1",
+    "pressure_bc_series": "pressure_bc sampled per step",
+    "cold_plate_temperature_rise": "heat |m|*cp*dT_set(t), also the diagnostic heat input"
+  },
+  "tests": {
+    "pytest_v4_forms": {"passed": 24, "failed": 0, "mms_orders": {"hx_setpoint": [0.992, 0.996], "cp_rise": [0.994, 0.997]}},
+    "pytest_liquid_hybrid_runtime": {"passed": 658, "skipped": 5, "failed": 2, "failed_cause": "test_mms_product_case needs the MMS product fixture that is not in git (environment)"},
+    "vitest": {"files": 313, "tests": 3148, "failed": 0},
+    "tsc": "clean",
+    "frontend_to_backend_nv_pek02": {"pump_kg_s": [0.997, 0.7976], "hx_secondary_K": [303.15, 300.15], "return_Pa": [150000, 170000], "max_energy_balance_W": 1.7e-08}
+  },
+  "browser_gate": {
+    "case": "Shinaide_Liquid/Shinaide_dae_cpu.cfdproj",
+    "ui_steps": ["timeline duration 150 s", "CDU_1 secondary supply = hold set temperature, pump = fixed flow (inspector selects)", "t=40 supply 35->31 C (inspector)", "t=100 total flow 60->45 L/min (inspector) + ramp 40 s (track editor)", "t=80 return pressure 150->170 kPa (track panel)", "migrated load step at 60 s kept"],
+    "manifest": {"schemaVersion": 4, "N_t": 16, "dt_s": 10, "events": 0,
+      "hx_T_set_K": "308.15 x4 then 304.15", "pump_flow_set_kg_s": [0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.9301875, 0.868175, 0.8061625, 0.74415, 0.74415, 0.74415, 0.74415, 0.74415, 0.74415],
+      "return_P_Pa": "150000 x8 then 170000", "cold_plate_Q_W": "100 x6 then 150"},
+    "run": {"id": "2179b801b3b84c7d908afa3548f9ddf4", "wall_s": 26, "frames": 16, "converged": true,
+      "pump_flow_kg_s": [0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.9922, 0.93019, 0.86818, 0.80616, 0.74415, 0.74415, 0.74415, 0.74415, 0.74415, 0.74415],
+      "secondary_supply_K": "308.15 x4 then 304.15",
+      "return_P_Pa": "150000 x8 then 170000",
+      "supply_P_Pa": [164081, 164081, 164081, 164081, 164081, 164081, 164081, 162317, 180668, 179132, 177709, 177709, 177709, 177709, 177709, 177709],
+      "heat_input_W": "21000 x6 then 31500", "max_energy_balance_W": 2.4e-09,
+      "cold_plate_inlet_note": "colder supply reaches the plates only from ~120 s (pipe transport delay); chips respond to the 60 s load step at once"}
+  },
+  "defects_fixed": [{"commit": "f3deed32", "what": "parameter-pack resolution refused v4 fields on profile-backed edges; now accepted as edge overrides only"}],
+  "open": [
+    "return pressure is a rigid offset in the one-reference dynamic-CDU topology (design §6)",
+    "pump speed ratio and return pressure are edited in the track panel only",
+    "air/liquid single-mode ruling (design §6) still pending"
+  ],
+  "teardown": "8390 stopped and the worktree removed after the gate"
+}

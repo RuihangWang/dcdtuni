@@ -1,0 +1,63 @@
+diff --git a/src/frontend/react/test/components/SeedInspector.test.tsx b/src/frontend/react/test/components/SeedInspector.test.tsx
+index 8518263e..46aa15dd 100644
+--- a/src/frontend/react/test/components/SeedInspector.test.tsx
++++ b/src/frontend/react/test/components/SeedInspector.test.tsx
+@@ -43,6 +43,15 @@ function render(node: React.ReactNode) {
+   flushSync(() => root.render(node))
+ }
+ 
++/** Browser input must bypass React's value tracker and commit after onChange. */
++function commitNumber(input: HTMLInputElement, value: string) {
++  flushSync(() => input.focus())
++  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
++  setValue.call(input, value)
++  flushSync(() => input.dispatchEvent(new Event('input', { bubbles: true })))
++  flushSync(() => input.blur())
++}
++
+ beforeEach(() => {
+   store.loadProject(load(), '/cases/Base_leakage.cfdproj')
+   host = document.createElement('div')
+@@ -108,11 +117,7 @@ describe('SeedInspector', () => {
+       />,
+     )
+     const input = host.querySelector('#seed-offset') as HTMLInputElement
+-    flushSync(() => {
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(input, '0.2')
+     const openings = (raisedFloor().geometry as { openings: { seedConfig?: { offset: number } }[] })
+       .openings
+     expect(openings[0]?.seedConfig?.offset).toBeCloseTo(0.2, 10)
+@@ -129,12 +134,7 @@ describe('SeedInspector', () => {
+     render(<SeedInspector {...props} />)
+     const before = host.querySelector('#seed-status')?.textContent
+     const surface = collectSeedSurfaces(store.getProject()).find((s) => s.owner === 'floor-opening')!
+-    flushSync(() => {
+-      const input = host.querySelector('#seed-offset') as HTMLInputElement
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(host.querySelector('#seed-offset') as HTMLInputElement, '0.2')
+     render(<SeedInspector {...props} model={raisedFloor()} />)
+     expect(surface.isCustom).toBe(false)
+     expect(host.querySelector('#seed-status')?.textContent).not.toBe(before)
+@@ -175,12 +175,9 @@ describe('SeedInspector', () => {
+       patchId: 'p_13',
+     }
+     render(<SeedInspector {...props} />)
+-    flushSync(() => {
+-      const input = host.querySelector('#seed-offset') as HTMLInputElement
+-      input.value = '0.2'
+-      input.dispatchEvent(new Event('input', { bubbles: true }))
+-      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+-    })
++    commitNumber(host.querySelector('#seed-offset') as HTMLInputElement, '0.2')
++    const beforeReset = (raisedFloor().geometry as { openings: { seedConfig?: { offset: number } }[] }).openings
++    expect(beforeReset[0]?.seedConfig?.offset).toBeCloseTo(0.2, 10)
+     render(<SeedInspector {...props} model={raisedFloor()} />)
+     flushSync(() =>
+       (host.querySelector('#seed-reset-default') as HTMLButtonElement).dispatchEvent(

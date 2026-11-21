@@ -1,0 +1,533 @@
+--- a/src/components/Toolbar.tsx
++++ b/src/components/Toolbar.tsx
+@@ -2,7 +2,6 @@
+ import { applySceneTransform } from '../interaction/sceneTransform'
+ import { transformModels, type TransformAction } from '../interaction/transformActions'
+ import { FlowMonitor } from './FlowMonitor'
+-import { ViewCube } from './ViewCube'
+ import { allModels, type CfdProject } from '../schema/cfdproj'
+ import { LOCALES, setLocale, type Locale } from '../i18n'
+ import { isPreviewActive, subscribePreview, togglePreviewMode } from '../io/stlPreview'
+@@ -95,6 +94,7 @@
+   const cabinetWarnings = closedCabinetDiagnostics()
+   const { t, locale } = useTranslation()
+   const [collapsed, setCollapsed] = useState(false)
++  const [expandedGroup, setExpandedGroup] = useState<'model' | 'view' | 'preferences' | null>(null)
+   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+   const [theme, setTheme] = useState<Theme>(storedTheme)
+   useEffect(() => {
+@@ -161,8 +161,22 @@
+           <div id="renderer-switch-slot" />
+         </div>
+         <div className="toolbar-groups">
+-          <details className="toolbar-tool-group" id="toolbar-model-tools">
+-            <summary>{t('toolbar.model_tools')}</summary>
++          <div className="toolbar-group-tabs">
++            {([
++              ['model', 'toolbar.model_tools', 'toolbar-model-tools'],
++              ['view', 'toolbar.view_tools', 'toolbar-view-tools'],
++              ['preferences', 'toolbar.preferences', 'toolbar-preferences'],
++            ] as const).map(([group, label, panelId]) => (
++              <button key={group} id={`${panelId}-toggle`} type="button"
++                className="toolbar-group-toggle" aria-controls={panelId}
++                aria-expanded={expandedGroup === group}
++                onClick={() => setExpandedGroup(current => current === group ? null : group)}>
++                <span>{t(label)}</span><span aria-hidden="true">{expandedGroup === group ? '⌃' : '⌄'}</span>
++              </button>
++            ))}
++          </div>
++          <section className="toolbar-tool-group" id="toolbar-model-tools"
++            hidden={expandedGroup !== 'model'} aria-labelledby="toolbar-model-tools-toggle">
+             <div className="toolbar-tool-content">
+               {(['X', 'Y', 'Z'] as const).map((axis) => {
+                 const lower = axis.toLowerCase() as 'x' | 'y' | 'z'
+@@ -280,9 +294,9 @@
+                 {t('toolbar.grid_snap')}
+               </button>
+             </div>
+-          </details>
+-          <details className="toolbar-tool-group" id="toolbar-view-tools">
+-            <summary>{t('toolbar.view_tools')}</summary>
++          </section>
++          <section className="toolbar-tool-group" id="toolbar-view-tools"
++            hidden={expandedGroup !== 'view'} aria-labelledby="toolbar-view-tools-toggle">
+             <div className="toolbar-tool-content">
+               <button
+                 id="focus-selection-btn"
+@@ -350,14 +364,10 @@
+ 
+               <FlowMonitor project={project} />
+ 
+-              <div id="view-cube-panel">
+-                <ViewCube />
+-              </div>
+-
+             </div>
+-          </details>
+-          <details className="toolbar-tool-group" id="toolbar-preferences">
+-            <summary>{t('toolbar.preferences')}</summary>
++          </section>
++          <section className="toolbar-tool-group" id="toolbar-preferences"
++            hidden={expandedGroup !== 'preferences'} aria-labelledby="toolbar-preferences-toggle">
+             <div className="toolbar-tool-content">
+               <select
+                 id="lang-selector"
+@@ -389,7 +399,7 @@
+                 {t('toolbar.shortcuts')}
+               </button>
+             </div>
+-          </details>
++          </section>
+         </div>
+         {/* Last, and a full row of its own (flex-basis 100%): the transient
+             timeline. Inside #toolbar-content so it joins the toolbar's
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -8,6 +8,7 @@
+ } from 'react'
+ import { FeatureTree } from './components/FeatureTree'
+ import { Viewport } from './components/Viewport'
++import { ViewCube } from './components/ViewCube'
+ import { RendererControl } from './renderer/RendererControl'
+ import { TrackPanel } from './transient/TrackPanel'
+ import { Toolbar, type ViewOptions, DEFAULT_VIEW_OPTIONS } from './components/Toolbar'
+@@ -803,6 +804,7 @@
+         <RendererControl project={project} selectedUids={selectedUids}
+           activeTab={leftTab} airMode={coolingMode === 'air'}
+           onSelection={uids=>selectMany(uids,false)}/>
++        <div id="view-cube-panel"><ViewCube /></div>
+       </div>
+ 
+       {/* The selected object's parameter tracks, hanging under the top bar;
+--- a/src/components/AxisGizmo.tsx
++++ b/src/components/AxisGizmo.tsx
+@@ -2,93 +2,75 @@
+ import * as THREE from 'three'
+ import { subscribeViewport } from '../viewportBus'
+ 
+-/**
+- * The bottom-left orientation triad — the legacy corner gizmo, stroke for
+- * stroke (`_drawCornerAxesGizmo`, STL_generate.html:29374-29438).
+- *
+- * A 2D canvas, not a Three.js scene: the legacy projects the three world axes
+- * through the inverse camera quaternion and paints them back to front with
+- * depth-based dimming, a flat arrow head, a dark label chip outlined in the
+- * axis colour and a white origin dot. A WebGL triad with lit 3D cones read as
+- * a different widget, which is why this is a transcription rather than a
+- * re-interpretation.
+- *
+- * Read-only, unlike the view cube: it answers "which way is X" while the user
+- * is orbiting, and making it clickable would put two competing controls for
+- * the same thing on screen.
+- */
+-
+-/** CSS size of the canvas, as the legacy's `_CORNER_AXES_CSS`. */
++/** Read-only world orientation: six rays, painted in camera-space depth order. */
+ export const CORNER_AXES_CSS = 92
+-
+-const AXES: { world: THREE.Vector3; color: string; label: string }[] = [
+-  { world: new THREE.Vector3(1, 0, 0), color: '#ff5566', label: 'X' },
+-  { world: new THREE.Vector3(0, 1, 0), color: '#4ade80', label: 'Y' },
+-  { world: new THREE.Vector3(0, 0, 1), color: '#60a5fa', label: 'Z' },
++const AXES = [
++  { world: new THREE.Vector3(1, 0, 0), color: '#ff667c', label: 'X' },
++  { world: new THREE.Vector3(0, 1, 0), color: '#66dc99', label: 'Y' },
++  { world: new THREE.Vector3(0, 0, 1), color: '#7eb8ff', label: 'Z' },
+ ]
+ 
+-/** One frame of the legacy drawing, given the main camera's quaternion. */
++export function projectCornerAxes(cameraQuaternion: THREE.Quaternion) {
++  const inverse = cameraQuaternion.clone().invert()
++  return AXES.flatMap(axis => ([1, -1] as const).map(sign => {
++    const view = axis.world.clone().multiplyScalar(sign).applyQuaternion(inverse)
++    // A Three camera looks along -Z: positive view-space Z is TOWARD the user.
++    return { label: sign === 1 ? axis.label : `−${axis.label}`, color: axis.color,
++      sign, sx: view.x, sy: -view.y, depth: view.z }
++  })).sort((a, b) => a.depth - b.depth)
++}
++
++/** Painter depth is exact for these radial rays: rear rays, depth-zero hub, front rays. */
+ export function drawCornerAxesGizmo(ctx: CanvasRenderingContext2D, cameraQuaternion: THREE.Quaternion) {
+-  const W = CORNER_AXES_CSS
+-  const H = CORNER_AXES_CSS
+-  const CX = W / 2
+-  const CY = H / 2
+-  const R = 28
+-  ctx.clearRect(0, 0, W, H)
+-
+-  // Rotate world axes into view space (screen: x-right, y-down)
+-  const qInv = cameraQuaternion.clone().invert()
+-  const axes = AXES.map((a) => {
+-    const v = a.world.clone().applyQuaternion(qInv)
+-    return { color: a.color, label: a.label, sx: v.x, sy: -v.y, depth: -v.z }
+-  }).sort((a, b) => a.depth - b.depth) // back to front
+-
+-  for (const a of axes) {
+-    const endX = CX + a.sx * R
+-    const endY = CY + a.sy * R
+-    // Depth-based dimming (front axes brighter)
+-    const dim = (a.depth + 1) * 0.5 // 0..1
+-    const alpha = 0.55 + 0.45 * dim
+-    const col = a.color + Math.round(alpha * 255).toString(16).padStart(2, '0')
+-    // Line
+-    ctx.strokeStyle = col
+-    ctx.lineWidth = 2.2
++  const size = CORNER_AXES_CSS
++  const centre = size / 2
++  const radius = 35
++  const axes = projectCornerAxes(cameraQuaternion)
++  ctx.clearRect(0, 0, size, size)
++  ctx.save()
++  const drawRay = (axis: ReturnType<typeof projectCornerAxes>[number]) => {
++    const front = axis.depth >= 0
++    const x = centre + axis.sx * radius
++    const y = centre + axis.sy * radius
+     ctx.lineCap = 'round'
++    ctx.setLineDash([])
+     ctx.beginPath()
+-    ctx.moveTo(CX, CY)
+-    ctx.lineTo(endX, endY)
++    ctx.moveTo(centre, centre)
++    ctx.lineTo(x, y)
++    // An opaque silhouette gives the nearer shaft real occlusion at crossings.
++    ctx.strokeStyle = '#10151d'
++    ctx.lineWidth = front ? 6.5 : 5
+     ctx.stroke()
+-    // Arrow head
+-    const ang = Math.atan2(endY - CY, endX - CX)
+-    const ah = 6
+-    ctx.fillStyle = col
++    ctx.strokeStyle = axis.color + (front ? 'ff' : '88')
++    ctx.lineWidth = front ? 2.8 : 1.8
++    ctx.setLineDash(front ? [] : [3, 3])
++    ctx.stroke()
++    ctx.setLineDash([])
+     ctx.beginPath()
+-    ctx.moveTo(endX, endY)
+-    ctx.lineTo(endX - ah * Math.cos(ang - 0.45), endY - ah * Math.sin(ang - 0.45))
+-    ctx.lineTo(endX - ah * Math.cos(ang + 0.45), endY - ah * Math.sin(ang + 0.45))
+-    ctx.closePath()
++    ctx.arc(x, y, axis.sign === 1 ? 9 : 8, 0, Math.PI * 2)
++    ctx.fillStyle = front && axis.sign === 1 ? axis.color : '#182331'
+     ctx.fill()
+-    // Label chip
+-    const lbX = CX + a.sx * (R + 11)
+-    const lbY = CY + a.sy * (R + 11)
+-    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+-    ctx.beginPath()
+-    ctx.arc(lbX, lbY, 8, 0, Math.PI * 2)
+-    ctx.fill()
+-    ctx.strokeStyle = col
+-    ctx.lineWidth = 1.2
++    ctx.strokeStyle = axis.color + (front ? 'ff' : '88')
++    ctx.lineWidth = front ? 1.8 : 1.2
+     ctx.stroke()
+-    ctx.fillStyle = col
+-    ctx.font = 'bold 11px "Segoe UI", "Share Tech Mono", monospace'
++    ctx.fillStyle = front && axis.sign === 1 ? '#10151d' : axis.color + (front ? 'ff' : 'bb')
++    ctx.font = `600 ${axis.sign === 1 ? 11 : 9}px "Segoe UI", sans-serif`
+     ctx.textAlign = 'center'
+     ctx.textBaseline = 'middle'
+-    ctx.fillText(a.label, lbX, lbY + 0.5)
++    ctx.fillText(axis.label, x, y + 0.5)
+   }
+-  // Origin marker
+-  ctx.fillStyle = 'rgba(255,255,255,0.9)'
++  for (const axis of axes) if (axis.depth < 0) drawRay(axis)
++  // The hub hides shafts and end labels behind the origin, including an axis
++  // looking directly away. Front-facing rays/markers are painted OVER this hub.
+   ctx.beginPath()
+-  ctx.arc(CX, CY, 2.5, 0, Math.PI * 2)
++  ctx.arc(centre, centre, 6.3, 0, Math.PI * 2)
++  ctx.fillStyle = '#253347'
+   ctx.fill()
++  ctx.strokeStyle = '#9aabba'
++  ctx.lineWidth = 1
++  ctx.stroke()
++  for (const axis of axes) if (axis.depth >= 0) drawRay(axis)
++  ctx.restore()
+ }
+ 
+ export function AxisGizmo() {
+--- a/src/components/ViewCube.tsx
++++ b/src/components/ViewCube.tsx
+@@ -5,26 +5,9 @@
+ import { useTranslation } from '../useTranslation'
+ 
+ /**
+- * The toolbar orientation cube.
+- *
+- * A second tiny renderer rather than an overlay in the main scene: the cube must
+- * ignore the main camera's position and zoom and show only its ORIENTATION, and
+- * it has to sit in the toolbar's DOM, not over the canvas.
+- *
+- * It is a two-gesture control, as in the legacy editor (`beginViewCubeDrag`,
+- * STL_generate.html:17511): DRAG it to orbit the main camera, CLICK a face to
+- * snap to that face's normal. A cube that only snaps is half a control — the
+- * cube is the one place a user can turn the scene without putting the cursor
+- * over the geometry they are trying to look at.
+- */
+-
+-/**
+- * 56 px, a DELIBERATE divergence from the legacy's 88.
+- *
+- * The cube sits in a toolbar whose buttons are 24 px tall, and at 88 it is
+- * nearly four rows high — it reads as the toolbar's subject rather than as one
+- * of its controls. Set inline so it beats `#view-cube` in the stylesheet
+- * without the two disagreeing about which owns the size.
++ * Persistent viewport orientation control. It shows only camera orientation,
++ * independently of toolbar expansion, scene position and zoom. Drag to orbit;
++ * click a face to snap to its normal.
+  */
+ const CUBE_SIZE = 56
+ 
+--- a/src/components/PanelResizers.tsx
++++ b/src/components/PanelResizers.tsx
+@@ -280,7 +280,7 @@
+     refit = remeasure
+     const rows = new MutationObserver(remeasure)
+     const content = document.getElementById('toolbar-content')
+-    if (content) rows.observe(content, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] })
++    if (content) rows.observe(content, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'hidden'] })
+ 
+     window.addEventListener('resize', remeasure)
+     fit(null)
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -392,12 +392,18 @@
+ }
+ 
+ #view-cube-panel {
+-  display: flex;
+-  align-items: center;
+-  gap: 10px;
+-  margin-left: 6px;
+-  padding-left: 10px;
+-  border-left: 1px solid var(--border-bright);
++  position: absolute;
++  right: calc(var(--right-panel-w) + 14px);
++  bottom: 14px;
++  z-index: 10;
++  display: flex;
++  align-items: center;
++  padding: 5px;
++  background: color-mix(in srgb, var(--panel) 92%, transparent);
++  border: 1px solid var(--border-bright);
++  border-radius: 9px;
++  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
++  pointer-events: auto;
+ }
+ /* Size is set inline by ViewCube.tsx (`CUBE_SIZE`), which is the value that
+    wins; these are the fallback and are kept in step with it deliberately —
+@@ -1314,7 +1320,7 @@
+   height: 92px;
+   pointer-events: none;
+   user-select: none;
+-  z-index: 5;
++  z-index: 9;
+ }
+ .viewport-stats {
+   position: absolute;
+@@ -2824,23 +2830,31 @@
+ .liquid-experiment-status small { overflow-wrap: anywhere; }
+ 
+ #toolbar {
+-  top: 8px; padding: 9px 10px; display: block; overflow: visible;
++  top: 8px; padding: 9px 10px; display: grid; overflow: visible;
++  grid-template-columns: minmax(0, 1fr) 30px; column-gap: 8px; align-items: start;
+   background: color-mix(in srgb, var(--panel) 95%, transparent);
+   border: 1px solid var(--border); border-radius: 8px; backdrop-filter: blur(8px);
+   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); transform: none;
+ }
+ #toolbar[data-scrollable="true"] { overflow-y: auto; overflow-x: hidden; }
+-#toolbar.collapsed { padding: 4px; min-height: 30px; width: 34px; right: auto; }
+-#toolbar-content { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+-#toolbar-collapse-btn { position: absolute; top: 8px; right: 8px; width: 22px; height: 24px; padding: 0; font-size: 18px; line-height: 1; }
+-#toolbar.collapsed #toolbar-collapse-btn { top: 2px; right: 5px; }
+-.toolbar-primary { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; padding-right: 27px; min-width: 0; }
+-.toolbar-groups { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+-.toolbar-tool-group { min-width: 0; max-width: 100%; }
+-.toolbar-tool-group > summary { padding: 5px 9px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-input); }
+-.toolbar-tool-group > summary:hover, .toolbar-tool-group[open] > summary { color: var(--highlight); border-color: var(--border-bright); }
+-.toolbar-tool-group[open] { flex-basis: 100%; }
+-.toolbar-tool-content { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 10px 0 3px; }
++#toolbar.collapsed { padding: 4px; min-height: 30px; width: 40px; right: auto; grid-template-columns: 1fr; }
++#toolbar-content { display: flex; flex-direction: column; gap: 8px; min-width: 0; grid-column: 1; grid-row: 1; }
++#toolbar-collapse-btn { position: static; width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1; grid-column: 2; grid-row: 1; border-radius: 5px; }
++#toolbar-collapse-btn:hover { background: var(--bg-input); }
++#toolbar.collapsed #toolbar-collapse-btn { grid-column: 1; }
++.toolbar-primary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; min-height: 30px; }
++.toolbar-primary > * { min-width: 0; max-width: 100%; }
++.toolbar-groups { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
++.toolbar-group-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
++.toolbar-group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-width: 0; min-height: 32px; padding: 6px 9px; font: inherit; font-size: 12px; cursor: pointer; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-input); }
++.toolbar-group-toggle > span:first-child { overflow-wrap: anywhere; text-align: left; }
++.toolbar-group-toggle > span:last-child { flex: 0 0 auto; }
++.toolbar-group-toggle:hover, .toolbar-group-toggle[aria-expanded="true"] { color: var(--highlight); border-color: var(--border-bright); background: var(--active); }
++.toolbar-group-toggle:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
++.toolbar-tool-group { min-width: 0; width: 100%; border-top: 1px solid var(--border); }
++.toolbar-tool-group[hidden] { display: none; }
++.toolbar-tool-content { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 0 1px; }
++.toolbar-tool-content > * { max-width: 100%; }
+ .tool-btn { min-height: 29px; padding: 5px 9px; font-size: 12px; background: var(--bg-input); border-radius: 5px; line-height: 1.3; }
+ .tool-btn.active { background: var(--active); border-color: var(--highlight); box-shadow: none; }
+ .tool-btn[data-tone="danger"] { color: var(--danger); border-color: #80565f; }
+@@ -2851,7 +2865,8 @@
+ .tool-inline { flex-wrap: wrap; padding: 0; font-size: 12px; }
+ .tool-inline .badge { min-width: 68px; }
+ #lang-selector, #theme-selector { min-height: 30px; padding: 5px 8px; margin: 0; font-size: 12px; border-radius: 5px; background: var(--bg-input); }
+-#renderer-switch-slot { margin-left: auto; gap: 6px; flex-wrap: wrap; min-width: 0; }
++#renderer-switch-slot { margin-left: 0; gap: 6px; flex-wrap: wrap; min-width: 0; flex-shrink: 1; }
++#renderer-switch-slot .renderer-connection { min-width: 0; }
+ #renderer-switch-slot label, #renderer-switch-slot select, #renderer-switch-slot .renderer-connection { font-size: 12px; letter-spacing: 0; font-family: var(--font-primary); }
+ #renderer-switch-slot select { padding: 5px 7px; min-height: 30px; border-radius: 5px; background: var(--bg-input); }
+ .mode-switch { font-family: var(--font-primary); font-size: 12px; letter-spacing: 0; }
+@@ -2864,7 +2879,6 @@
+ .flow-gauge .flow-label { font-size: 10px; letter-spacing: 0; }
+ .flow-gauge .flow-unit { font-size: 9px; }
+ .flow-gauge .flow-value > span:first-child { text-shadow: none; }
+-#view-cube-panel { margin-left: auto; padding-left: 8px; }
+ #timeline-strip { padding-top: 7px; gap: 6px; font-size: 12px; }
+ #timeline-strip input, #timeline-strip select { font-size: 12px; }
+ #timeline-bar { height: 22px; }
+--- a/test/components/ToolbarViewBatch.test.tsx
++++ b/test/components/ToolbarViewBatch.test.tsx
+@@ -1,11 +1,7 @@
+ import { createRoot, type Root } from 'react-dom/client'
+ import { flushSync } from 'react-dom'
+-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+ import { Toolbar, DEFAULT_VIEW_OPTIONS, type ViewOptions } from '../../src/components/Toolbar'
+-
+-// The view cube is a WebGL canvas of its own and jsdom has no context for it.
+-// The buttons under test are plain DOM either side of it.
+-vi.mock('../../src/components/ViewCube', () => ({ ViewCube: () => null }))
+ 
+ /**
+  * Two view toggles in one batch must not clobber each other.
+@@ -88,3 +84,40 @@
+     expect(view).toMatchObject({ snapGrid: true, snapFace: false, snapEdge: false })
+   })
+ })
++
++
++describe('toolbar group disclosure', () => {
++  const panel = (id: string) => document.getElementById(id) as HTMLElement
++  const toggle = (id: string) => flushSync(() => click(`${id}-toggle`))
++
++  it('opens one full panel at a time without changing the group buttons', () => {
++    const tabs = document.querySelector('.toolbar-group-tabs')!
++    const before = Array.from(tabs.children)
++    toggle('toolbar-model-tools')
++    expect(panel('toolbar-model-tools').hidden).toBe(false)
++    expect(panel('toolbar-view-tools').hidden).toBe(true)
++    toggle('toolbar-view-tools')
++    expect(panel('toolbar-model-tools').hidden).toBe(true)
++    expect(panel('toolbar-view-tools').hidden).toBe(false)
++    expect(Array.from(tabs.children)).toEqual(before)
++    expect(document.getElementById('toolbar-view-tools-toggle')?.getAttribute('aria-expanded')).toBe('true')
++    toggle('toolbar-view-tools')
++    expect(panel('toolbar-view-tools').hidden).toBe(true)
++  })
++
++  it('retains the chosen panel and input when the whole toolbar is collapsed', () => {
++    toggle('toolbar-model-tools')
++    const select = document.getElementById('rot-sel-x') as HTMLSelectElement
++    flushSync(() => {
++      select.value = 'custom'
++      select.dispatchEvent(new Event('change', { bubbles: true }))
++    })
++    const custom = document.getElementById('rot-custom-x')
++    expect(custom).not.toBeNull()
++    flushSync(() => click('toolbar-collapse-btn'))
++    expect(document.getElementById('toolbar')?.classList.contains('collapsed')).toBe(true)
++    flushSync(() => click('toolbar-collapse-btn'))
++    expect(panel('toolbar-model-tools').hidden).toBe(false)
++    expect(document.getElementById('rot-custom-x')).toBe(custom)
++  })
++})
+--- a/test/toolbarRemeasure.test.tsx
++++ b/test/toolbarRemeasure.test.tsx
+@@ -52,3 +52,17 @@
+   expect(toolbar.dataset.scrollable).toBe('true')
+   expect(Number.parseFloat(toolbar.style.height)).toBeLessThan(500)
+ })
++
++
++it('re-measures when an existing full-width tool panel is disclosed', async () => {
++  const panel = document.createElement('section')
++  panel.hidden = true
++  content.append(panel)
++  act(() => root.render(<PanelResizers />))
++  const before = measured
++  await act(async () => {
++    panel.hidden = false
++    await Promise.resolve()
++  })
++  expect(measured).toBeGreaterThan(before)
++})
+--- a/test/axisGizmoDepth.test.ts
++++ b/test/axisGizmoDepth.test.ts
+@@ -0,0 +1,62 @@
++import * as THREE from 'three'
++import { describe, expect, it } from 'vitest'
++import { drawCornerAxesGizmo, projectCornerAxes } from '../src/components/AxisGizmo'
++
++function cameraAt(x: number, y: number, z: number) {
++  const camera = new THREE.PerspectiveCamera()
++  camera.position.set(x, y, z)
++  camera.lookAt(0, 0, 0)
++  camera.updateMatrixWorld(true)
++  return camera
++}
++
++describe('corner axis camera-space depth', () => {
++  it.each([[0, 0, 5], [-4, 6, 3], [0, 0, -5]])('matches the actual camera view matrix at %s/%s/%s', (x, y, z) => {
++    const camera = cameraAt(x, y, z)
++    const axes = projectCornerAxes(camera.quaternion)
++    expect(new Set(axes.map(a => a.label)).size).toBe(6)
++    for (const axis of axes) {
++      const letter = axis.label.at(-1)
++      const world = new THREE.Vector3(letter === 'X' ? axis.sign : 0,
++        letter === 'Y' ? axis.sign : 0, letter === 'Z' ? axis.sign : 0)
++      const view = world.transformDirection(camera.matrixWorldInverse)
++      expect(axis.sx).toBeCloseTo(view.x, 12)
++      expect(axis.sy).toBeCloseTo(-view.y, 12)
++      expect(axis.depth).toBeCloseTo(view.z, 12)
++    }
++    expect(axes.map(a => a.depth)).toEqual(axes.map(a => a.depth).sort((a, b) => a - b))
++  })
++
++  it('reverses which Z direction is nearer when looking from the other side', () => {
++    const front = projectCornerAxes(cameraAt(0, 0, 5).quaternion)
++    const back = projectCornerAxes(cameraAt(0, 0, -5).quaternion)
++    expect(front.find(a => a.label === 'Z')!.depth).toBeCloseTo(1)
++    expect(back.find(a => a.label === 'Z')!.depth).toBeCloseTo(-1)
++    expect(back.find(a => a.label === '−Z')!.depth).toBeCloseTo(1)
++  })
++
++  it('puts the opaque hub between rear and front labels and uses opaque front silhouettes', () => {
++    const events: { kind: string; label?: string; width?: number; color?: string }[] = []
++    const ctx = {
++      fillStyle: '', strokeStyle: '', lineWidth: 0,
++      clearRect() {}, save() {}, restore() {}, setLineDash() {}, beginPath() {},
++      moveTo() {}, lineTo() {}, arc() {},
++      fill() { if (this.fillStyle === '#253347') events.push({ kind: 'hub' }) },
++      stroke() { events.push({ kind: 'stroke', width: this.lineWidth, color: this.strokeStyle }) },
++      fillText(label: string) { events.push({ kind: 'label', label }) },
++    }
++    const camera = cameraAt(-4, 6, 3)
++    const axes = projectCornerAxes(camera.quaternion)
++    drawCornerAxesGizmo(ctx as unknown as CanvasRenderingContext2D, camera.quaternion)
++    const hub = events.findIndex(e => e.kind === 'hub')
++    expect(hub).toBeGreaterThan(0)
++    for (const axis of axes) {
++      const label = events.findIndex(e => e.kind === 'label' && e.label === axis.label)
++      expect(label >= 0).toBe(true)
++      expect(axis.depth < 0 ? label < hub : label > hub).toBe(true)
++    }
++    const silhouettes = events.slice(hub + 1).filter(e => e.kind === 'stroke' && e.width === 6.5)
++    expect(silhouettes.length).toBe(3)
++    expect(silhouettes.every(e => e.color === '#10151d')).toBe(true)
++  })
++})

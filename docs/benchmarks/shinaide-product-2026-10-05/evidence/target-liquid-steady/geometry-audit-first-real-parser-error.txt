@@ -1,0 +1,36 @@
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/process.py", line 246, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/process.py", line 205, in _process_chunk
+    return [fn(*args) for args in chunk]
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/process.py", line 205, in <listcomp>
+    return [fn(*args) for args in chunk]
+  File "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/audit_air_mesh_geometry.py", line 196, in rank_audit
+    sets={name:cell_set(poly/"sets"/name) for name in
+  File "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/audit_air_mesh_geometry.py", line 196, in <dictcomp>
+    sets={name:cell_set(poly/"sets"/name) for name in
+  File "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/audit_air_mesh_geometry.py", line 35, in cell_set
+    if not hit:raise ValueError(f"Unsupported diagnostic set payload: {path}")
+ValueError: Unsupported diagnostic set payload: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_Liquid_Gauged_Steady5k/Mesh/processor0/constant/polyMesh/sets/lowQualityTetFaces
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/audit_air_mesh_geometry.py", line 241, in <module>
+    if __name__=="__main__":main()
+  File "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/tools/audit_air_mesh_geometry.py", line 229, in main
+    rows=list(pool.map(rank_audit,[(str(mesh),rank,args.detail_limit) for rank in ranks]))
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/process.py", line 575, in _chain_from_iterable_of_lists
+    for element in iterable:
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/_base.py", line 621, in result_iterator
+    yield _result_or_cancel(fs.pop())
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/_base.py", line 319, in _result_or_cancel
+    return fut.result(timeout)
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/_base.py", line 458, in result
+    return self.__get_result()
+  File "/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+ValueError: Unsupported diagnostic set payload: /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/cases/Shinaide_Liquid_Gauged_Steady5k/Mesh/processor0/constant/polyMesh/sets/lowQualityTetFaces

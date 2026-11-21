@@ -1,0 +1,19 @@
+{
+  "source": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/backend/liquidcooling/run_manager.py",
+  "sourceBytes": 21965,
+  "sourceSha256": "b768314ae433a5c476ac2ddff6b5545c4b8ce80cda27a43d2ba7c4d019bedafc",
+  "actualMethodLines": [
+    433,
+    443
+  ],
+  "actualMethod": "def _advance_locked(self, record: _RunRecord) -> None:\n        before = record.simulation.latest_frame[\"seq\"]\n        try:\n            record.simulation.step()\n        except Exception as exc:\n            record.status = \"failed\"\n            record.error = {\n                \"type\": type(exc).__name__,\n                \"message\": str(exc) or \"liquid simulation step failed\",\n                \"last_successful_seq\": before,\n            }",
+  "scope": "offline actual method extracted from AST; controlled exception carrier; no manager/DAE/native/API invocation",
+  "result": {
+    "status": "failed",
+    "error": {
+      "type": "RuntimeError",
+      "message": "independent controlled step exception",
+      "last_successful_seq": 1
+    }
+  }
+}
