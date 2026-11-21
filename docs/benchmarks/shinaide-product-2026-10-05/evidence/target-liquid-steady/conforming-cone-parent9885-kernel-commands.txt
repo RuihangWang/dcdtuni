@@ -1,0 +1,5 @@
+Repository-root read-only reproduction, CPU24-31, CUDA empty, one BLAS/OMP thread:
+env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 taskset -c 24-31 /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/python tools/audit_air_cone_parent_kernel.py --mesh /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/.codex-tmp/strict-stage-conforming-cones-trace-baseline/Shinaide_liquid_1d98c44a/Mesh --trace-tool docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/conforming-cone-parent9885-native/trace-probe-source.py --parent-samples docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/conforming-cone-parent9885-native/exact-parent-samples-validated.json --output docs/benchmarks/shinaide-product-2026-10-05/evidence/target-liquid-steady/conforming-cone-parent9885-kernel-audit.json
+
+Standalone closed-polygon scientific regression after any native scratch cleanup:
+python -m pytest -q -p no:cacheprovider src/backend/tests/test_audit_air_cone_parent_kernel.py

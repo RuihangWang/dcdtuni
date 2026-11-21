@@ -1,0 +1,98 @@
+{
+ "gate": "pre-billing solid identity, on archived E8 exports",
+ "archives_found": [
+  "identity",
+  "identity_air",
+  "identity_air_nocon",
+  "identity_air_r0",
+  "identity_air_r1",
+  "perm_reverse",
+  "reverse"
+ ],
+ "archives_missing": [],
+ "n_pairs": 7,
+ "n_pass": 7,
+ "pass": true,
+ "pairs": [
+  {
+   "pair": [
+    "identity_air",
+    "identity_air_r0"
+   ],
+   "expected": "identical",
+   "raised": true,
+   "pass": true,
+   "message": "arms 'identity_air' and 'identity_air_r0' exported byte-identical solids (set sha256 b5dca13e83140c62): this A/B measures one room twice",
+   "n_files": {
+    "identity_air": 19,
+    "identity_air_r0": 19
+   }
+  },
+  {
+   "pair": [
+    "identity_air",
+    "identity_air_r1"
+   ],
+   "expected": "identical",
+   "raised": true,
+   "pass": true,
+   "message": "arms 'identity_air' and 'identity_air_r1' exported byte-identical solids (set sha256 b5dca13e83140c62): this A/B measures one room twice",
+   "n_files": {
+    "identity_air": 19,
+    "identity_air_r1": 19
+   }
+  },
+  {
+   "check": "defect_4_fix_on_archive",
+   "n_solids_baffles_on": 19,
+   "n_solids_baffles_off": 17,
+   "solids_only_present_with_baffles": [
+    "merged_wall_baffle.eMesh",
+    "merged_wall_baffle.stl"
+   ],
+   "pass": true,
+   "note": "a disabled baffle is now DELETED from the project rather than flagged, so the difference reaches the exported geometry; before the fix these two arms were byte-identical"
+  },
+  {
+   "pair": [
+    "identity_air",
+    "identity_air_nocon"
+   ],
+   "expected": "different",
+   "raised": false,
+   "pass": true,
+   "n_files": 2
+  },
+  {
+   "pair": [
+    "identity_air",
+    "reverse"
+   ],
+   "expected": "different",
+   "raised": false,
+   "pass": true,
+   "n_files": 2
+  },
+  {
+   "pair": [
+    "identity_air",
+    "perm_reverse"
+   ],
+   "expected": "different",
+   "raised": false,
+   "pass": true,
+   "n_files": 2
+  },
+  {
+   "pair": [
+    "identity",
+    "identity_air"
+   ],
+   "expected": "different",
+   "raised": false,
+   "pass": true,
+   "n_files": 2
+  }
+ ],
+ "defect": "(4): a containment baffle disabled through its enabled flag never reached the geometry, so both arms of the A/B were billed a full CFD solve for the same room, and the discrimination gate in force passed it (gate3_discriminates true, field_delta_max_K 0.169 against a 0.05 floor)"
+}

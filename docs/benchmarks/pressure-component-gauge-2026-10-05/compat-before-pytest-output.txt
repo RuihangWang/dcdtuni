@@ -1,0 +1,30 @@
+.F..F.                                                                   [100%]
+=================================== FAILURES ===================================
+________ test_unbalanced_two_cell_source_across_mpi_fails_before_gauge _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-build/pytest-before-v2/test_unbalanced_two_cell_sourc0')
+
+    def test_unbalanced_two_cell_source_across_mpi_fails_before_gauge(tmp_path):
+        case=configured(tmp_path,"uniform")
+        reply=invoke(case)
+>       assert reply.returncode!=0
+E       AssertionError: assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co... for p_rgh, Initial residual = 0.5, Final residual = 0, No Iterations 2\nGAUGE_FLUX 1\nEnd\nFinalising parallel run\n').returncode
+
+src/backend/tests/test_pressure_component_compatibility.py:39: AssertionError
+________________ test_unbalanced_neumann_boundary_source_fails _________________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-build/pytest-before-v2/test_unbalanced_neumann_bounda0')
+
+    def test_unbalanced_neumann_boundary_source_fails(tmp_path):
+        case=configured(tmp_path,"none",gradient=1)
+        reply=invoke(case)
+>       assert reply.returncode!=0
+E       AssertionError: assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co... for p_rgh, Initial residual = 0.5, Final residual = 0, No Iterations 2\nGAUGE_FLUX 5\nEnd\nFinalising parallel run\n').returncode
+
+src/backend/tests/test_pressure_component_compatibility.py:53: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_compatibility.py::test_unbalanced_two_cell_source_across_mpi_fails_before_gauge
+FAILED src/backend/tests/test_pressure_component_compatibility.py::test_unbalanced_neumann_boundary_source_fails
+2 failed, 4 passed in 9.76s

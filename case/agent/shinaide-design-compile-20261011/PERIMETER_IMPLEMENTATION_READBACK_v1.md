@@ -1,0 +1,19 @@
+# Actual perimeter compilation and source repairs, 2026-10-11
+
+The root-approved six-unit perimeter task is registered in TaskSpec_training_v5.json. All six families now have actual code paths through SIX_FAMILY_INTERFACE_CATALOG_v1.json; the frozen in-row v4 registry is preserved, and the new RF family compiler v3 uses codec v6.
+
+The latest perimeter registry contains three normal projects and every single-unit outage of each family, 21 real canonical candidates. Each retains the original 14 racks, 56 liquidServer/coldplate payloads, source IT/positive airflows, CDU and original liquid-network/valve connection identities. Actual rotated poses drive production port resolution and underfloor route generation. Same-source air/STL and strict liquid inputs, native liquid graph admission and unpaid LF topology assembly pass.
+
+Source-first mock parameters: six fixed external unit UIDs, the approved body/flow/capacity/fan law and installed plant budget; 16 actual 0.6 m square source floor openings with sigma0.25, hole diameter3mm, and the existing LF Cd0.62 regularized orifice law. Sigma is bound to actual production perforated master/slave BCs. RF-HAC has a real3.6m wall-baffle false ceiling, a perforated0.8 roof connecting its hot zone to the return plenum, and six sealed four-wall ducts connecting true ACU top return ports to that plenum. These are synthetic task assumptions, with calibration and paid feasibility pending.
+
+Cause and fix: adding floor patches changed the production remaining floor solid to source-declared part names. The old transport expected a whole named floor; the new transport reads actual declared remainder identities, unique file ownership, and matching wall/porous bindings. No production or earlier frozen export code was changed. Actual top-face coordinate direction was read from the production geometry and corrected before the accepted perimeter exports.
+
+The deeper footprint check found nominally legal1.22m aisles still let tile edges intersect the production-rendered rack door projection. Original partial-gate outputs are retained. The correction moves each rack bank outward by0.1m within the same task bounds, centers cold tiles, and offsets outside HAC tiles0.1m clear of the actual equipment face. A hard intersection gate uses the frontend's actual managed floor cuts. The final21 candidates have no tile/equipment footprint overlap; room and registered rules were not altered.
+
+The independent audit re-reads candidate and manifest bytes, checks original UID payloads, every tile's actual triangle area/world center/sigma, true downward and room/duct return normals, every liquid port/route endpoint, fault geometry hash equality and actual false-ceiling material versus its macro openings. All21 pass; no liquid/air Newton, CFD, GPU or training call has been purchased in this work.
+
+Latest evidence: PERIMETER_NORMAL_FAULT_COMPILE_READBACK_v3.json; INDEPENDENT_PERIMETER_COMPILE_AUDIT_v1.json; eight regression tests in test_shinaide_perimeter_v1.py. The old failures, raw actual-export inspection and old footprint intersections remain recoverable.
+
+Next experiment: PERIMETER_NORMAL_FAULT_LF_PROPOSAL_v1.json freezes the21 candidate identities and actual all-family LF adapter sources. It proposes three normal states first, then all18 fixed single-off states; one liquid and one air attempt per point, unchanged registered gates, bounded branch/point/total time, and no CFD/GPU. It is unexecuted and requires a new root authorization. Actual accepted liquid heat auditing, rather than the explicitly unpaid1W structural fixture, supplies physical air heat.
+
+Full grammar remains visible. General row counts/UID permutations/wall assignments and additional tile-count layouts are implementation entries; the registered16-tile prototype and real continuous layout/control variables are executable. Layout path derivatives remain pending, while their full score-function design path is retained.

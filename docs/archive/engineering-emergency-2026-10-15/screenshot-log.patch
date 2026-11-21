@@ -1,0 +1,14 @@
+--- a/src/frontend/react/src/components/LogPanel.tsx
++++ b/src/frontend/react/src/components/LogPanel.tsx
+@@ -19,9 +19,9 @@
+       body: JSON.stringify({ imageData }),
+     })
+     const result = (await resp.json()) as { path?: string; error?: string }
+-    store.logOperation('captureScreenshot', result.error ?? result.path ?? 'saved')
++    store.logAction('captureScreenshot', result.error ?? result.path ?? 'saved')
+   } catch (e) {
+-    store.logOperation('captureScreenshot', e instanceof Error ? e.message : String(e))
++    store.logAction('captureScreenshot', e instanceof Error ? e.message : String(e))
+   }
+ }
+ import { useTranslation } from '../useTranslation'

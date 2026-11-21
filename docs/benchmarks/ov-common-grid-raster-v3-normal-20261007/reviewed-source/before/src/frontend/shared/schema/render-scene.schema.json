@@ -1,0 +1,419 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "dcdtuni.render-scene/v1"
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uid",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "coordinateSystem": {
+      "type": "object",
+      "properties": {
+        "upAxis": {
+          "const": "Y"
+        },
+        "metersPerUnit": {
+          "const": 1
+        },
+        "handedness": {
+          "const": "right"
+        }
+      },
+      "required": [
+        "upAxis",
+        "metersPerUnit",
+        "handedness"
+      ],
+      "additionalProperties": false
+    },
+    "primitives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "modelUid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "equipmentUid": {
+            "type": "string"
+          },
+          "displayRole": {
+            "enum": ["room-shell"]
+          },
+          "liquidPart": {
+            "enum": ["supply-manifold", "return-manifold"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "triangles",
+              "lines",
+              "points"
+            ]
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 0
+          },
+          "indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minItems": 0
+          },
+          "normals": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 0
+          },
+          "uvs": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 0
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 0
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 16,
+            "maxItems": 16
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "material": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "emissive": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "roughness": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "metalness": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "doubleSided": {
+                "type": "boolean"
+              },
+              "unlit": {
+                "type": "boolean"
+              },
+              "map": {
+                "type": "string"
+              },
+              "normalMap": {
+                "type": "string"
+              },
+              "normalScale": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "alphaTest": {
+                "type": "number",
+                "minimum": 0
+              },
+              "mapColorSpace": {
+                "enum": [
+                  "srgb",
+                  "linear"
+                ]
+              },
+              "normalColorSpace": {
+                "enum": [
+                  "srgb",
+                  "linear"
+                ]
+              },
+              "wrapS": {
+                "enum": [
+                  "repeat",
+                  "clamp",
+                  "mirror"
+                ]
+              },
+              "wrapT": {
+                "enum": [
+                  "repeat",
+                  "clamp",
+                  "mirror"
+                ]
+              },
+              "roughnessMap": {
+                "type": "string"
+              },
+              "metalnessMap": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "color",
+              "emissive",
+              "opacity",
+              "roughness",
+              "metalness",
+              "doubleSided",
+              "unlit"
+            ],
+            "additionalProperties": false
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "modelUid",
+          "name",
+          "kind",
+          "positions",
+          "indices",
+          "matrix",
+          "visible",
+          "material"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "textures": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^data:image/(png|jpeg);base64,"
+      }
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "camera": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "target": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "up": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "fov": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 180
+            },
+            "aspect": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "near": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "far": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "position",
+            "target",
+            "up",
+            "fov",
+            "aspect",
+            "near",
+            "far"
+          ],
+          "additionalProperties": false
+        },
+        "selectedUids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0
+        },
+        "timeSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "backgroundGrid": {
+          "type": "object",
+          "properties": {
+            "visible": {
+              "type": "boolean"
+            },
+            "spacingM": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 1
+            },
+            "divisions": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 4000
+            },
+            "extentM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 2002
+            },
+            "centerColor": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "lineColor": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "matrix": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 16,
+              "maxItems": 16
+            }
+          },
+          "required": [
+            "visible",
+            "spacingM",
+            "divisions",
+            "extentM",
+            "centerColor",
+            "lineColor",
+            "opacity",
+            "matrix"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "selectedUids",
+        "timeSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "schema",
+    "project",
+    "coordinateSystem",
+    "primitives",
+    "textures",
+    "view",
+    "warnings"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dcdtuni.local/schema/render-scene/v1",
+  "title": "Derived render scene, not a simulation or project file"
+}

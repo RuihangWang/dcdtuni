@@ -1,0 +1,115 @@
+# Review package: 6964e3fe..fcd1a665
+
+## Commits
+fcd1a665 fix(liquid): keep closed-valve opening gradients finite
+
+## Files changed
+ src/backend/liquidcooling/handlers/valve.py        |  9 +++-
+ .../tests/test_liquid/test_dynamic_hydraulic.py    | 52 ++++++++++++++++++++++
+ 2 files changed, 60 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/backend/liquidcooling/handlers/valve.py b/src/backend/liquidcooling/handlers/valve.py
+index fbbb6adc..047feda3 100644
+--- a/src/backend/liquidcooling/handlers/valve.py
++++ b/src/backend/liquidcooling/handlers/valve.py
+@@ -7,24 +7,31 @@ from torch import Tensor
+ 
+ from backend.liquidcooling.handlers.base import BaseHandler
+ from backend.liquidcooling.graphcompiling.compiled_graph import ValveIndices, ValveBatchParams
+ 
+ 
+ def effective_valve_kv(Kv_max: Tensor, opening: Tensor, characteristic: Tensor) -> Tensor:
+     """ISA Kv in m3/h/sqrt(bar); tensors must have broadcast-compatible shapes.
+ 
+     Positive openings use the existing characteristic (rangeability 50 for equal
+     percentage). Zero/negative opening is ideal shutoff, with no assumed leakage.
++    Its backward convention is zero for every characteristic, including the
++    quick-opening endpoint. This finite numerical subgradient is not the
++    right-hand derivative of sqrt(alpha), which is unbounded at zero.
+     """
+     alpha = opening.clamp(min=0.0)
++    # torch.where evaluates both branches: keep sqrt's inactive argument away
++    # from zero to avoid 0 * inf -> NaN in backward, then apply exact shutoff.
++    # Equality (rather than > 0) deliberately preserves NaN for diagnostics.
++    sqrt_alpha = torch.where(alpha == 0.0, torch.ones_like(alpha), alpha).sqrt()
+     kv = torch.where(characteristic == 1, Kv_max * 50.0 ** (alpha - 1.0),
+-                     torch.where(characteristic == 2, Kv_max * alpha.sqrt(), Kv_max * alpha))
++                     torch.where(characteristic == 2, Kv_max * sqrt_alpha, Kv_max * alpha))
+     return torch.where(opening <= 0.0, torch.zeros_like(kv), kv)
+ 
+ 
+ class ValveBatchHandler(BaseHandler):
+     """
+     Batch handler for control valves using the ISA valve equation.
+ 
+     Flow model (ISA):
+         Q[m³/h] = Kv * sqrt(dP[bar] / (rho / 1000))
+         m[kg/s] = sign(dP) * Q * rho / 3600
+diff --git a/src/backend/tests/test_liquid/test_dynamic_hydraulic.py b/src/backend/tests/test_liquid/test_dynamic_hydraulic.py
+index b3a74101..3663e2ce 100644
+--- a/src/backend/tests/test_liquid/test_dynamic_hydraulic.py
++++ b/src/backend/tests/test_liquid/test_dynamic_hydraulic.py
+@@ -157,10 +157,62 @@ def test_dead_end_pressure_retains_static_head_in_residual_check():
+     expected_drop = graph.fluid_rho * graph.g_mag * graph.pipe_params.dh[0]
+     assert abs(expected_drop) > 1000.
+     torch.testing.assert_close(P[0] - P[1], expected_drop.expand(graph.N_t), rtol=0, atol=1e-8)
+ 
+ 
+ def test_nonfinite_trial_residual_cannot_pass_relative_tolerance():
+     graph = _graph(opening=(1.,))
+     graph.bc_P[0] = 1e200  # finite input, but its first Newton trial overflows m²
+     _, _, info = nh.gga_solve(graph, tol=1e250, max_iter=1)
+     assert not info["converged"]
++
++
++def _valve_kv_oracle(openings, characteristic, kv_max=2.5):
++    values, gradients = [], []
++    for opening in openings:
++        if opening <= 0.:
++            value, gradient = 0., 0.  # chosen closed-endpoint backward convention
++        elif characteristic == "linear":
++            value, gradient = kv_max * opening, kv_max
++        elif characteristic == "equal_percentage":
++            value = kv_max * 50. ** (opening - 1.)
++            gradient = value * math.log(50.)
++        else:
++            value = kv_max * math.sqrt(opening)
++            gradient = kv_max / (2. * math.sqrt(opening))
++        values.append(value)
++        gradients.append(gradient)
++    return torch.tensor(values, dtype=torch.float64), torch.tensor(gradients, dtype=torch.float64)
++
++
++@pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
++def test_valve_helper_closed_opening_gradients_are_finite(characteristic):
++    from backend.liquidcooling.handlers.valve import effective_valve_kv
++    openings = [-.1, 0., 1e-12, .5, 1.]
++    graph = _graph(opening=openings, characteristic=characteristic)
++    params = graph.valve_params
++    params.opening.requires_grad_(True)
++    kv = effective_valve_kv(params.Kv_max[:, None], params.opening, params.characteristic[:, None])
++    gradient, = torch.autograd.grad(kv.sum(), params.opening)
++    expected, derivative = _valve_kv_oracle(openings, characteristic)
++    assert torch.isfinite(gradient).all()
++    torch.testing.assert_close(kv[0], expected, rtol=1e-14, atol=0.)
++    torch.testing.assert_close(gradient[0], derivative, rtol=1e-14, atol=0.)
++
++
++@pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
++def test_valve_handler_closed_opening_gradients_are_finite(characteristic):
++    from backend.liquidcooling.handlers.valve import ValveBatchHandler
++    openings = [-.1, 0., 1e-12, .5, 1.]
++    graph = _graph(opening=openings, characteristic=characteristic)
++    graph.valve_params.opening.requires_grad_(True)
++    pressure = graph.bc_P[:, None].expand(-1, graph.N_t)
++    residual = ValveBatchHandler(graph.valve_params, graph.fluid_rho).compute_residuals(
++        {"P": pressure, "m": torch.zeros(1, graph.N_t, dtype=torch.float64)},
++        graph.valve_indices, 1., 1)["momentum"]
++    gradient, = torch.autograd.grad(residual.sum(), graph.valve_params.opening)
++    kv, derivative = _valve_kv_oracle(openings, characteristic)
++    # Handler's existing ISA smoothing, with exactly one bar driving pressure.
++    isa_scale = math.sqrt(1. / (graph.fluid_rho / 1000.) + 1e-10) * graph.fluid_rho / 3600.
++    assert torch.isfinite(gradient).all()
++    torch.testing.assert_close(residual[0], -kv * isa_scale, rtol=1e-14, atol=0.)
++    torch.testing.assert_close(gradient[0], -derivative * isa_scale, rtol=1e-14, atol=0.)

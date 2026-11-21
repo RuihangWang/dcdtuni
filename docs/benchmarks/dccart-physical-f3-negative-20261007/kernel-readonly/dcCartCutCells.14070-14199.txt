@@ -1,0 +1,130 @@
+14070:         label moved=0,nonAxis=0,unsupported=0,nearExisting=0,unchanged=0,coupledSkip=0,geometryVeto=0,qualityVeto=0;
+14071:         label screenedBadParents=0,evaluatedCandidates=0,screenedQualityParents=0,qualityProposalCount=0;
+14072:         scalar maxMove=0;
+14073:         // Complete the previously tested axis/W/R pass first. Optional N
+14074:         // proposals are a later monotonic pass whose "old" geometry is the
+14075:         // actual already-selected baseline, never the initial source AP.
+14076:         for (kernelProposalPass=0;kernelProposalPass<(nonOrthogonalKernelCandidates ? 2 : 1);++kernelProposalPass)
+14077:         for (label c=0;c<oldCells;++c)
+14078:         {
+14079:             if (!marked[c]) { continue; }
+14080:             point lo(-GREAT,-GREAT,-GREAT),hi(GREAT,GREAT,GREAT);bool axisOnly=true,hasCoupled=false;
+14081:             for (label f:cf[c])
+14082:             {
+14083:                 hasCoupled=hasCoupled || coupled[f];
+14084:                 const vector a=m.owner[f]==c ? areas[f] : -areas[f];const scalar amount=mag(a);
+14085:                 label d=0;if (mag(a.y())>mag(a[d])) { d=1; }if (mag(a.z())>mag(a[d])) { d=2; }
+14086:                 for (label j=0;j<3;++j) if (j!=d && mag(a[j])>1e-12*amount) { axisOnly=false; }
+14087:                 if (!std::isfinite(amount) || amount<=VSMALL || !std::isfinite(centres[f][d])) { axisOnly=false; }
+14088:                 const scalar plane=centres[f][d];scalar scale=0;
+14089:                 for (label q:m.faces[f]) { scale=max(scale,mag(m.points[q]-centres[f])); }
+14090:                 for (label q:m.faces[f]) if (mag(m.points[q][d]-plane)>1e-10*max(scale,scalar(1e-6))) { axisOnly=false; }
+14091:                 if (a[d]>0) { hi[d]=min(hi[d],plane); }else { lo[d]=max(lo[d],plane); }
+14092:             }
+14093:             if (!axisOnly) { ++nonAxis;continue; }
+14094:             const point candidate=.5*(lo+hi);bool valid=true;
+14095:             for (label d=0;d<3;++d)
+14096:             { if (!std::isfinite(lo[d]) || !std::isfinite(hi[d]) || mag(lo[d])>=GREAT/2 || mag(hi[d])>=GREAT/2 || lo[d]>=hi[d]) { valid=false; } }
+14097:             for (label f:cf[c])
+14098:             {
+14099:                 const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+14100:                 const scalar value=(a&(centres[f]-candidate))/max(mag(a),VSMALL);
+14101:                 if (!std::isfinite(value) || value<=3e-6) { valid=false; }
+14102:             }
+14103:             if (!valid) { ++unsupported;continue; }
+14104:             const bool needsRepair=axisCandidates && !hasCoupled && hasBadPlannedDeterminant(c);
+14105:             bool needsQualityRepair=false;
+14106:             if (qualityKernelCandidates && !hasCoupled)
+14107:             {
+14108:                 const auto values=qualityValues(c,apex[c],false);
+14109:                 for (scalar v:values) if (std::isfinite(v) && v<0) { needsQualityRepair=true;break; }
+14110:                 if (needsQualityRepair) { ++screenedQualityParents; }
+14111:             }
+14112:             if (needsRepair) { ++screenedBadParents; }
+14113:             if (kernelProposalPass && !needsRepair && !needsQualityRepair) { ++unchanged;continue; }
+14114:             const scalar displacement=mag(candidate-apex[c]);
+14115:             if (displacement<=1e-12*max(mag(hi-lo),scalar(1e-6)) && !needsRepair && !needsQualityRepair) { ++unchanged;continue; }
+14116:             if (pareto && hasCoupled) { ++coupledSkip;continue; }
+14117:             auto tooNear=[&](const point& trial)
+14118:             {
+14119:                 const gridKey q=gridOf(trial);
+14120:                 for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)
+14121:                 {
+14122:                     auto bucket=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (bucket==pointGrid.end()) { continue; }
+14123:                     for (label old:bucket->second) if (magSqr(trial-m.points[old])<=9e-12) { return true; }
+14124:                 }
+14125:                 return false;
+14126:             };
+14127:             if (!pareto)
+14128:             {
+14129:                 if (tooNear(candidate)) { ++nearExisting;continue; }
+14130:                 apex[c]=candidate;++moved;maxMove=max(maxMove,displacement);continue;
+14131:             }
+14132:             const coneProfile old=profile(c,apex[c]);
+14133:             if (!old.valid) { auditCandidate(c,candidate,"geometry-refused",old,old);++geometryVeto;continue; }
+14134:             std::vector<point> proposals;
+14135:             if (!kernelProposalPass) { proposals.push_back(candidate); }
+14136:             if (needsRepair && !kernelProposalPass)
+14137:             {
+14138:                 // Fixed, bounded, geometry-normalized exploration. No mesh
+14139:                 // IDs or case coordinates; at most thirteen candidates for
+14140:                 // parents selected by the cheap actual child determinant.
+14141:                 for (label axis=0;axis<3;++axis) for (scalar fraction:{scalar(.125),scalar(.25),scalar(.75),scalar(.875)})
+14142:                 {
+14143:                     point q=candidate;q[axis]=lo[axis]+fraction*(hi[axis]-lo[axis]);proposals.push_back(q);
+14144:                 }
+14145:             }
+14146:             if (qualityKernelCandidates && (needsRepair || needsQualityRepair))
+14147:             {
+14148:                 // Pass zero is the unchanged tested W/R proposal set;
+14149:                 // pass one adds N candidates to that selected actual mesh.
+14150:                 const auto derived=qualityProposals(c,lo,hi,kernelProposalPass!=0);qualityProposalCount+=derived.size();
+14151:                 proposals.insert(proposals.end(),derived.begin(),derived.end());
+14152:             }
+14153:             point best=apex[c];coneProfile bestProfile=old,last=old;point lastPoint=candidate;
+14154:             auto bestKey=profileKey(old);bool accepted=false,anyGeometry=false;
+14155:             for (const point& trial:proposals)
+14156:             {
+14157:                 if (mag(trial-apex[c])<=1e-12*max(mag(hi-lo),scalar(1e-6)) || tooNear(trial)) { continue; }
+14158:                 bool inKernel=true;
+14159:                 for (label f:cf[c])
+14160:                 {
+14161:                     const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+14162:                     const scalar margin=(a&(centres[f]-trial))/max(mag(a),VSMALL);
+14163:                     if (!std::isfinite(margin) || margin<=3e-6) { inKernel=false;break; }
+14164:                 }
+14165:                 if (!inKernel) { continue; }++evaluatedCandidates;
+14166:                 const coneProfile next=profile(c,trial);last=next;lastPoint=trial;
+14167:                 if (!next.valid || mag(next.volume-old.volume)/max(old.volume,VSMALL)>1e-10
+14168:                  || mag(next.moment-old.moment)/(max(old.volume,VSMALL)*max(mag(hi-lo),scalar(1e-6)))>1e-10) { continue; }
+14169:                 anyGeometry=true;if (!improvesWithoutRegression(old,next)) { continue; }
+14170:                 const auto key=profileKey(next);
+14171:                 if (!accepted || key>bestKey) { best=trial;bestProfile=next;bestKey=key;accepted=true; }
+14172:             }
+14173:             if (!accepted)
+14174:             {
+14175:                 if (!anyGeometry) { auditCandidate(c,lastPoint,"geometry-refused",old,last);++geometryVeto; }
+14176:                 else { auditCandidate(c,lastPoint,"quality-refused",old,last);++qualityVeto; }continue;
+14177:             }
+14178:             auditCandidate(c,best,"selected-off-experiment",old,bestProfile);
+14179:             maxMove=max(maxMove,mag(best-apex[c]));apex[c]=best;++moved;
+14180:         }
+14181:         moved=returnReduce(moved,sumOp<label>());nonAxis=returnReduce(nonAxis,sumOp<label>());
+14182:         unsupported=returnReduce(unsupported,sumOp<label>());nearExisting=returnReduce(nearExisting,sumOp<label>());
+14183:         unchanged=returnReduce(unchanged,sumOp<label>());coupledSkip=returnReduce(coupledSkip,sumOp<label>());
+14184:         geometryVeto=returnReduce(geometryVeto,sumOp<label>());qualityVeto=returnReduce(qualityVeto,sumOp<label>());
+14185:         maxMove=returnReduce(maxMove,maxOp<scalar>());
+14186:         screenedBadParents=returnReduce(screenedBadParents,sumOp<label>());
+14187:         evaluatedCandidates=returnReduce(evaluatedCandidates,sumOp<label>());
+14188:         screenedQualityParents=returnReduce(screenedQualityParents,sumOp<label>());
+14189:         qualityProposalCount=returnReduce(qualityProposalCount,sumOp<label>());
+14190:         Info<<"Conforming axis-plane kernel centre experiment: moved "<<moved<<", non-axis "<<nonAxis
+14191:             <<", unsupported "<<unsupported<<", near old points "<<nearExisting<<", unchanged "<<unchanged
+14192:             <<", coupled skipped "<<coupledSkip<<", geometry veto "<<geometryVeto<<", Pareto veto "<<qualityVeto
+14193:             <<", screened bad parents "<<screenedBadParents<<", evaluated candidates "<<evaluatedCandidates
+14194:             <<", screened quality parents "<<screenedQualityParents<<", approximate quality-kernel proposals "<<qualityProposalCount
+14195:             <<", nonorthogonal inner-cone proposal factor "<<nonOrthogonalKernelCandidates
+14196:             <<", sequential proposal passes "<<(nonOrthogonalKernelCandidates ? 2 : 1)
+14197:             <<", max displacement "<<maxMove<<"; original bases retained; full checkMesh required"<<endl;
+14198:     }
+14199:     label added=0,decomposed=0,volumeFailures=0,edgeFailures=0;

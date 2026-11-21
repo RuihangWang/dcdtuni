@@ -1,0 +1,123 @@
+--- a/src/server/server.py
++++ b/src/server/server.py
+@@ -111,7 +111,7 @@
+ from auth_manager import AuthManager
+ 
+ AUTH_MGR: AuthManager | None = None  # Initialized in __main__
+-AUTH_COOKIE_NAME = "stlgen_session"
++AUTH_COOKIE_NAME = "stlgen_session"  # Legacy cookie, accepted only in this session store.
+ AUTH_PUBLIC_PATHS = frozenset({"/login", "/api/auth/login", "/api/auth/check", "/favicon.ico"})
+ VIEWER_POST_PATHS = frozenset({"/api/pp/init", "/api/auth/logout"})
+ 
+@@ -124,22 +124,53 @@
+     return handler.client_address[0]
+ 
+ 
++def _auth_cookie_name_for_port(port: int) -> str:
++    """Cookies share a host across ports, so namespace this HTTP instance."""
++    if isinstance(port, bool) or not isinstance(port, int) or not 0 < port <= 65535:
++        raise ValueError("Authentication requires the bound HTTP port")
++    return f"{AUTH_COOKIE_NAME}_{port}"
++
++
++def _auth_cookie_name(handler) -> str:
++    # Use the bound listener, never the request's untrusted Host header.
++    return _auth_cookie_name_for_port(handler.server.server_address[1])
++
++
++def _auth_cookies(handler) -> http.cookies.SimpleCookie | None:
++    cookies = http.cookies.SimpleCookie()
++    try:
++        cookies.load(handler.headers.get("Cookie", ""))
++    except http.cookies.CookieError:
++        return None
++    return cookies
++
++
++def _expire_auth_cookie(handler, name: str) -> None:
++    cookie = http.cookies.SimpleCookie()
++    cookie[name] = ""
++    cookie[name]["path"] = "/"
++    cookie[name]["max-age"] = "0"
++    handler.send_header("Set-Cookie", cookie[name].OutputString())
++
++
+ def _get_session(handler) -> dict | None:
+-    """Extract session token from cookie, validate via AUTH_MGR."""
++    """Prefer this HTTP instance; legacy fallback must belong to our store."""
+     if AUTH_MGR is None:
+         return None
+-    cookie_header = handler.headers.get("Cookie", "")
+-    cookies = http.cookies.SimpleCookie()
+-    try:
+-        cookies.load(cookie_header)
+-    except http.cookies.CookieError:
++    cookies = _auth_cookies(handler)
++    if cookies is None:
+         return None
+-    morsel = cookies.get(AUTH_COOKIE_NAME)
++    cookie_name = _auth_cookie_name(handler)
++    # A present invalid scoped cookie must not downgrade to a legacy session.
++    if cookie_name not in cookies:
++        cookie_name = AUTH_COOKIE_NAME
++    morsel = cookies.get(cookie_name)
+     if not morsel:
+         return None
+     session = AUTH_MGR.validate_session(morsel.value)
+     if session:
+         session["_token"] = morsel.value
++        session["_cookie_name"] = cookie_name
+     return session
+ 
+ 
+@@ -351,13 +382,20 @@
+     handler.send_header("Content-Type", "application/json")
+     handler.send_header("Content-Length", str(len(resp_body)))
+     handler.send_header("Access-Control-Allow-Origin", "*")
++    cookie_name = _auth_cookie_name(handler)
+     cookie = http.cookies.SimpleCookie()
+-    cookie[AUTH_COOKIE_NAME] = token
+-    cookie[AUTH_COOKIE_NAME]["path"] = "/"
+-    cookie[AUTH_COOKIE_NAME]["httponly"] = True
+-    cookie[AUTH_COOKIE_NAME]["samesite"] = "Lax"
+-    cookie[AUTH_COOKIE_NAME]["max-age"] = str(12 * 3600)
+-    handler.send_header("Set-Cookie", cookie[AUTH_COOKIE_NAME].OutputString())
++    cookie[cookie_name] = token
++    cookie[cookie_name]["path"] = "/"
++    cookie[cookie_name]["httponly"] = True
++    cookie[cookie_name]["samesite"] = "Lax"
++    cookie[cookie_name]["max-age"] = str(12 * 3600)
++    handler.send_header("Set-Cookie", cookie[cookie_name].OutputString())
++    cookies = _auth_cookies(handler)
++    legacy = cookies.get(AUTH_COOKIE_NAME) if cookies is not None else None
++    if legacy is not None and AUTH_MGR.validate_session(legacy.value):
++        # Remove only our old browser cookie so it cannot resurrect after logout.
++        # Another instance's legacy session must remain untouched.
++        _expire_auth_cookie(handler, AUTH_COOKIE_NAME)
+     handler.end_headers()
+     handler.wfile.write(resp_body)
+ 
+@@ -401,11 +439,9 @@
+     handler.send_header("Content-Type", "application/json")
+     handler.send_header("Content-Length", str(len(resp_body)))
+     handler.send_header("Access-Control-Allow-Origin", "*")
+-    cookie = http.cookies.SimpleCookie()
+-    cookie[AUTH_COOKIE_NAME] = ""
+-    cookie[AUTH_COOKIE_NAME]["path"] = "/"
+-    cookie[AUTH_COOKIE_NAME]["max-age"] = "0"
+-    handler.send_header("Set-Cookie", cookie[AUTH_COOKIE_NAME].OutputString())
++    _expire_auth_cookie(handler, _auth_cookie_name(handler))
++    if session and session["_cookie_name"] == AUTH_COOKIE_NAME:
++        _expire_auth_cookie(handler, AUTH_COOKIE_NAME)
+     handler.end_headers()
+     handler.wfile.write(resp_body)
+ 
+@@ -1653,7 +1689,7 @@
+         try:
+             token = AUTH_MGR.create_session("admin", "admin", "127.0.0.1")
+             context.add_cookies([{
+-                "name": AUTH_COOKIE_NAME,
++                "name": _auth_cookie_name_for_port(urlparse(page_url).port),
+                 "value": token,
+                 "domain": "127.0.0.1",
+                 "path": "/",

@@ -1,0 +1,23 @@
+# Ordinary liquid-control primary evidence review
+
+Source/evidence-only GO for preserved first-order ordinary pump and first-valve control experiments: 2s fixed-state window and full20s/11 samples. No product fix, new solver run, test/build, browser, API, service, GPU or normal mutation occurred here.
+
+Both frozen manifests FULL rehash 0 differences (73 + 91 payload). Current original pre/import guards remain byte-identical: local2s 59 records/53 unique paths; full20s 96 records/58 unique paths. The original transient browser six artifacts exactly match full20s actual/ copies. Main/IT root AGENTS were read; no more-specific src/backend/liquidcooling/AGENTS.md exists. Historical AGENTS deployment snapshots are not a present deployment claim.
+
+Actual GUI graph:229 nodes/286 edges,56 CP/14 valves/1 pump/1 HX,1693 states/950 differential. Parameter pack is explicitly mock-1-dae-v3. No manufactured benchmark or compensation sources. Mock coefficients do not validate vendor/empirical physics.
+
+The source path is DAEExperiment(admitted original) -> public set_inputs -> ten step() calls -> tensor_series mean56solid(t20) -> first-order autograd. Held controls .95 pump/.9 first valve and heat1.2/Tin294.15 start at seq1 accepted right endpoint t2; t0 physical initialization stays fixed. Commands queue BEFORE the first step, not after its output. All11 complete5086 vectors match the worker's public accepted-manifest parameter comparison. This review independently checks every command slice and all12 FD variants change only their chosen scalar row at samples1..10; initial state and theta are bit-identical.
+
+API source:dae_experiment.py159-183 retains tensors through validation;220-236 uses index_copy/stack;245-264 passes previous state and retains next_state without detach;97-98 stacks states. dae_newton.py619-630 passes previous as an explicit differentiated root parameter;514-556 computes implicit first-order backward with the original adjoint residual gate. Numerical iteration/presentation detach does not sever that physical-history path. once_differentiable excludes second-order support.
+
+Full20s AD pump=-1.6862274888890811 K/ratio and valve=-.11884330479895297 K/opening are nonzero. Saved-state finest h1e-4 FD passes the unchanged relative<=1e-4 OR absolute<=1e-8 gate for both. This replay uses author |AD| normalization and separately records Root-v1 max(|FD|,|AD|) normalization. NumPy/Torch reductions differ by one objective ULP for two coarser valve counterfactuals; all differences remain visible, not rewritten. No gate conclusion relies on changing denominators.
+
+Pure NumPy reconstruction checks130 dynamic roots: incidence mass, all56 CP energy, both HX volumes, storage/rejection/boundary total energy and node enthalpy. It imports no backend or Torch, calls no production residual/diagnostics or solver. Original dynamic absolute1e-6W balance passes. Actual t0 ~1.902146e-6W remains outside that dynamic absolute criterion but inside original heat-scaled ~.0021001W gate; no threshold or classification changes.
+
+Seven saved state classes (including reconstructed pressure) newly bind all11 browser samples bit-exact. Original eighth outlet-class bit comparison and original all8/checkpoint-v3 replay are source-audited primary facts; no new expm1 bit-exact outlet arithmetic claim is made. ROOT already ran arithmetic from these raw arrays at root-full20s-independent-numpy-proof-20261006 and independently FD-read them at liquid-ordinary-full20s-root-review-20261007. This packet is another offline/source review, not another solver experiment.
+
+The local2s late dynamic-initializer helper has only post-discovery identity, while full20s includes it before compute. The2s gap is not upgraded. Original worker-v1 missing-raw checkpoint harness error remains preserved and is not a product RED. This review's v1 pure arithmetic reached all assertions but JSON serialization failed on numpy.bool_; full stderr/status/source remain. V2 only casts that output boolean to builtin bool, with no formula change; this instrumentation fix is not a model fix.
+
+Pending:180s ordinary trajectory AD/FD; GPU ordinary parity; all14 valve gradients; arbitrary event/closed-valve/topology regimes; second derivatives; empirical calibration; coarse fullMMS HX-secondary/whole-Linf acceptance. Ordinary fine-control evidence cannot erase old MMS RED or upgrade display/CFD acceptance.
+
+REVIEW_OFFLINE_v2.py is the final portable offline reader; original REVIEW_OFFLINE.py and failure are immutable evidence. Scripts reference exact existing frozen packets/current declared guards; no solver commands. Full9.3MB RESULT/NPZ are external references, not copied/nested. Only new own evidence files were written.

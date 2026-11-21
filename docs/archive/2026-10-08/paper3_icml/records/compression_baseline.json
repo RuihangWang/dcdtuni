@@ -1,0 +1,82 @@
+{
+ "before": "1f95b4a8",
+ "reason": "the revision before round 4's body edits, which brought the body back inside nine pages by removing duplication rather than measurements.  Advance this explicitly, in the commit that compresses, so the comparison is always against the last state a reader was shown.",
+ "allows": {
+  "64": {
+   "reason": "the withdrawn claim 'at every thread count from 1 to 64' appeared twice and no script performs a thread sweep; the number left because the measurement never existed, not because it was compressed away",
+   "pinned": 1,
+   "head": 0
+  },
+  "20": {
+   "reason": "section 7's 'Four change what a reader should believe' became 'Six', and the detail it introduced is narrated in Appendix D; the row references (20) and (21) survive",
+   "pinned": 0,
+   "head": 0
+  },
+  "6": {
+   "reason": "the same sentence: 'Four change' became 'Six change', and the enumerated list that followed it moved to Appendix D",
+   "pinned": 0,
+   "head": 0
+  },
+  "0.0": {
+   "reason": "a duplicate statement of the same zero was removed with the paragraph that carried it; the measurement is still stated once",
+   "pinned": 1,
+   "head": 0
+  },
+  "1.3": {
+   "reason": "the mechanism sentence's arithmetic was replaced, not compressed: it claimed a single penalty in a group of eight would put the group mean near 1.3e8, and the arm's own log shows the group is 32 samples per step, so the correct figure is 3.1e7 and the observed maximum pathwise objective is 1.9e5. Both the 1.3 and the 8 in 10^8 left with that sentence; the corrected arithmetic (32, 3.1e7, 1.9e5, 165x) is in the document and is gated by measure_e12.py",
+   "pinned": 0,
+   "head": 0
+  },
+  "8": {
+   "reason": "E17's E11b matched-incumbent contrast was stated twice in the body -- at the end of sec:search's first paragraph and in contribution (iv) -- and the body is at its nine-page limit, so the sec:search duplicate left and that paragraph now points at app:e17. The value survives in tab:e17a and in contribution (iv), and measure_e17.py pins both to ddl/case/benchB/E17_block_attribution/tracked/results_e17.json.",
+   "pinned": 0,
+   "head": 1
+  },
+  "72": {
+   "reason": "the air oracle's upper bound was prose-carried and unsupported: the 42 archived E8 evaluations run 46.0-75.6 s, so 72 left when the measured 76 replaced it. The range is now gated against records/oracle_costs.json by measure_costs.py",
+   "pinned": 3,
+   "head": 0
+  },
+  "10": {
+   "reason": "'~10 ms per solve with gradient' conflated two different prices. Measured over 5 repeats: 8.4 ms forward-only and 14 ms with gradient. Both are now stated, and the conflation had flattered the cost ratio the paper is framed on",
+   "pinned": 0,
+   "head": 0
+  },
+  "7": {
+   "reason": "E17's E11b matched-incumbent contrast was stated twice in the body -- at the end of sec:search's first paragraph and in contribution (iv) -- and the body is at its nine-page limit, so the sec:search duplicate left and that paragraph now points at app:e17. The value survives in tab:e17a and in contribution (iv), and measure_e17.py pins both to ddl/case/benchB/E17_block_attribution/tracked/results_e17.json.",
+   "pinned": 0,
+   "head": 1
+  },
+  "4": {
+   "reason": "the abstract's 4x budget penalty was cut with the same restatement; the ratio remains in the body summary and in app:search, gated by measure_e15.py, and its wall-clock equivalent (51x against a count of 85x) is now in app:agent and gated by measure_costs.py",
+   "pinned": 0,
+   "head": 0
+  },
+  "197": {
+   "reason": "N8: the appendix printed `63 degenerate-gradient steps of 197` from a record-level filter, two sentences after citing the V0 audit's 15 of 200. The live grpo_s0 log has 202 step-bearing lines, 201 distinct step values (step 1 is emitted twice) and `task_grad_degenerate` truthy on 65 distinct steps. 197 was that filter's denominator (202 minus 5 eval payloads); the record now counts distinct training steps, which is the population the run was configured for and the one records/e12_v0_audit.json uses, and both counts are named in the record. measure_v0.py cross-checks the two records against each other so a third extractor cannot re-split them.",
+   "pinned": 0,
+   "head": 0
+  },
+  "63": {
+   "reason": "N8: the undercounting degenerate-step count. Two of the 65 degenerate steps ride on a record that also carries an eval payload, so the non-eval filter dropped them. Replaced by 65 over 200, gated against records/e12_agent_result.json by measure_e12.py and cross-checked against records/e12_v0_audit.json by measure_v0.py.",
+   "pinned": 0,
+   "head": 0
+  },
+  "2.3": {
+   "reason": "N2: `$2.3\\times10^4$`, E12d's EMA normaliser value, was prose-carried from Amendment 30.9's six-step snapshot of a run still in flight. No tracked artifact held it, and the sci-value gate certified it against two unrelated leaves -- another arm's `J_excess_median` 22768 and, worse, a manifest's recorded FILE LENGTH of 23299 bytes. Withdrawn until E12d lands and its record is gated; the sentence now says so.",
+   "pinned": 0,
+   "head": 0
+  },
+  "30.9": {
+   "reason": "N2: the `(Amendment 30.9)` citation left with the prose-carried normaliser value it was the only source for. The amendment itself is unchanged and still records the snapshot and its own doubt; the manuscript no longer quotes a number from it.",
+   "pinned": 0,
+   "head": 0
+  },
+  "0.0352": {
+   "reason": "E17's E11b matched-incumbent contrast was stated twice in the body -- at the end of sec:search's first paragraph and in contribution (iv) -- and the body is at its nine-page limit, so the sec:search duplicate left and that paragraph now points at app:e17. The value survives in tab:e17a and in contribution (iv), and measure_e17.py pins both to ddl/case/benchB/E17_block_attribution/tracked/results_e17.json.",
+   "pinned": 0,
+   "head": 1
+  }
+ },
+ "bounds_are_measured": "Every 'pinned' and 'head' count was measured by migrate_baseline.py against baseline 1f95b4a8 and HEAD 37993274, not typed. 'pinned' is exact: a loss above it fails, and so does a loss below it, because an unused bound is a licence. 'head' is a maximum, because HEAD moves. A bound of 0 on both is a guard, not an exemption."
+}

@@ -1,0 +1,168 @@
+{
+  "format": "air-collinear-point-audit-receipt/v1",
+  "status": "read-only-candidate-evidence-not-mesh-acceptance",
+  "totals": {
+    "localBadFaces": 32,
+    "uniqueLocalCandidateInputPoints": 235,
+    "allIncidentCollinearPoints": 57,
+    "coupledVetoedPoints": 0,
+    "conservativeLocalCandidatePoints": 57,
+    "badFacesWithCandidatePoint": 32
+  },
+  "differentNeighborIdPairCountHistogram": {
+    "1": 57
+  },
+  "candidateIncidentFaceCounts": [
+    3,
+    4
+  ],
+  "maximumCandidateLineDistanceM": 6.269678786557333e-17,
+  "mixedPhysicalPatchNameCandidatePoints": 2,
+  "betweenFractionRange": [
+    0.05878581542968675,
+    0.9412141845703133
+  ],
+  "actualSample": {
+    "point": 203877,
+    "coordinates": [
+      1.54515,
+      2.802500009536743,
+      1.6150046875
+    ],
+    "incidentFaceCount": 3,
+    "allIncidentPolygonsCollinearBetween": true,
+    "touchesCoupledPatch": false,
+    "conservativeLocalCandidate": true,
+    "incidentFaces": [
+      {
+        "verticesBefore": 6,
+        "verticesAfter": 5,
+        "betweenFraction": 0.5391298319150699,
+        "distanceFromNeighbourLineM": 0.0,
+        "auditToleranceM": 1e-10,
+        "geometricallyRedundantHere": true,
+        "coupledVeto": false,
+        "previousPoint": [
+          1.54515,
+          2.811111111,
+          1.6150046875
+        ],
+        "nextPoint": [
+          1.54515,
+          2.7951388888125,
+          1.6150046875
+        ],
+        "patch": null,
+        "face": 442843,
+        "vertexIds": [
+          108134,
+          108135,
+          108136,
+          203875,
+          203877,
+          203868
+        ],
+        "owner": 138818,
+        "neighbour": 471422
+      },
+      {
+        "verticesBefore": 8,
+        "verticesAfter": 7,
+        "betweenFraction": 0.5391298319150699,
+        "distanceFromNeighbourLineM": 0.0,
+        "auditToleranceM": 1e-10,
+        "geometricallyRedundantHere": true,
+        "coupledVeto": false,
+        "previousPoint": [
+          1.54515,
+          2.811111111,
+          1.6150046875
+        ],
+        "nextPoint": [
+          1.54515,
+          2.7951388888125,
+          1.6150046875
+        ],
+        "patch": {
+          "name": "Rack_B_01_frame",
+          "type": "wall"
+        },
+        "face": 1458724,
+        "vertexIds": [
+          203868,
+          565480,
+          565579,
+          235722,
+          207218,
+          207219,
+          203875,
+          203877
+        ],
+        "owner": 471422,
+        "neighbour": null
+      },
+      {
+        "verticesBefore": 6,
+        "verticesAfter": 5,
+        "betweenFraction": 0.46087016808493003,
+        "distanceFromNeighbourLineM": 0.0,
+        "auditToleranceM": 1e-10,
+        "geometricallyRedundantHere": true,
+        "coupledVeto": false,
+        "previousPoint": [
+          1.54515,
+          2.7951388888125,
+          1.6150046875
+        ],
+        "nextPoint": [
+          1.54515,
+          2.811111111,
+          1.6150046875
+        ],
+        "patch": {
+          "name": "Rack_B_01_frame",
+          "type": "wall"
+        },
+        "face": 1459922,
+        "vertexIds": [
+          202278,
+          203868,
+          203877,
+          203875,
+          202298,
+          203876
+        ],
+        "owner": 138818,
+        "neighbour": null
+      }
+    ]
+  },
+  "definition": "Every original point incidence, including faces outside the bad set, must be between-collinear and leave >=3 vertices; any coupled patch incidence vetoes the point. Each candidate here additionally has one identical unordered neighbor-ID pair across all incidences.",
+  "limits": [
+    "Does not modify faces, points, cell incidence, patch names or zones.",
+    "Several adjacent point candidates cannot be deleted simultaneously using only single-point eligibility; each resulting polygon needs >=3 distinct vertices, orientation, area, closure and incidence checks.",
+    "A surviving bad-face fan can still be degenerate, nonconvex or have bad tets; full unchanged strict API gate is required after any actual repair.",
+    "Coupled points are excluded; remote equality and MPI face consistency are not inferred.",
+    "Two points touch different physical patch names; any future native cleanup must preserve each face patch identity and update all point references/zone mappings consistently."
+  ],
+  "tests": "4 passed in 0.22s",
+  "sourceSha256": {
+    "tools/audit_air_collinear_points.py": "1c4477c204fc86e27d222be852aa49f4b793efd1ff5b040d233593eb920ad423",
+    "src/backend/tests/test_audit_air_collinear_points.py": "77094155fb349cd6bd60e735367d9f2e4e9069c5a28ed6466ad94101e7b47f08",
+    "tools/audit_air_mesh_geometry.py": "9f973fa74084aa0f007958666dfae61dcb990e4c6d430c1db0f5a13a8464fec6"
+  },
+  "files": {
+    "target-bad-tet-collinear-audit.json": {
+      "bytes": 1531889,
+      "sha256": "dd3b88af0c179f220cbedc4fa8334b98075c62a04865a1dfcff51f1aeca92619"
+    },
+    "collinear-audit-pytest-output.txt": {
+      "bytes": 98,
+      "sha256": "44178be163015033384cffd8b0f0ec02d28cb6648af3d8dbe3121b41f45ca4aa"
+    },
+    "target-bad-tet-collinear-progress.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

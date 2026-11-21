@@ -1,0 +1,60 @@
+{
+  "scope": "ordinary cyclic/processor scalar pressure Laplacian, static mesh; compatibility gate before adding a gauge",
+  "proof": "Each free connected component has zero column sum in the conservative linear Laplacian. Necessary solvability is sum(raw source + noncoupled boundary source)=0. A gauge cannot repair nonzero sum.",
+  "actualScalarAssembly": "installed-matrix-v2412/fvScalarMatrix.C:210-214 adds boundary diagonal and addBoundarySource(totalSource,false).",
+  "unsupportedAffineCoupling": "jumpCyclicFvPatchFields.C original-psi interface term includes +/- jump outside raw source; jump/custom fields now fail closed before any RHS claim",
+  "precision": "Compensated local summation; component lists globally reduced across MPI; abs(sum)<=64*SMALL*sumAbs of original raw and noncoupled boundary terms; nonfinite fails; no mesh-size or physical residualControl relaxation.",
+  "skip": "Boundary-anchored components receive neither compatibility check nor pressure shift/reference.",
+  "baseline": {
+    "pytest": "compat-before-pytest-output.txt",
+    "result": "2 failed, 4 passed in 9.76s",
+    "defects": [
+      "unbalanced multi-cell body source previously gauged and solved",
+      "unbalanced deferred Neumann boundary source previously gauged and solved"
+    ],
+    "collectionDevelopmentError": "compat-collection-error-pytest-output.txt"
+  },
+  "accepted": {
+    "pytest": "compat-final-pytest-output.txt",
+    "result": "38 passed in 36.40s",
+    "newTests": 7,
+    "numericalTests": 25,
+    "resolverTests": 13,
+    "newCoverage": [
+      "balanced two-cell source split across two ranks yields p=[5,6]",
+      "unbalanced multi-cell source rejects before result write",
+      "Neumann boundary source plus raw source balances",
+      "5+1e-14 relative cancellation permitted",
+      "unbalanced Neumann boundary source rejects",
+      "anchored-region source does not trigger free-region gate",
+      "valid fixedJump field rejected before affine-source claim"
+    ]
+  },
+  "sourceSha256": {
+    "src/backend/aircooling/third_parties/foam/src/lib/pressureComponents/pressureComponentReferences.H": "c84526ed49e03dbdcd4058f9df8a59e893987329cd170c38796f8d1d2f7a72ac",
+    "src/backend/tests/pressure_component_kernel/pressureComponentKernel.C": "6874c33eae04d9da9c47e6a1f2774d7d40ac7f3f469ae2c43f4f267f38732ca2",
+    "src/backend/tests/test_pressure_component_compatibility.py": "52660a403344a23966193b8c4d01ed7a9dbc4aba09b37a91c045293f2b9caeb6",
+    "tools/verify_pressure_component_gauges.sh": "2b8b2e78daebaf79e18653d4d6b07ddb5b8d26dbb53b3efe85c4052bd7322b1b"
+  },
+  "executables": {
+    "buoyantBoussinesqPimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqPimpleFoam_new",
+      "sha256": "adeb87b9921c05bb29218c2f66ae755e905519d101e43039527c3a172041eeeb"
+    },
+    "pressureComponentKernel": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-build/platforms/linux64GccDPInt32Opt/bin/pressureComponentKernel",
+      "sha256": "2f5dd093fcda27a4b7b3aa13f48553ecf20407aadcc46a5d6745b27294c627da"
+    },
+    "buoyantBoussinesqSimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqSimpleFoam_new",
+      "sha256": "2fead418ef3da69927c12c2d117249451a0e98ed1c4761fb4a652ce0ebc8df1b"
+    }
+  },
+  "raw": {
+    "path": "compat-raw.json",
+    "sha256": "a72478fb6e8ab0a7174dfd15c00b6a45b46df51dfa6af83f156761c438938b07",
+    "beforeFiles": 30,
+    "acceptedFiles": 107
+  },
+  "activeProductionBinaries": "066b SIMPLE and bf09 PIMPLE binaries and all active run inputs remained unchanged by these isolated builds"
+}

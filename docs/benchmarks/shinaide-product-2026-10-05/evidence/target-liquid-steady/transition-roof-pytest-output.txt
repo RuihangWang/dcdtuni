@@ -1,0 +1,157 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_exact_fixture_two_rank_full_checker_diagnostic ______________
+
+original_air = <module 'air_roof_original' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/tools/air_transition_roof_probe.py'>
+
+    @pytest.mark.skipif(os.environ.get("DCDTUNI_ROOF_CHECKER_DIAGNOSTIC")!="1",reason="isolated checker diagnostic not enabled")
+    def test_exact_fixture_two_rank_full_checker_diagnostic(original_air):
+        case=Path(os.environ["DCDTUNI_ROOF_DIAG_CASE"]).resolve()
+        assert "/dcdtuni/" in str(case) and ".codex-tmp" in str(case)
+        before={p.name:module.sha(p) for p in (case/"constant/polyMesh").iterdir() if p.is_file()}
+        env=dict(os.environ,OMP_NUM_THREADS="1",OPENBLAS_NUM_THREADS="1",CUDA_VISIBLE_DEVICES="")
+        completed=subprocess.run(["decomposePar","-force","-no-fields","-case",str(case)],env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=60)
+        (case/"log.decomposePar").write_text(completed.stdout)
+        assert completed.returncode==0,completed.stdout
+        completed=subprocess.run(["mpirun","-np","2","taskset","-c","24-27","checkMesh","-constant","-allTopology","-allGeometry","-parallel","-case",str(case)],env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=90)
+        (case/"log.checkMesh").write_text(completed.stdout)
+        assert completed.returncode==0,completed.stdout
+>       assert "Mesh OK." in completed.stdout and "Failed " not in completed.stdout,completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : checkMesh -constant -allTopology -allGeometry -parallel -case /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/roof-transition-diagnostic
+E         Date   : Oct 04 2026
+E         Time   : 21:15:00
+E         Host   : 40901
+E         PID    : 1940101
+E         I/O    : uncollated
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/roof-transition-diagnostic
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = constant
+E         
+E         Check mesh...
+E             Enabling all (cell, face, edge, point) topology checks.
+E             Enabling all geometry checks.
+E         
+E         Time = constant
+E         
+E         Mesh stats 
+E             points:           31
+E             internal points:  0
+E             edges:            53
+E             internal edges:   1
+E             internal edges using one boundary point:   0
+E             internal edges using two boundary points:  1
+E             faces:            29
+E             internal faces:   4
+E             cells:            5
+E             faces per cell:   6.6
+E             boundary patches: 1 (2 2)
+E             point zones:      0
+E             face zones:       0
+E             cell zones:       0
+E         
+E         Overall number of cells of each type:
+E             hexahedra:     4
+E             prisms:        0
+E             wedges:        0
+E             pyramids:      0
+E             tet wedges:    0
+E             tetrahedra:    0
+E             polyhedra:     1
+E             Breakdown of polyhedra by number of faces:
+E                 faces   number of cells
+E                     9   1
+E         
+E         Checking topology...
+E             Boundary definition OK.
+E             Cell to face addressing OK.
+E             Point usage OK.
+E             Upper triangular ordering OK.
+E             Face vertices OK.
+E             Topological cell zip-up check OK.
+E             Face-face connectivity OK.
+E             Number of regions: 1 (OK).
+E         
+E         Checking patch topology for multiply connected surfaces...
+E                            Patch    Faces   Points  Surface topology  Bounding box
+E                            walls       17       29      ok (closed singly connected) (0 0 0) (1.5 1 1)
+E                             ".*"       17       29      ok (closed singly connected) (0 0 0) (1.5 1 1)
+E         
+E         
+E         Checking faceZone topology for multiply connected surfaces...
+E             No faceZones found.
+E         
+E         Checking basic cellZone addressing...
+E             No cellZones found.
+E         
+E         Checking basic pointZone addressing...
+E             No pointZones found.
+E         
+E         Checking geometry...
+E             Overall domain bounding box (0 0 0) (1.5 1 1)
+E             Mesh has 3 geometric (non-empty/wedge) directions (1 1 1)
+E             Mesh has 3 solution (non-empty) directions (1 1 1)
+E             Boundary openness (0 0 0) OK.
+E             Max cell openness = 0 OK.
+E             Max aspect ratio = 1.00038 OK.
+E             Minimum face area = 0.249812. Maximum face area = 1.00012.  Face area magnitudes OK.
+E             Min volume = 0.124937. Max volume = 1.00025.  Total volume = 1.5.  Cell volumes OK.
+E             Mesh non-orthogonality Max: 25.2007 average: 17.7472
+E             Non-orthogonality check OK.
+E             Face pyramids OK.
+E             Max skewness = 0.333 OK.
+E             Coupled point location match (average 0) OK.
+E             Face tets OK.
+E             Min/max edge length = 0.4995 1 OK.
+E             All angles in faces OK.
+E             Face flatness (1 = flat, 0 = butterfly) : min = 1  average = 1
+E             All face flatness OK.
+E             Cell determinant (wellposedness) : minimum: 4.99999e-13 average: 0.0999999
+E          ***Cells with small determinant (< 0.001) found, number of cells: 1
+E           <<Writing 1 under-determined cells to set underdeterminedCells
+E             Concave cell check OK.
+E             Face interpolation weight : minimum: 0.333056 average: 0.416528
+E             Face interpolation weight check OK.
+E             Face volume ratio : minimum: 0.124906 average: 0.562453
+E             Face volume ratio check OK.
+E         
+E         Failed 1 mesh checks.
+E         
+E         End
+E         
+E         Finalising parallel run
+E         
+E       assert ('Mesh OK.' in '/*---------------------------------------------------------------------------*\\\n| =========                 |      ...124906 average: 0.562453\n    Face volume ratio check OK.\n\nFailed 1 mesh checks.\n\nEnd\n\nFinalising parallel run\n')
+E        +  where '/*---------------------------------------------------------------------------*\\\n| =========                 |      ...124906 average: 0.562453\n    Face volume ratio check OK.\n\nFailed 1 mesh checks.\n\nEnd\n\nFinalising parallel run\n' = CompletedProcess(args=['mpirun', '-np', '2', 'taskset', '-c', '24-27', 'checkMesh', '-constant', '-allTopology', '-all...24906 average: 0.562453\n    Face volume ratio check OK.\n\nFailed 1 mesh checks.\n\nEnd\n\nFinalising parallel run\n').stdout
+
+src/backend/tests/test_air_transition_roof_audit.py:51: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_air_transition_roof_audit.py::test_exact_fixture_two_rank_full_checker_diagnostic
+1 failed, 3 passed in 1.64s

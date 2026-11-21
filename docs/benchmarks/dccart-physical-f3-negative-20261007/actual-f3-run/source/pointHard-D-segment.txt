@@ -1,0 +1,17 @@
+27:inline bool pointHard(const O::Values& old,const O::Values& next,Statistics& s)
+28:{
+29:    s=Statistics();
+30:    if(old.refusal!=O::Refusal::none||next.refusal!=O::Refusal::none
+31:      ||old.cells.size()!=next.cells.size()||old.metrics.size()!=next.metrics.size()
+32:      ||old.determinant.size()!=next.determinant.size())return false;
+33:    for(const auto& row:old.determinant)
+34:    {
+35:        auto p=next.determinant.find(row.first);
+36:        if(p==next.determinant.end()||!O::finite(row.second)||row.second<0
+37:          ||!O::finite(p->second)||p->second<0)return false;
+38:        if(row.second>=.001&&p->second<.001)return false;
+39:        if(row.second<.001){++s.oldD;s.oldDWorst=max(s.oldDWorst,W::severity(row.second,0));}
+40:        if(p->second<.001){++s.newD;s.newDWorst=max(s.newDWorst,W::severity(p->second,0));}
+41:    }
+42:    if(s.newD>=s.oldD||s.newDWorst>s.oldDWorst)return false;
+43:    for(const auto& row:old.metrics)

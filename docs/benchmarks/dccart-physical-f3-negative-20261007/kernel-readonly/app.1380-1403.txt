@@ -1,0 +1,24 @@
+1380:     // Fixed all-rank agreement before either cutCells mode branch.
+1381:     const char* earliestPhysicalFlag = getenv("DCCART_EARLIEST_PHYSICAL_POINT_REPAIR");
+1382:     const bool earliestPhysicalRequested = earliestPhysicalFlag
+1383:         && std::string(earliestPhysicalFlag) == "1";
+1384:     label earliestPhysicalSetup = 0;
+1385:     if (earliestPhysicalRequested)
+1386:     {
+1387:         const char* earliestWeight = getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
+1388:         const char* earliestContext = getenv("DCCART_COMPLETE_CAVITY_CONTEXT");
+1389:         const char* earliestRepair = getenv("DCCART_COMPLETE_CAVITY_REPAIR");
+1390:         earliestPhysicalSetup = 1
+1391:             + 2*label(getenv("DCCART_CONFORMING_CONES") != nullptr)
+1392:             + 4*label(getenv("DCCART_CONE_LITERAL_UNIONS") != nullptr)
+1393:             + 8*label(getenv("DCCART_CONE_SAME_PHYSICAL_ROLE") != nullptr)
+1394:             + 16*label(earliestWeight && std::string(earliestWeight) == "1")
+1395:             + 32*label(earliestContext && std::string(earliestContext) == "1")
+1396:             + 64*label(earliestRepair && std::string(earliestRepair) == "1")
+1397:             + 128*label(cutCells);
+1398:     }
+1399:     const label earliestPhysicalMin = returnReduce(earliestPhysicalSetup,minOp<label>());
+1400:     const label earliestPhysicalMax = returnReduce(earliestPhysicalSetup,maxOp<label>());
+1401:     if (earliestPhysicalMin != earliestPhysicalMax
+1402:      || (earliestPhysicalMax != 0 && earliestPhysicalMax != 255))
+1403:     {

@@ -1,0 +1,22 @@
+--- original/harness/cpu_usd_grid.py
++++ normal-path-bound/harness/cpu_usd_grid.py
+@@ -2,7 +2,7 @@
+ import asyncio,copy,hashlib,importlib.util,json,math,sys,types,weakref
+ from pxr import Gf,Sdf,Usd,UsdGeom,Tf,CameraUtil
+ T=Path(__file__).resolve().parents[1]
+-D=T/'candidate/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge'
++D=Path('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge')
+ pkg=types.ModuleType('controlled_bridge');pkg.__path__=[str(D)];sys.modules[pkg.__name__]=pkg
+ from controlled_bridge import render_scene as r,grid_raster as g,grid_viewport as p
+ fixture=json.loads((T/'harness/canonical-grid.json').read_text());grid=fixture['view'];three=json.loads((T/'harness/actual-three-projections.json').read_text())
+--- original/diagnostic-harness/tests/native_runtime.py
++++ normal-path-bound/diagnostic-harness/tests/native_runtime.py
+@@ -2,7 +2,7 @@
+ import copy,hashlib,importlib,importlib.util,json,math,sys,types,weakref
+ from pxr import Gf,Usd,UsdGeom,UsdShade,Sdf,CameraUtil
+ D=Path(__file__).resolve().parents[1]
+-BR=D/'runtime/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge'
++BR=Path('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge')
+ for name in ['omni','omni.ext','omni.usd','omni.kit','omni.kit.app','omni.appwindow','omni.kit.viewport','omni.kit.viewport.utility','carb','carb.events','carb.eventdispatcher','carb.settings']:
+  m=types.ModuleType(name);m.__path__=[];sys.modules[name]=m
+  if '.' in name:setattr(sys.modules[name.rsplit('.',1)[0]],name.rsplit('.',1)[1],m)

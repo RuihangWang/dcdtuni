@@ -1,0 +1,59 @@
+........................................................................ [ 26%]
+........................................................................ [ 52%]
+........................................................................ [ 78%]
+...F........................................................             [100%]
+=================================== FAILURES ===================================
+_ test_invalid_pack_binding_is_rejected_before_solving[mismatch-profile type] __
+
+change = 'mismatch', message = 'profile type'
+
+    @pytest.mark.parametrize("change, message", [
+        ("unknown", "unknown parameter profile"),
+        ("mismatch", "profile type"),
+        ("absent", "parameter_pack is required"),
+        ("units", "units"),
+        ("nan", "finite"),
+    ])
+    def test_invalid_pack_binding_is_rejected_before_solving(change, message):
+        raw = manifest()
+        if change == "unknown": raw["edges"][0]["parameter_ref"] = "missing"
+        if change == "mismatch":
+            raw["parameter_pack"]["profiles"]["pipe-a"] = {
+                "type": "pump", "params": {"H0_m": 6.0}, "units": {"H0_m": "m"},
+            }
+        if change == "absent": del raw["parameter_pack"]
+>       if change == "units": del raw["parameter_pack"]["profiles"]["pipe-a"]["units"]["D_m"]
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for LiquidrunConfig
+E       profiles.pipe-a
+E         Value error, unsupported parameter for pump: ['D_m', 'roughness_m'] [type=value_error, input_value={'type': 'pump', 'params'...m', 'roughness_m': 'm'}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+src/backend/tests/test_liquid/test_parameter_pack.py:81: ValidationError
+
+During handling of the above exception, another exception occurred:
+
+change = 'mismatch', message = 'profile type'
+
+    @pytest.mark.parametrize("change, message", [
+        ("unknown", "unknown parameter profile"),
+        ("mismatch", "profile type"),
+        ("absent", "parameter_pack is required"),
+        ("units", "units"),
+        ("nan", "finite"),
+    ])
+    def test_invalid_pack_binding_is_rejected_before_solving(change, message):
+        raw = manifest()
+        if change == "unknown": raw["edges"][0]["parameter_ref"] = "missing"
+        if change == "mismatch":
+            raw["parameter_pack"]["profiles"]["pipe-a"] = {
+                "type": "pump", "params": {"H0_m": 6.0}, "units": {"H0_m": "m"},
+            }
+>       if change == "absent": del raw["parameter_pack"]
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'profile type'
+E         Actual message: "1 validation error for LiquidrunConfig\nprofiles.pipe-a\n  Value error, unsupported parameter for pump: ['D_m', 'roughness_m'] [type=value_error, input_value={'type': 'pump', 'params'...m', 'roughness_m': 'm'}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+
+src/backend/tests/test_liquid/test_parameter_pack.py:80: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_parameter_pack.py::test_invalid_pack_binding_is_rejected_before_solving[mismatch-profile type]
+1 failed, 275 passed in 174.58s (0:02:54)

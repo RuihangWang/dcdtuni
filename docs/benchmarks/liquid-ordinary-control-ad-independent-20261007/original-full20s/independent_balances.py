@@ -1,0 +1,29 @@
+import json
+from pathlib import Path
+import numpy as np
+R=Path(__file__).resolve().parent;d=json.loads((R/'actual/input.liquidrun').read_text());actual=json.loads((R/'actual/result.json').read_text());result=json.loads((R/'RESULT.json').read_text());layouts=json.loads((R/'layout-metadata.json').read_text());states=np.load(R/'states.npz');parameters=np.load(R/'parameters.npz')
+ids=[n['id'] for n in d['nodes']];edges=[e['id'] for e in d['edges']];assert ids==actual['node_ids'] and edges==actual['edge_ids'];index={s:i for i,s in enumerate(ids)};a=np.array([index[e['from']] for e in d['edges']]);b=np.array([index[e['to']] for e in d['edges']]);cpids=np.array([i for i,e in enumerate(d['edges']) if e['type']=='cold_plate']);hxids=np.array([i for i,e in enumerate(d['edges']) if e['type']=='heat_exchanger']);pipeids=np.array([i for i,e in enumerate(d['edges']) if e['type']=='pipe']);assert len(cpids)==56 and len(hxids)==1 and len(ids)==229 and len(edges)==286
+cells=actual['cell_edge_ids'];assert len(cells)==892;cellmap={e:np.flatnonzero(np.array(cells)==e) for e in edges if e in cells};boundary=np.array([i for i,n in enumerate(d['nodes']) if n.get('bc')]);sl={k:slice(*v) for k,v in layouts['state_layout'].items()};pl={k:slice(*v) for k,v in layouts['parameter_layout'].items()};out=[];initial=[]
+for run in result['trajectories']:
+ label=run['label'];ys=states[label];thetas=parameters[label];assert ys.shape==(1693,11)
+ for i in range(11):
+  y=ys[:,i];old=ys[:,i-1] if i else y;theta=thetas[:,i];p={k:theta[s] for k,s in pl.items()};s={k:y[x] for k,x in sl.items()};rate={k:(y[x]-old[x])/2. for k,x in sl.items()};m=s['flow'];node=s['node_temperature'];solid=s['solid_temperature'];water=s['water_temperature'];sec=s['hx_secondary_temperature'];pri=s['primary_return_temperature'];rho=p['fluid_rho'].item();cpf=p['fluid_cp'].item()
+  mass=np.zeros(229);np.add.at(mass,a,m);np.add.at(mass,b,-m);up=np.where(m>=0,a,b);down=np.where(m>=0,b,a);weight=np.abs(m);outlet=node[up].copy()
+  for edge in pipeids:
+   positions=cellmap[edges[edge]];outlet[edge]=water[positions[-1] if m[edge]>=0 else positions[0]]
+  adv=weight[cpids]*cpf;eff=-np.expm1(-p['cp_UA']/adv);cpheat=adv*eff*(solid-node[up[cpids]]);outlet[cpids]=node[up[cpids]]+eff*(solid-node[up[cpids]]);outlet[hxids]=sec
+  node_balance=np.zeros(229);np.add.at(node_balance,up,weight*cpf*node[up]);np.add.at(node_balance,down,-weight*cpf*outlet)
+  storage_water=np.sum(rho*cpf*p['cell_volume']*rate['water_temperature']);storage_solid=np.sum(p['cp_Csolid']*rate['solid_temperature']);storage_sec=np.sum(rho*cpf*p['secondary_volume']*rate['hx_secondary_temperature']);storage_pri=np.sum(p['primary_rho']*p['primary_cp']*p['primary_volume']*rate['primary_return_temperature']);storage=storage_water+storage_solid+storage_sec+storage_pri
+  heat=p['heat_W'].sum()+p['cell_heat_W'].sum();reject=np.sum(p['primary_flow_kg_s']*p['primary_cp']*(pri-p['primary_inlet_K']));boundary_heat=node_balance[boundary].sum();energy=heat+boundary_heat-storage-reject
+  cp_res=p['cp_Csolid']*rate['solid_temperature']-p['heat_W']+cpheat;hxheat=p['hx_UA']*(sec-pri);secres=rho*cpf*p['secondary_volume']*rate['hx_secondary_temperature']-weight[hxids]*cpf*(node[up[hxids]]-sec)+hxheat;prires=p['primary_rho']*p['primary_cp']*p['primary_volume']*rate['primary_return_temperature']-p['primary_flow_kg_s']*p['primary_cp']*(p['primary_inlet_K']-pri)-hxheat
+  item={'trajectory':label,'seq':i,'time_s':i*2.,'all229_mass_inf_kg_s':float(np.max(np.abs(mass))),'all229_node_enthalpy_inf_W':float(np.max(np.abs(node_balance))),'all56_CP_energy_inf_W':float(np.max(np.abs(cp_res))),'HX_secondary_energy_inf_W':float(np.max(np.abs(secres))),'HX_primary_energy_inf_W':float(np.max(np.abs(prires))),'heat_W':float(heat),'storage_components_W':{'water':float(storage_water),'solid':float(storage_solid),'HX_secondary':float(storage_sec),'HX_primary':float(storage_pri)},'primary_rejection_W':float(reject),'boundary_exchange_W':float(boundary_heat),'total_energy_residual_W':float(energy),'production_energy_difference_W':float(energy-run['frames'][i]['diagnostics']['energy_balance_W'])}
+  assert item['all229_mass_inf_kg_s']<=1e-10
+  if i:
+   assert item['all56_CP_energy_inf_W']<=1e-6 and max(item['HX_secondary_energy_inf_W'],item['HX_primary_energy_inf_W'])<=1e-6 and abs(energy)<=1e-6,item
+   out.append(item)
+  else:
+   # Actual t0 is the admitted steady initializer; its original scaled atol permits a nonzero W balance.
+   # It is not silently claimed to satisfy the new dynamic-root absolute1e-6 display criterion.
+   assert abs(energy)<=max(1e-7,256*np.finfo(np.float64).eps)*(1+abs(heat));initial.append(item)
+summary={'dynamic_accepted_roots':len(out),'independent_mass_inf_kg_s':max(x['all229_mass_inf_kg_s'] for x in out),'independent_CP_energy_inf_W':max(x['all56_CP_energy_inf_W'] for x in out),'independent_HX_energy_inf_W':max(max(x['HX_secondary_energy_inf_W'],x['HX_primary_energy_inf_W']) for x in out),'independent_total_energy_inf_W':max(abs(x['total_energy_residual_W']) for x in out),'independent_node_enthalpy_inf_W':max(x['all229_node_enthalpy_inf_W'] for x in out),'production_energy_difference_inf_W':max(abs(x['production_energy_difference_W']) for x in out),'t0_energy_residual_W':initial[0]['total_energy_residual_W'],'note':'Pure NumPy arithmetic from copied incidence, accepted state/theta arrays and static layouts; no production residual/diagnostics used to compute balances. T0 original scaled steady gate reported separately; 130 t>0 full AD/FD roots use unchanged previous2s independent absolute1e-6 balance gate. Same synthetic parameter pack is not hardware calibration.'}
+(R/'independent-numpy-balances.json').write_text(json.dumps({'summary':summary,'dynamic_roots':out,'initializers':initial},indent=2));print(json.dumps(summary,indent=2))

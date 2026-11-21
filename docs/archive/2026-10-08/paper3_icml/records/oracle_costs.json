@@ -1,0 +1,279 @@
+{
+ "provenance": {
+  "case": "E16_oracle_costs",
+  "purpose": "the two oracles' prices, measured, so the cost ratio the paper is framed on is a record and not prose",
+  "air_side": "harvested from every committed E8_air_eval record (real OpenFOAM runs); not re-measured, because repeating them needs the CFD queue this machine is spending on E11e",
+  "liquid_side": "measured by this script, forward-only and forward+backward, over E13/E14/E15's call sequence",
+  "conditions": {
+   "omp_num_threads": "1",
+   "nice": 10,
+   "loadavg_before": [
+    24.06,
+    24.0,
+    24.12
+   ],
+   "loadavg_after": [
+    24.09,
+    24.01,
+    24.12
+   ],
+   "nproc": 64,
+   "note": "a solve timed under load is not the same number as one timed on an idle box; the conditions travel with the measurement"
+  },
+  "elapsed_s": 15.5
+ },
+ "air_oracle": {
+  "n_evaluations": 42,
+  "min_s": 46.0,
+  "max_s": 75.62,
+  "median_s": 68.16,
+  "per_record": {
+   "e8_containment_ab": {
+    "n": 4,
+    "min": 66.54,
+    "max": 75.31,
+    "median": 70.62,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_containment_ab_v2": {
+    "n": 6,
+    "min": 65.53,
+    "max": 73.74,
+    "median": 69.68,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_fansrv": {
+    "n": 8,
+    "min": 46.04,
+    "max": 75.62,
+    "median": 61.02,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_first": {
+    "n": 4,
+    "min": 46.0,
+    "max": 50.51,
+    "median": 48.27,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_placement_ab": {
+    "n": 6,
+    "min": 65.18,
+    "max": 71.24,
+    "median": 68.23,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_probes_v2": {
+    "n": 6,
+    "min": 57.63,
+    "max": 68.17,
+    "median": 63.03,
+    "mesh_levels": [
+     "coarse"
+    ]
+   },
+   "e8_repeat_spread": {
+    "n": 8,
+    "min": 64.58,
+    "max": 73.06,
+    "median": 69.24,
+    "mesh_levels": [
+     "coarse"
+    ]
+   }
+  }
+ },
+ "liquid_oracle": {
+  "seed": 910032,
+  "N": 14,
+  "K": 3,
+  "M": 3,
+  "n_slots": 14,
+  "forward_only": {
+   "n": 120,
+   "min_ms": 8.28,
+   "median_ms": 8.414,
+   "p90_ms": 8.692,
+   "max_ms": 9.0,
+   "mean_ms": 8.471,
+   "median_ms_across_repeats": [
+    7.89,
+    7.912,
+    8.414,
+    8.506,
+    8.559
+   ],
+   "repeat_spread_pct": 8.5
+  },
+  "forward_plus_adjoint": {
+   "n": 120,
+   "min_ms": 13.523,
+   "median_ms": 14.1,
+   "p90_ms": 14.936,
+   "max_ms": 25.058,
+   "mean_ms": 14.488,
+   "median_ms_across_repeats": [
+    12.608,
+    13.242,
+    14.1,
+    14.123,
+    14.49
+   ],
+   "repeat_spread_pct": 14.9
+  },
+  "warmup_solves_discarded": 3,
+  "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's",
+  "repeats": 5,
+  "per_repeat": [
+   {
+    "seed": 910032,
+    "N": 14,
+    "K": 3,
+    "M": 3,
+    "n_slots": 14,
+    "forward_only": {
+     "n": 120,
+     "min_ms": 7.761,
+     "median_ms": 7.89,
+     "p90_ms": 8.042,
+     "max_ms": 8.598,
+     "mean_ms": 7.92
+    },
+    "forward_plus_adjoint": {
+     "n": 120,
+     "min_ms": 12.271,
+     "median_ms": 12.608,
+     "p90_ms": 13.651,
+     "max_ms": 14.991,
+     "mean_ms": 12.81
+    },
+    "warmup_solves_discarded": 3,
+    "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's"
+   },
+   {
+    "seed": 910032,
+    "N": 14,
+    "K": 3,
+    "M": 3,
+    "n_slots": 14,
+    "forward_only": {
+     "n": 120,
+     "min_ms": 7.698,
+     "median_ms": 7.912,
+     "p90_ms": 8.079,
+     "max_ms": 8.318,
+     "mean_ms": 7.932
+    },
+    "forward_plus_adjoint": {
+     "n": 120,
+     "min_ms": 12.384,
+     "median_ms": 13.242,
+     "p90_ms": 14.402,
+     "max_ms": 20.633,
+     "mean_ms": 13.427
+    },
+    "warmup_solves_discarded": 3,
+    "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's"
+   },
+   {
+    "seed": 910032,
+    "N": 14,
+    "K": 3,
+    "M": 3,
+    "n_slots": 14,
+    "forward_only": {
+     "n": 120,
+     "min_ms": 8.28,
+     "median_ms": 8.414,
+     "p90_ms": 8.692,
+     "max_ms": 9.0,
+     "mean_ms": 8.471
+    },
+    "forward_plus_adjoint": {
+     "n": 120,
+     "min_ms": 13.523,
+     "median_ms": 14.123,
+     "p90_ms": 14.936,
+     "max_ms": 25.058,
+     "mean_ms": 14.488
+    },
+    "warmup_solves_discarded": 3,
+    "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's"
+   },
+   {
+    "seed": 910032,
+    "N": 14,
+    "K": 3,
+    "M": 3,
+    "n_slots": 14,
+    "forward_only": {
+     "n": 120,
+     "min_ms": 8.313,
+     "median_ms": 8.559,
+     "p90_ms": 9.005,
+     "max_ms": 10.695,
+     "mean_ms": 8.669
+    },
+    "forward_plus_adjoint": {
+     "n": 120,
+     "min_ms": 13.778,
+     "median_ms": 14.49,
+     "p90_ms": 15.153,
+     "max_ms": 16.159,
+     "mean_ms": 14.585
+    },
+    "warmup_solves_discarded": 3,
+    "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's"
+   },
+   {
+    "seed": 910032,
+    "N": 14,
+    "K": 3,
+    "M": 3,
+    "n_slots": 14,
+    "forward_only": {
+     "n": 120,
+     "min_ms": 8.308,
+     "median_ms": 8.506,
+     "p90_ms": 8.777,
+     "max_ms": 9.236,
+     "mean_ms": 8.562
+    },
+    "forward_plus_adjoint": {
+     "n": 120,
+     "min_ms": 13.407,
+     "median_ms": 14.1,
+     "p90_ms": 14.756,
+     "max_ms": 15.559,
+     "mean_ms": 14.171
+    },
+    "warmup_solves_discarded": 3,
+    "call_sequence": "softlc_geom.placed_task -> full_index -> onehot_v2 -> slot_lengths -> evaluate_v2 [-> autograd.grad], i.e. E13/E14/E15's"
+   }
+  ]
+ },
+ "ratios": {
+  "air_median_over_liquid_forward_plus_adjoint": 4833.7,
+  "air_min_over_liquid_forward_plus_adjoint": 3262.4,
+  "air_max_over_liquid_forward_plus_adjoint": 5363.1,
+  "adjoint_overhead_factor": 1.676
+ },
+ "placement_price": {
+  "sens_solves_per_refresh": 85,
+  "wall_clock_of_those_forward_solves_ms": 715.2,
+  "wall_clock_of_one_forward_plus_adjoint_ms": 14.1,
+  "wall_clock_ratio": 50.7,
+  "solve_count_ratio": 85,
+  "note": "the solve-count ratio and the wall-clock ratio differ by the adjoint overhead; the count is what E15 charges arms in, the wall clock is what a practitioner pays"
+ }
+}

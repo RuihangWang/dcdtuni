@@ -1,0 +1,1 @@
+The67-file normal route proof completed before Root intentionally restarted its owned service. Its eight-role guard is timestamped historical evidence; it does not describe the new process IDs. All39 AIR source/build inputs (33 C/H +6 build inputs) and the separately watched two ELFs were held. This supplement only makes the count and timing explicit.

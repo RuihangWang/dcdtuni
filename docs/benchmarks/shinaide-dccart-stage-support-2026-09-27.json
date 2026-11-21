@@ -1,0 +1,71 @@
+{
+  "date_sgt": "2026-09-27",
+  "status": "isolated_stage_red_no_mesh_fix_no_cfd_solve",
+  "isolation_branch": "codex/dccart-support-domain-trace-20260927",
+  "base_commit": "2b9bf448",
+  "candidate_source_commit": "d449aca9",
+  "candidate_binary_sha256": "033edd85db991e56803b804e8299d3070c9bbe34764ea45ecb9f1",
+  "candidate_library_sha256": "e4afd4613c2be6ec620a16cb6eddad0e0736f2b2422dc7aa9d0aa39e398c895c",
+  "host": "NTU-Litianyu-40901",
+  "resource_limit": {
+    "cpu_affinity": [0, 1, 2, 3],
+    "nice": 10,
+    "full_case_mpi_ranks": 4,
+    "gpu_used": false
+  },
+  "small_native": {
+    "scratch": "/mnt/lv/home/litianyu/benchmarks/dccart_support_domain_trace_trial_20260927/native_red_rerun",
+    "source_geometry_m": {
+      "wall": {"x": 0.1, "y_min": 0.1, "z_min": 0.1},
+      "floor": {"y": 0.1, "x_min": 0.100001, "z_min": 0.101},
+      "seam_x_offset": 0.000001,
+      "seam_z_offset": 0.001
+    },
+    "control": {"stage": "02baffles", "sampled_unique_zone_faces": 52, "outside_source_triangle_support": 0, "max_in_plane_gap_m": 0.0},
+    "near_grid": {
+      "background_planes_m": {"x": 0.10233, "y": 0.080357, "z": 0.09761},
+      "stage": "02baffles",
+      "sampled_unique_zone_faces": 12,
+      "outside_source_triangle_support": 3,
+      "max_in_plane_gap_m": 0.0021949995,
+      "g1_move": {"axis": "x", "source_m": 0.100001, "target_m": 0.10233, "vertices_moved": 6, "max_shift_m": 0.0023295},
+      "later_final_patch_outside_count": 0
+    },
+    "first_layer_off": {
+      "welded_vertices": 0,
+      "mesh_written": false,
+      "baffle_coverage_wall_area_m2": 0.00082142,
+      "source_wall_area_m2": 0.0064,
+      "coverage_ratio": 0.128347,
+      "reason": "dcCart baffle coverage gate rejected mesh"
+    },
+    "allrun_exit_code_current": 2
+  },
+  "shinaide_stage": {
+    "scratch": "/mnt/lv/home/litianyu/benchmarks/dccart_support_domain_trace_trial_20260927/full_stage",
+    "source_stl_sha256": {
+      "merged_wall_baffle.stl": "9b48e16ecad23606bbd44fb0a1298e4547820ed14cb3558251df5fd19d12e149",
+      "wallBaffle_floor_Raised_Floor.stl": "2dab439e94d675195ef8505703409ce5ffd01dad58281056920ea842dba652bf"
+    },
+    "stage_roi_m": [1.485, 0.775, 2.809, 1.545, 0.825, 2.825],
+    "zone_source_map": {
+      "3": "merged_wall_baffle.stl:con_f",
+      "4": "wallBaffle_floor_Raised_Floor.stl:Raised_Floor"
+    },
+    "00assemble_zone_faces": 0,
+    "01carving_zone_faces": 0,
+    "02baffles": {"sampled_unique_zone_faces": 4, "outside_source_triangle_support": 4, "max_in_plane_gap_m": 0.00989387967},
+    "unchanged_bad_face_stages": ["03splitwall", "04relabel", "05seamsplit", "08preghost", "09dropghost"],
+    "final_roi_baffle_patch_faces_outside": 6,
+    "g1_weld_moves_log_rounded_m": [
+      {"axis": "x", "source": 1.49074, "target": 1.49307, "vertices": 25},
+      {"axis": "z", "source": 2.81587, "target": 2.81248, "vertices": 38},
+      {"axis": "z", "source": 2.81687, "target": 2.81248, "vertices": 23}
+    ],
+    "all_welded_vertices": 798,
+    "max_vertex_shift_m": 0.00699003,
+    "original_candidate_strict_checkMesh_failed_checks": 5,
+    "cfd_solve_run": false
+  },
+  "interpretation_limit": "Centroid source support is necessary, not whole-polygon proof; near-grid stage RED is later removed in the tiny case, whereas Shinaide persists to final patches. No mesh-quality fix was applied."
+}

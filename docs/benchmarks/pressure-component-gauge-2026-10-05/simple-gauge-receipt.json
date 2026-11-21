@@ -1,0 +1,40 @@
+{
+  "status": "PASS",
+  "scope": "13 pressure-only MPI kernel tests and 2 actual _new tiny laminar 4-step MPI regressions; not a production CFD convergence result.",
+  "mpi_ranks": 2,
+  "cpu_affinity": "24-31",
+  "cuda_visible_devices": "",
+  "fixed_pytest_output": "...............                                                          [100%]\n15 passed in 35.92s\n",
+  "legacy_pytest_output_summary": " ============================\nFAILED src/backend/tests/test_pressure_component_references.py::test_closed_component_anchored_without_moving_dirichlet[37-2]\nFAILED src/backend/tests/test_pressure_component_references.py::test_closed_component_anchored_without_moving_dirichlet[73-2]\nFAILED src/backend/tests/test_pressure_component_references.py::test_two_cells_split_across_two_ranks_has_real_constraint\nFAILED src/backend/tests/test_pressure_component_references.py::test_multiple_local_cells_per_component\nFAILED src/backend/tests/test_pressure_component_references.py::test_mixed_boundary_uses_actual_matrix_anchor[0-5]\nFAILED src/backend/tests/test_pressure_component_references.py::test_physical_pressure_reference_preserves_hydrostatic_relation\n6 failed, 3 passed, 6 deselected in 26.44s\n",
+  "np1_status": "Rejected by installed OpenFOAM v2412 UPstream::init before numerical run; no serial bypass.",
+  "binary_sha256": {
+    "pressureComponentKernel": "b750d753f5cd7df67c888b8fcad0a220d32e90b4ab17d82eff02bc51e33babdd",
+    "buoyantBoussinesqSimpleFoam_new": "24b6112a02fc329096ebeb8a2cb830dc9668cf7c2b56ac2d4bfb61519cf71a43"
+  },
+  "source_sha256": {
+    "TEqn.H": "13056bf4ad6a45089c86d7c64d17e561036e6076faa16fa63cebc8fcfbf9acfb",
+    "createFields.H": "0dc59d84cd76b85a4a47e1903bffb2a08863101ca1c1e2c0d797a98e3a20dda3",
+    "buoyantBoussinesqSimpleFoam_new.C": "a2ed56906826c41faea4499b30cd330902ffd424f57640aacd0fc7ef16259457",
+    "pEqn.H": "d8a45e23bf3fac1a6fa92370355d802e83aafdd1f65d1be7e43a0c2bbdce2772",
+    "pressureComponentReferences.H": "d6eaddd58f7ab1a9bdb88d016e9b8b021d3fb11af93478e57fb1819432eaa3f6",
+    "readTransportProperties.H": "8292bf0ba5dfee62229441001a66dbbf76dcce3f2c0f2d51a6cf743989efdd1c",
+    "UEqn.H": "74a2aa996ff4de945965c62d9881e224a7931c236d62e1914093c7f00f421e02"
+  },
+  "solver_build_log_sha256": "0af45190318ed5147da0c0f73050bc0412e43c8d1a441e81872a54e2a2d9115a",
+  "raw_json_sha256": "28f3354f9e0b849759b1422e3a83cac070842a6a0fa2db145b45d571f87c0293",
+  "algorithm": {
+    "graph": "global regionSplit across ordinary cyclic and processor boundaries",
+    "anchor_detection": "noncoupled assembled pressure boundary diagonal coefficient != 0, refreshed each matrix",
+    "reference_selection": "configured pRefCell/pRefPoint in its free component; globally smallest cell for each other free component",
+    "physical_reference": "pRefValue; p_rgh target=pRefValue-rhok*gh",
+    "gauge_weight": "raw diagonal plus all coupled/physical boundary internal coefficients, same Laplacian sign",
+    "zero_operator": "explicit negative gauge row; assembled Neumann RHS compatibility checked with relative cancellation tolerance",
+    "post_correction": "shift only free component and its faces, preserving p=p_rgh+rhok*gh"
+  },
+  "unsupported": "Pressure-coupled AMI/ACMI or unknown/mismatched coupling fails before region split; dynamic topology is outside this steady static-mesh test scope.",
+  "test_source_sha256": {
+    "src/backend/tests/test_pressure_component_references.py": "440957c8b3f4dde147bbe6fe62360712769a0b553358cbe408333f3cd52c4d5f",
+    "src/backend/tests/pressure_component_kernel/pressureComponentKernel.C": "4be9e8ab024ae16eb24f4dae7ef02e38e4ecae4e134738ea11b0c7b3273320bf",
+    "tools/verify_pressure_component_gauges.sh": "deedaa217b7a65764c96c9a639ba79a2abb996d7fd81f7ed384a64c079b0533b"
+  }
+}

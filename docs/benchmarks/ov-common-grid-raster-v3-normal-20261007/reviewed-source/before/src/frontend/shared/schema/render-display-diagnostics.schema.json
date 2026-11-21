@@ -1,0 +1,1370 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Bounded readonly OV display diagnostic ACK (payload UTF-8 <=16384 bytes)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "requestId",
+    "ok",
+    "sceneRevision",
+    "projectHash",
+    "diagnostics",
+    "view"
+  ],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "ok": {
+      "const": true
+    },
+    "sceneRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "projectHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "camera": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "target": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "up": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "fov": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 180,
+              "maximum": 1e+18
+            },
+            "aspect": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1e+18
+            },
+            "near": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1e+18
+            },
+            "far": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1e+18
+            }
+          },
+          "required": [
+            "position",
+            "target",
+            "up",
+            "fov",
+            "aspect",
+            "near",
+            "far"
+          ],
+          "additionalProperties": false
+        },
+        "selectedUids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "minItems": 0,
+          "maxItems": 8
+        },
+        "timeSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "backgroundGrid": {
+          "type": "object",
+          "properties": {
+            "visible": {
+              "type": "boolean"
+            },
+            "spacingM": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 1
+            },
+            "divisions": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 4000
+            },
+            "extentM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 2002
+            },
+            "centerColor": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "lineColor": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "matrix": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 16,
+              "maxItems": 16
+            }
+          },
+          "required": [
+            "visible",
+            "spacingM",
+            "divisions",
+            "extentM",
+            "centerColor",
+            "lineColor",
+            "opacity",
+            "matrix"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "selectedUids",
+        "timeSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "dcdtuni.render-display-diagnostics/v1"
+        },
+        "profile": {
+          "const": "bounded-display-v1"
+        },
+        "sampleSequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sampleElapsedMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000.0
+        },
+        "pixelVerified": {
+          "const": false
+        },
+        "renderer": {
+          "type": "object",
+          "properties": {
+            "viewportHydraEngine": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:+-]+$"
+            },
+            "viewportRenderMode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:+-]+$"
+            },
+            "globalRtxMode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:+-]+$"
+            },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "translucencyAsOpacity": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "observed",
+                        "pending",
+                        "unavailable"
+                      ]
+                    },
+                    "value": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "enum": [
+                        "none",
+                        "disabled",
+                        "no-viewport",
+                        "stage-mismatch",
+                        "camera-mismatch",
+                        "source-context-changed",
+                        "invalid-public-value",
+                        "layout-unresolved",
+                        "target-missing",
+                        "target-not-acknowledged",
+                        "target-fanout",
+                        "not-owned-binding",
+                        "unsupported-shader",
+                        "unsupported-connection",
+                        "missing-setting",
+                        "unexpected-setting-type",
+                        "reply-limit",
+                        "rate-limit",
+                        "base-view-limit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "status": {
+                            "const": "observed"
+                          }
+                        },
+                        "required": [
+                          "status"
+                        ]
+                      },
+                      "then": {
+                        "required": [
+                          "value"
+                        ],
+                        "properties": {
+                          "reason": {
+                            "const": "none"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "translucencyEnabled": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "observed",
+                        "pending",
+                        "unavailable"
+                      ]
+                    },
+                    "value": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "enum": [
+                        "none",
+                        "disabled",
+                        "no-viewport",
+                        "stage-mismatch",
+                        "camera-mismatch",
+                        "source-context-changed",
+                        "invalid-public-value",
+                        "layout-unresolved",
+                        "target-missing",
+                        "target-not-acknowledged",
+                        "target-fanout",
+                        "not-owned-binding",
+                        "unsupported-shader",
+                        "unsupported-connection",
+                        "missing-setting",
+                        "unexpected-setting-type",
+                        "reply-limit",
+                        "rate-limit",
+                        "base-view-limit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "status": {
+                            "const": "observed"
+                          }
+                        },
+                        "required": [
+                          "status"
+                        ]
+                      },
+                      "then": {
+                        "required": [
+                          "value"
+                        ],
+                        "properties": {
+                          "reason": {
+                            "const": "none"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "raytracingFractionalCutoutOpacity": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "observed",
+                        "pending",
+                        "unavailable"
+                      ]
+                    },
+                    "value": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "enum": [
+                        "none",
+                        "disabled",
+                        "no-viewport",
+                        "stage-mismatch",
+                        "camera-mismatch",
+                        "source-context-changed",
+                        "invalid-public-value",
+                        "layout-unresolved",
+                        "target-missing",
+                        "target-not-acknowledged",
+                        "target-fanout",
+                        "not-owned-binding",
+                        "unsupported-shader",
+                        "unsupported-connection",
+                        "missing-setting",
+                        "unexpected-setting-type",
+                        "reply-limit",
+                        "rate-limit",
+                        "base-view-limit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "status": {
+                            "const": "observed"
+                          }
+                        },
+                        "required": [
+                          "status"
+                        ]
+                      },
+                      "then": {
+                        "required": [
+                          "value"
+                        ],
+                        "properties": {
+                          "reason": {
+                            "const": "none"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "pathtracingFractionalCutoutOpacity": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "observed",
+                        "pending",
+                        "unavailable"
+                      ]
+                    },
+                    "value": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "enum": [
+                        "none",
+                        "disabled",
+                        "no-viewport",
+                        "stage-mismatch",
+                        "camera-mismatch",
+                        "source-context-changed",
+                        "invalid-public-value",
+                        "layout-unresolved",
+                        "target-missing",
+                        "target-not-acknowledged",
+                        "target-fanout",
+                        "not-owned-binding",
+                        "unsupported-shader",
+                        "unsupported-connection",
+                        "missing-setting",
+                        "unexpected-setting-type",
+                        "reply-limit",
+                        "rate-limit",
+                        "base-view-limit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "status": {
+                            "const": "observed"
+                          }
+                        },
+                        "required": [
+                          "status"
+                        ]
+                      },
+                      "then": {
+                        "required": [
+                          "value"
+                        ],
+                        "properties": {
+                          "reason": {
+                            "const": "none"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "translucencyAsOpacity",
+                "translucencyEnabled",
+                "raytracingFractionalCutoutOpacity",
+                "pathtracingFractionalCutoutOpacity"
+              ],
+              "additionalProperties": false
+            },
+            "settingsScope": {
+              "const": "effective-carbs-settings; not compiled-shader proof"
+            }
+          },
+          "required": [
+            "settings",
+            "settingsScope"
+          ],
+          "additionalProperties": false
+        },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "observed",
+                "pending",
+                "unavailable"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "none",
+                "disabled",
+                "no-viewport",
+                "stage-mismatch",
+                "camera-mismatch",
+                "source-context-changed",
+                "invalid-public-value",
+                "layout-unresolved",
+                "target-missing",
+                "target-not-acknowledged",
+                "target-fanout",
+                "not-owned-binding",
+                "unsupported-shader",
+                "unsupported-connection",
+                "missing-setting",
+                "unexpected-setting-type",
+                "reply-limit",
+                "rate-limit",
+                "base-view-limit"
+              ]
+            },
+            "stageSame": {
+              "type": "boolean"
+            },
+            "expectedCameraSame": {
+              "type": "boolean"
+            },
+            "cameraPath": {
+              "const": "/World/RenderCamera"
+            },
+            "resolution": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32768
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "fullResolution": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32768
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "resolutionScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 16
+            },
+            "fillFrame": {
+              "type": "boolean"
+            },
+            "view": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 16,
+              "maxItems": 16
+            },
+            "uiProjection": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 16,
+              "maxItems": 16
+            },
+            "worldToNdc": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 16,
+              "maxItems": 16
+            },
+            "imageWorldToNdc": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 16,
+              "maxItems": 16
+            },
+            "cameraTransform": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 16,
+              "maxItems": 16
+            },
+            "matrixConvention": {
+              "const": "Gf-row-vector; row-major-16"
+            },
+            "ndcToTextureSamples": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ndc": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -1e+18,
+                      "maximum": 1e+18
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "uv": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number",
+                          "minimum": -1e+18,
+                          "maximum": 1e+18
+                        },
+                        "minItems": 2,
+                        "maxItems": 2
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "insideTexture": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "ndc",
+                  "uv",
+                  "insideTexture"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "uv": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "uv"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "insideTexture": {
+                          "const": false
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "minItems": 3,
+              "maxItems": 5
+            },
+            "appSizePx": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32768
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "appPositionScreenPx": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "appDpiScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 64
+            },
+            "appUiScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 64
+            },
+            "outerWindowRectObserved": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1e+18,
+                "maximum": 1e+18
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "layoutProof": {
+              "const": "unresolved"
+            },
+            "textureToEncodedMapping": {
+              "const": "unresolved"
+            }
+          },
+          "required": [
+            "status",
+            "reason",
+            "layoutProof",
+            "textureToEncodedMapping"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "const": "observed"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "then": {
+                "required": [
+                  "stageSame",
+                  "expectedCameraSame",
+                  "cameraPath",
+                  "resolution",
+                  "fullResolution",
+                  "view",
+                  "uiProjection",
+                  "worldToNdc",
+                  "ndcToTextureSamples",
+                  "matrixConvention"
+                ],
+                "properties": {
+                  "stageSame": {
+                    "const": true
+                  },
+                  "expectedCameraSame": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "roof": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "observed",
+                "pending",
+                "unavailable"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "none",
+                "disabled",
+                "no-viewport",
+                "stage-mismatch",
+                "camera-mismatch",
+                "source-context-changed",
+                "invalid-public-value",
+                "layout-unresolved",
+                "target-missing",
+                "target-not-acknowledged",
+                "target-fanout",
+                "not-owned-binding",
+                "unsupported-shader",
+                "unsupported-connection",
+                "missing-setting",
+                "unexpected-setting-type",
+                "reply-limit",
+                "rate-limit",
+                "base-view-limit"
+              ]
+            },
+            "targetSource": {
+              "enum": [
+                "single-selected-accepted-source-floor",
+                "missing"
+              ]
+            },
+            "modelUid": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "primitiveCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "materials": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "geometryPath": {
+                    "type": "string",
+                    "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                    "maxLength": 128
+                  },
+                  "materialPath": {
+                    "type": "string",
+                    "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                    "maxLength": 128
+                  },
+                  "surfacePath": {
+                    "type": "string",
+                    "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                    "maxLength": 128
+                  },
+                  "shaderId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:+-]+$"
+                  },
+                  "bindingPurpose": {
+                    "enum": [
+                      "allPurpose",
+                      "preview",
+                      "full"
+                    ]
+                  },
+                  "opacity": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "observed",
+                          "pending",
+                          "unavailable"
+                        ]
+                      },
+                      "authoredValue": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "connected": {
+                        "type": "boolean"
+                      },
+                      "sourcePath": {
+                        "type": "string",
+                        "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                        "maxLength": 128
+                      },
+                      "channel": {
+                        "enum": [
+                          "r",
+                          "g",
+                          "b",
+                          "a",
+                          "rgb"
+                        ]
+                      },
+                      "reason": {
+                        "enum": [
+                          "none",
+                          "disabled",
+                          "no-viewport",
+                          "stage-mismatch",
+                          "camera-mismatch",
+                          "source-context-changed",
+                          "invalid-public-value",
+                          "layout-unresolved",
+                          "target-missing",
+                          "target-not-acknowledged",
+                          "target-fanout",
+                          "not-owned-binding",
+                          "unsupported-shader",
+                          "unsupported-connection",
+                          "missing-setting",
+                          "unexpected-setting-type",
+                          "reply-limit",
+                          "rate-limit",
+                          "base-view-limit"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "connected",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "status": {
+                              "const": "observed"
+                            },
+                            "connected": {
+                              "const": false
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "connected"
+                          ]
+                        },
+                        "then": {
+                          "required": [
+                            "authoredValue"
+                          ],
+                          "properties": {
+                            "reason": {
+                              "const": "none"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "metallic": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "observed",
+                          "pending",
+                          "unavailable"
+                        ]
+                      },
+                      "authoredValue": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "connected": {
+                        "type": "boolean"
+                      },
+                      "sourcePath": {
+                        "type": "string",
+                        "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                        "maxLength": 128
+                      },
+                      "channel": {
+                        "enum": [
+                          "r",
+                          "g",
+                          "b",
+                          "a",
+                          "rgb"
+                        ]
+                      },
+                      "reason": {
+                        "enum": [
+                          "none",
+                          "disabled",
+                          "no-viewport",
+                          "stage-mismatch",
+                          "camera-mismatch",
+                          "source-context-changed",
+                          "invalid-public-value",
+                          "layout-unresolved",
+                          "target-missing",
+                          "target-not-acknowledged",
+                          "target-fanout",
+                          "not-owned-binding",
+                          "unsupported-shader",
+                          "unsupported-connection",
+                          "missing-setting",
+                          "unexpected-setting-type",
+                          "reply-limit",
+                          "rate-limit",
+                          "base-view-limit"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "connected",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "status": {
+                              "const": "observed"
+                            },
+                            "connected": {
+                              "const": false
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "connected"
+                          ]
+                        },
+                        "then": {
+                          "required": [
+                            "authoredValue"
+                          ],
+                          "properties": {
+                            "reason": {
+                              "const": "none"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "opacityThreshold": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "observed",
+                          "pending",
+                          "unavailable"
+                        ]
+                      },
+                      "authoredValue": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "connected": {
+                        "type": "boolean"
+                      },
+                      "sourcePath": {
+                        "type": "string",
+                        "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                        "maxLength": 128
+                      },
+                      "channel": {
+                        "enum": [
+                          "r",
+                          "g",
+                          "b",
+                          "a",
+                          "rgb"
+                        ]
+                      },
+                      "reason": {
+                        "enum": [
+                          "none",
+                          "disabled",
+                          "no-viewport",
+                          "stage-mismatch",
+                          "camera-mismatch",
+                          "source-context-changed",
+                          "invalid-public-value",
+                          "layout-unresolved",
+                          "target-missing",
+                          "target-not-acknowledged",
+                          "target-fanout",
+                          "not-owned-binding",
+                          "unsupported-shader",
+                          "unsupported-connection",
+                          "missing-setting",
+                          "unexpected-setting-type",
+                          "reply-limit",
+                          "rate-limit",
+                          "base-view-limit"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "connected",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "status": {
+                              "const": "observed"
+                            },
+                            "connected": {
+                              "const": false
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "connected"
+                          ]
+                        },
+                        "then": {
+                          "required": [
+                            "authoredValue"
+                          ],
+                          "properties": {
+                            "reason": {
+                              "const": "none"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "opacityTexture": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "observed",
+                          "pending",
+                          "unavailable"
+                        ]
+                      },
+                      "sourcePath": {
+                        "type": "string",
+                        "pattern": "^/World/RenderScene/(Geometry|Looks)/p_[0-9a-f]{24}(/(Surface|ColorTexture|metalnessMap|roughnessMap))?$",
+                        "maxLength": 128
+                      },
+                      "channel": {
+                        "enum": [
+                          "r",
+                          "g",
+                          "b",
+                          "a",
+                          "rgb"
+                        ]
+                      },
+                      "scale": {
+                        "type": "array",
+                        "items": {
+                          "type": "number",
+                          "minimum": -1e+18,
+                          "maximum": 1e+18
+                        },
+                        "minItems": 4,
+                        "maxItems": 4
+                      },
+                      "bias": {
+                        "type": "array",
+                        "items": {
+                          "type": "number",
+                          "minimum": -1e+18,
+                          "maximum": 1e+18
+                        },
+                        "minItems": 4,
+                        "maxItems": 4
+                      },
+                      "colorSpace": {
+                        "enum": [
+                          "sRGB",
+                          "raw"
+                        ]
+                      },
+                      "assetInspection": {
+                        "const": "not-requested"
+                      },
+                      "reason": {
+                        "enum": [
+                          "none",
+                          "disabled",
+                          "no-viewport",
+                          "stage-mismatch",
+                          "camera-mismatch",
+                          "source-context-changed",
+                          "invalid-public-value",
+                          "layout-unresolved",
+                          "target-missing",
+                          "target-not-acknowledged",
+                          "target-fanout",
+                          "not-owned-binding",
+                          "unsupported-shader",
+                          "unsupported-connection",
+                          "missing-setting",
+                          "unexpected-setting-type",
+                          "reply-limit",
+                          "rate-limit",
+                          "base-view-limit"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "reason",
+                      "assetInspection"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "compiledShaderState": {
+                    "const": "not-read"
+                  }
+                },
+                "required": [
+                  "geometryPath",
+                  "materialPath",
+                  "surfacePath",
+                  "shaderId",
+                  "bindingPurpose",
+                  "opacity",
+                  "metallic",
+                  "opacityThreshold",
+                  "compiledShaderState"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 4
+            }
+          },
+          "required": [
+            "status",
+            "reason",
+            "targetSource"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "const": "observed"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "then": {
+                "required": [
+                  "modelUid",
+                  "primitiveCount",
+                  "materials"
+                ],
+                "properties": {
+                  "reason": {
+                    "const": "none"
+                  },
+                  "targetSource": {
+                    "const": "single-selected-accepted-source-floor"
+                  },
+                  "primitiveCount": {
+                    "minimum": 1,
+                    "maximum": 4
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "profile",
+        "sampleSequence",
+        "sampleElapsedMs",
+        "pixelVerified",
+        "renderer",
+        "viewport",
+        "roof"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "request": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PRIVATE design: opt-in getViewState arguments only",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "diagnostics"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "expectedSceneRevision",
+            "expectedProjectHash"
+          ],
+          "properties": {
+            "profile": {
+              "const": "bounded-display-v1"
+            },
+            "expectedSceneRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "expectedProjectHash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "roofModelUid": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^/\\\\\\u0000-\\u001f]+$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

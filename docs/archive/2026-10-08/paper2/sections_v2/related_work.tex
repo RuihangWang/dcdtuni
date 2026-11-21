@@ -1,0 +1,151 @@
+\section{Related Work}
+\label{sec:related}
+
+When a model emits discrete symbols and the objective depends on them, the
+gradient of the expected objective is classically estimated with the
+score-function estimator \cite{williams1992reinforce,greensmith2004variance,schulman2015gradient}.  Its group-normalised
+form, GRPO, is now the default for post-training language models
+\cite{shao2024grpo}.  Such estimators are unbiased but their variance grows
+with the number of sampled symbols, and here every sample costs one physics
+simulation \cite{mohamed2020mcgrad}.  The alternative relaxes the sampling step:
+Gumbel-softmax / Concrete combined with a straight-through estimator makes the
+sampled symbol a differentiable function of the logits, at the price of bias
+\cite{jang2017gumbel,maddison2017concrete,bengio2013ste,kingma2014auto,tucker2017rebar,grathwohl2018backpropagation}.  That construction has
+reached LLM post-training as direct back-propagation through token sampling
+\cite{grade2026,diffro2025,hu2023abs}.  In the physics-simulation literature the
+same bias--variance account is worked out in detail \cite{suh2022diffsim}.
+Variance control rather than bias removal dominates in practical deployments
+\cite{onoda2026ddcg}, a corrected first-order formula restores unbiasedness at
+discontinuities \cite{scheffler2026cfobg}, and a mixed
+estimator preserves unbiasedness for hybrid discrete--continuous actions
+\cite{hpo2026}.  This paper contributes no estimator, no bias bound and no
+unbiasedness result; all three exist in the work just cited.
+
+What is missing there is the object the estimators act on.  In the
+physics-estimator line the non-smoothness is a property of the \emph{dynamics}---contact, a status switch, stiffness---while the design or action space is already
+continuous.  In the token-relaxation line the discrete object is a text token, whose
+relaxation needs no physical interpretation.  Our
+setting inverts this: the non-smoothness is in the \emph{design} the language
+model emits, and the relaxed object must first be a system a production solver
+can simulate at all.  That requirement---physical closure of the relaxation---is
+a modelling object, not an estimator correction, and it is the whole of our
+first contribution (\cref{sec:contributions}).
+
+\subsection{Physics gradients into learned designers}
+\label{sec:rw-designers}
+A parallel line feeds gradients from differentiable simulators into the weights
+of neural designers, from metasurface generators to differentiable-programming
+systems \cite{jiang2019glonet,hu2020difftaichi,um2020solver,holl2020learning}. It includes end-to-end design on
+top of \emph{learned} simulators \cite{allen2022physicaldesign,raissi2019pinn} and
+standalone differentiable flow-control benchmarks \cite{fluidgym2026}.  In
+topology optimisation the designer's
+output is a density field, so the gradient path is closed by construction,
+whether by SIMP or by a meta-learned neural field
+\cite{bendsoe1989simp}.  The most instructive recent case
+conditions a Bernoulli flow-matching generator on the adjoint sensitivity field,
+argued via the data-processing inequality to be the information-theoretically
+optimal conditioning signal \cite{topotransformer2026}.  There the adjoint
+enters as an \emph{input field} to a trained generator; here it enters as a
+\emph{gradient with respect to the designer's weights} from a single simulation
+of the design the model itself proposed.  Mechanically our adjoint is an
+ordinary implicit-function-theorem derivative of a fixed-point solver, and we
+claim no part of that construction as new
+\cite{giles2000adjoint,lorraine2020implicit,knoll2004jfnk}.  The gap we address
+is where that construction fails. When the designer emits a sequence of
+categorical structural decisions there is no continuous field to differentiate,
+and the relaxation must be supplied by the design language.
+
+\subsection{Language-model agents for physical design}
+\label{sec:rw-llm}
+LLM agents propose structures, write simulation code and iterate on numerical
+feedback, alternating discrete hypotheses with differentiable refinement or
+solver-in-the-loop iteration
+\cite{ma2024sga,jadhav2026mechdesigner,li2026dctwin,chang2023chipnemo,boiko2023autonomous}.
+Prior work couples an LLM layout generator to a gradient-free
+evolutionary level \cite{phythesis2025}.  A newer line post-trains language
+models on simulator feedback.  SciDesignBench reports that the best zero-shot
+model reaches $29.0$\% success on 520 inverse-design tasks, and that a
+simulator-feedback recipe raises single-turn success by $8$--$17$ points
+\cite{scidesignbench2026}.  LEAPBench finds that scoring trajectories rather
+than final outcomes changes the best-model decision on $53$\% of tasks, and
+that LLMs do not outperform a classical Bayesian baseline
+\cite{zhang2026leap}.  In all of these the simulator's influence is mediated by
+a scalar or by text: either the numbers re-enter through the prompt and nothing
+is amortised into the weights. Or they enter as a reward and credit assignment
+falls back on a score-function estimator.  We differ in the interface, not in
+the ambition: the simulator's Jacobian, not its output value, reaches the
+model's parameters.  We adopt both prescriptions of \cite{zhang2026leap}:
+report design quality per physics evaluation, and compare against
+gradient-free search rather than against another language model.
+
+\subsection{Discrete structural design with continuous physics}
+\label{sec:rw-structural}
+The underlying engineering problem has a mature literature outside machine
+learning.  Topological derivatives quantify the first-order effect of an
+infinitesimal structural perturbation \cite{sokolowski1999topological}.
+In the district-heating line the adjoint itself resolves the discrete structure:
+projection, penalisation and continuation relax pipe presence and discrete
+diameters \cite{blommaert2020adjoint}, and pipe placement is relaxed by a
+penalisation benchmarked against an exact MINLP \cite{wack2022energy,wack2023gap}.  Benders-type decomposition separates a discrete
+master from a continuous subproblem
+\cite{geoffrion1972benders}.  The hydraulic steady state we
+differentiate is the Global Gradient Method solved by damped Newton iteration
+\cite{todini1988gga,knoll2004jfnk}.  For liquid-cooled data centres, control is
+well established under a given topology \cite{lcopt2025}, and design-side
+co-design work enumerates integer partitions of coolant distribution units
+against a reduced-order surrogate, one instance at a time
+\cite{jadhav2026codesign}.  These are the
+right answers when the structural space is enumerable; our aim is
+complementary, to make the structural decision itself differentiable so that the
+physics gradients these methods already compute amortise into a model.
+Ground-structure topology optimisation is the classical precedent for a
+relaxation whose every relaxed point is a valid structure
+\cite{dorn1964automatic,guest2004minimum}.  What we add is a relaxation indexed by
+the decoder's categorical distribution over typed tokens, whose Jacobian lands in
+logit space.  Its one-hot limit recovers the hard design with the sparsity pattern
+and Newton path unchanged.  Neural combinatorial optimisation and grammar-constrained
+decoding supply further components we reuse, and neither attaches a simulator
+adjoint to the policy's parameters
+\cite{vinyals2015pointer,willard2023guided}.
+The deep-RL evaluation literature sets the reporting standard we adopt
+\cite{agarwal2021precipice,henderson2018matters}.  The optimiser itself combines
+LoRA, a clipped surrogate and truncated Gumbel sampling
+\cite{hu2021lora,schulman2017ppo,kool2019stochastic}.
+
+\subsection{Concurrent work: an exactly differentiable water-network solver}
+\label{sec:rw-concurrent}
+Mu et al.\ \cite{mu2026gga} make the Global Gradient Method itself exactly
+differentiable: their backward pass reuses the terminal factorisation of the
+forward pass, so one extra sparse solve returns every parameter's gradient.
+Across 8{,}140 frames of 52 networks the largest head deviation from EPANET~2.2
+is $1.137\times10^{-13}$\,ft, and on the 905-pipe L-TOWN benchmark one adjoint
+solve replaces 906 simulations.  This is a stronger and more thoroughly
+validated version of the adjoint we attach in \cref{sec:benchB}, and we regard
+the construction as established: a reader who needs a production-grade
+differentiable hydraulic solver should use theirs.  The two works are
+complementary in a way that sharpens our claim.  Two of their decisions---roughness calibration and leak localisation---are
+continuous, while sensor placement is a discrete $k$-subset selection resolved by
+submodular lazy greedy over the adjoint's Fisher information; their backward pass
+freezes the combinatorial configuration the forward pass converged to.  That greedy
+buys adjoint information without a relaxation; a relaxation adds a gradient path
+into a parametric model.  Our problem is exactly the perturbation that would change that
+configuration: a rack reassigned to another coolant distribution unit, a branch
+added or isolated, a pipe class changed.  Nothing in \cite{mu2026gga} relaxes a
+discrete decision; the words \emph{language model}, \emph{Gumbel},
+\emph{straight-through} and \emph{token} do not occur in it.
+
+\subsection{Positioning}
+\label{sec:rw-positioning}
+The positioning table of Supplementary Sec.~S-VIII places the present work
+against the groups above; its two new columns are summarised here.  Two
+columns are new relative to the usual positioning table.  ``Relaxation is
+physical'' asks whether every point of the relaxed design space is a system the
+solver can simulate, a property we certify and no estimator paper needs.
+``Pathwise bias'' records that the framework-level answers are owned by
+\cite{suh2022diffsim,onoda2026ddcg,scheffler2026cfobg,hpo2026} while ours is a
+measurement resolved by decision type in one engineering domain.  The
+distinguishing combination remains a \emph{discrete} structural design emitted
+by a \emph{language model} whose parameters receive a \emph{solver adjoint}
+through a relaxation that is itself a physical design.  Each ingredient exists;
+the object that connects them does not.
+

@@ -1,0 +1,12 @@
+import {compileSavedExperiment} from "__DCTWIN_REPO__/src/frontend/react/src/liquid/liquidExperiment.ts"
+import {reviveKinds,schema} from "__DCTWIN_REPO__/src/frontend/react/src/legacy/cfdprojModules.ts"
+import {serializeProjectState} from "__DCTWIN_REPO__/src/frontend/react/src/io/projectFiles.ts"
+export function compileDocument(input:any) {
+ const project=reviveKinds(JSON.parse(JSON.stringify(input)))
+ const errors=schema().validateDocument(project)
+ if(errors.length)throw new Error(JSON.stringify(errors))
+ const before=serializeProjectState(project)
+ const built=compileSavedExperiment(project)
+ if(serializeProjectState(project)!==before)throw new Error('Actual React compiler mutated source project')
+ return {liquidrun:built.liquidrun,controllers:built.controllers,sourceDocument:JSON.parse(before)}
+}

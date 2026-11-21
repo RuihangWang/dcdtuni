@@ -1,0 +1,347 @@
+diff --git a/src/backend/aircooling/runner/convergence.py b/src/backend/aircooling/runner/convergence.py
+index 6d4df5b9..6c497329 100644
+--- a/src/backend/aircooling/runner/convergence.py
++++ b/src/backend/aircooling/runner/convergence.py
+@@ -505,8 +505,10 @@ def transient_verdict(log: SolverLog, run_dir: Path, *, window_frac: float = 0.2
+     final = log.iterations[-1] if log.iterations else None
+     if final is None:
+         reasons.append("no time step in the solver log")
+-    elif end_time is not None and final < end_time - 1e-6 * max(1.0, abs(end_time)):
+-        reasons.append(f"stopped at t = {final:g} of {end_time:g} s")
++    elif end_time is not None and abs(final - end_time) > 1e-6 * max(abs(end_time), 1e-300):
++        # timeName uses configurable significant digits. Match its precision,
++        # but do not use a one-second floor for a millisecond-scale timeline.
++        reasons.append(f"terminal time mismatch: stopped at t = {final:g} of {end_time:g} s")
+     if not log.ended:
+         reasons.append("the solver did not print End")
+     if log.fatal:
+diff --git a/src/backend/aircooling/runner/openfoam_case.py b/src/backend/aircooling/runner/openfoam_case.py
+index 6b3e083e..97fec8e5 100644
+--- a/src/backend/aircooling/runner/openfoam_case.py
++++ b/src/backend/aircooling/runner/openfoam_case.py
+@@ -105,6 +105,7 @@ def generate_control_dict(
+     simulation_config: Dict[str, Any],
+     probes: Optional[List[Dict[str, float]]] = None,
+     monitor_patches: Optional[List[str]] = None,
++    transient_events: Optional[List[float]] = None,
+ ) -> None:
+     """Generate controlDict with probes and optional surface monitoring."""
+     system_dir = run_dir / "system"
+@@ -157,6 +158,10 @@ def generate_control_dict(
+         )
+         write_interval = end_time
+ 
++    from .transient_time import normalize_time_events
++    events = (normalize_time_events(transient_events, end_time=end_time)
++              if solver_type == "transient" else [])
++
+     probes = probes or []
+     monitor_patches = monitor_patches or []
+ 
+@@ -181,6 +186,7 @@ def generate_control_dict(
+         write_precision=write_precision,
+         time_precision=time_precision,
+         end_time=end_time,
++        transient_events=[repr(t) for t in events if t > 0],
+         max_delta_t=max_delta_t,
+         max_co=max_co,
+         adjust_time_step=adjust_time_step,
+diff --git a/src/backend/aircooling/runner/stlgen_runner.py b/src/backend/aircooling/runner/stlgen_runner.py
+index 1e8f2b63..1c488bc7 100644
+--- a/src/backend/aircooling/runner/stlgen_runner.py
++++ b/src/backend/aircooling/runner/stlgen_runner.py
+@@ -44,6 +44,7 @@ if TYPE_CHECKING:
+ from loguru import logger
+ 
+ from backend.aircooling.runner import cfdrun_reader
++from backend.aircooling.runner.transient_time import time_events_from_registry
+ from backend.aircooling.runner.cfdrun_schema import CFDExport
+ from backend.aircooling.runner.fields import (
+     FieldGenerator, STANDARD_FIELD_NAMES, ensure_table_write_precision, start_simulation_config,
+@@ -2451,6 +2452,7 @@ class STLGenRunner:
+             sc,
+             probes=self._extract_sensor_points(),
+             monitor_patches=monitor_patches,
++            transient_events=time_events_from_registry(registry),
+         )
+ 
+         # Generate fvSolution with user-specified residual thresholds
+diff --git a/src/backend/aircooling/runner/transient_time.py b/src/backend/aircooling/runner/transient_time.py
+new file mode 100644
+index 00000000..2bb95be3
+--- /dev/null
++++ b/src/backend/aircooling/runner/transient_time.py
+@@ -0,0 +1,30 @@
++"""Native airflow time boundaries from the original physical schedule corners."""
++import math
++from numbers import Real
++
++
++def normalize_time_events(events, *, end_time=None):
++    """Validate and sort physical timestamps without changing schedule data."""
++    times = set()
++    for event in events or ():
++        if isinstance(event, bool) or not isinstance(event, Real):
++            raise ValueError("transient event times must be finite numbers")
++        event = float(event)
++        if not math.isfinite(event) or event < 0:
++            raise ValueError("transient event times must be finite and nonnegative")
++        if end_time is not None and event > end_time:
++            raise ValueError("transient event runs beyond the end time")
++        times.add(event)
++    return sorted(times)
++
++
++def time_events_from_registry(registry):
++    """Union step times and ramp corners BEFORE the OpenFOAM table ε transform."""
++    events = []
++    if registry:
++        for _, spec in registry.items():
++            for rows in (getattr(spec, "timeVarying", None) or {}).values():
++                for row in rows:
++                    events.append(row["t"] if isinstance(row, dict)
++                                  else row.t if hasattr(row, "t") else row[0])
++    return normalize_time_events(events)
+diff --git a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
+index 4cdfee40..d4ca0a3a 100644
+--- a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
++++ b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C
+@@ -67,6 +67,7 @@ Description
+ #include "staticFvMesh.H"
+ #include "pressureComponentReferences.H"
+ #include "writeBCFields.H"
++#include "transientTimeBoundaries.H"
+ 
+ // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+ 
+@@ -120,11 +121,12 @@ int main(int argc, char *argv[])
+ 
+     Info<< "\nStarting time loop\n" << endl;
+ 
+-    while (runTime.run())
++    while (dcRunTransient(runTime))
+     {
+         #include "readDyMControls.H"
+         #include "CourantNo.H"
+         #include "setDeltaT.H"
++        dcLimitTransientDeltaT(runTime);
+ 
+         ++runTime;
+ 
+@@ -163,7 +165,16 @@ int main(int argc, char *argv[])
+             }
+         }
+ 
+-        runTime.write();
++        // Persist the genuine final solve even when endTime is off the
++        // configured writeInterval grid.
++        if (dcAtTransientEnd(runTime))
++        {
++            runTime.writeNow();
++        }
++        else
++        {
++            runTime.write();
++        }
+         writeBCFields(mesh, runTime);
+ 
+         runTime.printExecutionTime(Info);
+diff --git a/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/transientTimeBoundaries.H b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/transientTimeBoundaries.H
+new file mode 100644
+index 00000000..dd2b112d
+--- /dev/null
++++ b/src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/transientTimeBoundaries.H
+@@ -0,0 +1,84 @@
++/* Physical timeline limits for the repo-owned static PIMPLE solver. */
++#ifndef dcTransientTimeBoundaries_H
++#define dcTransientTimeBoundaries_H
++
++#include "Time.H"
++#include "scalarList.H"
++#include <cmath>
++#include <limits>
++
++namespace Foam
++{
++
++// Only a few representational ULPs, never a physical timestep tolerance.
++inline scalar dcTimeRoundoff(const scalar a, const scalar b)
++{
++    return 16*std::numeric_limits<scalar>::epsilon()
++        *max(mag(a), mag(b));
++}
++
++inline bool dcAtTransientEnd(const Time& runTime)
++{
++    return runTime.stopAt() == Time::saEndTime
++        && mag(runTime.value() - runTime.endTime().value())
++            <= dcTimeRoundoff(runTime.value(), runTime.endTime().value());
++}
++
++inline void dcLimitTransientDeltaT(Time& runTime)
++{
++    const scalar now = runTime.value();
++    const scalar dt = runTime.deltaTValue();
++    const scalar end = runTime.endTime().value();
++    if (!std::isfinite(now) || !std::isfinite(dt) || dt <= 0
++        || !std::isfinite(end))
++    {
++        FatalErrorInFunction
++            << "Transient time and endTime must be finite, and deltaT positive."
++            << exit(FatalError);
++    }
++
++    // Time changes endTime to the current time once a writeNow/noWriteNow
++    // request has taken its genuine final step. Never revive such a stop.
++    scalar target = end;
++    const scalarList events = runTime.controlDict().getOrDefault<scalarList>
++    (
++        "dcTransientEvents", scalarList()
++    );
++    scalar previous = -VGREAT;
++    for (const scalar event : events)
++    {
++        if (!std::isfinite(event) || event < 0 || event <= previous)
++        {
++            FatalErrorInFunction
++                << "dcTransientEvents must be finite, nonnegative and strictly increasing."
++                << exit(FatalError);
++        }
++        previous = event;
++        if (event > now + dcTimeRoundoff(now, event))
++        {
++            target = min(target, event);
++        }
++    }
++
++    const scalar remaining = target - now;
++    if (remaining > dcTimeRoundoff(now, target) && dt > remaining)
++    {
++        // Time::adjustDeltaT aligns writes with a bounded fivefold decrease.
++        // This final physical cap must not be increased again by that hook.
++        runTime.setDeltaT(remaining, false);
++        Info<< "DcTransient: deltaT limited to " << remaining
++            << " at boundary " << target << nl;
++    }
++}
++
++inline bool dcRunTransient(Time& runTime)
++{
++    // Read a runtime-modified endTime/stopAt before Time::run's half-dt test.
++    // This uses OpenFOAM's normal MPI file-watch synchronization.
++    runTime.readModifiedObjects();
++    dcLimitTransientDeltaT(runTime);
++    return runTime.run();
++}
++
++}
++#endif
+diff --git a/src/backend/aircooling/third_parties/foam/template/system/transient/controlDict.j2 b/src/backend/aircooling/third_parties/foam/template/system/transient/controlDict.j2
+index 97f9a67c..7e6bb9b7 100644
+--- a/src/backend/aircooling/third_parties/foam/template/system/transient/controlDict.j2
++++ b/src/backend/aircooling/third_parties/foam/template/system/transient/controlDict.j2
+@@ -27,6 +27,10 @@ endTime         {{ end_time }};
+ 
+ deltaT          {{ delta_t }};
+ 
++// Physical schedule corners, without the table's step epsilon rows.
++// The owned PIMPLE solver lands on these times and the physical endTime.
++dcTransientEvents ({{ transient_events|default([])|join(' ') }});
++
+ {% if adjust_time_step %}
+ writeControl    adjustableRunTime;
+ {% else %}
+diff --git a/src/backend/tests/test_transient_time_boundaries.py b/src/backend/tests/test_transient_time_boundaries.py
+new file mode 100644
+index 00000000..2493bd50
+--- /dev/null
++++ b/src/backend/tests/test_transient_time_boundaries.py
+@@ -0,0 +1,88 @@
++"""Physical timeline breakpoints must reach the native timestep controller."""
++import math
++import re
++from types import SimpleNamespace
++
++import pytest
++
++from backend.aircooling.runner.openfoam_case import generate_control_dict
++from backend.aircooling.runner import convergence as cv
++from backend.aircooling.runner.stlgen_runner import STLGenRunner
++
++
++def _events(text):
++    found = re.search(r"dcTransientEvents\s*\(([^)]*)\)\s*;", text)
++    assert found, "transient controlDict has no native timeline event interface"
++    return [float(x) for x in found.group(1).split()]
++
++
++def test_original_corners_union_preserves_steps_without_table_epsilon(tmp_path):
++    from backend.aircooling.runner.transient_time import time_events_from_registry
++    registry = {
++        "supply": SimpleNamespace(timeVarying={
++            "supplyTemp": [{"t": 0, "value": 22}, {"t": .003, "value": 22},
++                           {"t": .003, "value": 24}, {"t": .006, "value": 24}],
++            "velocity": [{"t": 0, "value": [0, 0, 1]}, {"t": .002, "value": [0, 1, 0]}],
++        }),
++        "server": SimpleNamespace(timeVarying={
++            "powerRows": [{"t": 0, "value": 1000}, {"t": .002, "value": 1000},
++                          {"t": .004, "value": 1200}],
++        }),
++    }
++    original = [row["t"] for row in registry["supply"].timeVarying["supplyTemp"]]
++    events = time_events_from_registry(registry)
++    assert events == [0, .002, .003, .004, .006]
++    assert [row["t"] for row in registry["supply"].timeVarying["supplyTemp"]] == original
++    generate_control_dict(tmp_path, {"solverType": "transient", "endTimeSeconds": .007},
++                          transient_events=events)
++    assert _events((tmp_path / "system/controlDict").read_text()) == [.002, .003, .004, .006]
++
++
++def test_steady_stage_does_not_expose_timeline_events(tmp_path):
++    generate_control_dict(tmp_path, {"solverType": "steady"}, transient_events=[.002])
++    assert "dcTransientEvents" not in (tmp_path / "system/controlDict").read_text()
++
++
++def test_legacy_transient_has_explicit_empty_event_list(tmp_path):
++    generate_control_dict(tmp_path, {"solverType": "transient"})
++    assert _events((tmp_path / "system/controlDict").read_text()) == []
++
++
++@pytest.mark.parametrize("bad", [True, "0.001", math.nan, math.inf, -.001, .008])
++def test_invalid_or_out_of_duration_events_are_refused(tmp_path, bad):
++    with pytest.raises(ValueError, match="event"):
++        generate_control_dict(tmp_path, {"solverType": "transient", "endTimeSeconds": .007},
++                              transient_events=[bad])
++
++
++def test_runner_passes_all_active_registry_corners_to_writer(tmp_path, monkeypatch):
++    import backend.aircooling.runner.stlgen_runner as module
++    runner = STLGenRunner.__new__(STLGenRunner)
++    runner._data = {"simulationConfig": {"solverType": "transient", "endTimeSeconds": .007}}
++    runner._bridge_registry = {
++        "server": SimpleNamespace(timeVarying={
++            "powerRows": [{"t": 0, "value": 1000}, {"t": .003, "value": 1000},
++                          {"t": .003, "value": 1200}],
++        }),
++    }
++    runner._extract_sensor_points = lambda: []
++    seen = {}
++    monkeypatch.setattr(module, "generate_control_dict",
++                        lambda *a, **kw: seen.update(kw))
++    monkeypatch.setattr(module, "generate_fv_solution", lambda *a, **kw: None)
++    monkeypatch.setattr(module, "generate_fv_schemes", lambda *a, **kw: None)
++    runner._generate_solver_dicts(tmp_path)
++    assert seen["transient_events"] == [0, .003]
++
++
++@pytest.mark.parametrize("final,end_time", [(.028, .026), (.000002, .000001), (.02, .025)])
++def test_completion_requires_matching_terminal_time_in_both_directions(tmp_path, final, end_time):
++    (tmp_path / "system").mkdir()
++    (tmp_path / "system/controlDict").write_text(
++        f"application buoyantBoussinesqPimpleFoam_new;\nendTime {end_time};\n")
++    log = cv.SolverLog()
++    log.iterations = [final]
++    log.ended = True
++    verdict = cv.transient_verdict(log, tmp_path)
++    assert not verdict["passed"]
++    assert any("terminal" in reason for reason in verdict["reasons"])

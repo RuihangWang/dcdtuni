@@ -1,0 +1,21 @@
+622:     // Wall-clock budget. Checked at every stage boundary — the stages are the
+623:     // only places where abandoning the run leaves nothing half-written.
+624:     scalar timeLimit = meshDict.getOrDefault<scalar>("timeLimitSeconds", 0);
+625:     args.readIfPresent("timeLimit", timeLimit);
+626:     auto budgetCheck = [&](const char* stage)
+627:     {
+628:         if (timeLimit > 0 && timer.elapsedTime() > timeLimit)
+629:         {
+630:             FatalErrorInFunction
+631:                 << "dcCartMesh exceeded its " << timeLimit << " s time budget"
+632:                 << " (" << timer.elapsedTime() << " s elapsed) after '" << stage
+633:                 << "'. Aborting rather than running on: fix the mesher or raise"
+634:                 << " timeLimitSeconds in dcCartMeshDict." << nl
+635:                 << exit(FatalError);
+636:         }
+637:     };
+638:     if (timeLimit > 0)
+639:     {
+640:         Info<< "Time budget: " << timeLimit << " s" << nl;
+641:     }
+642: 

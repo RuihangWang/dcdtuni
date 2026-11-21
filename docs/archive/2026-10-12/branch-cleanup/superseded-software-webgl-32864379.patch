@@ -1,0 +1,72 @@
+From 32864379bbb0584539afe2d41b0a7a1b913142af Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 24 Sep 2026 11:36:35 +0000
+Subject: [PATCH] fix(server): opt-in software WebGL for the /api/browser
+ worker on GPU-less hosts
+
+The worker launches Chromium with GPU-only flags (ANGLE/Vulkan plus
+--disable-software-rasterizer, which also turns off SwiftShader). On a host
+with no GPU (a cloud container, CI) that leaves no WebGL at all:
+THREE.WebGLRenderer throws, the React App never mounts, window._applyProjectData
+is never installed, and every /api/browser/load-proj / export-case call fails
+with "window._applyProjectData is not a function".
+
+DCDTUNI_BROWSER_GL=swiftshader now launches with software WebGL instead.
+Opt-in only: the default stays on the GPU flags, and the startup line still
+names the renderer, so a GPU host that lost its ICD keeps reporting it.
+
+Verified on a 4-vCPU no-GPU container: export-case on case/Base_leakage wrote
+19 STL files + the .cfdrun, and /api/run-mesh produced a 556,722-cell
+snappyHexMesh mesh that passes the patch acceptance check.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01L9pYBJKmPFoVBuj4dCSGEg
+---
+ src/server/server.py | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/src/server/server.py b/src/server/server.py
+index 39019f23b..c726c2d0e 100644
+--- a/src/server/server.py
++++ b/src/server/server.py
+@@ -978,6 +978,24 @@ _BROWSER_GPU_ARGS = [
+     "--disable-dev-shm-usage",
+ ]
+ 
++# Software WebGL, for a host with no GPU at all (a cloud container, CI).
++#
++# There the GPU flags above leave NO WebGL — `--disable-software-rasterizer`
++# also switches off SwiftShader — and the React editor cannot mount without a
++# GL context: THREE.WebGLRenderer throws, App never installs
++# window._applyProjectData, and every load/export through /api/browser/* fails
++# with "window._applyProjectData is not a function". Opt-in with
++# DCDTUNI_BROWSER_GL=swiftshader, never a silent fallback: the startup line
++# below still names the renderer, so a GPU host that lost its ICD keeps saying so.
++_BROWSER_SOFTWARE_GL_ARGS = [
++    "--use-gl=angle",
++    "--use-angle=swiftshader",
++    "--enable-unsafe-swiftshader",
++    "--no-sandbox",
++    "--disable-dev-shm-usage",
++]
++_BROWSER_SOFTWARE_GL = os.environ.get("DCDTUNI_BROWSER_GL", "gpu").strip().lower() == "swiftshader"
++
+ _BROWSER_DISPLAY = os.environ.get("DCDTUNI_BROWSER_DISPLAY", ":99")
+ # Head by default. The previous worker ran headless with `--disable-gpu
+ # --disable-software-rasterizer`, a combination that leaves NO WebGL at all —
+@@ -1055,8 +1073,11 @@ def _browser_worker(page_url: str) -> None:
+         env["DISPLAY"] = display
+ 
+     pw = sync_playwright().start()
+-    browser = pw.chromium.launch(headless=headless, args=_BROWSER_GPU_ARGS, env=env)
++    browser_args = _BROWSER_SOFTWARE_GL_ARGS if _BROWSER_SOFTWARE_GL else _BROWSER_GPU_ARGS
++    browser = pw.chromium.launch(headless=headless, args=browser_args, env=env)
+     mode = "headless=new" if headless else f"head on {display}"
++    if _BROWSER_SOFTWARE_GL:
++        mode += ", software WebGL (DCDTUNI_BROWSER_GL=swiftshader)"
+     context = browser.new_context(viewport={"width": 1920, "height": 1080})
+ 
+     # Give the worker its own session, so the PAGE can call the API.
+-- 
+2.43.0
+

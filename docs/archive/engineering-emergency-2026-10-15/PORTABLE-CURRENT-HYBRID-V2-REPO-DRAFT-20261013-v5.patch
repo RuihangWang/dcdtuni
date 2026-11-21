@@ -1,0 +1,57 @@
+--- a/src/frontend/react/src/schema/cfdproj.ts
++++ b/src/frontend/react/src/schema/cfdproj.ts
+@@ -151,6 +151,16 @@
+   servers: Record<string, { total_it_power_W: number }>
+ }
+ 
++export interface HybridHeatBudgetV2 {
++  version: 2
++  source: 'mock' | 'vendor' | 'calibrated'
++  source_reference: string
++  load_mapping: 'server_power_times_shared_heat_multiplier'
++  air_transfer: 'fan_enthalpy'
++  servers: Record<string, { total_it_power_W: number }>
++}
++export type HybridHeatBudget = HybridHeatBudgetV1 | HybridHeatBudgetV2
++
+ /** Strict V1 relation declarations; geometric admission is deliberately not implemented yet. */
+ export interface GeometryTopologyV1 {
+   version: 1
+@@ -181,7 +191,7 @@
+   geometry?: RoomGeometry
+   geometryTopology?: GeometryTopologyV1
+   constructions?: Partial<Record<Bucket | string, Record<string, Construction> | null>>
+-  runDefaults?: { hybridHeatBudget?: HybridHeatBudgetV1; [key: string]: unknown }
++  runDefaults?: { hybridHeatBudget?: HybridHeatBudget; [key: string]: unknown }
+ }
+ 
+ /** A construction plus the bucket it came from. */
+--- a/src/frontend/shared/js/cfdproj_schema.js
++++ b/src/frontend/shared/js/cfdproj_schema.js
+@@ -256,12 +256,15 @@
+     const err = (path, msg) => errors.push({ path: base + (path ? '.' + path : ''), msg });
+     const object = v => v && typeof v === 'object' && !Array.isArray(v);
+     if (!object(value)) { err('', 'expected an object'); return errors; }
+-    const allowed = new Set(['version', 'source', 'source_reference', 'load_mapping', 'air_surface_allocation', 'servers']);
++    const fan = value.version === 2;
++    const allowed = new Set(fan ? ['version', 'source', 'source_reference', 'load_mapping', 'air_transfer', 'servers'] : ['version', 'source', 'source_reference', 'load_mapping', 'air_surface_allocation', 'servers']);
+     Object.keys(value).forEach(k => { if (!allowed.has(k)) err(k, 'unknown hybrid heat budget field'); });
+-    if (value.version !== 1) err('version', 'expected version 1');
++    if (value.version !== 1 && value.version !== 2) err('version', 'expected version 1 or 2');
+     if (!['mock', 'vendor', 'calibrated'].includes(value.source)) err('source', 'expected mock, vendor or calibrated');
+     if (typeof value.source_reference !== 'string' || !value.source_reference.trim()) err('source_reference', 'requires an explicit parameter source');
+-    if (value.load_mapping !== 'shared_heat_multiplier') err('load_mapping', 'expected shared_heat_multiplier');
++    if (value.load_mapping !== (fan ? 'server_power_times_shared_heat_multiplier' : 'shared_heat_multiplier')) err('load_mapping', 'unsupported load mapping');
++    if (fan && value.air_transfer !== 'fan_enthalpy') err('air_transfer', 'expected fan_enthalpy');
++    if (!fan) {
+     const allocation = value.air_surface_allocation;
+     if (!object(allocation)) err('air_surface_allocation', 'expected front and rear surface fractions');
+     else {
+@@ -278,6 +281,7 @@
+       if (finiteNonnegative && Math.abs(allocation.front_fraction + allocation.rear_fraction - 1) > 1e-12) {
+         err('air_surface_allocation', 'front and rear fractions must sum to one');
+       }
++    }
+     }
+     if (!object(value.servers) || Object.keys(value.servers).length === 0) {
+       err('servers', 'expected a nonempty UID-keyed server power object');

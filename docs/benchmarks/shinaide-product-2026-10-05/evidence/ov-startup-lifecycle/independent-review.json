@@ -1,0 +1,64 @@
+{
+  "identity": {
+    "procStatSessionIndex": 3,
+    "procStatStartTimeIndex": 19,
+    "validation": "UID/SID/start-time only; process state R/S/Z ignored when matching identity",
+    "signaling": "pidfd holds kernel identity; x86-64 syscall fallback validated by fake child regression",
+    "foreignSessions": "never included; same session separate process groups are included",
+    "standaloneSetsid": "a descendant creating a different session is outside this saved-session contract"
+  },
+  "procErrors": {
+    "actualCapturedRace": "combined-before-fixture-correction.log: /proc status vanished between exists and read_text",
+    "handledExpectedErrors": [
+      "FileNotFoundError",
+      "ProcessLookupError",
+      "PermissionError",
+      "ValueError"
+    ],
+    "ESRCHTest": "None result on simulated disappearance",
+    "EIOTest": "unexpected I/O propagates; no broad OSError -> missing-process conversion"
+  },
+  "listener": {
+    "ownership": "LISTEN inode snapshot must be in exact current Kit PID fd set",
+    "noDecodedVideoNeeded": true,
+    "foreignListener": "fails closed without signaling foreign process",
+    "raceScope": "check describes observed socket ownership; it does not reserve exclusivity against a later external bind",
+    "pidReuse": "owned child is not reaped while poll returns None; listener PID cannot be reused in this branch"
+  },
+  "finalization": {
+    "cleanupLine": 174,
+    "finalizationLine": 393,
+    "triesAllSessions": true,
+    "errorsAreCollected": true,
+    "originalStartupFailureIsNotOverwritten": true,
+    "cleanupFailureReceipt": "cleanup.failure",
+    "cleanupErrorPinsExitNonzero": true,
+    "receiptWriteFailures": "other receipts and kit.exit still attempted and failure printed"
+  },
+  "deadline": {
+    "startLine": 306,
+    "covered": [
+      "self pidfd capability check",
+      "wrapper validation",
+      "port preflight",
+      "NVIDIA query",
+      "Vulkan query",
+      "X11 probes",
+      "owned Xvfb readiness",
+      "Kit signaling readiness"
+    ],
+    "outsideClock": [
+      "outer shell parameter validation and checkout-local directories/cache environment",
+      "Python import/control-listener receipt initialization"
+    ],
+    "cancelledDisplayExplicitPropagation": true,
+    "expiredDisplayStopsNextChild": true,
+    "totalStartupSeconds": 300,
+    "perGpuProbeSeconds": 20,
+    "cleanupTail": "default close upper timed waits=1+2+2 seconds per owned session; probe error may cause a second close attempt; two active sessions gives approximately 15-second exceptional tail excluding /proc scan/I/O overhead",
+    "launcherFallbackSeconds": 20,
+    "launcherFallbackReview": "approved parent correction: exact private port sends TERM, waits up to20s with immediate return on normal close, retains original exact UID/PID fuser-KILL fallback",
+    "normalTwoSessionValidation": "final40 regression uses CPU-only fake Kit descendant and owned fake Xvfb that ignore TERM; private fuser TERM initiates normal owned KILL/reap, both sessions close within5s",
+    "preXvfbBoundary": "owner.check and current deadline checked after unavailable display result, before creating owned Xvfb; simulated crossing regression before-fail/after-pass"
+  }
+}

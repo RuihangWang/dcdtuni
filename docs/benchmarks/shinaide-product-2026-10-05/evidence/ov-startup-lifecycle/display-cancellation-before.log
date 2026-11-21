@@ -1,0 +1,36 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_cancelled_display_probe_is_never_treated_as_an_unavailable_display ____
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-cancelled-display-before/test_cancelled_display_probe_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f425d707400>
+
+    def test_cancelled_display_probe_is_never_treated_as_an_unavailable_display(tmp_path,monkeypatch):
+        import signal
+        module=load_supervisor("ov_display_cancelled")
+        runtime=tmp_path/"cancelled-display-runtime"
+        calls=[]
+        def probe(owner,*args,**kwargs):
+            # Explicit cancellation is terminal independently of the stop flag.
+            raise module.Cancelled("explicit display cancellation")
+        def spawn(owner,command,**kwargs):
+            calls.append(command)
+            raise RuntimeError("unwanted display child after cancellation")
+        monkeypatch.setattr(module.Owner,"probe",probe)
+        monkeypatch.setattr(module.Owner,"spawn",spawn)
+        monkeypatch.setattr(sys,"argv",["supervise_kit","--runtime",str(runtime),
+            "--display",":fake","--","fake-kit"])
+        handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
+        try:
+            assert module.main()!=0
+        finally:
+            for sig,handler in handlers.items():signal.signal(sig,handler)
+>       assert not calls
+E       AssertionError: assert not [['Xvfb', ':fake', '-screen', '0', '1920x1080x24']]
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:468: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[supervise_kit] ERROR: unwanted display child after cancellation; logs /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-cancelled-display-before/test_cancelled_display_probe_i0/cancelled-display-runtime/kit.log
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_cancelled_display_probe_is_never_treated_as_an_unavailable_display
+1 failed, 21 deselected in 0.25s

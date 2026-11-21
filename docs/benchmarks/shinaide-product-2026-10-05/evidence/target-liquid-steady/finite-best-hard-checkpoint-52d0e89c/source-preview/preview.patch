@@ -1,0 +1,90 @@
+--- a/dcCartFinitePointRepair.H
++++ b/dcCartFinitePointRepair.H
+@@ -126,10 +126,18 @@
+     double objective=0;
+     Row constraints;
+     bool valid=false;
++    double hardDW=-1; // Optional exact nonnegative count; unset keeps R behavior.
+ };
++inline bool validHardDW(double n)
++{
++    return std::isfinite(n) && n>=0 && n<=std::numeric_limits<unsigned>::max()
++        && std::floor(n)==n;
++}
+ struct Search
+ {
+-    Row parameters;
++    Row parameters, bestHardParameters;
++    double bestHardDW=-1;
++    bool bestHardImproved=false;
+     unsigned requests=0, iterations=0, projectionUpdates=0;
+     bool improved=false, stoppedByBudget=false;
+     bool stoppedByRequestCap=false,stoppedByTimeBudget=false;
+@@ -157,6 +165,7 @@
+     };
+     Row q(dimension,0); Evaluation current;
+     if (!request(q,current)) return out;
++    const double initialHardDW=current.hardDW;
+     for (unsigned iteration=0; iteration<32; ++iteration)
+     {
+         Matrix jac(current.constraints.size(),Row(dimension,0));
+@@ -208,7 +217,18 @@
+                  && next.objective<current.objective-1e-8)
+                 {
+                     q=trial; current=next; accepted=true;
+-                    out.parameters=q; out.improved=true; break;
++                    out.parameters=q; out.improved=true;
++                    // Reuse the already-evaluated accepted feasible iterate.
++                    // Soft trajectory and request accounting stay unchanged.
++                    if (objectiveKind==ObjectiveKind::DWeightCount
++                     && validHardDW(initialHardDW) && validHardDW(current.hardDW)
++                     && current.hardDW<initialHardDW
++                     && (!out.bestHardImproved || current.hardDW<out.bestHardDW))
++                    {
++                        out.bestHardParameters=q;out.bestHardDW=current.hardDW;
++                        out.bestHardImproved=true;
++                    }
++                    break;
+                 }
+             }
+             if (!valid || accepted) break;
+@@ -1562,6 +1582,7 @@
+             if (!dw) value.objective=-next.faceQuality[targetIndex][1]/.01;
+             else
+             {
++                value.hardDW=hardDWCount(stencil,next);
+                 value.objective=0;
+                 for (label c:stencil.core) value.objective+=std::exp(-next.determinant[c]/.001);
+                 for (label f:activeFaces) if (!stencil.faces[f].coupled)
+@@ -1600,10 +1621,17 @@
+         if (search.stoppedByRequestCap) ++result.requestCapStopped;
+         if (search.stoppedByTimeBudget) ++result.budgetStopped;
+         bool accepted=false;
+-        for (scalar fraction:{scalar(1),scalar(.95),scalar(.9),scalar(.5)})
+-        {
++        // The last soft iterate is always primary. Only after all its fractions
++        // fail may one distinct best-hard checkpoint use the identical guards.
++        for (unsigned checkpoint=0;checkpoint<2 && !accepted;++checkpoint)
++        {
++            if (checkpoint && (!dw || !search.bestHardImproved
++             || search.bestHardParameters==search.parameters)) break;
++            const auto& parameters=checkpoint ? search.bestHardParameters : search.parameters;
++            for (scalar fraction:{scalar(1),scalar(.95),scalar(.9),scalar(.5)})
++            {
+             if (!search.improved || !available()) break;
+-            const pointField candidate=coordinates(search.parameters,fraction);
++            const pointField candidate=coordinates(parameters,fraction);
+             const State after=stencil.evaluate(candidate);
+             if (!after.valid
+              || (!dw && after.faceQuality[targetIndex][1]<.01)
+@@ -1630,8 +1658,9 @@
+                 << " proposedRatio=" << after.faceQuality[targetIndex][1];
+             Pout<< " core=" << stencil.core.size() << " outside=" << stencil.outside.size()
+                 << " faces=" << stencil.faces.size() << " points=" << stencil.pointIDs.size()
+-                << " requests=" << search.requests << nl;
++                << " requests=" << search.requests << " checkpoint=" << checkpoint << nl;
+             break;
++            }
+         }
+         if (!accepted) { ++result.refused;if (dw) ++result.dwRefused; }
+     };

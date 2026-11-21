@@ -1,0 +1,296 @@
+# Review package: 3b2f3137..ada9ac9d
+
+## Commits
+ada9ac9d fix(liquid): monitor the current solved thermal frame
+
+## Files changed
+ src/backend/liquidcooling/runner.py              | 36 +++++++++----
+ src/backend/liquidcooling/solver/hybrid.py       | 15 ++++--
+ src/backend/tests/test_liquid/test_runner_cdu.py | 64 ++++++++++++++++++++++++
+ 3 files changed, 101 insertions(+), 14 deletions(-)
+
+## Diff
+diff --git a/src/backend/liquidcooling/runner.py b/src/backend/liquidcooling/runner.py
+index ac0a49cc..14d3567c 100644
+--- a/src/backend/liquidcooling/runner.py
++++ b/src/backend/liquidcooling/runner.py
+@@ -16,98 +16,112 @@ from backend.liquidcooling.graphcompiling.compiler import compile_graph
+ from backend.liquidcooling.solver.model import LiquidODILModel
+ from backend.liquidcooling.solver.adam_odil import solve
+ from backend.liquidcooling.solver.hybrid import hybrid_solve
+ from backend.liquidcooling.postprocess.results import LiquidResult, RackSummary, ServerSummary, CpDetail
+ from backend.liquidcooling.solver.bc_ic import BoundaryConditionEnforcer, StateInitializer, BCICMonitor
+ 
+ 
+ def _extract_cp_monitor(model, graph, monitor_cp_ids):
+     """Extract T_chip, T_water_out, m for monitored cold plates (real-time)."""
+     result = {}
++    active_index = getattr(model, "thermal_time_index", None)
++    t = -1 if active_index is None else active_index
+     if not monitor_cp_ids or graph.cp_indices is None:
+         return result
+     with torch.no_grad():
+         T_all = getattr(model, "thermal_node_history", None)
+         if T_all is None:
+             T_all = model._build_T_all_nodes(dict(model.state))
+         for cp_str_id in monitor_cp_ids:
+             if cp_str_id not in graph.edge_str_ids:
+                 continue
+             global_idx = graph.edge_str_ids.index(cp_str_id)
+             local_mask = (graph.cp_indices.edge_ids == global_idx)
+             if not local_mask.any():
+                 continue
+             local_idx = local_mask.nonzero(as_tuple=True)[0][0].item()
+ 
+-            T_chip = model.state["T_s"][local_idx, -1].item()
+-            m_val = model.state["m"][global_idx, -1].abs().item()
++            T_chip = model.state["T_s"][local_idx, t].item()
++            m_val = model.state["m"][global_idx, t].abs().item()
+ 
+             # NTU-effectiveness for T_water_out
+             UA = graph.cp_params.UA[local_idx].item()
+             m_abs_cp = m_val * graph.fluid_cp + 1e-10
+             NTU = UA / m_abs_cp
+             eff = 1.0 - np.exp(-NTU) if m_val > 0 else 0.0
+             from_node = graph.edge_from[global_idx].item()
+-            inlet_node = from_node if model.state["m"][global_idx, -1] >= 0 else graph.edge_to[global_idx].item()
+-            T_in = T_all[inlet_node, -1].item()
++            inlet_node = from_node if model.state["m"][global_idx, t] >= 0 else graph.edge_to[global_idx].item()
++            T_in = T_all[inlet_node, t].item()
+             T_water_out = T_in + eff * (T_chip - T_in)
+ 
+             result[cp_str_id] = {
+                 "T_chip": round(T_chip, 2),
+                 "T_water_out": round(T_water_out, 2),
+                 "m": round(m_val, 4),
+             }
+     return result
+ 
+ 
+ def _extract_cdu_monitor(model, graph):
+     """Extract CDU-level metrics (supply/return pressure, total flow, supply T).
+ 
+     Identifies the CDU supply BC as the BC node that has outgoing edges, and
+     the return BC as the BC node that has incoming edges.  Returns a dict with:
+ 
+       supply_P_Pa     — pressure at supply BC node (from model.state["P"])
+       return_P_Pa     — pressure at return BC node
+       total_flow_kg_s — sum of |m| on the supply BC's outgoing edges
+-      supply_T_K      — (optional) supply temperature when bc_T_mask is True
++      supply_T_K      — solved supply temperature, or prescribed BC temperature
++
++    This keeps the legacy first-pressure-BC identification heuristic; it is
++    not a multi-CDU asset mapping. Every metric uses the active thermal sample,
++    or the final sample for legacy callers without an active index.
+     """
+     result = {}
++    active_index = getattr(model, "thermal_time_index", None)
++    t = -1 if active_index is None else active_index
+     with torch.no_grad():
+         P = model.state["P"]  # [N_nodes, N_t]
+ 
+         supply_node = None
+         return_node = None
+ 
+         for i in range(graph.N_nodes):
+             if not graph.bc_mask[i]:
+                 continue
+             has_out = len(graph.node_out_edges[i]) > 0
+             has_in  = len(graph.node_in_edges[i]) > 0
+             if has_out and supply_node is None:
+                 supply_node = i
+             if has_in and return_node is None:
+                 return_node = i
+ 
+         if supply_node is not None:
+-            result["supply_P_Pa"] = round(P[supply_node, -1].item(), 2)
++            result["supply_P_Pa"] = round(P[supply_node, t].item(), 2)
+             # Total flow: sum of absolute mass flows on outgoing edges
+             total_flow = sum(
+-                model.state["m"][eidx, -1].abs().item()
++                model.state["m"][eidx, t].abs().item()
+                 for eidx in graph.node_out_edges[supply_node]
+             )
+             result["total_flow_kg_s"] = round(total_flow, 4)
+-            # Supply temperature (only if Dirichlet BC is set)
+-            if graph.bc_T_mask[supply_node]:
+-                result["supply_T_K"] = round(graph.bc_T[supply_node].item(), 2)
++            # Use the already solved frame, never reconstruct a different one.
++            history = getattr(model, "thermal_node_history", None)
++            if history is not None:
++                result["supply_T_K"] = round(history[supply_node, t].item(), 2)
++            elif graph.bc_T_mask[supply_node]:
++                series = getattr(graph, "bc_T_series", None)
++                temperature = (graph.bc_T[supply_node] if series is None
++                               else series[supply_node, t])
++                result["supply_T_K"] = round(temperature.item(), 2)
+ 
+         if return_node is not None:
+-            result["return_P_Pa"] = round(P[return_node, -1].item(), 2)
++            result["return_P_Pa"] = round(P[return_node, t].item(), 2)
+ 
+     return result
+ 
+ 
+ def run_liquid_solve(
+     liquidrun_path: Path,
+     case_dir: Path = None,
+     device: str = "cpu",
+     callback: Callable = None,
+     monitor_cp_ids: list[str] = None,
+diff --git a/src/backend/liquidcooling/solver/hybrid.py b/src/backend/liquidcooling/solver/hybrid.py
+index e39679f5..680cc620 100644
+--- a/src/backend/liquidcooling/solver/hybrid.py
++++ b/src/backend/liquidcooling/solver/hybrid.py
+@@ -58,21 +58,22 @@ def hybrid_solve(
+         nonlocal epoch_counter
+         log = SolveLog(
+             epoch=epoch_counter,
+             total=max_chip_K,
+             losses={"max_chip_temp_K": max_chip_K, "thermal_step": float(t_step)},
+             wall_time_s=time.time() - t_start,
+         )
+         logs.append(log)
+         epoch_counter += 1
+         if callback:
+-            callback(asdict(log))
++            callback({**asdict(log), "time_index": t_step,
++                      "time_s": t_step * model.graph.dt})
+ 
+     T_node = _solve_thermal_direct(model, model.graph, timestep_callback=_thermal_cb)
+ 
+     losses = model.thermal_forward(T_all_nodes_override=T_node)
+     loss_dict = {k: v.item() for k, v in losses.items() if k != "total"}
+     loss_dict["newton_iterations"] = float(info["iterations"])
+     loss_dict["newton_max_dm"] = info["max_dm"]
+ 
+     diagnostics = model.thermal_diagnostics
+     linear_max = max((d["linear_residual_K"].abs().max().detach().item() for d in diagnostics), default=0.)
+@@ -84,21 +85,22 @@ def hybrid_solve(
+     cp_total = linear_max
+     model.hybrid_converged = True
+     final_log = SolveLog(
+         epoch=epoch_counter,
+         total=cp_total,
+         losses=loss_dict,
+         wall_time_s=time.time() - t_start,
+     )
+     logs.append(final_log)
+     if callback:
+-        callback(asdict(final_log))
++        callback({**asdict(final_log), "time_index": model.graph.N_t - 1,
++                  "time_s": (model.graph.N_t - 1) * model.graph.dt})
+     else:
+         print_log(final_log)
+ 
+     if log_dir is not None:
+         log_dir = Path(log_dir)
+         log_dir.mkdir(parents=True, exist_ok=True)
+         save_loss_csv(logs, log_dir / "loss_history.csv")
+         torch.save(model.state_dict(), log_dir / "model_state.pt")
+ 
+     return logs
+@@ -129,16 +131,23 @@ def _solve_thermal_direct(model, graph, timestep_callback=None):
+         result = thermal_step(g, m[:, t], node, water, solid, time_index=t)
+         node, water, solid = result.T_node, result.T_w, result.T_s
+         nodes.append(node)
+         waters.append(water)
+         solids.append(solid)
+         diagnostics.append(result.diagnostics)
+         with torch.no_grad():
+             model.state["T_w"][:, t].copy_(water)
+             model.state["T_s"][:, t].copy_(solid)
+         if timestep_callback is not None:
+-            timestep_callback(t, g.N_t, solid.max().detach().item() if solid.numel() else 0.)
++            # Make exactly the solved prefix available before monitors run.
++            model.thermal_node_history = torch.stack(nodes, dim=1)
++            model.thermal_time_index = t
++            try:
++                timestep_callback(t, g.N_t, solid.max().detach().item() if solid.numel() else 0.)
++            finally:
++                # Outside a transient callback, legacy monitors read the final sample.
++                model.thermal_time_index = None
+     model.thermal_node_history = torch.stack(nodes, dim=1)
+     model.thermal_water_history = torch.stack(waters, dim=1)
+     model.thermal_solid_history = torch.stack(solids, dim=1)
+     model.thermal_diagnostics = diagnostics
+     return model.thermal_node_history
+diff --git a/src/backend/tests/test_liquid/test_runner_cdu.py b/src/backend/tests/test_liquid/test_runner_cdu.py
+index 9be192ba..9e67f841 100644
+--- a/src/backend/tests/test_liquid/test_runner_cdu.py
++++ b/src/backend/tests/test_liquid/test_runner_cdu.py
+@@ -126,10 +126,74 @@ class TestExtractCduMonitorSupplyTemp:
+         self.graph = FakeGraph()
+         self.model = FakeModel()
+         self.result = self._fn(self.model, self.graph)
+ 
+     def test_has_supply_T_K(self):
+         assert "supply_T_K" in self.result
+ 
+     def test_supply_T_value(self):
+         # Supply BC has bc_T_mask=True and bc_T=288.15 K
+         assert abs(self.result["supply_T_K"] - 288.15) < 0.01
++
++
++def test_transient_callbacks_sample_current_solved_cp_and_cdu_frame():
++    import math
++    from backend.tests.test_liquid.test_dynamic_thermal import loop_graph
++    from backend.liquidcooling.solver.model import LiquidODILModel
++    from backend.liquidcooling.solver.hybrid import _solve_thermal_direct
++    from backend.liquidcooling.runner import _extract_cp_monitor, _extract_cdu_monitor
++
++    g = loop_graph(n=4)
++    g.bc_T_mask[0] = True
++    g.bc_T_series = g.bc_T[:, None].expand(-1, g.N_t).clone()
++    g.bc_T_series[0] = torch.tensor([298., 300., 303., 307.])
++    model = LiquidODILModel(g)
++    with torch.no_grad():
++        model.state['m'][:] = torch.tensor([.3, .2, -.1, .4])
++        model.state['P'][0] = torch.tensor([2e5, 2.1e5, 1.9e5, 2.2e5])
++    observed = []
++    def callback(t, n, max_chip):
++        cp = _extract_cp_monitor(model, g, ['cold_plate_1'])['cold_plate_1']
++        cdu = _extract_cdu_monitor(model, g)
++        assert cp['T_chip'] == round(max_chip, 2)
++        e = int(g.cp_indices.edge_ids[0])
++        signed_flow = model.state['m'][e, t].item()
++        assert cp['m'] == round(abs(signed_flow), 4)
++        assert model.thermal_node_history.shape[1] == t + 1
++        inlet = int(g.edge_from[e] if signed_flow >= 0 else g.edge_to[e])
++        tin = model.thermal_node_history[inlet, t].item()
++        eps = 1. - math.exp(-g.cp_params.UA[0].item() / (abs(signed_flow) * g.fluid_cp))
++        assert cp['T_water_out'] == round(tin + eps * (max_chip - tin), 2)
++        assert cdu['supply_P_Pa'] == round(model.state['P'][0, t].item(), 2)
++        assert cdu['return_P_Pa'] == round(model.state['P'][0, t].item(), 2)
++        assert cdu['supply_T_K'] == round(g.bc_T_series[0, t].item(), 2)
++        assert cdu['total_flow_kg_s'] == round(abs(signed_flow), 4)
++        observed.append(cp)
++    _solve_thermal_direct(model, g, timestep_callback=callback)
++    assert len(observed) == 3
++    assert getattr(model, 'thermal_time_index', None) is None
++    assert _extract_cp_monitor(model, g, ['cold_plate_1'])['cold_plate_1'] == observed[-1]
++
++
++def test_hybrid_thermal_callback_includes_physical_time():
++    from backend.tests.test_liquid.test_dynamic_thermal import loop_graph
++    from backend.liquidcooling.solver.model import LiquidODILModel
++    from backend.liquidcooling.solver.hybrid import hybrid_solve
++    g = loop_graph(n=4, dt=2.5)
++    frames = []
++    hybrid_solve(LiquidODILModel(g), g.solver_config, callback=frames.append)
++    thermal = [f for f in frames if 'thermal_step' in f['losses']]
++    assert len(thermal) == 3
++    for t, frame in enumerate(thermal, 1):
++        assert frame['time_index'] == t
++        assert frame['time_s'] == t * g.dt
++        assert frame['losses']['thermal_step'] == t
++    assert frames[-1]['time_s'] == (g.N_t - 1) * g.dt
++
++
++def test_legacy_cdu_temperature_series_defaults_to_final_sample():
++    from backend.liquidcooling.runner import _extract_cdu_monitor
++    graph, model = FakeGraph(), FakeModel()
++    graph.bc_T_series = graph.bc_T[:, None].repeat(1, 3)
++    graph.bc_T_series[0] = torch.tensor([290., 300., 310.])
++    model.state = {name: x.repeat(1, 3) for name, x in model.state.items()}
++    assert _extract_cdu_monitor(model, graph)['supply_T_K'] == 310.

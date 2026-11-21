@@ -1,0 +1,9 @@
+103:inline bool pass(scalar x,unsigned k) {
+104:    if(!finite(x)) return false;
+105:    static const scalar t[5]={.001,.05,.01,4,70};
+106:    return k<3?x>=t[k]:x<=t[k];
+107:}
+108:inline scalar severity(scalar x,unsigned k) {
+109:    if(!finite(x)) return GREAT;
+110:    static const scalar t[5]={.001,.05,.01,4,70};
+111:    return max(scalar(0),k<3?t[k]/max(x,VSMALL)-1:x/t[k]-1);

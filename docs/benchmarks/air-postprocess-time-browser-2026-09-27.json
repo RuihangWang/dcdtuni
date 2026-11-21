@@ -1,0 +1,56 @@
+{
+  "scope": "CPU-only React Three.js postprocess display and explicit OpenFOAM time selection; synthetic fixture, no CFD prediction",
+  "sourceCommit": "e83ecff4",
+  "remoteScratch": "/mnt/lv/home/litianyu/benchmarks/dcdtuni_valid_air_browser_20260927",
+  "case": "case/SyntheticAirDisplay/SyntheticAirDisplay.cfdproj",
+  "run": "case/SyntheticAirDisplay/log/2026-09-27-03-31-00_ManufacturedAirDisplay",
+  "mesh": {
+    "strictCheckMesh": "Mesh OK.",
+    "cells": 500,
+    "patches": 3,
+    "boundaryFaces": 400,
+    "previewPoints": 482,
+    "previewTriangles": 800,
+    "meshAndRunPolyMeshFilesByteEqual": true,
+    "sha256": {
+      "points": "8a773c88fc7da94ec7afdcf335b07013d155605314ebbc700813ad81d44c07d9",
+      "faces": "f5a21a9594239686d2bdb0be443be31286d814f72a5c61c7b4f41e35dda",
+      "owner": "c77a60b44184b12b093eeb18ec7a7743aec9eb03992b210bd386eb7501e6dafc",
+      "neighbour": "fb4ba49217914c2a14be909fcad27cd6d02d25fcf1a2746d9411b509378c7f67",
+      "boundary": "cee27e7d8590f65035f76367b19e68aa114b7bd6edbcc092ed62895c372972ed"
+    }
+  },
+  "projectSha256": "eff19281d602fdc37475c4311e8b68c63f52093e054a44328f1e2029eff16569",
+  "manufacturedFields": {
+    "time1": {"TInternalK": 301, "UInternalMps": [0.05, 0, 0], "TFileSha256": "7a99ebe4e8bade543930da90010ab04b29182bea0f023b39a1eb277a07d7b158", "UFileSha256": "937491b6e23a7995b754edd0bcd924f2cb0841edba0161782829a40bad93ea23"},
+    "time2": {"TInternalK": 303, "UInternalMps": [0.1, 0, 0], "TFileSha256": "41eef97065e2dedbdba08384141dd0508f3a9f43a7b7218462de2d84db25aad6", "UFileSha256": "55eba98773feef88aec9b26782b659c3c01cd6d1485ab791a18c37b5541a5262"}
+  },
+  "browser": {
+    "ui": "React production build through repository start_server.sh, isolated port 8432 and local SSH tunnel 18432, authenticated with normal developer account",
+    "red": "Selected step 1 then reopened postprocess, but T surface range remained [26.9,32.9] Celsius from step 2",
+    "greenTime2TRangeC": [26.9, 32.9],
+    "greenTime1TRangeC": [26.9, 30.9],
+    "pendingTimeAndRunSelectionClearsPreviousView": true,
+    "greenTime1Slice": {"plane": "Y=0.25m", "points": 121, "triangles": 200, "temperatureC": 27.85},
+    "streamlineSeedCount": 16,
+    "streamlineCountPerStep": 32,
+    "time1SpeedMaximumMps": 0.05,
+    "time2SpeedMaximumMps": 0.1,
+    "missingTime999": {"httpStatus": 400, "availableTimes": [0, 1, 2]},
+    "explicitInitialTime": {"requested": 0, "returned": 0}
+  },
+  "validation": {
+    "reactTestFilesPassed": 255,
+    "reactTestsPassed": 2638,
+    "reactBuildExitCode": 0,
+    "backendTargetedMacPassed": 29,
+    "backendTargeted40901Passed": 29,
+    "backendFullMacBeforeFinalPreflightAdjustment": {"passed": 1606, "skipped": 40, "failed": 10}
+  },
+  "limitations": [
+    "Manufactured display fields are not an OpenFOAM solve or a Shinaide/NV prediction",
+    "Selecting another time or run clears the old view, then requires clicking the postprocess load button; slice and streamline sets need regeneration",
+    "Concurrent browser tabs still share one process-wide postprocessor; subsequent mesh/field/slice/streamline requests do not carry a run/time/revision identity",
+    "No live Omniverse renderer or GPU test was performed"
+  ]
+}

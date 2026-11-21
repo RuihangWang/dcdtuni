@@ -1,0 +1,25 @@
+# Independent cumulative grid + diagnostic V3 review: scoped GO
+
+Recommendation: no remaining P1/P2 in the reviewed common-display source/lifecycle scope. Root may decide guarded normal application of the exact cumulative25-target map. This does not authorize claiming actual grid pixels, native encoded layout, roof translucency, Shift picking, CFD quality, solver convergence or the full goal complete.
+
+## Exact reviewed identities
+
+F3 source manifest `89d62927ea50f4c4202b22304388c311db37fd163e5d2509db4e7598cee8f90f`:1580 payloads /63,085,997 bytes. Every payload byte/hash was read and matched both before and after independent execution. The cumulative map SHA is `2df1a84673d8099a9e507d08fe8c8adf93a0617d866bebee258006aacffc98d7`; native grid after SHA is `9018b69911a8903279e517da59a0de6beb65837f83125fccc55223691cef3de9`. Only grid_raster.py product bytes differ from F2. All25 mapped private after bytes and normal IT before/after observations remained held.
+
+F1 and F2 were also FULL-verified independently. F2 review found a real P2: same owned malformed view/output ordinals above the common schema's safe maximum were rejected but burned history, preventing bounded valid recovery. Original exact CPUUSD observations, raw output, source and report are preserved unchanged below original-F2-review/. Supplemental24 identity negatives are preserved below original-F2-identity24/.
+
+## Correction independently confirmed
+
+The retirement path now requires exact Python int (not bool), inclusive0..9007199254740991, for view/output/scene primitive ordinals before any history/serial/permission mutation. This is the existing common schema contract, with no coercion, clamp or fallback. Actual exactF3 CPUUSD replays of both original oversized failures now retain the previous contract/floors and recover with valid view4/output3. Ordinary valid-identity malformed CSS still withdraws old permission and burns the proved history without retaining invalid measurement.
+
+Independent hard-assert execution ran six scripts in one78.045s native group with a shared120s watchdog, CPU30, CUDA empty, one USD/BLAS worker and B-only TMP/cache. Subprocesses allrc0: two oversized recovery regressions plus ordinary control; our24 negative/missing/unsupported-metric identities; our5 inclusive zero/safe-maximum controls across allthree ordinals;7 monotone retirement-floor scenarios;19 joint identity/late-worker/native diagnostic cases; and actual IExt update→plain read→bounded ACK. Inclusive maximum naturally exhausts that monotone sequence; no test invents an unsafe next revision or claims recovery beyond the maximum. Zero/native-scene-maximum are controlled owned-context boundary fixtures, not a live Kit scene.
+
+Unsupported metricVersion1 or missing metric can conservatively retire with otherwise proved current bounded identity, and a genuinely newer valid observation recovers. Negative, bool, float, string, None, nonfinite or mismatched scene identities refuse without corrupting existing permission/history. Pending older CPU work cannot write after the newer invalid view retires its serial/request. The actual installed API/CPUUSD extension route continues to report gridDisplay unsupported /stream-layout-unresolved, layoutProof unresolved and pixelVerified false; ordinary and bounded view metadata agree, and a foreign active stage is rejected.
+
+## Source review and limits
+
+Read the core public CSSOM producer, common view/snapshot/controller delivery, full native coordinator, actual extension command/context path, and exact normal-to-joint render_scene/diagnostic/client/schema deltas. The three merge locations retain both grid and diagnostic behavior. The carrier lives outside Geometry, has decoration tags but no primitive/source UID authority, and creates no scientific result grant. The shared raster definitions match exactly; the native/client scene identity checks and bounded diagnostic byte caps remain present. CSS rotation/shear/perspective and unsupported longhands conservatively refuse; legal positive axis scales use actual observations. No client metric becomes native texture-to-encoded layout authority.
+
+Independent exactF2 actual composed/native presentation suite was already green and its mathematical/carrier code is byte-held by the F3-only retirement guard. Author's separately frozen exactF3 full native and Root/author FE331/types/build evidence remain separate provenance; this reviewer did not rerun frontend or claim those runs as independentF3 execution. No normal source was applied or built; no services, Kit session, browser, API, GPU, case, physics thresholds or results were modified. Unrelated Root cfdrun producer304→1503/checkpoint2214d448 is outside these25 observations and is not overwritten by this map.
+
+Root still owns exact guarded application/build and actual Windows browser/pixel acceptance. Apply the cumulativeV3 map against its current normal before SHAs; do not overlay the old grid candidate on the diagnostic prefix. The original source packet and this review packet are source-bound and independently reproducible using REPRO.py into a fresh B/.codex-tmp directory.

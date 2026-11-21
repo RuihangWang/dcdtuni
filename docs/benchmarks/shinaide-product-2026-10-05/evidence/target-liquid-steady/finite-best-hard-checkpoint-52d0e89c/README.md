@@ -1,0 +1,15 @@
+# Best hard-count checkpoint: strict mesh remains rejected
+
+Normal React job `52d0e89c` used the same Shinaide project, STL inputs, 0.25 base size and eight ranks. Native dcCart Total was 151.93 s. Final checkMesh reports Failed 2: D833 cells, W82 faces, R0, with 5,906,777 cells. The mesh job returned 1. The large mesh and air solver remain unaccepted.
+
+The DW search now preserves one best hard-count checkpoint from already evaluated, feasible iterates that improve the soft objective. The last soft iterate remains the primary proposal. If its four fractions fail, the saved checkpoint goes through the same four fractions and every existing geometry, quality, lineage, clearance, budget and installed guard. R and unset-count behavior keep their prior search. The kernel adds no evaluation requests; fallback acceptance can evaluate at most four additional candidates within the same deadline.
+
+Three actual checkpoint=1 commits were logged: rank4 point19546, rank3 point41714 and rank1 point577105. Independent comparison finds three D labels removed and one added, so D835 falls to D833. Rank1 removes755413; rank3 removes606122 and adds603112; rank4 removes505262. W82 and N742 sets remain byte-identical on all ranks. This does not mean all three commits cleared a D failure.
+
+The added rank3 label603112 was already a D failure in the earliest original7785 mesh; it had been repaired by P7/P11. Original, P11 and P12 rank3 topology and compact-to-native/parent maps match: compact603112 maps to native766534 and sourceParent46719. This identifies a previously repaired original failure that reappears. It does not establish within-run accepted-prefix regression, the responsible displacement, or harmlessness. The physical mesh remains rejected.
+
+All eight actual native processes loaded the SHA-bound normal build. Raw cfdrun semantic changes against P11 are only runId and sourceProject/exportedAt; fourteen project/STL input bytes match. All 296,686 protected coupled faces preserve identity, geometry and Sf/FC/CC/V bytes. Compact face/owner remaps were checked against actual final binary owner arrays and boundary offsets. W union prefix/final lineage records report zero failures. These local certificates do not replace final checkMesh.
+
+The complete 380-file case is preserved against P11: 42 changed files (701,604,708 B), 338 unchanged, none removed. The delta archive is 55,049,191 B, SHA `b0c970e51b41192d69b5b0241bb86aa65612da6eaa7337752a5a3ab714cd7861`. Native meshing (151.93 s), SSE capture (154.115842 s) and archiving (30.855069 s) are separate measurements. Large artifacts remain inside dcdtuni, outside Git. This run establishes no all-case five-minute guarantee.
+
+After failure, the real React page enables run/check, removes abort and keeps the solver disabled. The main OV viewport continues playing 1600×900 video. Pure kernel regression and actual OpenFOAM API syntax checks establish source compatibility; they do not accept the business mesh. The two independent audits, raw small sets and their binding manifests are included without modifying their freezes.

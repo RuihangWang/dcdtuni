@@ -1,0 +1,18 @@
+....F....                                                                [100%]
+=================================== FAILURES ===================================
+________________ test_unbalanced_neumann_boundary_source_fails _________________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/pytest-fixed/test_unbalanced_neumann_bounda0')
+
+    def test_unbalanced_neumann_boundary_source_fails(tmp_path):
+        case=configured(tmp_path,"none",gradient=1)
+        reply=invoke(case)
+        assert reply.returncode!=0
+>       assert "Incompatible assembled RHS in free pressure component" in reply.stdout
+E       AssertionError: assert 'Incompatible assembled RHS in free pressure component' in '/*---------------------------------------------------------------------------*\\\n| =========                 |      ... * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n'
+E        +  where '/*---------------------------------------------------------------------------*\\\n| =========                 |      ... * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n' = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n').stdout
+
+src/backend/tests/test_pressure_component_compatibility.py:54: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_compatibility.py::test_unbalanced_neumann_boundary_source_fails
+1 failed, 8 passed in 15.89s

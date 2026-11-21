@@ -1,0 +1,360 @@
+--- a/src/backend/aircooling/runner/convergence.py
++++ b/src/backend/aircooling/runner/convergence.py
+@@ -53,6 +53,7 @@
+ from __future__ import annotations
+ 
+ import json
++import hashlib
+ import math
+ import re
+ import statistics
+@@ -428,6 +429,27 @@
+     if not rows:
+         out["reasons"].append(f"{probe_file} holds no samples")
+         return out
++    return temperature_series_verdict(
++        rows, names=names, window_fraction=window_fraction, min_window=min_window,
++        change_min=change_min, plateau_tol=plateau_tol, plateau_fraction=plateau_fraction,
++    )
++
++
++def temperature_series_verdict(
++    rows: List[List[float]],
++    *,
++    names: Optional[List[str]] = None,
++    window_fraction: float = 0.2,
++    min_window: int = 5,
++    change_min: float = 0.05,
++    plateau_tol: float = 0.1,
++    plateau_fraction: float = 0.01,
++) -> Dict[str, Any]:
++    """The same changed-then-plateau rule for explicit temperature rows."""
++    out: Dict[str, Any] = {"passed": False, "status": "NO_SENSORS", "probes": {}, "reasons": []}
++    if not rows:
++        out["reasons"].append("temperature evidence holds no samples")
++        return out
+     n_probes = max(len(r) for r in rows)
+     rows = [r for r in rows if len(r) == n_probes]
+     n = len(rows)
+@@ -473,6 +495,300 @@
+             out["reasons"].append(f"{label}: " + "; ".join(reasons))
+     out["passed"] = all_ok
+     return out
++
++
++def _monitor_bytes(path: Path, run_dir: Path, maximum_bytes: int = 8 * 1024 * 1024) -> bytes:
++    """Read one exact, stable owned evidence file; never choose by a glob."""
++    path = Path(path)
++    owned = Path(run_dir).resolve(strict=True)
++    if path.is_symlink() or not path.resolve(strict=True).is_relative_to(owned) or not path.is_file():
++        raise ValueError(f"monitor evidence is not an owned regular file: {path}")
++    before = path.stat()
++    if before.st_size > maximum_bytes:
++        raise ValueError(f"monitor evidence exceeds its read bound: {path}")
++    data = path.read_bytes()
++    after = path.stat()
++    identity = lambda st: (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
++    if identity(before) != identity(after):
++        raise ValueError(f"monitor evidence changed while reading: {path}")
++    return data
++
++
++def _foam_monitor_block(text: str, name: str) -> str:
++    """Extract one literal generated dictionary block, excluding comments."""
++    text = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", text)
++    matches = list(re.finditer(r"(?m)^\s*" + re.escape(name) + r"\s*\{", text))
++    if len(matches) != 1:
++        raise ValueError(f"expected one generated monitor block {name}")
++    begin = matches[0].end() - 1
++    depth = 1
++    for position in range(begin + 1, len(text)):
++        if text[position] == "{":
++            depth += 1
++        elif text[position] == "}":
++            depth -= 1
++            if depth == 0:
++                return text[begin + 1:position]
++    raise ValueError(f"unclosed generated monitor block {name}")
++
++
++def _require_return_monitor(control: str, function: str, patch: str) -> None:
++    functions = _foam_monitor_block(control, "functions")
++    body = _foam_monitor_block(functions, function)
++    expected = {
++        "type": "surfaceFieldValue", "enabled": "true", "regionType": "patch",
++        "name": patch, "operation": "areaAverage", "fields": "(T)",
++        "writeControl": "timeStep", "writeInterval": "1",
++    }
++    for key, value in expected.items():
++        matches = re.findall(r"(?m)^\s*" + key + r"\s+([^;{}\n]+);", body)
++        if len(matches) != 1 or re.sub(r"\s+", "", matches[0]) != value:
++            raise ValueError(f"monitor {function} differs at {key}")
++
++
++def _return_patch_file(run_dir: Path, function: str) -> Path:
++    root = Path(run_dir) / "postProcessing" / function
++    if not root.is_dir() or root.is_symlink() or not root.resolve().is_relative_to(Path(run_dir).resolve()):
++        raise ValueError(f"missing owned function-object output {function}")
++    selected: List[Path] = []
++    for segment in root.iterdir():
++        if not segment.is_dir() or segment.is_symlink():
++            continue
++        try:
++            start = float(segment.name)
++        except ValueError:
++            continue
++        if not math.isfinite(start) or start < 0:
++            continue
++        # These are the two names the native writeFile source can create.
++        for filename in ("surfaceFieldValue.dat", f"surfaceFieldValue_{segment.name}.dat"):
++            path = segment / filename
++            if path.is_file():
++                selected.append(path)
++    if len(selected) != 1:
++        raise ValueError(f"{function} has missing/ambiguous native surfaceFieldValue output")
++    return selected[0]
++
++
++def _read_return_patch_series(path: Path, run_dir: Path, patch: str) -> Tuple[List[float], List[float], Dict[str, Any]]:
++    data = _monitor_bytes(path, run_dir)
++    headers: Dict[str, List[str]] = {}
++    times: List[float] = []
++    values: List[float] = []
++    data_rows: List[str] = []
++    for line in data.decode("utf-8").splitlines():
++        line = line.strip()
++        if not line:
++            continue
++        if line.startswith("#"):
++            comment = line[1:].strip()
++            if comment.startswith("Time"):
++                headers.setdefault("columns", []).append(comment)
++            else:
++                match = re.fullmatch(r"(Region\s+type|Faces|Area|Scale\s+factor)\s*:\s*(.+)", comment)
++                if match:
++                    key = re.sub(r"\s+", " ", match.group(1))
++                    headers.setdefault(key, []).append(match.group(2).strip())
++            continue
++        data_rows.append(line)
++    if headers.get("Region type") != [f"patch {patch}"]:
++        raise ValueError(f"{patch} native output lacks its exact patch identity")
++    if len(headers.get("columns", [])) != 1 or headers["columns"][0].split() != ["Time", "areaAverage(T)"]:
++        raise ValueError(f"{patch} native output does not select exactly areaAverage(T)")
++    if len(headers.get("Faces", [])) != 1 or not re.fullmatch(r"[0-9]+", headers["Faces"][0]) or int(headers["Faces"][0]) <= 0:
++        raise ValueError(f"{patch} native output has no positive face count")
++    if len(headers.get("Area", [])) != 1:
++        raise ValueError(f"{patch} native output has no unique area")
++    area = float(headers["Area"][0])
++    if len(headers.get("Scale factor", [])) != 1:
++        raise ValueError(f"{patch} native output has no unique scale")
++    scale = float(headers["Scale factor"][0])
++    if not math.isfinite(area) or area <= 0 or not math.isfinite(scale) or scale != 1:
++        raise ValueError(f"{patch} native output has an invalid area/scale")
++    for line in data_rows:
++            fields = line.split()
++            if len(fields) != 2:
++                raise ValueError(f"{patch} has a malformed areaAverage(T) row")
++            time, value = map(float, fields)
++            if not math.isfinite(time) or not math.isfinite(value):
++                raise ArithmeticError(f"{patch} has non-finite native temperature evidence")
++            if time < 0 or (times and time <= times[-1]):
++                raise ValueError(f"{patch} has an unordered/restarted native time axis")
++            times.append(time)
++            values.append(value)
++    return times, values, {
++        "patch": patch, "path": str(path), "sha256": hashlib.sha256(data).hexdigest(),
++        "faces": int(headers["Faces"][0]), "area_m2": area, "samples": len(times),
++    }
++
++
++def configured_return_patch_verdict(
++    run_dir: Path, *, final_iteration: Optional[float],
++    expected_iterations: Optional[List[float]] = None, **kwargs: Any,
++) -> Optional[Dict[str, Any]]:
++    """Assess every configured true ACU return patch; None retains old probes."""
++    receipt_path = Path(run_dir) / "air-run-execution-receipt.json"
++    if not receipt_path.is_file():
++        return None
++    unknown: Dict[str, Any] = {
++        "passed": False, "status": "NO_SENSORS", "probes": {}, "reasons": [],
++        "evidenceSource": "configured-acu-return-areaAverage(T)", "metadataUnknown": True,
++    }
++    try:
++        receipt_bytes = _monitor_bytes(receipt_path, run_dir)
++        receipt = json.loads(receipt_bytes)
++        if receipt.get("format") != "air-run-execution-receipt/v1" or receipt.get("status") != "accepted":
++            raise ValueError("return monitor has no accepted execution identity")
++        identity = receipt["result"]
++        relative = Path(identity["cfdrunRelativePath"])
++        if relative.is_absolute() or ".." in relative.parts:
++            raise ValueError("executed manifest identity has an unsafe relative path")
++        archive = Path(run_dir) / "model" / relative.name
++        owner = Path(run_dir)
++        if not archive.is_file():
++            if Path(run_dir).parent.name != "log":
++                raise ValueError("unarchived monitor manifest lacks its case execution context")
++            owner = Path(run_dir).resolve().parent.parent
++            archive = owner / relative
++        payload = _monitor_bytes(archive, owner)
++        manifest = json.loads(payload)
++        sha = hashlib.sha256(payload).hexdigest()
++        if (sha != identity["cfdrunSha256"] or manifest.get("runId") != identity["runId"]
++                or (manifest.get("sourceProject") or {}).get("contentHash") != identity["projectContentHash"]):
++            raise ValueError("return monitor archive does not match executed source identity")
++        config = (manifest.get("simulationConfig") if manifest.get("schemaVersion") == 4
++                  else (manifest.get("meshGeometry") or {}).get("simulationConfig")) or {}
++        monitoring = config.get("monitoring") or {}
++        requested = monitoring.get("acuReturnTemperature") or []
++        if not requested:
++            return None
++        if not isinstance(requested, list):
++            raise ValueError("configured ACU return monitors must be a list")
++        # Match the existing runner's enabled probe-name selection. This is
++        # required even when the assessment caller omitted sensor_names.
++        geometry = manifest.get("meshGeometry") or {}
++        point_rows = geometry.get("sensorPoints", manifest.get("sensorPoints", [])) or []
++        if not isinstance(point_rows, list):
++            raise ValueError("configured point probes must be a list")
++        point_names: List[str] = []
++        for index, sensor in enumerate(point_rows):
++            if (not isinstance(sensor, dict) or sensor.get("enabled", True) is False
++                    or any(axis not in sensor for axis in ("x", "y", "z"))):
++                continue
++            point_names.append(str(sensor.get("name") or f"sensor_{index + 1}"))
++        unknown["configuredPointProbeNames"] = point_names
++        all_names: List[str] = []
++        for group in ("serverTemperature", "acuReturnTemperature"):
++            rows = monitoring.get(group) or []
++            if not isinstance(rows, list):
++                raise ValueError(f"configured {group} monitors must be a list")
++            for row in rows:
++                patch = row.get("patch") if isinstance(row, dict) else None
++                if not isinstance(patch, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", patch):
++                    raise ValueError("monitor patch is not a literal exported patch name")
++                all_names.append("avgT_" + patch.replace(" ", "_"))
++        if len(set(all_names)) != len(all_names):
++            raise ValueError("generated temperature function names are duplicated")
++        by_patch: Dict[str, List[Dict[str, Any]]] = {}
++        for binding in (manifest.get("boundaryBindings") or {}).values():
++            by_patch.setdefault(binding.get("patchName", ""), []).append(binding)
++        control_bytes = _monitor_bytes(Path(run_dir) / "system" / "controlDict", run_dir)
++        control = control_bytes.decode("utf-8")
++        axes: Optional[List[float]] = None
++        columns: List[List[float]] = []
++        sources: List[Dict[str, Any]] = []
++        names: List[str] = []
++        for row in requested:
++            patch = row["patch"]
++            bindings = by_patch.get(patch, [])
++            if (len(bindings) != 1 or bindings[0].get("bcType") != "acu_return"
++                    or bindings[0].get("role") != "acu_return"
++                    or bindings[0].get("solidName") != patch
++                    or not re.fullmatch(r"constructions\.acus\.[A-Za-z0-9_-]+", str(bindings[0].get("objectPath", "")))):
++                raise ValueError(f"{patch} is not one bound true ACU return boundary")
++            function = "avgT_" + patch.replace(" ", "_")
++            _require_return_monitor(control, function, patch)
++            times, values, source = _read_return_patch_series(
++                _return_patch_file(run_dir, function), run_dir, patch)
++            if axes is None:
++                axes = times
++            elif times != axes:
++                raise ValueError("configured return patches do not share a complete time axis")
++            source.update({"functionName": function, "objectPath": bindings[0]["objectPath"],
++                           "surfaceUid": bindings[0].get("surfaceUid"), "solidName": patch})
++            sources.append(source)
++            columns.append(values)
++            names.append(patch)
++        if (not axes or final_iteration is None or not math.isfinite(final_iteration)
++                or axes[-1] != final_iteration):
++            raise ValueError("return monitor evidence does not reach the actual solver final iteration")
++        # Native SIMPLE calls Time::loop before printing each body Time. The
++        # first Time::run only reads functionObjects; subsequent/final run calls
++        # execute/write them at each printed body time. timeStep/1 therefore
++        # selects exactly the complete parsed body-time axis, with no guessed
++        # zero prefix, lost interior samples or accepted restarted suffix.
++        if (not expected_iterations or any(not math.isfinite(t) for t in expected_iterations)
++                or any(b <= a for a, b in zip(expected_iterations, expected_iterations[1:]))
++                or axes != expected_iterations):
++            raise ValueError("return monitor evidence differs from the complete actual solver iteration axis")
++        if (_monitor_bytes(receipt_path, run_dir) != receipt_bytes
++                or _monitor_bytes(archive, owner) != payload
++                or _monitor_bytes(Path(run_dir) / "system" / "controlDict", run_dir) != control_bytes):
++            raise ValueError("return monitor execution/config identity changed during assessment")
++        result = temperature_series_verdict(
++            [list(row) for row in zip(*columns)], names=names, **kwargs)
++        result.update({
++            "evidenceSource": "configured-acu-return-areaAverage(T)", "metadataUnknown": False,
++            "units": "K", "monitors": sources,
++            "time": {"first": axes[0], "last": axes[-1], "completeSolverAxisMatched": True},
++            "configuredPointProbeNames": point_names,
++            "executedManifest": str(archive), "executedManifestSha256": sha,
++            "controlDictSha256": hashlib.sha256(control_bytes).hexdigest(),
++            "receiptSha256": hashlib.sha256(receipt_bytes).hexdigest(),
++        })
++        return result
++    except ArithmeticError as exc:
++        unknown.update({"status": "INVALID_DATA", "metadataUnknown": False})
++        unknown["reasons"].append(str(exc))
++        return unknown
++    except (OSError, ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
++        unknown["reasons"].append(str(exc))
++        return unknown
++
++
++def _temperature_streams_verdict(
++    points: Optional[Dict[str, Any]], returns: Dict[str, Any],
++) -> Dict[str, Any]:
++    """All configured temperature routes pass; an absent route is explicit."""
++    streams = {
++        "pointProbes": ({"configured": True, "verdict": points} if points is not None
++                        else {"configured": False, "skipped": True}),
++        "acuReturnPatches": {"configured": True, "verdict": returns},
++    }
++    if points is None:
++        out = dict(returns)
++        out["streams"] = streams
++        return out
++    routes = [("point", points), ("return", returns)]
++    failures = [result for _, result in routes if not result.get("passed", False)]
++    unknown = {"NO_SENSORS", "TOO_SHORT"}
++    known_failures = [result for result in failures if result.get("status") not in unknown]
++    if known_failures:
++        status = known_failures[0].get("status", "INVALID_DATA")
++    elif failures:
++        status = ("NO_SENSORS" if any(result.get("status") == "NO_SENSORS" for result in failures)
++                  else "TOO_SHORT")
++    else:
++        status = "OK"
++    return {
++        "passed": not failures, "status": status, "streams": streams,
++        "evidenceSource": "point-probes-and-configured-acu-return-areaAverage(T)",
++        "metadataUnknown": any(result.get("metadataUnknown", False) for _, result in routes),
++        "probes": {f"{route}:{name}": value for route, result in routes
++                   for name, value in result.get("probes", {}).items()},
++        "reasons": [f"{route}: {reason}" for route, result in routes
++                    for reason in result.get("reasons", [])],
++    }
+ 
+ 
+ def _control_dict(run_dir: Path) -> Dict[str, str]:
+@@ -585,7 +901,19 @@
+     else:
+         res = residual_verdict(parsed, **(residual_kwargs or {}))
+     probe_file = find_probe_file(run_dir)
+-    sens = sensor_verdict(probe_file, names=sensor_names, **(sensor_kwargs or {}))
++    returns = configured_return_patch_verdict(
++        run_dir, final_iteration=(parsed.iterations[-1] if parsed and parsed.iterations else None),
++        expected_iterations=(parsed.iterations if parsed else None), **(sensor_kwargs or {}),
++    )
++    if returns is None:
++        # No configured return route: preserve the original point-only path.
++        sens = sensor_verdict(probe_file, names=sensor_names, **(sensor_kwargs or {}))
++    else:
++        configured_names = returns.get("configuredPointProbeNames") or []
++        point_required = bool(sensor_names) or bool(configured_names) or probe_file is not None
++        points = (sensor_verdict(probe_file, names=(sensor_names or configured_names or None),
++                                 **(sensor_kwargs or {})) if point_required else None)
++        sens = _temperature_streams_verdict(points, returns)
+     if res["passed"] and sens["passed"]:
+         verdict = "CONVERGED"
+     elif sens.get("status") in ("NO_SENSORS", "TOO_SHORT") and res["passed"]:

@@ -1,0 +1,4 @@
+# Branch cleanup, 2026-10-12
+The old remote claude/admiring-ritchie-2ax67m contains one unique commit,32864379, for opt-in SwiftShader. Its bytes and prerequisite are preserved in the verified bundle and patch here before branch retirement.
+The current server already implements opt-in SwiftShader through DCDTUNI_BROWSER_SOFTWARE=1 (src/server/server.py:_browser_launch_args) with a corresponding test. The obsolete branch uses an older environment name and old function layout; it is archived as superseded, not falsely reported as an ancestry merge.
+The active 40901 engineering branches goal/air-20261005 and goal/integration-20261005 are retained. Their unmerged work is not automatically adopted by this cleanup. Current research is a descendant of fetched origin/main and can be fast-forwarded without changing any frozen running source.

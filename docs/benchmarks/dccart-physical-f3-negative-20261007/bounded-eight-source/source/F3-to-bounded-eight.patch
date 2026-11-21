@@ -1,0 +1,79 @@
+--- a/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
++++ b/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C
+@@ -12631,6 +12631,13 @@
+     // serialization occurs after every original decomposition/union decision.
+     const char* physicalDecisionEnv=std::getenv("DCCART_PRIVATE_PHYSICAL_POINT_DECISION_OBSERVE");
+     const bool observePhysicalDecision=physicalDecisionEnv&&std::strcmp(physicalDecisionEnv,"1")==0;
++    // Fixed geometry-derived search on the ONE shared axis-aligned source edge.
++    // The first four fractions retain their original order/expression; the
++    // appended four explore through the midpoint up to its reflection only.
++    // DP rounding remains subject to every original exact/quality/deadline gate.
++    const std::array<scalar,8> physicalPointFractions
++        {{scalar(.25),scalar(.5),scalar(.75),scalar(1),
++          scalar(1.25),scalar(1.5),scalar(1.75),scalar(2)}};
+     struct PhysicalDecisionCall
+     {
+         bool evaluated=false,ok=false;label refusal=-1;
+@@ -12644,7 +12651,7 @@
+         label compact=-1,representative=-1;bool oldKnown=false,midpointKnown=false;
+         std::array<std::uint64_t,3> oldBits{},midpointBits{};
+         PhysicalDecisionCall capture,midpoint,stage,commit;
+-        std::array<PhysicalDecisionCall,4> local;
++        std::array<PhysicalDecisionCall,8> local;
+     };
+     std::array<PhysicalDecisionRow,16> physicalDecisionRows{};
+     struct PhysicalDeterminantPair
+@@ -12664,7 +12671,8 @@
+         std::array<PhysicalDeterminantPair,256> pairs{};
+     };
+     PhysicalDeterminantCapture physicalDeterminants;
+-    static_assert(sizeof(physicalDecisionRows)+sizeof(physicalDeterminants)<=65536,
++    static_assert(sizeof(physicalDecisionRows)+sizeof(physicalDeterminants)
++                  +sizeof(physicalPointFractions)<=65536,
+                   "PRIVATE combined decision/determinant stack cap");
+     const auto capturePhysicalDeterminants=
+         [&](const dcCartPhysicalPointLifecycle::Transaction& transaction,
+@@ -14471,7 +14479,7 @@
+                         const Foam::point old=m.points[physicalStage->representative()];
+                         if(observed){observed->oldKnown=true;observed->oldBits=physicalDecisionBits(old);}
+                         bool qualified=false;unsigned fractionIndex=0;
+-                        for(scalar fraction:{scalar(.25),scalar(.5),scalar(.75),scalar(1)})
++                        for(scalar fraction:physicalPointFractions)
+                         {
+                             if(!physicalStage->available())break;
+                             // Observe the very same temporary proposal by const reference:
+@@ -15395,9 +15403,11 @@
+             };
+             text<<"PRIVATE physical-point decision observation: {\"rank\":"<<myRank
+                 <<",\"complete\":"<<!physicalDecisionCapped<<",\"rows\":"<<physicalDecisionCount
+-                <<",\"stackBytes\":"<<(sizeof(physicalDecisionRows)+sizeof(physicalDeterminants))
++                <<",\"fractionCount\":"<<physicalPointFractions.size()
++                <<",\"stackBytes\":"<<(sizeof(physicalDecisionRows)+sizeof(physicalDeterminants)+sizeof(physicalPointFractions))
+                 <<",\"decisionRowsStackBytes\":"<<sizeof(physicalDecisionRows)
+-                <<",\"determinantCaptureStackBytes\":"<<sizeof(physicalDeterminants)<<",\"attempts\":[";
++                <<",\"determinantCaptureStackBytes\":"<<sizeof(physicalDeterminants)
++                <<",\"fractionsStackBytes\":"<<sizeof(physicalPointFractions)<<",\"attempts\":[";
+             for(label i=0;i<physicalDecisionCount;++i)
+             {
+                 if(i)text<<',';const auto& row=physicalDecisionRows[i];
+@@ -15405,8 +15415,10 @@
+                     <<",\"oldKnown\":"<<row.oldKnown<<",\"oldBits\":";bits(row.oldBits);
+                 text<<",\"midpointKnown\":"<<row.midpointKnown<<",\"midpointBits\":";bits(row.midpointBits);
+                 text<<",\"capture\":";call(row.capture);text<<",\"midpoint\":";call(row.midpoint);
+-                text<<",\"localFractionsQuarterHalfThreeQuarterOne\":[";
+-                for(unsigned j=0;j<4;++j){if(j)text<<',';call(row.local[j]);}
++                text<<",\"localFractionsTowardSharedEdgeMidpoint\":[";
++                for(unsigned j=0;j<physicalPointFractions.size();++j)
++                {if(j)text<<',';text<<"{\"fraction\":"<<physicalPointFractions[j]
++                    <<",\"call\":";call(row.local[j]);text<<'}';}
+                 text<<"],\"stage\":";call(row.stage);text<<",\"commit\":";call(row.commit);text<<'}';
+             }
+             text<<"],\"determinantMapCapture\":";
+@@ -15419,6 +15431,7 @@
+                     <<",\"rowOrdinal\":"<<d.rowOrdinal<<",\"compact\":"<<d.compact
+                     <<",\"representativeObserved\":"<<d.representative
+                     <<",\"fractionIndex\":"<<d.fractionIndex
++                    <<",\"fraction\":"<<physicalPointFractions[d.fractionIndex]
+                     <<",\"oldRefusal\":"<<d.oldRefusal<<",\"nextRefusal\":"<<d.nextRefusal
+                     <<",\"oldCells\":"<<d.oldCells<<",\"nextCells\":"<<d.nextCells
+                     <<",\"oldMetrics\":"<<d.oldMetrics<<",\"nextMetrics\":"<<d.nextMetrics

@@ -1,0 +1,549 @@
+FFFF.F..F                                                                [100%]
+=================================== FAILURES ===================================
+________ test_closed_component_anchored_without_moving_dirichlet[37-2] _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored0')
+ranks = 2, initial = 37
+
+    @pytest.mark.parametrize("ranks", [2])
+    @pytest.mark.parametrize("initial", [37, 73])
+    def test_closed_component_anchored_without_moving_dirichlet(tmp_path, ranks, initial):
+        case = _case(tmp_path/"case", ranks=ranks, initial=initial)
+>       _solve(case, ranks)
+
+src/backend/tests/test_pressure_component_references.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/backend/tests/test_pressure_component_references.py:115: in _solve
+    return _run(path, ["mpirun", "-np", str(ranks), KERNEL, "-parallel"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:21
+E         Host   : 40901
+E         PID    : 1675752
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #12  Foam::fvMatrix<double>::solve() in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #13  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #14  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #16  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1675753 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+________ test_closed_component_anchored_without_moving_dirichlet[73-2] _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored1')
+ranks = 2, initial = 73
+
+    @pytest.mark.parametrize("ranks", [2])
+    @pytest.mark.parametrize("initial", [37, 73])
+    def test_closed_component_anchored_without_moving_dirichlet(tmp_path, ranks, initial):
+        case = _case(tmp_path/"case", ranks=ranks, initial=initial)
+>       _solve(case, ranks)
+
+src/backend/tests/test_pressure_component_references.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/backend/tests/test_pressure_component_references.py:115: in _solve
+    return _run(path, ["mpirun", "-np", str(ranks), KERNEL, "-parallel"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored1/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:24
+E         Host   : 40901
+E         PID    : 1675886
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_closed_component_anchored1/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #12  Foam::fvMatrix<double>::solve() in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #13  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #14  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #16  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1675887 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+__________ test_two_cells_split_across_two_ranks_has_real_constraint ___________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_two_cells_split_across_tw0')
+
+    def test_two_cells_split_across_two_ranks_has_real_constraint(tmp_path):
+        case = _case(tmp_path/"case", layout="connected", ranks=2)
+        _solve(case, 2)
+        rows = _rows(case)
+        assert len(rows) == 2
+        assert all(row[5] == 0 and abs(row[6]) > 0 for row in rows)
+>       assert sum(abs(row[7]) > 0 for row in rows) == 1
+E       assert 0 == 1
+E        +  where 0 = sum(<generator object test_two_cells_split_across_two_ranks_has_real_constraint.<locals>.<genexpr> at 0x7f96f2583c30>)
+
+src/backend/tests/test_pressure_component_references.py:146: AssertionError
+___________________ test_multiple_local_cells_per_component ____________________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_multiple_local_cells_per_0')
+
+    def test_multiple_local_cells_per_component(tmp_path):
+        case = _case(tmp_path/"case", ranks=2, local_nx=2)
+>       _solve(case, 2)
+
+src/backend/tests/test_pressure_component_references.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/backend/tests/test_pressure_component_references.py:115: in _solve
+    return _run(path, ["mpirun", "-np", str(ranks), KERNEL, "-parallel"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_multiple_local_cells_per_0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:30
+E         Host   : 40901
+E         PID    : 1676297
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_multiple_local_cells_per_0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #12  Foam::fvMatrix<double>::solve() in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #13  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #14  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #16  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1676298 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+______________ test_mixed_boundary_uses_actual_matrix_anchor[0-5] ______________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_mixed_boundary_uses_actua0')
+fraction = 0, expected = 5
+
+    @pytest.mark.parametrize("fraction,expected", [(0,5), (1,11), (0.25,11)])
+    def test_mixed_boundary_uses_actual_matrix_anchor(tmp_path, fraction, expected):
+        case = _case(tmp_path/"case", fraction=fraction)
+>       _solve(case, 2)
+
+src/backend/tests/test_pressure_component_references.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/backend/tests/test_pressure_component_references.py:115: in _solve
+    return _run(path, ["mpirun", "-np", str(ranks), KERNEL, "-parallel"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_mixed_boundary_uses_actua0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:37
+E         Host   : 40901
+E         PID    : 1676795
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_mixed_boundary_uses_actua0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #12  Foam::fvMatrix<double>::solve() in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #13  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #14  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #16  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1676796 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+_______ test_physical_pressure_reference_preserves_hydrostatic_relation ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_physical_pressure_referen0')
+
+    def test_physical_pressure_reference_preserves_hydrostatic_relation(tmp_path):
+        gravity = -9.81
+        case = _case(tmp_path/"case", gravity=gravity)
+>       _solve(case, 2)
+
+src/backend/tests/test_pressure_component_references.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/backend/tests/test_pressure_component_references.py:115: in _solve
+    return _run(path, ["mpirun", "-np", str(ranks), KERNEL, "-parallel"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_physical_pressure_referen0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:44
+E         Host   : 40901
+E         PID    : 1676933
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-legacy-mpi2/test_physical_pressure_referen0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/lib/libfiniteVolume.so
+E         [1] #12  Foam::fvMatrix<double>::solve() in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #13  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] #14  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #16  ? in ~/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/legacy/bin/pressureComponentKernel
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1676934 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_references.py::test_closed_component_anchored_without_moving_dirichlet[37-2]
+FAILED src/backend/tests/test_pressure_component_references.py::test_closed_component_anchored_without_moving_dirichlet[73-2]
+FAILED src/backend/tests/test_pressure_component_references.py::test_two_cells_split_across_two_ranks_has_real_constraint
+FAILED src/backend/tests/test_pressure_component_references.py::test_multiple_local_cells_per_component
+FAILED src/backend/tests/test_pressure_component_references.py::test_mixed_boundary_uses_actual_matrix_anchor[0-5]
+FAILED src/backend/tests/test_pressure_component_references.py::test_physical_pressure_reference_preserves_hydrostatic_relation
+6 failed, 3 passed, 6 deselected in 26.44s

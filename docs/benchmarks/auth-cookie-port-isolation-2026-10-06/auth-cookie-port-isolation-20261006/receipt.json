@@ -1,0 +1,104 @@
+{
+  "format": "auth-cookie-port-isolation-source-review/v1",
+  "utc": "2026-10-05T18:48:45.540433+00:00",
+  "integrationHead": "c80e140e35e03d61c400c47bd3a275d3948dd224",
+  "mainHead": "1d6b4cd24625667fa70ad9844b536091ee7ead11",
+  "sourceRecords": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py",
+      "bytes": 243135,
+      "sha256": "d231986ac188b8b4174080057c7143acde53f472675f627ba21b9145c59fdfda"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/tests/test_auth_cookie_port_isolation.py",
+      "bytes": 10835,
+      "sha256": "3fd92bf9d7b5702dc24da75543f1b531f3f218503f2900399482649885c11fe6"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/tests/test_browser_lifecycle.py",
+      "bytes": 16005,
+      "sha256": "374948acc9b3ce2c0e049bbb3de362fbee5f142d27dc284b8d013e62bc983539"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/auth_manager.py",
+      "bytes": 17084,
+      "sha256": "191a69cd0af8959c068ad4bde8c62e0a4cad0965d122616750472e07bd3d1167"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/start_server.sh",
+      "bytes": 23254,
+      "sha256": "05e9bd1cfb11f7269422d3759c2c77466611a07e4b3deabb3ef3f0d025f587cb"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/run/auth.ts",
+      "bytes": 8226,
+      "sha256": "d393aadc199948544c5b074ca4b1e5815c13815fee747ffd923c56c452cac4c1"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/react/src/components/TerminalPanel.tsx",
+      "bytes": 8479,
+      "sha256": "96e9a4993109e51c7b65e5f03eb95be68fe00600bf36ec87c88c70af039cc745"
+    }
+  ],
+  "beforeServerSha256": "9c9116d449d3a6714219b58ca0f02adfacbc53926c89f29c4405d48256edce22",
+  "afterServerSha256": "d231986ac188b8b4174080057c7143acde53f472675f627ba21b9145c59fdfda",
+  "preservedAst": {
+    "start_websocket_terminal_server": true,
+    "_ensure_browser": true,
+    "do_POST": true,
+    "do_GET": true,
+    "startup_auth_directory_socket_and_ws_binding": true
+  },
+  "lineAnchorsAfter": {
+    "114": "AUTH_COOKIE_NAME = \"stlgen_session\"  # Legacy cookie, accepted only in this session store.",
+    "127": "def _auth_cookie_name_for_port(port: int) -> str:",
+    "134": "def _auth_cookie_name(handler) -> str:",
+    "156": "def _get_session(handler) -> dict | None:",
+    "344": "def handle_auth_login(handler):",
+    "430": "def handle_auth_logout(handler):",
+    "1692": "\"name\": _auth_cookie_name_for_port(urlparse(page_url).port),",
+    "1900": "def _ensure_browser(handler) -> bool:",
+    "5692": "def start_websocket_terminal_server(host: str, port: int) -> None:",
+    "5714": "ws_token = qs.get(\"token\", [None])[0]"
+  },
+  "tests": {
+    "authoringInitial": "one import error, retained; fixed fake-only fixture before baseline",
+    "baseline": "10 failed, 1 passed in 0.20s",
+    "final": "36 passed in 0.25s",
+    "files": [
+      "src/server/tests/test_auth_cookie_port_isolation.py",
+      "src/server/tests/test_browser_lifecycle.py"
+    ],
+    "newCookieCases": 11,
+    "existingBrowserLifecycleCases": 25,
+    "noNetwork": "All login/logout calls use fake in-memory handlers/stores; no HTTP request or real browser launch."
+  },
+  "runtimeObservedBeforeImplementation": {
+    "mainPID": 3598160,
+    "mainHTTPPort": 8390,
+    "integrationPID": 4137566,
+    "integrationHTTPPort": 8396,
+    "authDirectoriesDistinctNonSymlink": true,
+    "sessionFileInodes": [
+      362562848,
+      390268138
+    ],
+    "sharedStoredTokenKeyCount": 0,
+    "utc": "2026-10-05T18:42:07.598271+00:00",
+    "mainSessionsCreatedWithin12Hours": 2,
+    "integrationSessionsCreatedWithin12Hours": 1,
+    "tokenPrivacy": "No session token/password/store content copied into this proof. Counts and directory identity only."
+  },
+  "behavior": {
+    "names": "stlgen_session_<actual bound HTTP listener port>",
+    "scope": "host-only, Path=/; login HttpOnly/SameSite=Lax/12h unchanged",
+    "priority": "Present scoped token is the only candidate even if invalid or empty",
+    "legacyFallback": "Only when scoped name absent; validate against this AUTH_MGR",
+    "successfulScopedLogin": "Expire legacy browser cookie only if token validates in own AUTH_MGR, preventing logout resurrection; no legacy session revocation",
+    "logout": "Revoke chosen own token; always expire current scoped name; expire legacy only when chosen",
+    "worker": "Same HTTP page_url port delivered by _ensure_browser; no WS-port scope",
+    "terminal": "Unchanged per-origin sessionStorage token + WS query token validation, no cookie reader added"
+  },
+  "scope": "IT-only two source paths; no real login POST, browser/service/process/socket/auth-store modification; no Git/index/build/native/API operation.",
+  "acceptancePending": "ROOT source review and owned IT restart, then actual separate MAIN/IT login/Load/logout UI verification. Naming prevents accidental same-host cookie clobbering; ports are not a browser security boundary."
+}

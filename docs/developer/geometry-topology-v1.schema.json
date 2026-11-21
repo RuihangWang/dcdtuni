@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dcdtuni:cfdproj:geometryTopology:v1",
+  "title": "Proposed .cfdproj V4 geometryTopology V1 section",
+  "description": "Structural proposal only. Stable source-face and contour references, actual STL support, wall-pair geometry, and mesh resolution require compiler validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "mode", "coverage", "wallPairs", "independentPairs", "edgeContacts"],
+  "properties": {
+    "version": { "const": 1 },
+    "mode": { "const": "strict" },
+    "coverage": { "const": "airInternalSheets" },
+    "wallPairs": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/uid" },
+      "additionalProperties": { "$ref": "#/$defs/wallPair" }
+    },
+    "independentPairs": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/uid" },
+      "additionalProperties": { "$ref": "#/$defs/independentPair" }
+    },
+    "edgeContacts": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/uid" },
+      "additionalProperties": { "$ref": "#/$defs/edgeContact" }
+    }
+  },
+  "$defs": {
+    "uid": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_./:-]+$" },
+    "facePair": {
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/uid" }, { "$ref": "#/$defs/uid" }],
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "wallPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sides", "thickness_m", "meshReferenceFaceUid", "meshTreatment"],
+      "properties": {
+        "sides": { "$ref": "#/$defs/facePair" },
+        "thickness_m": { "type": "number", "exclusiveMinimum": 0 },
+        "meshReferenceFaceUid": { "$ref": "#/$defs/uid" },
+        "meshTreatment": { "const": "collapsedAirBarrier" }
+      }
+    },
+    "independentPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["faces", "relation", "minGap_m"],
+      "properties": {
+        "faces": { "$ref": "#/$defs/facePair" },
+        "relation": { "const": "fluidGap" },
+        "minGap_m": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "edgeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceFaceUid", "sourceEdgeUid"],
+      "properties": {
+        "sourceFaceUid": { "$ref": "#/$defs/uid" },
+        "sourceEdgeUid": { "$ref": "#/$defs/uid" }
+      }
+    },
+    "faceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceFaceUid"],
+      "properties": {
+        "sourceFaceUid": { "$ref": "#/$defs/uid" }
+      }
+    },
+    "edgeContact": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "a", "b"],
+          "properties": {
+            "kind": { "const": "edgeEdge" },
+            "a": { "$ref": "#/$defs/edgeRef" },
+            "b": { "$ref": "#/$defs/edgeRef" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "edge", "face"],
+          "properties": {
+            "kind": { "const": "edgeFace" },
+            "edge": { "$ref": "#/$defs/edgeRef" },
+            "face": { "$ref": "#/$defs/faceRef" }
+          }
+        }
+      ]
+    }
+  }
+}

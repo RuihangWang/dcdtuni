@@ -1,0 +1,299 @@
+# Review package: ace317db..33ffe8b0
+
+## Commits
+33ffe8b0 fix(liquid): align PID polarity and validate gain-tracking inputs
+
+## Files changed
+ docs/developer/liquid-control.md                   |  4 ++
+ src/backend/liquidcooling/control.py               | 43 ++++++++++++++++++----
+ .../tests/test_liquid/test_liquid_control.py       | 34 ++++++++++++++++-
+ 3 files changed, 72 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/docs/developer/liquid-control.md b/docs/developer/liquid-control.md
+index 2eaae9c9..495def01 100644
+--- a/docs/developer/liquid-control.md
++++ b/docs/developer/liquid-control.md
+@@ -1,13 +1,17 @@
+ # Simulated PID controller
+ 
+ `backend.liquidcooling.control` provides a pure explicit-state controller for the liquid simulation. It sends no commands to real equipment. `PIDConfig` holds nonnegative Kp/Ki/Kd, setpoint, output bias/limits, direct or reverse action, optional slew rate and derivative filter time. Measurement and setpoint use the same engineering units; output units come from the actuator binding.
+ 
++Action is explicit: **reverse** (the default) uses `setpoint - measurement`, so increasing measured pressure reduces the pump command. **Direct** uses `measurement - setpoint`, so increasing measured temperature can increase a cooling command. This follows the controller-action convention illustrated in [Emerson's controller manual](https://www.emerson.com/is/content/emerson/en/final-control/flow-controls/documents/d200299x012.pdf). The correct choice still depends on the actuator/process sign.
++
+ `initial_pid_state(config)` starts from the bias. Providing both measurement and an explicit output tracks a manual command for bumpless automatic transfer. `pid_step(config, state, measurement, dt_s, setpoint=None, gains=None)` returns `PIDStepResult` with the output tensor, new state, unconstrained output and saturation/rate-limit flags; the prior state is unchanged.
+ 
+ Derivative acts on measurement, avoiding setpoint kick. Conditional integration prevents windup when the integral update would push farther into an output or slew limit. The output is the tracked simulated command; independently measured actuator lag is a plant state, not silently assumed to have been simulated here. Hard limits and conditional integration are piecewise differentiable.
+ 
+ The optional tensor `gains=[kp,ki,kd]` keeps gradients through multiple controller steps. Gain bounds and finite state are checked. This proves a controller gradient path only; end-to-end gradients through hydraulics, thermal state, observations and the objective require separate verification.
+ 
+ Tests: proportional action/bias, integration, saturation recovery, reverse cooling action, time-scaled slew limit, derivative filter, no setpoint kick, manual transfer, invalid observations/timesteps and multi-step gain gradients against centered finite differences. Before implementation, first test failed because control module did not exist; after implementation all **13 tests passed in 3.33 s**. This has not yet been exercised as a closed-loop UI demo.
+ 
+ Self-review added two regression cases: a pure-integral update that crosses a limit must accept the admissible fraction (rejecting the whole update could pin output at zero), and limit diagnostics must retain the original requested command even after antiwindup projects stored integral state. Each first failed on the earlier implementation, then was corrected. `unclamped_output` means that original requested command, and flags report limits encountered in that update. The full controller suite now has 15 cases including these boundary behaviors.
++
++Independent review led to a second focused fix: the action labels/default now follow the equations above; a manual state's optional `tracking_setpoint` allows the first automatic step to initialize its integral using the effective tensor gains, then clears that tracking marker; real-number input checks happen before dtype conversion; a nonfinite requested command raises before saturation can hide it. Checkpoint serializers must preserve `tracking_setpoint` when present. Eight reviewed-path tests first failed before these changes. Test durations are historical observations, not performance guarantees.
+diff --git a/src/backend/liquidcooling/control.py b/src/backend/liquidcooling/control.py
+index 02b7e259..4c5e3f9d 100644
+--- a/src/backend/liquidcooling/control.py
++++ b/src/backend/liquidcooling/control.py
+@@ -2,36 +2,37 @@
+ 
+ This module does not communicate with plant equipment. Output units are chosen
+ by the binding (for example pump speed ratio or valve opening). Setpoint and
+ measurement must use the same engineering units; gains carry the corresponding
+ output/input units. Hard saturation and antiwindup are piecewise differentiable.
+ """
+ from __future__ import annotations
+ 
+ from dataclasses import dataclass
+ import math
++from numbers import Real
+ from typing import Literal
+ 
+ import torch
+ from torch import Tensor
+ 
+ 
+ @dataclass(frozen=True)
+ class PIDConfig:
+     kp: float
+     ki: float
+     kd: float = 0.0
+     setpoint: float = 0.0
+     bias: float = 0.0
+     output_min: float = 0.0
+     output_max: float = 1.0
+-    action: Literal["direct", "reverse"] = "direct"
++    action: Literal["direct", "reverse"] = "reverse"
+     rate_limit_per_s: float | None = None
+     derivative_tau_s: float = 0.0
+ 
+     def __post_init__(self):
+         fields = ("kp", "ki", "kd", "setpoint", "bias", "output_min", "output_max", "derivative_tau_s")
+         for name in fields:
+             value = getattr(self, name)
+             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                 raise ValueError(f"{name} must be a finite number")
+         if min(self.kp, self.ki, self.kd, self.derivative_tau_s) < 0:
+@@ -47,56 +48,76 @@ class PIDConfig:
+             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                 raise ValueError("rate_limit_per_s must be positive and finite")
+ 
+ 
+ @dataclass(frozen=True)
+ class PIDState:
+     integral: Tensor
+     derivative: Tensor
+     last_output: Tensor
+     last_measurement: Tensor | None = None
++    tracking_setpoint: Tensor | None = None
+ 
+ 
+ @dataclass(frozen=True)
+ class PIDStepResult:
+     output: Tensor
+     state: PIDState
+     unclamped_output: Tensor
+     saturated: bool
+     rate_limited: bool
+ 
+ 
++def _real_tensor(value, name: str, device=None) -> Tensor:
++    def check(item):
++        if isinstance(item, Tensor):
++            if item.dtype == torch.bool or item.is_complex():
++                raise ValueError(f"{name} must contain real numbers, not boolean or complex values")
++        elif isinstance(item, (list, tuple)):
++            for element in item:
++                check(element)
++        elif isinstance(item, bool) or not isinstance(item, Real):
++            raise ValueError(f"{name} must contain real numbers")
++    check(value)
++    try:
++        return torch.as_tensor(value, dtype=torch.float64, device=device)
++    except (TypeError, RuntimeError, OverflowError) as exc:
++        raise ValueError(f"{name} cannot be represented as real float64 values") from exc
++
++
+ def _scalar(value: float | Tensor, name: str, device=None) -> Tensor:
+-    result = torch.as_tensor(value, dtype=torch.float64, device=device)
++    result = _real_tensor(value, name, device)
+     if result.numel() != 1 or not bool(torch.isfinite(result).all()):
+         raise ValueError(f"{name} must be a finite scalar")
+     return result.reshape(())
+ 
+ 
+ def initial_pid_state(
+     config: PIDConfig, *, measurement: float | Tensor | None = None,
+     output: float | Tensor | None = None, setpoint: float | Tensor | None = None,
+ ) -> PIDState:
+     """Initialize normally, or track an explicit manual output for transfer."""
+     measured = None if measurement is None else _scalar(measurement, "measurement")
+     device = measured.device if measured is not None else None
+     applied = _scalar(config.bias if output is None else output, "output", device)
+     if not bool((applied >= config.output_min) & (applied <= config.output_max)):
+         raise ValueError("initial output must be within configured limits")
+     integral = torch.zeros_like(applied)
++    tracking_setpoint = None
+     if output is not None:
+         if measured is None:
+             raise ValueError("manual tracking requires a measurement")
+         target = _scalar(config.setpoint if setpoint is None else setpoint, "setpoint", device)
+-        direction = 1.0 if config.action == "direct" else -1.0
++        direction = 1.0 if config.action == "reverse" else -1.0
+         integral = applied - config.bias - config.kp * direction * (target - measured)
+-    return PIDState(integral, torch.zeros_like(applied), applied, measured)
++        tracking_setpoint = target
++    return PIDState(integral, torch.zeros_like(applied), applied, measured, tracking_setpoint)
+ 
+ 
+ def pid_step(
+     config: PIDConfig, state: PIDState, measurement: float | Tensor, dt_s: float,
+     *, setpoint: float | Tensor | None = None, gains: Tensor | None = None,
+ ) -> PIDStepResult:
+     """Compute one update, returning new state without mutating the old state.
+ 
+     Derivative acts on the measurement to avoid setpoint kick. Conditional
+     integration blocks windup against both output and slew limits. Optional
+@@ -108,28 +129,34 @@ def pid_step(
+         raise ValueError("dt_s must be positive and finite")
+     measured = _scalar(measurement, "measurement")
+     device = measured.device
+     target = _scalar(config.setpoint if setpoint is None else setpoint, "setpoint", device)
+     old_integral = _scalar(state.integral, "state.integral", device)
+     old_derivative = _scalar(state.derivative, "state.derivative", device)
+     old_output = _scalar(state.last_output, "state.last_output", device)
+     if not bool((old_output >= config.output_min) & (old_output <= config.output_max)):
+         raise ValueError("state.last_output is outside configured limits")
+ 
+-    gain_values = torch.as_tensor(
++    gain_values = _real_tensor(
+         [config.kp, config.ki, config.kd] if gains is None else gains,
+-        dtype=torch.float64, device=device,
++        "gains", device,
+     )
+     if gain_values.shape != (3,) or not bool(torch.isfinite(gain_values).all()) or bool((gain_values < 0).any()):
+         raise ValueError("gains must contain three finite non-negative values")
+     kp, ki, kd = gain_values.unbind()
+-    direction = 1.0 if config.action == "direct" else -1.0
++    direction = 1.0 if config.action == "reverse" else -1.0
++    if state.tracking_setpoint is not None:
++        if state.last_measurement is None:
++            raise ValueError("manual tracking state requires a previous measurement")
++        tracking_target = _scalar(state.tracking_setpoint, "state.tracking_setpoint", device)
++        tracking_measured = _scalar(state.last_measurement, "state.last_measurement", device)
++        old_integral = old_output - config.bias - kp * direction * (tracking_target - tracking_measured) - kd * old_derivative
+     error = direction * (target - measured)
+     if state.last_measurement is None:
+         raw_derivative = torch.zeros_like(measured)
+     else:
+         previous = _scalar(state.last_measurement, "state.last_measurement", device)
+         raw_derivative = -direction * (measured - previous) / dt_s
+     alpha = dt_s / (config.derivative_tau_s + dt_s)
+     derivative = old_derivative + alpha * (raw_derivative - old_derivative)
+     delta_integral = ki * error * dt_s
+     integral = old_integral + delta_integral
+@@ -138,20 +165,22 @@ def pid_step(
+         limited = torch.clamp(command, config.output_min, config.output_max)
+         applied = limited
+         if config.rate_limit_per_s is not None:
+             distance = config.rate_limit_per_s * dt_s
+             applied = torch.minimum(torch.maximum(limited, old_output - distance), old_output + distance)
+         return limited, applied
+ 
+     proportional_derivative = config.bias + kp * error + kd * derivative
+     raw = proportional_derivative + integral
+     requested = raw
++    if not bool(torch.isfinite(requested)):
++        raise ValueError("PID arithmetic produced a non-finite requested command")
+     candidate_limited, candidate_output = bound(requested)
+     pushes_limit = ((raw > candidate_output) & (delta_integral > 0)) | ((raw < candidate_output) & (delta_integral < 0))
+     # Accept the portion of an integral update that reaches a limit, but none
+     # beyond it. Rejecting the entire update would pin a pure-I controller at
+     # zero forever when its first update overshoots the output bound.
+     room = candidate_output - (proportional_derivative + old_integral)
+     zero = torch.zeros_like(room)
+     admissible_delta = torch.minimum(torch.maximum(delta_integral, torch.minimum(room, zero)), torch.maximum(room, zero))
+     integral = old_integral + torch.where(pushes_limit, admissible_delta, delta_integral)
+     raw = proportional_derivative + integral
+diff --git a/src/backend/tests/test_liquid/test_liquid_control.py b/src/backend/tests/test_liquid/test_liquid_control.py
+index a1636d52..c0ce72bc 100644
+--- a/src/backend/tests/test_liquid/test_liquid_control.py
++++ b/src/backend/tests/test_liquid/test_liquid_control.py
+@@ -58,23 +58,23 @@ def test_saturation_does_not_wind_up_and_recovers_after_error_reverses():
+     state = init(cfg)
+     for _ in range(50):
+         result = step(cfg, state, 0.0, 1.0)
+         state = result.state
+     assert result.output.item() == 1.0
+     assert state.integral.item() == 0.0
+     recovery = step(cfg, state, 11.0, 1.0)
+     assert recovery.output.item() < 0.5
+ 
+ 
+-def test_reverse_action_increases_cooling_when_temperature_is_high():
++def test_direct_action_increases_cooling_when_temperature_is_high():
+     C, init, step = api()
+-    cfg = C(kp=0.05, ki=0.0, setpoint=30.0, bias=0.5, action="reverse")
++    cfg = C(kp=0.05, ki=0.0, setpoint=30.0, bias=0.5, action="direct")
+     result = step(cfg, init(cfg), 35.0, 1.0)
+     assert result.output.item() == pytest.approx(0.75)
+ 
+ 
+ def test_rate_limit_is_per_second_and_part_of_antiwindup():
+     C, init, step = api()
+     cfg = C(kp=0.2, ki=0.1, setpoint=10.0, bias=0.2, rate_limit_per_s=0.1)
+     result = step(cfg, init(cfg), 0.0, 0.5)
+     assert result.output.item() == pytest.approx(0.25)
+     assert result.rate_limited
+@@ -99,20 +99,50 @@ def test_derivative_filter_matches_first_order_discretisation():
+ 
+ 
+ def test_manual_tracking_produces_bumpless_first_automatic_output():
+     C, init, step = api()
+     cfg = C(kp=0.1, ki=0.0, setpoint=10.0, bias=0.5)
+     state = init(cfg, measurement=8.0, output=0.4)
+     result = step(cfg, state, 8.0, 1.0)
+     assert result.output.item() == pytest.approx(0.4)
+ 
+ 
++def test_manual_tracking_uses_effective_tensor_gains_on_first_step():
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0, setpoint=10.0, bias=0.5)
++    state = init(cfg, measurement=8.0, output=0.4)
++    result = step(cfg, state, 8.0, 1.0, gains=torch.tensor([0.2,0.0,0.0]))
++    assert result.output.item() == pytest.approx(0.4)
++
++
++@pytest.mark.parametrize("value", [True, torch.tensor(True), 1+2j, torch.tensor(1+2j)])
++def test_nonreal_or_boolean_measurement_is_rejected_before_conversion(value):
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0)
++    with pytest.raises(ValueError):
++        step(cfg, init(cfg), value, 1.0)
++
++
++def test_boolean_gain_cannot_be_coerced_inside_a_mixed_list():
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0)
++    with pytest.raises(ValueError):
++        step(cfg, init(cfg), 0.0, 1.0, gains=[0.1,True,0.0])
++
++
++def test_finite_input_overflow_cannot_emit_nonfinite_requested_command():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=1e308, setpoint=2.0)
++    with pytest.raises(ValueError):
++        step(cfg, init(cfg), 0.0, 1.0)
++
++
+ @pytest.mark.parametrize("measurement,dt", [(float("nan"),1.0),(8.0,0.0),(8.0,-1.0),(8.0,float("inf"))])
+ def test_invalid_observation_or_timestep_cannot_emit_command(measurement, dt):
+     C, init, step = api()
+     cfg = C(kp=0.1, ki=0.0)
+     with pytest.raises(ValueError):
+         step(cfg, init(cfg), measurement, dt)
+ 
+ 
+ def test_multistep_gain_gradient_matches_finite_difference():
+     C, init, step = api()

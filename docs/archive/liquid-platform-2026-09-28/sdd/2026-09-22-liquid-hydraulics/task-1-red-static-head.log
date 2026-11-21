@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_dead_end_pressure_retains_static_head_in_residual_check _________
+
+    def test_dead_end_pressure_retains_static_head_in_residual_check():
+        raw = json.loads((Path(__file__).parent / "minimal.liquidrun").read_text())
+        raw["nodes"][1] = {"id": "return", "type": "junction", "position_m": [0., 1., 0.]}
+        raw["edges"][0]["params"]["waypoints_m"] = [[0., 0., 0.], [0., 1., 0.]]
+        graph = compile_graph(LiquidrunConfig.model_validate(raw))
+        P, m, info = nh.gga_solve(graph)
+        assert info["converged"]
+        assert torch.equal(m, torch.zeros_like(m))
+        expected_drop = graph.fluid_rho * graph.g_mag * graph.pipe_params.dh[0]
+        assert abs(expected_drop) > 1000.
+>       torch.testing.assert_close(P[0] - P[1], expected_drop.expand(graph.N_t), rtol=0, atol=1e-8)
+E       AssertionError: Tensor-likes are not close!
+E       
+E       Mismatched elements: 10 / 10 (100.0%)
+E       Greatest absolute difference: 9780.57 at index (0,) (up to 1e-08 allowed)
+E       Greatest relative difference: 1.0 at index (0,) (up to 0 allowed)
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:159: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_dead_end_pressure_retains_static_head_in_residual_check
+1 failed, 17 deselected in 3.89s

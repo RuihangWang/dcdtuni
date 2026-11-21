@@ -1,0 +1,501 @@
+12590:     return bad;
+12591: }
+12592: }
+12593: 
+12594: Foam::label Foam::dcCartCutCells::decomposeConformingCones
+12595: (
+12596:     cutMesh& m, const wordList& patchNames, const wordList& patchTypes,
+12597:     const wordList& patchNeighbours, label myRank,
+12598:     const Time& runTime, const wordList& faceZoneNames,
+12599:     const wordList& patchGroups,
+12600:     const weightUnionAuthority& weightAuthority,
+12601:     const completeCavityAuthority& cavityAuthority,
+12602:     const bool earliestPhysicalPointRepair
+12603: )
+12604: {
+12605:     const char* p17ObservationFlag=getenv("DCCART_LEGACY_JOURNAL_OBSERVE");
+12606:     dcCartLegacyJournalObservation::Scope p17ObservationScope(p17ObservationFlag&&std::strcmp(p17ObservationFlag,"1")==0,myRank);
+12607:     // Optional conservative final subdivision. No original coordinate moves.
+12608:     // All unsupported inputs fail before writer authorization. Coupled bases
+12609:     // use exact coordinate-canonical cycles and collective closure.
+12610:     const char* completeContextFlag=getenv("DCCART_COMPLETE_CAVITY_CONTEXT");
+12611:     const label completeContextRequested=completeContextFlag&&std::string(completeContextFlag)=="1";
+12612:     const char* completeRepairFlag=getenv("DCCART_COMPLETE_CAVITY_REPAIR");
+12613:     const label completeRepairRequested=completeRepairFlag&&std::string(completeRepairFlag)=="1";
+12614:     // Same fixed two setup collectives encode both flags on EVERY rank.
+12615:     // No trial or local early-return branch contains MPI.
+12616:     const label completeContextFlags=completeContextRequested+2*completeRepairRequested+4*label(earliestPhysicalPointRepair);
+12617:     const label completeContextMin=returnReduce(completeContextFlags,minOp<label>());
+12618:     const label completeContextMax=returnReduce(completeContextFlags,maxOp<label>());
+12619:     if(completeContextMin!=completeContextMax)
+12620:     {FatalErrorInFunction<<"complete-cavity context flag differs across ranks"<<exit(FatalError);}
+12621:     const bool completeContextEnabled=(completeContextMin&1)!=0;
+12622:     const bool completeRepairEnabled=(completeContextMin&2)!=0;
+12623:     const bool physicalPointEnabled=(completeContextMin&4)!=0;
+12624:     if(physicalPointEnabled&&(!completeContextEnabled||!completeRepairEnabled))
+12625:     {FatalErrorInFunction<<"physical point repair requires the normal source/current context and complete final guards"<<exit(FatalError);}
+12626:     m.completeCavityRepairRequested=completeRepairEnabled;
+12627:     if(completeRepairEnabled&&!completeContextEnabled)
+12628:     {FatalErrorInFunction<<"complete-cavity repair requires its normal installed context"<<exit(FatalError);}
+12629:     label physicalPointCommitted=0;
+12630:     const label oldCells=m.nCells,oldFaces=label(m.faces.size());
+12631:     // Source-only state. No cavity is replaced/enabled by this setup.
+12632:     // Origins are fixed before any cone appends or accepted union changes.
+12633:     auto cavityAvailable=[&]()
+12634:     {
+12635:         if (!cavityAuthority.ready()) return false;
+12636:         const scalar seconds=cavityAuthority.remainingSeconds();
+12637:         return std::isfinite(seconds) && seconds>0;
+12638:     };
+12639:     if (cavityAuthority.ready())
+12640:         m.completeCavityLineage.initialize
+12641:             (std::size_t(oldCells),cavityAuthority.recordedParent,cavityAvailable);
+12642:     std::vector<std::vector<label>> cf;buildCellFaces(m,cf);
+12643:     std::vector<vector> areas(oldFaces,vector::zero);
+12644:     std::vector<point> centres(oldFaces,point::zero),apex(oldCells,point::zero);
+12645:     std::vector<scalar> parentVolume(oldCells,0);
+12646:     std::vector<bool> marked(oldCells,false),splitFace(oldFaces,false),coupled(oldFaces,false),badFace(oldFaces,false);
+12647:     std::vector<std::vector<label>> canonical(oldFaces);
+12648:     std::vector<label> badReason(oldFaces,0);std::vector<scalar> offPlane(oldFaces,0);
+12649:     std::vector<std::string> keys(oldFaces);
+12650:     label unsupportedFaces=0,seeded=0,closureWaves=0;
+12651:     auto lessPoint=[&](label a,label b)
+12652:     {
+12653:         const point& x=m.points[a];const point& y=m.points[b];
+12654:         if (x.x()!=y.x()) { return x.x()<y.x(); }
+12655:         if (x.y()!=y.y()) { return x.y()<y.y(); }
+12656:         return x.z()<y.z();
+12657:     };
+12658:     auto canonicalCycle=[&](const std::vector<label>& poly)
+12659:     {
+12660:         // Compare the same ordered rotations through views. Only the selected
+12661:         // cycle allocates storage; coordinate comparison and tie order stay exact.
+12662:         label bestStart=0,bestDirection=1;
+12663:         bool haveBest=false;
+12664:         for (label direction:{label(1),label(-1)}) for (label start=0;start<label(poly.size());++start)
+12665:         {
+12666:             bool better=false;
+12667:             if (haveBest) for (label j=0;j<label(poly.size());++j)
+12668:             {
+12669:                 const label candidate=poly[(start+direction*j+label(poly.size())*2)%poly.size()];
+12670:                 const label current=poly[(bestStart+bestDirection*j+label(poly.size())*2)%poly.size()];
+12671:                 if (lessPoint(candidate,current)) { better=true;break; }
+12672:                 if (lessPoint(current,candidate)) { break; }
+12673:             }
+12674:             if (!haveBest || better)
+12675:             { bestStart=start;bestDirection=direction;haveBest=true; }
+12676:         }
+12677:         std::vector<label> best;best.reserve(poly.size());
+12678:         for (label j=0;j<label(poly.size());++j)
+12679:         { best.push_back(poly[(bestStart+bestDirection*j+label(poly.size())*2)%poly.size()]); }
+12680:         return best;
+12681:     };
+12682:     auto exactKey=[&](const std::vector<label>& poly)
+12683:     {
+12684:         std::ostringstream out;out<<std::hexfloat;
+12685:         for (label p:poly) { out<<m.points[p].x()<<','<<m.points[p].y()<<','<<m.points[p].z()<<';'; }
+12686:         return out.str();
+12687:     };
+12688:     auto gatherKeys=[&](const std::vector<std::string>& local)
+12689:     {
+12690:         List<List<string>> byRank(Pstream::nProcs());
+12691:         List<string>& row=byRank[Pstream::myProcNo()];row.setSize(local.size());
+12692:         forAll(row,i) { row[i]=string(local[i]); }
+12693:         if (Pstream::parRun()) { Pstream::gatherList(byRank);Pstream::scatterList(byRank); }
+12694:         std::vector<std::string> all;
+12695:         forAll(byRank,rank) forAll(byRank[rank],i) { all.emplace_back(byRank[rank][i]); }
+12696:         return all;
+12697:     };
+12698:     std::vector<std::string> localCoupled;
+12699:     for (label f=0;f<oldFaces;++f)
+12700:     {
+12701:         if (!m.faceAlive[f]) { continue; }
+12702:         const auto& poly=m.faces[f];canonical[f]=canonicalCycle(poly);
+12703:         faceAreaCentreOF(m.points,canonical[f],areas[f],centres[f]);
+12704:         vector original;point originalCentre;faceAreaCentreOF(m.points,poly,original,originalCentre);
+12705:         if ((areas[f]&original)<0) { areas[f]=-areas[f]; }
+12706:         const scalar ar=mag(areas[f]);scalar span=0;
+12707:         for (label p:poly) { span=max(span,mag(m.points[p]-centres[f])); }
+12708:         if (poly.size()<3 || !std::isfinite(ar) || ar<=VSMALL || span<=VSMALL
+12709:          || !std::isfinite(centres[f].x()) || !std::isfinite(centres[f].y()) || !std::isfinite(centres[f].z()))
+12710:         { badFace[f]=true;badReason[f]|=1;++unsupportedFaces;continue; }
+12711:         const vector normal=areas[f]/ar;
+12712:         bool convex=true,collinear=false,planar=true;
+12713:         std::set<std::tuple<scalar,scalar,scalar>> unique;
+12714:         for (size_t j=0;j<poly.size();++j)
+12715:         {
+12716:             const label q=poly[j],a=poly[(j+poly.size()-1)%poly.size()],b=poly[(j+1)%poly.size()];
+12717:             const point& x=m.points[q];unique.emplace(x.x(),x.y(),x.z());
+12718:             offPlane[f]=max(offPlane[f],mag((x-centres[f])&normal));
+12719:             if (!std::isfinite(x.x()) || !std::isfinite(x.y()) || !std::isfinite(x.z())
+12720:              || mag((x-centres[f])&normal)>1e-10*span) { planar=false; }
+12721:             const vector edge=m.points[b]-x;const scalar len=mag(edge);
+12722:             if (len<=VSMALL) { planar=false;break; }
+12723:             for (label v:poly)
+12724:             { if ((((edge^(m.points[v]-x))&normal)/len)<-1e-12*span) { convex=false; } }
+12725:             const vector da=m.points[a]-x,db=m.points[b]-x;
+12726:             if ((da&db)<0 && mag(da^db)<=1e-12*mag(da)*mag(db)) { collinear=true; }
+12727:         }
+12728:         splitFace[f]=collinear || !convex;
+12729:         if (!planar) { badReason[f]|=2; }
+12730:         if (unique.size()!=poly.size()) { badReason[f]|=4; }
+12731:         if (mag(original-areas[f])/ar>1e-10 || mag(originalCentre-centres[f])/span>1e-10) { badReason[f]|=8; }
+12732:         // Keeping one original warped base changes neither its discrete
+12733:         // polygon nor its area/centre. Only split warped bases are refused.
+12734:         const bool keepWarped=getenv("DCCART_CONES_KEEP_UNSPLIT_WARPED")!=nullptr && !splitFace[f];
+12735:         if ((!planar && !keepWarped) || unique.size()!=poly.size() || (badReason[f]&8))
+12736:         { badFace[f]=true;++unsupportedFaces; }
+12737:         const label patch=m.patch[f];
+12738:         if (patch>=0 && patch<patchTypes.size())
+12739:         {
+12740:             const word& type=patchTypes[patch];
+12741:             coupled[f]=type=="processor" || type=="processorCyclic" || type=="cyclic";
+12742:             if (coupled[f])
+12743:             {
+12744:                 // Bind geometry to the actual generated patch pair and ranks,
+12745:                 // so an unrelated coincident coupled face cannot be its twin.
+12746:                 auto cyclePair=[&](const std::string& name) -> std::string
+12747:                 {
+12748:                     label index=-1;forAll(patchNames,i) if (patchNames[i]==name) { index=i;break; }
+12749:                     if (index<0 || index>=patchNeighbours.size() || patchTypes[index]!="cyclic") { return {}; }
+12750:                     const std::string other=patchNeighbours[index];label partner=-1;
+12751:                     forAll(patchNames,i) if (patchNames[i]==other) { partner=i;break; }
+12752:                     if (partner<0 || partner>=patchNeighbours.size() || patchTypes[partner]!="cyclic"
+12753:                      || patchNeighbours[partner]!=name) { return {}; }
+12754:                     return min(name,other)+":"+max(name,other);
+12755:                 };
+12756:                 std::string identity;
+12757:                 if (type=="cyclic")
+12758:                 {
+12759:                     const auto pair=cyclePair(patchNames[patch]);
+12760:                     if (!pair.empty()) { identity="local-cycle:"+std::to_string(myRank)+":"+pair; }
+12761:                 }
+12762:                 else
+12763:                 {
+12764:                     const std::string name=patchNames[patch];
+12765:                     const std::string prefix="procBoundary"+std::to_string(myRank)+"to";
+12766:                     if (name.compare(0,prefix.size(),prefix)==0)
+12767:                     {
+12768:                         size_t end=prefix.size();while (end<name.size() && name[end]>='0' && name[end]<='9') { ++end; }
+12769:                         if (end>prefix.size())
+12770:                         {
+12771:                             const long neighbourRank=std::stol(name.substr(prefix.size(),end-prefix.size()));
+12772:                             if (neighbourRank>=0 && neighbourRank<Pstream::nProcs() && neighbourRank!=myRank)
+12773:                             {
+12774:                                 const std::string ranks=std::to_string(min(long(myRank),neighbourRank))+":"+std::to_string(max(long(myRank),neighbourRank));
+12775:                                 if (type=="processor" && end==name.size()) { identity="processor:"+ranks; }
+12776:                                 else if (type=="processorCyclic" && name.compare(end,7,"through")==0)
+12777:                                 {
+12778:                                     const auto pair=cyclePair(name.substr(end+7));
+12779:                                     if (!pair.empty()) { identity="processor-cycle:"+ranks+":"+pair; }
+12780:                                 }
+12781:                             }
+12782:                         }
+12783:                     }
+12784:                 }
+12785:                 if (identity.empty()) { badFace[f]=true;badReason[f]|=16;++unsupportedFaces; }
+12786:                 else
+12787:                 {
+12788:                     keys[f]=identity+":"+exactKey(canonical[f]);
+12789:                     // Geometry alone must not let two copies on one side
+12790:                     // impersonate a missing twin. Preserve rank, actual
+12791:                     // patch role and outward orientation in the same gather.
+12792:                     vector sharedArea;point sharedCentre;
+12793:                     faceAreaCentreOF(m.points,canonical[f],sharedArea,sharedCentre);
+12794:                     const int sense=(sharedArea&original)>0 ? 1 : -1;
+12795:                     localCoupled.push_back(keys[f]+"\t"+std::to_string(myRank)
+12796:                         +"\t"+std::string(patchNames[patch])+"\t"+std::to_string(sense));
+12797:                 }
+12798:             }
+12799:             else if (type.find("cyclic")==0 || type.find("mapped")==0 || type.find("AMI")!=std::string::npos)
+12800:             { badFace[f]=true;badReason[f]|=16;++unsupportedFaces; }
+12801:         }
+12802:     }
+12803:     struct coupledRole { label rank;std::string patch;int sense; };
+12804:     std::map<std::string,std::vector<coupledRole>> coupledRoles;
+12805:     for (const auto& record:gatherKeys(localCoupled))
+12806:     {
+12807:         const auto c=record.rfind('\t'),b=record.rfind('\t',c-1),a=record.rfind('\t',b-1);
+12808:         const std::string key=record.substr(0,a);
+12809:         coupledRoles[key].push_back(coupledRole{label(std::stol(record.substr(a+1,b-a-1))),
+12810:             record.substr(b+1,c-b-1),std::stoi(record.substr(c+1))});
+12811:     }
+12812:     auto qualifiedTwin=[&](const std::string& key)
+12813:     {
+12814:         const auto found=coupledRoles.find(key);
+12815:         if (found==coupledRoles.end() || found->second.size()!=2) { return false; }
+12816:         const auto& a=found->second[0];const auto& b=found->second[1];
+12817:         if (a.sense!=-b.sense) { return false; }
+12818:         if (key.compare(0,12,"local-cycle:")==0) { return a.rank==b.rank && a.patch!=b.patch; }
+12819:         if (a.rank==b.rank) { return false; }
+12820:         if (key.compare(0,16,"processor-cycle:")==0)
+12821:         {
+12822:             const auto ia=a.patch.find("through"),ib=b.patch.find("through");
+12823:             return ia!=std::string::npos && ib!=std::string::npos && a.patch.substr(ia+7)!=b.patch.substr(ib+7);
+12824:         }
+12825:         return true;
+12826:     };
+12827:     for (label c=0;c<oldCells;++c)
+12828:     {
+12829:         if (!m.cellAlive[c] || m.cellRank[c]!=myRank || cf[c].empty()) { continue; }
+12830:         point estimate(point::zero);for (label f:cf[c]) { estimate+=centres[f]; }estimate/=cf[c].size();
+12831:         scalar volume3=0;point moment(point::zero);
+12832:         for (label f:cf[c])
+12833:         {
+12834:             const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+12835:             const scalar v=a&(centres[f]-estimate);volume3+=v;moment+=v*(.75*centres[f]+.25*estimate);
+12836:         }
+12837:         parentVolume[c]=volume3/3;apex[c]=moment/max(volume3,VSMALL);
+12838:         bool flag=false;
+12839:         for (label f:cf[c])
+12840:         {
+12841:             if (splitFace[f] || badFace[f]) { flag=true;break; }
+12842:             vector normal=areas[f]/max(mag(areas[f]),VSMALL);if (m.owner[f]!=c) { normal=-normal; }
+12843:             for (label other:cf[c]) if (other!=f)
+12844:             {
+12845:                 const vector d=centres[other]-centres[f];
+12846:                 if ((d&normal)/max(mag(d),VSMALL)>-1e-6) { flag=true;break; }
+12847:             }
+12848:             if (flag) { break; }
+12849:         }
+12850:         if (flag) { marked[c]=true;++seeded; }
+12851:     }
+12852:     // Sharing a split base creates mandatory neighbour closure, including
+12853:     // exact-coordinate coupled counterparts. No rank-local ID enters it.
+12854:     while (true)
+12855:     {
+12856:         label changed=0;std::vector<std::string> selected;
+12857:         for (label f=0;f<oldFaces;++f)
+12858:         {
+12859:             if (!m.faceAlive[f] || !splitFace[f]) { continue; }
+12860:             const label o=m.owner[f],n=m.neighbour[f];
+12861:             if (n>=0 && (marked[o] || marked[n]))
+12862:             {
+12863:                 if (!marked[o]) { marked[o]=true;++changed; }
+12864:                 if (!marked[n]) { marked[n]=true;++changed; }
+12865:             }
+12866:             if (coupled[f] && marked[o]) { selected.push_back(keys[f]); }
+12867:         }
+12868:         std::set<std::string> global;
+12869:         for (const auto& key:gatherKeys(selected)) { global.insert(key); }
+12870:         for (label f=0;f<oldFaces;++f)
+12871:         {
+12872:             if (m.faceAlive[f] && coupled[f] && splitFace[f] && global.count(keys[f]) && !marked[m.owner[f]])
+12873:             { marked[m.owner[f]]=true;++changed; }
+12874:         }
+12875:         if (!returnReduce(changed,sumOp<label>())) { break; }
+12876:         ++closureWaves;
+12877:     }
+12878:     label selectedCells=0,badKernel=0,badBases=0,badCoupled=0,badClosure=0;
+12879:     for (label c=0;c<oldCells;++c)
+12880:     {
+12881:         if (!marked[c]) { continue; }++selectedCells;
+12882:         const point& cc=apex[c];
+12883:         if (!std::isfinite(parentVolume[c]) || parentVolume[c]<=VSMALL
+12884:          || !std::isfinite(cc.x()) || !std::isfinite(cc.y()) || !std::isfinite(cc.z())) { ++badKernel;continue; }
+12885:         std::map<std::pair<label,label>,std::pair<label,label>> edgeCounts;
+12886:         for (label f:cf[c])
+12887:         {
+12888:             if (badFace[f]) { ++badBases; }
+12889:             const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+12890:             const scalar margin=(a&(centres[f]-cc))/max(mag(a),VSMALL);
+12891:             if (!std::isfinite(margin) || margin<=3e-6) { ++badKernel; }
+12892:             if (coupled[f] && splitFace[f] && !qualifiedTwin(keys[f])) { ++badCoupled; }
+12893:             const auto& poly=m.faces[f];
+12894:             for (size_t j=0;j<poly.size();++j)
+12895:             {
+12896:                 label a=poly[j],b=poly[(j+1)%poly.size()];if (m.owner[f]!=c) { std::swap(a,b); }
+12897:                 auto& row=edgeCounts[std::minmax(a,b)];++row.first;row.second+=a<b ? 1 : -1;
+12898:             }
+12899:         }
+12900:         for (const auto& edge:edgeCounts) if (edge.second.first!=2 || edge.second.second!=0) { ++badClosure; }
+12901:     }
+12902:     if (getenv("DCCART_CONE_EVIDENCE")!=nullptr)
+12903:     {
+12904:         std::ofstream out("conforming-cone-preflight-rank"+std::to_string(Pstream::myProcNo())+".json");out<<std::setprecision(17);
+12905:         auto xyz=[&](const vector& p) { out<<'['<<p.x()<<','<<p.y()<<','<<p.z()<<']'; };
+12906:         out<<"{\"rank\":"<<Pstream::myProcNo()<<",\"badBaseFaces\":[";bool first=true;
+12907:         for (label f=0;f<oldFaces;++f)
+12908:         {
+12909:             if (!m.faceAlive[f] || !badFace[f]) { continue; }
+12910:             const label o=m.owner[f],n=m.neighbour[f];if (!marked[o] && !(n>=0 && marked[n])) { continue; }
+12911:             if (!first) { out<<','; }first=false;
+12912:             vector originalArea;point originalCentre;faceAreaCentreOF(m.points,m.faces[f],originalArea,originalCentre);
+12913:             out<<"{\"face\":"<<f<<",\"owner\":"<<o<<",\"neighbour\":"<<n<<",\"patch\":"<<m.patch[f]
+12914:                 <<",\"zone\":"<<m.zone[f]<<",\"reasonMask\":"<<badReason[f]<<",\"splitRequired\":"<<(splitFace[f] ? "true" : "false")
+12915:                 <<",\"maxOffPlane\":"<<offPlane[f]<<",\"originalCentre\":";xyz(originalCentre);
+12916:             out<<",\"canonicalCentre\":";xyz(centres[f]);out<<",\"originalArea\":";xyz(originalArea);
+12917:             out<<",\"canonicalOrientedArea\":";xyz(areas[f]);out<<",\"ownerApex\":";xyz(apex[o]);
+12918:             if (n>=0) { out<<",\"neighbourApex\":";xyz(apex[n]); }
+12919:             out<<",\"points\":[";
+12920:             for (size_t j=0;j<m.faces[f].size();++j) { if (j) { out<<','; }xyz(m.points[m.faces[f][j]]); }
+12921:             out<<"]}";
+12922:         }
+12923:         out<<"]}\n";
+12924:     }
+12925:     selectedCells=returnReduce(selectedCells,sumOp<label>());seeded=returnReduce(seeded,sumOp<label>());
+12926:     badKernel=returnReduce(badKernel,sumOp<label>());badBases=returnReduce(badBases,sumOp<label>());
+12927:     badCoupled=returnReduce(badCoupled,sumOp<label>());badClosure=returnReduce(badClosure,sumOp<label>());
+12928:     Pout<<"Conforming cone synchronized preflight: rank "<<Pstream::myProcNo()<<", global selection "<<selectedCells
+12929:         <<", bad kernel/base/coupled/closure "<<badKernel<<' '<<badBases<<' '<<badCoupled<<' '<<badClosure<<endl;
+12930:     Info<<"Conforming cone preflight: seed cells "<<seeded<<", closed selection "<<selectedCells
+12931:         <<", closure waves "<<closureWaves<<"; unsupported [kernel,base,coupled,closure] "
+12932:         <<badKernel<<' '<<badBases<<' '<<badCoupled<<' '<<badClosure<<endl;
+12933:     Pstream::barrier(Pstream::worldComm);
+12934:     if (badKernel || badBases || badCoupled || badClosure)
+12935:     { FatalErrorInFunction<<"conforming cone unsupported geometry; source coordinates preserved; no mesh authorization"<<exit(FatalError); }
+12936:     // Spatial guard includes every existing AND every newly inserted point.
+12937:     // This prevents the writer's 1-micrometre canonicalization changing bases.
+12938:     struct gridKey { long long x,y,z;bool operator==(const gridKey& b) const { return x==b.x&&y==b.y&&z==b.z; } };
+12939:     struct gridHash { size_t operator()(const gridKey& q) const { return splitMix64(uint64_t(q.x)^splitMix64(uint64_t(q.y))^splitMix64(uint64_t(q.z))); } };
+12940:     std::unordered_map<gridKey,std::vector<label>,gridHash> pointGrid;
+12941:     auto gridOf=[](const point& p) { return gridKey{(long long)std::floor(p.x()/3e-6),(long long)std::floor(p.y()/3e-6),(long long)std::floor(p.z()/3e-6)}; };
+12942:     for (label p=0;p<label(m.points.size());++p) { pointGrid[gridOf(m.points[p])].push_back(p); }
+12943:     auto insertPoint=[&](const point& p,bool allowExact) -> label
+12944:     {
+12945:         const gridKey q=gridOf(p);label exact=-1;
+12946:         for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)
+12947:         {
+12948:             auto found=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (found==pointGrid.end()) { continue; }
+12949:             for (label old:found->second)
+12950:             {
+12951:                 const scalar d=magSqr(p-m.points[old]);
+12952:                 if (d<=9e-12)
+12953:                 {
+12954:                     if (allowExact && d==0) { exact=old; }
+12955:                     else { return -1; }
+12956:                 }
+12957:             }
+12958:         }
+12959:         if (exact>=0) { return exact; }
+12960:         const label id=m.points.size();m.points.push_back(p);pointGrid[q].push_back(id);return id;
+12961:     };
+12962:     const bool traceCones=getenv("DCCART_CONE_EVIDENCE")!=nullptr;
+12963:     const bool literalUnions=getenv("DCCART_CONE_LITERAL_UNIONS")!=nullptr;
+12964:     const bool samePhysicalRole=literalUnions && getenv("DCCART_CONE_SAME_PHYSICAL_ROLE")!=nullptr;
+12965: 
+12966:     // Exact flag, inside the existing all-rank literal experiment only.
+12967:     // Missing/mismatched authority refuses W while retaining the old D path.
+12968:     bool weightUnions=false;
+12969:     if (literalUnions)
+12970:     {
+12971:         const char* flag=getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
+12972:         const label requested=flag && std::string(flag)=="1";
+12973:         // Unconditional agreement at the same all-rank setup as W.
+12974:         const char* dflag=getenv("DCCART_CROSS_PARENT_D_UNIONS");
+12975:         const label drequested=dflag && std::string(dflag)=="1";
+12976:         const label dlo=returnReduce(drequested,minOp<label>());
+12977:         const label dhi=returnReduce(drequested,maxOp<label>());
+12978:         if(dlo!=dhi)
+12979:         { FatalErrorInFunction<<"D-seed flag differs across ranks; no mesh written"<<exit(FatalError); }
+12980:         const label lo=returnReduce(requested,minOp<label>());
+12981:         const label hi=returnReduce(requested,maxOp<label>());
+12982:         if (lo!=hi)
+12983:         { FatalErrorInFunction<<"W-only flag differs across ranks; no mesh written"<<exit(FatalError); }
+12984:         if (lo)
+12985:         {
+12986:             m.weightUnionState=std::make_shared<writerWeightUnionState>();
+12987:             auto& state=*m.weightUnionState;state.authority=weightAuthority;
+12988:             const bool local=weightAuthority.globallyNoMaterialNoBulk
+12989:                 && dcCartWeightUnionPreview::sha(weightAuthority.rawSha256)
+12990:                 && dcCartWeightUnionPreview::sha(weightAuthority.rolesDigest)
+12991:                 && !weightAuthority.homogeneousFluidKey.empty()
+12992:                 && bool(weightAuthority.homogeneousOrigins)
+12993:                 && bool(weightAuthority.remainingSeconds);
+12994:             List<string> roles(Pstream::nProcs());
+12995:             roles[Pstream::myProcNo()]=weightAuthority.rawSha256+"|"
+12996:                 +weightAuthority.rolesDigest+"|"+weightAuthority.homogeneousFluidKey;
+12997:             Pstream::gatherList(roles);Pstream::scatterList(roles);
+12998:             bool agree=true;for (const auto& row:roles) { agree=agree&&row==roles[0]; }
+12999:             state.enabled=returnReduce(label(local&&agree),minOp<label>())==1;
+13000:             state.dEnabled=dcCartWeightUnionPreview::dAuthority(dlo,state.enabled);
+13001:             weightUnions=state.enabled;
+13002:             if (!weightUnions && Pstream::master())
+13003:             { WarningInFunction<<"W-only homogeneous source authority absent/unknown; old literal path retained"<<nl; }
+13004:         }
+13005:     }
+13006:     // Algorithm ancestry is local and independent of optional evidence output.
+13007:     // No allocation or iteration is added when this experiment is off.
+13008:     std::vector<label> unionParent;
+13009:     if (literalUnions)
+13010:     {
+13011:         unionParent.resize(oldCells);
+13012:         std::iota(unionParent.begin(),unionParent.end(),label(0));
+13013:     }
+13014:     // Source-facet lineage is algorithm state, never optional trace state.
+13015:     std::vector<label> unionBase;
+13016:     if (samePhysicalRole)
+13017:     {
+13018:         unionBase.resize(oldFaces);std::iota(unionBase.begin(),unionBase.end(),label(0));
+13019:     }
+13020:     if (traceCones)
+13021:     {
+13022:         m.coneEvidenceParent.resize(oldCells);m.coneEvidenceBase.resize(oldFaces);
+13023:         for (label c=0;c<oldCells;++c) { m.coneEvidenceParent[c]=c; }
+13024:         for (label f=0;f<oldFaces;++f) { m.coneEvidenceBase[f]=f; }
+13025:         const std::string prefix="conforming-source-rank"+std::to_string(myRank)+"-";
+13026:         auto writeRaw=[&](const std::string& name,const char* data,size_t bytes)
+13027:         {
+13028:             std::ofstream out(prefix+name,std::ios::binary);out.write(data,bytes);
+13029:             if (!out) { FatalErrorInFunction<<"could not write optional cone source evidence "<<name<<exit(FatalError); }
+13030:         };
+13031:         writeRaw("points.f64",reinterpret_cast<const char*>(m.points.data()),m.points.size()*sizeof(point));
+13032:         writeRaw("owner.i32",reinterpret_cast<const char*>(m.owner.data()),oldFaces*sizeof(label));
+13033:         writeRaw("neighbour.i32",reinterpret_cast<const char*>(m.neighbour.data()),oldFaces*sizeof(label));
+13034:         writeRaw("patch.i32",reinterpret_cast<const char*>(m.patch.data()),oldFaces*sizeof(label));
+13035:         writeRaw("zone.i32",reinterpret_cast<const char*>(m.zone.data()),oldFaces*sizeof(label));
+13036:         writeRaw("apex.f64",reinterpret_cast<const char*>(apex.data()),oldCells*sizeof(point));
+13037:         writeRaw("parent-volume.f64",reinterpret_cast<const char*>(parentVolume.data()),oldCells*sizeof(scalar));
+13038:         std::vector<uint64_t> offsets(oldFaces+1,0);
+13039:         for (label f=0;f<oldFaces;++f) { offsets[f+1]=offsets[f]+m.faces[f].size(); }
+13040:         writeRaw("face-offsets.u64",reinterpret_cast<const char*>(offsets.data()),offsets.size()*sizeof(uint64_t));
+13041:         std::ofstream pointsFile(prefix+"face-points.i32",std::ios::binary);
+13042:         for (label f=0;f<oldFaces;++f) { pointsFile.write(reinterpret_cast<const char*>(m.faces[f].data()),m.faces[f].size()*sizeof(label)); }
+13043:         std::vector<unsigned char> faceAlive(oldFaces,0),cellAlive(oldCells,0);
+13044:         for (label f=0;f<oldFaces;++f) { faceAlive[f]=m.faceAlive[f]; }
+13045:         for (label c=0;c<oldCells;++c) { cellAlive[c]=m.cellAlive[c]; }
+13046:         writeRaw("face-alive.u8",reinterpret_cast<const char*>(faceAlive.data()),faceAlive.size());
+13047:         writeRaw("cell-alive.u8",reinterpret_cast<const char*>(cellAlive.data()),cellAlive.size());
+13048:         if (!pointsFile) { FatalErrorInFunction<<"could not write optional cone face evidence"<<exit(FatalError); }
+13049:         const uint16_t endianMarker=1;
+13050:         std::ofstream meta(prefix+"manifest.json");meta<<"{\"format\":\"conforming-input-stage/v1\",\"rank\":"<<myRank
+13051:             <<",\"points\":"<<m.points.size()<<",\"faces\":"<<oldFaces<<",\"cells\":"<<oldCells
+13052:             <<",\"facePointLabels\":"<<offsets.back()<<",\"labelBytes\":"<<sizeof(label)
+13053:             <<",\"scalarBytes\":"<<sizeof(scalar)<<",\"pointStrideBytes\":"<<sizeof(point)
+13054:             <<",\"littleEndian\":"<<(reinterpret_cast<const char*>(&endianMarker)[0]==1 ? "true":"false")
+13055:             <<",\"parentScope\":\"local alive cell immediately before this optional decomposition; not a surface or octree ancestor\"}\n";
+13056:         if (!meta) { FatalErrorInFunction<<"could not write optional cone manifest"<<exit(FatalError); }
+13057:     }
+13058:     // Explicit diagnostic candidate only. The original input-stage snapshot
+13059:     // above remains unchanged; the final stock checker is still mandatory.
+13060:     // No case coordinates or selection are part of the default algorithm.
+13061:     if (const char* kernelTest=getenv("DCCART_CONE_KERNEL_TEST"))
+13062:     {
+13063:         label rank=-1,parent=-1;point candidate(point::zero);std::string extra;
+13064:         std::istringstream input(kernelTest);
+13065:         bool parse=bool(input>>rank>>parent>>candidate.x()>>candidate.y()>>candidate.z());
+13066:         parse=parse && !(input>>extra) && rank>=0 && rank<Pstream::nProcs()
+13067:             && parent>=0 && std::isfinite(candidate.x()) && std::isfinite(candidate.y()) && std::isfinite(candidate.z());
+13068:         label applied=0,invalid=parse ? 0 : 1;
+13069:         if (parse && rank==myRank)
+13070:         {
+13071:             if (parent>=oldCells || !m.cellAlive[parent] || !marked[parent]) { ++invalid; }
+13072:             else
+13073:             {
+13074:                 scalar margin=GREAT;
+13075:                 for (label f:cf[parent])
+13076:                 {
+13077:                     const vector a=m.owner[f]==parent ? areas[f] : -areas[f];
+13078:                     const scalar d=(a&(centres[f]-candidate))/max(mag(a),VSMALL);
+13079:                     if (!std::isfinite(d)) { ++invalid; }margin=min(margin,d);
+13080:                 }
+13081:                 if (!std::isfinite(margin) || margin<=3e-6) { ++invalid; }
+13082:                 if (!invalid)
+13083:                 {
+13084:                     Pout.precision(17);Pout<<"Conforming kernel test: rank "<<myRank<<", parent "<<parent
+13085:                         <<", original "<<apex[parent]<<", candidate "<<candidate<<", minimum plane margin "<<margin<<endl;
+13086:                     apex[parent]=candidate;++applied;
+13087:                 }
+13088:             }
+13089:         }
+13090:         invalid=returnReduce(invalid,sumOp<label>());applied=returnReduce(applied,sumOp<label>());

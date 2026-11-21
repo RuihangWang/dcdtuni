@@ -1,0 +1,240 @@
+--- a/src/backend/aircooling/runner/stlgen_runner.py
++++ b/src/backend/aircooling/runner/stlgen_runner.py
+@@ -24,8 +24,9 @@
+ from contextlib import contextmanager
+ import functools
+ import glob as _glob
+ import hashlib
++import io
+ import copy
+ import json
+ import math
+ import os
+@@ -36,9 +37,10 @@
+ import threading
+ import time
+ from dataclasses import dataclass
+ from pathlib import Path
+-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
++from types import MappingProxyType
++from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
+ 
+ if TYPE_CHECKING:
+     from backend.aircooling.runner.bridge_bc import BridgeBCRegistry
+ 
+@@ -789,8 +791,10 @@
+ 
+ 
+ def _solid_bounding_boxes(
+     stl_path: Path,
++    *,
++    parsed_solids: Optional[Mapping[str, Iterable[Triangle]]] = None,
+ ) -> Dict[str, Tuple[List[float], List[float]]]:
+     """Read an ASCII STL file and return AABB per solid from actual vertices.
+ 
+     Returns dict mapping solid_name → (min_xyz, max_xyz) as 3-element lists.
+@@ -801,9 +805,9 @@
+        rotations, so anchor/size/orientation-based computation fails.
+     2. Racks can have negative scale components (mirroring) not captured
+        in the orientation field.
+     """
+-    solids = _read_ascii_stl_triangles(stl_path)
++    solids = parsed_solids if parsed_solids is not None else _read_ascii_stl_triangles(stl_path)
+     result: Dict[str, Tuple[List[float], List[float]]] = {}
+     for name, triangles in solids.items():
+         if not triangles:
+             continue
+@@ -913,35 +917,44 @@
+             }
+     return expected
+ 
+ 
+-def _read_ascii_stl_triangles(stl_path: Path) -> Dict[str, List[Triangle]]:
+-    """Parse triangles grouped by solid name from an ASCII STL file."""
++# Increment when the ordered ASCII parser's semantics change.
++_ASCII_STL_PARSE_VERSION = 1
++
++
++def _parse_ascii_stl_triangle_lines(lines: Iterable[str]) -> Dict[str, List[Triangle]]:
++    """Parse one supplied text stream in the original solid/triangle/float order."""
+     solids: Dict[str, List[Triangle]] = {}
+     current_name: Optional[str] = None
+     vertices: List[Vec3] = []
+ 
++    for line in lines:
++        stripped = line.strip()
++        if stripped.startswith("solid "):
++            current_name = stripped[6:].strip()
++            if current_name:
++                solids.setdefault(current_name, [])
++            vertices = []
++            continue
++        if stripped.startswith("endsolid"):
++            current_name = None
++            vertices = []
++            continue
++        if current_name and stripped.startswith("vertex "):
++            parts = stripped.split()
++            if len(parts) >= 4:
++                vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
++                if len(vertices) == 3:
++                    solids[current_name].append((vertices[0], vertices[1], vertices[2]))
++                    vertices = []
++    return solids
++
++
++def _read_ascii_stl_triangles(stl_path: Path) -> Dict[str, List[Triangle]]:
++    """Parse triangles grouped by solid name from an ASCII STL file."""
+     with open(stl_path, "r", encoding="utf-8", errors="replace") as fh:
+-        for line in fh:
+-            stripped = line.strip()
+-            if stripped.startswith("solid "):
+-                current_name = stripped[6:].strip()
+-                if current_name:
+-                    solids.setdefault(current_name, [])
+-                vertices = []
+-                continue
+-            if stripped.startswith("endsolid"):
+-                current_name = None
+-                vertices = []
+-                continue
+-            if current_name and stripped.startswith("vertex "):
+-                parts = stripped.split()
+-                if len(parts) >= 4:
+-                    vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+-                    if len(vertices) == 3:
+-                        solids[current_name].append((vertices[0], vertices[1], vertices[2]))
+-                        vertices = []
+-    return solids
++        return _parse_ascii_stl_triangle_lines(fh)
+ 
+ 
+ def _compute_triangle_surface_centroid(triangles: Iterable[Triangle]) -> Optional[Vec3]:
+     total_area = 0.0
+@@ -1236,9 +1249,9 @@
+     return best
+ 
+ 
+ def _flatten_scene_triangles(
+-    triangle_cache: Dict[str, Dict[str, List[Triangle]]]
++    triangle_cache: Mapping[str, Mapping[str, Iterable[Triangle]]]
+ ) -> List[SceneTriangle]:
+     return [
+         (filename, solid_name, triangle)
+         for filename, solids in triangle_cache.items()
+@@ -4923,15 +4936,41 @@
+                 f"and the bucket-category dispatch above."
+             )
+         return specs
+ 
+-    def _build_stl_triangle_cache(self) -> Dict[str, Dict[str, List[Triangle]]]:
+-        cache: Dict[str, Dict[str, List[Triangle]]] = {}
++    def _read_mesh_dict_stl_triangles(
++        self, stl_path: Path,
++    ) -> Mapping[str, Iterable[Triangle]]:
++        """Reuse pure parsed geometry only within this dictionary-generation call.
++
++        Every lookup rereads and hashes the actual current bytes. A rewrite at
++        the same path, size or mtime cannot inherit an earlier parse. No Source
++        permission, manifest verification or receipt is cached here.
++        """
++        cache = getattr(self, "_mesh_dict_stl_parse_cache", None)
++        if cache is None:
++            return _read_ascii_stl_triangles(stl_path)
++        data = stl_path.read_bytes()
++        key = (str(stl_path.resolve()), hashlib.sha256(data).hexdigest(),
++               _ASCII_STL_PARSE_VERSION)
++        groups = cache.get(key)
++        if groups is None:
++            # TextIOWrapper has the same UTF-8 replacement and universal-newline
++            # behavior as the existing path reader, using these hashed bytes.
++            with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8", errors="replace") as fh:
++                parsed = _parse_ascii_stl_triangle_lines(fh)
++            groups = MappingProxyType({name: tuple(triangles)
++                                       for name, triangles in parsed.items()})
++            cache[key] = groups
++        return groups
++
++    def _build_stl_triangle_cache(self) -> Dict[str, Mapping[str, Iterable[Triangle]]]:
++        cache: Dict[str, Mapping[str, Iterable[Triangle]]] = {}
+         for filename in sorted(self._stl_solids):
+             stl_path = self.tri_surface_dir / filename
+             if not stl_path.exists():
+                 continue
+-            cache[filename] = _read_ascii_stl_triangles(stl_path)
++            cache[filename] = self._read_mesh_dict_stl_triangles(stl_path)
+         return cache
+ 
+     def _build_patch_driven_none_seed_entries(self) -> List[Tuple[Vec3, str]]:
+         """Generate dual-side none seeds only for createBaffles patches."""
+@@ -5456,12 +5495,18 @@
+         system_dir = self.mesh_dir / "system"
+         system_dir.mkdir(parents=True, exist_ok=True)
+         (self.mesh_dir / "constant" / "triSurface").mkdir(parents=True, exist_ok=True)
+ 
+-        self._generate_block_mesh_dict(system_dir)
+-        self._generate_surface_feature_extract_dict(system_dir)
+-        self._generate_snappy_hex_mesh_dict(system_dir)
+-        self._generate_create_baffles_dict()
++        # This private pure-parse cache never outlives the current mesh-dict
++        # generation, including failures, and is released before native work.
++        self._mesh_dict_stl_parse_cache = {}
++        try:
++            self._generate_block_mesh_dict(system_dir)
++            self._generate_surface_feature_extract_dict(system_dir)
++            self._generate_snappy_hex_mesh_dict(system_dir)
++            self._generate_create_baffles_dict()
++        finally:
++            self._mesh_dict_stl_parse_cache = None
+ 
+     # STL files whose OUTER faces should become background grid lines (major
+     # axis-aligned objects). Fine internal detail (servers, U-slots,
+     # through-zones, blanking) is deliberately excluded so grid planes do not
+@@ -5500,9 +5545,10 @@
+             p = self.tri_surface_dir / fn
+             if not p.exists():
+                 continue
+             try:
+-                boxes = _solid_bounding_boxes(p)
++                boxes = _solid_bounding_boxes(
++                    p, parsed_solids=self._read_mesh_dict_stl_triangles(p))
+             except Exception as exc:
+                 logger.warning(f"grid-align: could not read AABB from {fn}: {exc}")
+                 continue
+             for lo, hi in boxes.values():
+@@ -6664,15 +6710,9 @@
+         # exports include quaternion + scale in rack geometry).  Fall back
+         # to axis-aligned searchableBox from STL vertex AABB for legacy
+         # cdfrun files that lack quaternion data.
+         rack_frame_stl = self.tri_surface_dir / "merged_rack_frame.stl"
+-        frame_bboxes: Dict[str, Tuple[List[float], List[float]]] = {}
+-        if rack_frame_stl.exists():
+-            try:
+-                frame_bboxes = _solid_bounding_boxes(rack_frame_stl)
+-            except Exception as exc:
+-                logger.warning(f"Could not parse {rack_frame_stl.name} for "
+-                               f"rack AABB: {exc}")
++        frame_bboxes: Optional[Dict[str, Tuple[List[float], List[float]]]] = None
+ 
+         rack_region_names = []
+         for rack_name, rack in (data.get("racks") or {}).items():
+             geom = rack.get("geometry") or {}
+@@ -6735,8 +6775,18 @@
+ 
+                 mn: Optional[List[float]] = None
+                 mx: Optional[List[float]] = None
+                 for fs in frame_solids:
++                    if frame_bboxes is None:
++                        frame_bboxes = {}
++                        if rack_frame_stl.exists():
++                            try:
++                                frame_bboxes = _solid_bounding_boxes(
++                                    rack_frame_stl,
++                                    parsed_solids=self._read_mesh_dict_stl_triangles(rack_frame_stl))
++                            except Exception as exc:
++                                logger.warning(f"Could not parse {rack_frame_stl.name} for "
++                                               f"rack AABB: {exc}")
+                     bbox = frame_bboxes.get(fs)
+                     if bbox is None:
+                         continue
+                     if mn is None:

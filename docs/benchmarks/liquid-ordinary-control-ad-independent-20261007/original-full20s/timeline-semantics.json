@@ -1,0 +1,107 @@
+{
+  "original_typed": "input.liquidrun",
+  "accepted_typed": "executed.liquidrun",
+  "checkpoint_version": 3,
+  "online_command": [
+    {
+      "seq": 1,
+      "time_s": 2.0,
+      "heat_multiplier": 1.2,
+      "pump_rpm_ratios": {
+        "m_30_pump": 0.95
+      },
+      "valve_openings": {
+        "m_32_control_valve_1778059294098": 0.9
+      },
+      "primary_inlet_K": {
+        "m_30_hx": 294.15
+      }
+    }
+  ],
+  "edge_examples": [
+    {
+      "type": "pump",
+      "id": "m_30_pump",
+      "original_params": {
+        "rpm_ratio": 1.0
+      },
+      "executed_params": {
+        "rpm_ratio": [
+          1.0,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95,
+          0.95
+        ]
+      }
+    },
+    {
+      "type": "valve",
+      "id": "m_32_control_valve_1778059294098",
+      "original_params": {
+        "opening": 1.0
+      },
+      "executed_params": {
+        "opening": [
+          1.0,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9
+        ]
+      }
+    },
+    {
+      "type": "cold_plate",
+      "id": "m_1_e_1_cp_CP-CU_1",
+      "original_params": {
+        "dp_a": 36568239.72805256,
+        "dp_b": 0.0,
+        "UA_W_per_K": 33.333333333333336,
+        "C_solid_J_per_K": 100.0,
+        "V_fluid_m3": 4.9999999999999996e-06,
+        "Q_W": 100.0
+      },
+      "executed_params": {
+        "dp_a": 36568239.72805256,
+        "dp_b": 0.0,
+        "UA_W_per_K": 33.333333333333336,
+        "C_solid_J_per_K": 100.0,
+        "V_fluid_m3": 4.9999999999999996e-06,
+        "Q_W": [
+          100.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0,
+          120.0
+        ]
+      }
+    },
+    {
+      "type": "heat_exchanger",
+      "id": "m_30_hx",
+      "original_params": {},
+      "executed_params": {}
+    }
+  ],
+  "execution_semantics": "set_inputs queues before next accepted BE root; seq1/t2 receipt denotes accepted right-endpoint output/control. Keep exact original queue-before-step behavior, not an inferred wall-clock shift. Original+heat1.2 command and accepted heatseries+hostmultiplier1 must be equivalent; all11 full parameter vectors independently checked after worker.",
+  "FD_comparison_note": "baseline_AD actual_match covers all8classes11samples; each FD actual_match empty means intentionally not compared to observed actual values. FD variations change held pump/onevalve command and are explicitly unobserved counterfactuals, with same t0, heat/Tin, timegrid and graph."
+}

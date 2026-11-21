@@ -1,0 +1,217 @@
+# =============================================================================
+# CFD Simulation Configuration for Base Data Center Case (STL-based)
+# =============================================================================
+# This file contains all configurable parameters for running OpenFOAM CFD
+# simulations using run_cfd.py with the new STL-based geometry modeling.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# [paths] - File and Directory Paths
+# -----------------------------------------------------------------------------
+[paths]
+
+# Path to the room JSON model file (new format)
+# This file defines the geometry and components of the data center room
+room_json = "model/model.json"
+
+# Name used for log folder naming (appears in timestamp_name format)
+dataset_name = "STDCT"
+
+# Root folder for all simulation logs
+# Each run creates a timestamped subfolder: {log_root}/{timestamp}_{dataset_name}/
+log_root = "./log"
+
+# -----------------------------------------------------------------------------
+# [geometry] - STL Geometry Generation Settings
+# -----------------------------------------------------------------------------
+[geometry]
+
+# Generate STL files (set false to reuse cached STL only)
+generate_stl = true
+
+# Use new STL-based geometry modeling
+# - true: Use new Entity/SubEntity framework with STL files
+# - false: Use legacy box-based geometry (for backward compatibility)
+use_stl_geometry = true
+
+# Mesh root directory for STL/mesh artifacts
+mesh_root = "Mesh"
+
+# STL cache directory (relative to this config). Uses Mesh/constant/triSurface by default.
+stl_cache_dir = "Mesh"
+
+# Force STL regeneration even if cached STL files exist
+# - true: Always regenerate STL files
+# - false: Reuse cached STL files from {room_json_dir}/triSurface/ if geometry hash matches
+force_stl_generation = true
+
+# Export a runnable case into the log/{timestamp} folder
+export_case_to_log = true
+
+# Write blockMeshDict/snappyHexMeshDict/createBafflesDict
+write_mesh_dicts = true
+
+# -----------------------------------------------------------------------------
+# [simulation] - OpenFOAM Simulation Settings
+# -----------------------------------------------------------------------------
+[simulation]
+
+# Simulation type: "steady" or "transient"
+# - steady: Uses buoyantBoussinesqSimpleFoam (time-independent)
+# - transient: Uses buoyantBoussinesqPimpleFoam (time-dependent)
+simulation_type = "steady"
+
+# OpenFOAM endTime - total number of iterations/timesteps
+# For steady simulations, this is the maximum number of iterations
+end_time = 3000
+
+# OpenFOAM writeInterval - save results every N iterations
+# NOTE: end_time must be a multiple of write_interval
+write_interval = 3000
+
+# Dry run mode: generate case files but do NOT run the solver
+# Useful for checking mesh and setup before running expensive simulations
+dry_run = false
+
+# -----------------------------------------------------------------------------
+# [mesh] - Mesh Generation Settings
+# -----------------------------------------------------------------------------
+[mesh]
+
+# Generate mesh (blockMesh + snappyHexMesh)
+generate_mesh = true
+
+# Enable parallel mesh generation using MPI
+# - true: Use decomposePar + mpirun snappyHexMesh -parallel + reconstructParMesh
+# - false: Serial snappyHexMesh (slower but simpler)
+# Note: Number of processors is controlled by [process].mesh_process
+parallel_mesh = true
+
+# Mesh cache directory (relative to this config). Uses Mesh/constant/polyMesh by default.
+mesh_cache_dir = "Mesh"
+
+# Force mesh regeneration even if cached polyMesh exists
+# - true: Always regenerate mesh (blockMesh + snappyHexMesh)
+# - false: Reuse cached polyMesh from {room_json_dir}/polyMesh/ if geometry hash matches
+force_mesh_generation = true
+
+# Run blockMesh before snappyHexMesh
+run_block_mesh = true
+
+# Run snappyHexMesh after blockMesh
+run_snappy_hex_mesh = true
+
+# Run createBaffles (if createBafflesDict exists)
+# For perforated baffles: topoSet creates faceZone, then createBaffles creates cyclic pairs
+run_create_baffles = true
+
+# During snappyHexMesh, treat cyclic patches as regular patches to avoid
+# coupled-patch removal errors. We'll convert to cyclic after meshing.
+snappy_cyclic_as_patch = true
+
+# Base cell size (meters) for background blockMesh
+# Smaller values = finer mesh = more accurate but slower
+# Typical range: 0.1 - 0.3 for data center rooms
+base_size = 0.25  # Background mesh cell size (halved from 0.15 for finer mesh)
+
+# SnappyHexMesh refinement level for geometry surfaces
+# Higher values = finer mesh near surfaces
+# - Level 1: coarse (fast but less accurate)
+# - Level 2: medium (good balance)
+# - Level 3: fine (accurate but slower)
+refinement_level = [1, 1] # default refinement level for all surfaces/regions, if this stl soild was not specified refinemnt level
+
+# surface refinement level for different components
+# Refinement level for rack surfaces (can be higher than default)
+rack_refinement_level = [2, 3] # for snappyhexdict semantic level(1,1)
+# Refinement level for server inlet/outlet faces (usually higher for accuracy)
+server_face_refinement_level = [1, 3] # for snappyhexdict semantic level(1,3)
+# Refinement level for ACU surfaces
+acu_refinement_level = [1, 1] # for snappyhexdict semantic level(1,1)
+wall_baffles_refinement_level = [1, 3] # for snappyhexdict semantic level(1,1)
+perforated_wall_baffles_refinement_level = [2, 2] # for snappyhexdict semantic level(1,1)
+room_wall_refinement_level = [0, 0] # for snappyhexdict semantic level(1,1)
+
+# volume refinement level for different components
+leakage_refinement_level = [2, 3]
+
+# locationInMesh point for snappyHexMesh [x, y, z]
+# This point must be inside the computational domain (inside the room)
+# Used to identify which cells to keep after meshing
+# IMPORTANT: Must be outside all equipment (racks, ACU, pillar) boxes
+# For room (0-10, 0-6, 0-3.6), pick a point away from all equipment
+location_in_mesh = [1.0, 5.0, 1.8]
+
+# -----------------------------------------------------------------------------
+# Snap Control Settings (for preserving Cartesian mesh)
+# -----------------------------------------------------------------------------
+# For axis-aligned box geometries (data centers), use conservative snapping
+# to conform to surfaces while minimizing mesh distortion.
+
+# Enable/disable snapping to geometry surfaces
+# - false: Pure castellated mesh, no body-fitting (stair-step boundaries)
+# - true: Body-fitted mesh with snapping (smooth boundaries, recommended)
+snap_enabled = true
+
+# Number of cells between refinement levels (1 = aggressive, 2-3 = smoother)
+n_cells_between_levels = 1
+
+# Snap iteration controls (controls distortion during snapping)
+# Lower values = less distortion but may not fully conform to surface
+snap_n_solve_iter = 30        # Displacement iterations (default 30)
+snap_n_smooth_patch = 1       # Surface smoothing iterations (1 = minimal distortion)
+snap_n_relax_iter = 3         # Relaxation iterations (default 5)
+snap_n_feature_snap_iter = 10  # Feature snap iterations (10 = preserve sharp edges/corners)
+snap_tolerance = 2.0          # Attraction distance (×cell edge, 2.0 for feature preservation)
+
+# Feature edge extraction settings (for preserving sharp edges/corners)
+use_feature_edges = true       # Enable edge feature extraction (eMesh generation)
+feature_included_angle = 150   # Angle threshold for edge detection (150° captures right angles)
+explicit_feature_snap = true   # Enable explicit feature snapping to eMesh
+resolve_feature_angle = 30     # Angle for resolving feature edges in mesh (30° recommended)
+
+# Mesh quality controls during snapping
+# Lower maxNonOrtho = less distortion allowed
+max_non_ortho = 45.0          # Max non-orthogonality angle (default 65, lower = less distortion)
+max_boundary_skewness = 10    # Max boundary skewness (default 20)
+max_non_ortho_relaxed = 50    # Relaxed value for difficult regions
+
+# -----------------------------------------------------------------------------
+# [process] - Parallel Processing Settings
+# -----------------------------------------------------------------------------
+[process]
+
+# Number of MPI processes for mesh generation
+# Recommended: number of CPU cores available
+mesh_process = 16
+
+# Number of MPI processes for CFD solver
+# Recommended: number of CPU cores available
+solve_process = 16
+
+# -----------------------------------------------------------------------------
+# [output] - Output and Post-processing Options
+# -----------------------------------------------------------------------------
+[output]
+
+# OpenFOAM initial field files to write in 0/
+# - "all": write all default fields
+# - ["U", "T", "p", "p_rgh", "k", "epsilon", "nut", "alphat"]
+# - "none": skip writing fields (use existing files)
+write_fields = "all"
+
+# Save mesh_index.json to case directory
+# Contains mapping between mesh cells and room geometry
+save_mesh_index = true
+
+# Save boundary_conditions.json to case directory
+# Contains all boundary condition parameters used in simulation
+save_boundary_conditions = true
+
+# Save simulation_sensor_results.json to case directory
+# Contains temperature readings at sensor locations (if sensors defined in room JSON)
+save_simulation_results = true
+
+# Convert OpenFOAM results to VTK/VTM format using foamToVTK
+# Creates files viewable in ParaView with individual patches
+convert_vtk = true

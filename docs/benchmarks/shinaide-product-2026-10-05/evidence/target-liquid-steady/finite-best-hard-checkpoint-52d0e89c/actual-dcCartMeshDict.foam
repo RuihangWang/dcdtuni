@@ -1,0 +1,67 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dcCartMeshDict;
+}
+
+// Written by STLGenRunner (meshEngine: dcCart). Geometry, refinementSurfaces,
+// refinementRegions and locationsInMesh come from snappyHexMeshDict.
+nCellsBetweenLevels 1;
+timeLimitSeconds    300;
+// Write every flow-through baffle's <zone>_master/_slave pair in the mesher
+// itself (and a processorCyclic patch for each pair a rank boundary
+// separates). That is all redistributePar and createBaffles existed to do, so
+// both passes are skipped below -- 29 s of the Base604 mesh pipeline.
+splitBaffles        true;
+// The same ceiling the snappy path writes into snappyHexMeshDict, and the same
+// fallback. dcCartMesh stops refining once its octree reaches it, exactly where
+// meshRefinement::refineCandidates stops in snappyHexMesh.
+maxGlobalCells      5000000;
+// Near-coincidence weld of the surfaces before the cut (see the runner comment
+// above): 0 turns it off. DCCART_WELD_TOL / DCCART_WELD=0 in the environment win.
+weldTolerance       0.0012;
+// First-layer floor on top of the weld (dcCartSurfaces::weldNearCoincident):
+// per surface class the band widens to firstLayerMinFraction x that class's
+// refinement-level spacing, capped at firstLayerMax m, so no axis-aligned
+// surface carves a slab thinner than that. 0 = classic weld only. A gap
+// between two solids wider than firstLayerSealGap (< 0: weldTolerance) is
+// never sealed. DCCART_FIRSTLAYER_FRACTION / DCCART_FIRSTLAYER_MAX win.
+firstLayerMinFraction 0.3;
+firstLayerMax       0.005;
+firstLayerSealGap   -1;
+// Baffle zones that are walls, not flow-through pairs (see above).
+wallPairZones       (Raised_Floor merged_wall_baffle);
+
+dcdtuniPointRepairSourceRoleContract
+{
+    version 1;
+    eligible true;
+    rawSha256 "55156ed11039bef0cf4615384fe92a5dc6e3aac23a6868cb2ab7e26eedb5ce59";
+    rolesDigest "634c0c76e6510432070cfe3e5f44a36639e32acb12930c1a660445d2a1b722a9";
+    scope globallyNoBulkSourcesAndNoMaterialDomains;
+    reasons ();
+}
+
+dcdtuniWeightUnionSourceContract
+{
+    version 1;
+    eligible true;
+    rawSha256 "55156ed11039bef0cf4615384fe92a5dc6e3aac23a6868cb2ab7e26eedb5ce59";
+    rolesDigest "634c0c76e6510432070cfe3e5f44a36639e32acb12930c1a660445d2a1b722a9";
+    scope globalSinglePhaseAirMaterial;
+    materialKey "global-air:1202d89a6133e73efcd4107255a5e6f5722e0704c5100e641dd5e451fc56b137";
+    materialDigest "1202d89a6133e73efcd4107255a5e6f5722e0704c5100e641dd5e451fc56b137";
+    producerDigest "20290ac887f8191449cd3291f580727db3def144517f567ae05378a9cb0140e4";
+    boundaryMembershipDigest "88efa13b26a9477f52f946bdb6c8cdc3c1a0ecad492674f5761dac92e1252f70";
+    ownershipPolicy adjacentFinalCarvedFluidCells;
+    reasons ();
+}
+
+background
+{
+    x (-0.2986 -0.0486 0.2014 0.4514 0.7014 0.9514 1.2014 1.4514 1.7014 1.9514 2.2014 2.4514 2.7014 2.9514 3.2014 3.4514 3.7014 3.9514 4.2014 4.4514 4.7014 4.9514 5.2014 5.4514 5.7014 5.9514 6.2014 6.4514 6.7014 6.9514 7.2014 7.4514 7.7014 7.9514 8.2014 8.4514 8.7014 8.9514 9.2014);
+    y (-0.255555556 0.0 0.255555556 0.511111111 0.766666667 1.022222222 1.277777778 1.533333333 1.788888889 2.044444444 2.3 2.555555556 2.811111111 3.066666667 3.322222222 3.577777778 3.833333333 4.088888889 4.344444444 4.6 4.855555556);
+    z (-0.869175 -0.6223 -0.375425 -0.12855 0.118325 0.3652 0.612075 0.85895 1.105825 1.3527 1.599575 1.84645 2.093325 2.3402 2.587075 2.83395 3.080825 3.3277 3.574575 3.82145 4.068325 4.3152 4.562075 4.80895 5.055825 5.3027 5.549575 5.79645 6.043325 6.2902 6.537075 6.78395 7.030825 7.2777 7.524575);
+}

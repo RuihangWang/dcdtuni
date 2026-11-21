@@ -1,0 +1,21 @@
+只读源码审查结论：允许考虑后续单 rank、实际 tiny 的现有开关对照；当前没有运行试验，没有通过声明。完整 Shinaide 的五分钟与 strict checkMesh 门仍未因此满足。所有本次新资料只在仓库 .codex-tmp；normal/Main/IT/AIR 源、ELF、服务、浏览器、API、GPU 和 Git 均没有由本审查修改或运行。
+
+源码基线是 AIR dcCartCutCells.C SHA bc33390717692ec19b919554e05cdad4c4841dc06123613fbf9d2ea4c597744d（838843 B），app.C SHA 6f970c3318f620cdae8df3a6a8923603ba97881a416fc11c63ba5dedf0ebb2c2。精确路径/lnInclude 真实解析/末次 ELF 读取身份见 final-targeted-source-pair-identity.json。C 和 app 的本次前后 targeted SHA 相同；ELF仅末次只读记录，不把它当新编译证明。其余39源/normal UI未来Root变更没有被本审查扩大为回滚要求。
+
+初始 apex（12827–12837）来自实际原 cell 面中心/面积构造的带符号体积一阶矩。mandatory parent/closure/preflight（12878–12934）先要求正体积、有限 AP、每个外面 >3e-6m kernel margin、成对反向边和匹配 coupled twin；失败在 optional 路径之前 fatal，kernel flags救不了这种 preflight拒绝。共享基面先完成一致 partition，original坐标与原 face authority保持（13608–13644）。此处移动的是新内 apex，而不是固体STL点、物理外面或OO/材料/源 UID。
+
+开关/候选真实范围（13647–13670、14076–14179）：DCCART_CONE_AXIS_KERNEL_CENTRE 控制整个块；精确 Pareto 名是 DCCART_CONE_AXIS_KERNEL_PARETO。DCCART_CONE_KERNEL_AXIS_CANDIDATES 和 DCCART_CONE_QUALITY_KERNEL_CANDIDATES 都依赖 Pareto。它们是 getenv 存在性开关，值0仍启用；默认没有变量才OFF。只支持原 cf[c] 每面轴对齐且平面一致的 parent，取真实 lo/hi中点；非轴/缺边界/窄kernel跳过。Pareto对 coupled parent跳过，不能补远端/transformed邻居。中心与当前AP相同且没有筛中坏D/W/R时直接 unchanged。
+
+最小D探索是增量三个变量：DCCART_CONE_AXIS_KERNEL_CENTRE=1、DCCART_CONE_AXIS_KERNEL_PARETO=1、DCCART_CONE_KERNEL_AXIS_CANDIDATES=1。cheap实际 planned D<.001筛中且非coupled才添加各轴 .125/.25/.75/.875的归一化点（连同中点最多13个，不依赖case坐标或ID）。两变量CENTER+PARETO是更窄的中心控制，可能完全unchanged，不能拿它的无改变证明候选全无解。第二个独立变体可加 QUALITY_KERNEL_CANDIDATES=1：实际W/R约束、子锥/邻居体积、kernel平面做有限近似halfplane clipping，输出最多6个派生点；拟合/clip不是可行证明。先不加 NONORTH_KERNEL_CANDIDATES，绝不加 DCCART_CONE_KERNEL_TEST。任务提到的约(.846875,1.403125,z)坐标只作问题描述，不能进入候选代码/硬编码环境。
+
+Pareto分支实际 geometry/profile（13861–13999、14157–14169）重算全部子锥、完整局部界面与真实当前邻居：正有限体积/面积、kernel/凸性/face-centre/closure、centre与anchor tet fan、3µm原点间距；指标D/W/R/S/N门是 .001/.05/.01/(4-1e-8)/70。旧通过项不能变失败，各项失败计数不增加，旧失败最差severity不恶化，并至少一项有严格改善。它允许残留坏项，也允许已通过范围内的值变化，并非全局所有浮点值不退化。新旧总体积及一阶矩相对差各≤1e-10。候选中心的邻居使用当前AP与当前parent体积，不从远端猜；按parent顺序选择，后来邻居变化仍由当时界面比较和最终真实writer/stock检查约束。tooNear当时只查询原m.points；多个尚未insert的新AP之间的间距没有在候选阶段共同认证，14203/14249–14252真实insertPoint后发现近点会fatal，不能当它已安全通过。无Pareto的CENTER直接赋中点（14127–14130），没有同等级的profile/V/M1/质量比较，所以不建议单独启用。
+
+最终装配保持基面的真实owner/neighbour incidence，生成共享内三角面（14209–14246），检查每child正体积与parent总V相对1e-10、边闭合及新增点间距；这些失败仍fatal。kernel audit日志的parent是pre-decomposition local parent，decision字符串selected-off-experiment其实在14179赋AP，不是dry-run。现tiny writtenCells 2769–2772/2798–2799/2822–2823与capture native1620不等价；需实际writer parent/base映射才能讨论同一个锥，不能套用旧试验labels。
+
+时间/并行限制：13647–14199没有 elapsed/remainingSeconds/clock/budget调用。有限13(+6)点及256 projection sweeps只是单parent生成上限，不是总耗时上限，clipping约束/顶点和所有marked parent数量仍随网格规模增长。app 2923–2929在整个decompose返回后才budgetCheck；全job原预算不放宽，超时仍拒绝，但块内不能及时打断。original W remaining = max(0,timeLimit-elapsed-60)（app2882–2886）；opt耗时会减少后续W/cavity/physical admission机会。kernel四变量没有纳入现有固定allrank setup词；该块末尾有MPI reductions，所以不一致的MPI环境有collective失配风险。首个限定试验应serial tiny，不能直接并行产品打开或加长预算。
+
+旧实际证据保留在 old-native-primary/ 与 old-native-comparison-summary.json，来自2026-10-05真实React/native/严格checker raw SSE；其source/ELF/旧REFAN等参数不同于当前bc333907，不能用来预测当前tiny：中心+Pareto Failed4（D2547/W905/VR43）；13轴候选 Failed3（D1333/W163/VR14）；quality Failed3（D1270/W127/VR6）；首次N factor Failed3且独立实际sets发现6个原pass D变bad；之后原WR先完成、N再比较已选择baseline的二pass纠正后仍Failed3（D1086/W110/VR2）。相关原read-only局部receipt还保留单parent固定邻居W互相矛盾与新bad N反例。这些scope不能推广为所有拓扑无解。当前源码14073–14076已有二pass baseline保护，但本次没有N试验。旧matrix accepted=false/strict原日志比native rc0更有权威；原耗时只属旧工程，不能用于当前性能承诺。
+
+当前F3参照是air_mesh提供的 immutable manifest ddce9f23c81b0e4ef48dd119e320136f75a842cbce7a40b5eeea9a7a848a6caf（99payload），PRIVATE一次OFF/ON serial真实pair。抽取的 current-tiny-f3-summary.json保留D13/W8/VR2、literal Failed3、native约1.08s/checker约.83s、7原flags没有kernel启用、physical1capture/0commit。它证明值得考虑小成本研究，不是kernel实测，更不是native1620等于written ID。
+
+后续若Root另行授权：用同一已reviewed PRIVATE实际pair和同一冻结输入/STL/dict复制为baseline/三flag/再可选四flag，保持原6 legacy+EARLIEST flags、-timeLimit110及独立120s watchdog，serial、CPU/CUDA/TMP受控；每变体只一次，逐次保留native状态/统计/AP选择证据+源/输入/实际加载pair identity，并独立执行原 stock checkMesh -allTopology -allGeometry。保留完整D/W/VR/N/S及拓扑/体积/近点sets，只有 literal Mesh OK 才能称strict通过；失败或超时不回写normal。诊断日志parent→最终written的证据可选同样加在各对照上，不能只给variant加另一个改变算法的flag。上述仅方案，本包无脚本执行native、无build、无case修改、无threshold/physics变化。

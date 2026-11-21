@@ -1,0 +1,342 @@
+
+SOURCE dae_experiment.py
+20:         # Training/optimization may keep every state on its execution device.
+21:         # The interactive host opts into presentation snapshots at step edges.
+22:         self.record_frames=record_frames
+23:         self.definition=definition
+24:         self.equation_graph=definition.equation_graph
+25:         self.seq=0
+26:         self._heat=self.equation_graph.graph.bc_P.new_tensor(1.)
+27:         self._pending=self._heat
+28:         graph=self.equation_graph.graph
+29:         self._pump_ids=tuple(graph.edge_str_ids[i] for i in graph.pump_indices.edge_ids.tolist()) if graph.pump_indices is not None else ()
+30:         self._valve_ids=tuple(graph.edge_str_ids[i] for i in graph.valve_indices.edge_ids.tolist()) if graph.valve_indices is not None else ()
+31:         self._pump_local={edge_id:i for i,edge_id in enumerate(self._pump_ids)}
+32:         self._valve_local={edge_id:i for i,edge_id in enumerate(self._valve_ids)}
+33:         self._hx_ids=tuple(graph.edge_str_ids[i] for i in graph.hx_indices.edge_ids.tolist()) if graph.hx_indices is not None else ()
+34:         self._hx_local={edge_id:i for i,edge_id in enumerate(self._hx_ids)}
+35:         self._active_pumps={}
+36:         self._active_valves={}
+37:         self._queued_pumps={}
+38:         self._queued_valves={}
+39:         self._active_inlets={}
+40:         self._queued_inlets={}
+41:         self._applied=[]
+42:         self._heat_history=[1.]
+43:         theta=definition.parameters(0,heat_multiplier=self._heat)
+44:         benchmark=getattr(getattr(definition,'manifest',None),'manufactured_benchmark',None)
+88:         self._theta=theta
+89:         self._states=[self._state]
+90:         self._parameters=[theta]
+91:         first=self._frame(self._state,derivative,theta,0.,0,report,self._heat)
+92:         self._frames=[] if first is None else [first]
+93: 
+94:     @property
+95:     def tensor_state(self):return self._state.clone()
+96: 
+97:     def tensor_series(self,field):
+98:         return torch.stack([self.equation_graph.unpack(y,p)[field] for y,p in zip(self._states,self._parameters)],dim=1)
+99: 
+100:     @property
+159:     def _scale(self,value,*,name='heat multiplier',positive=False,maximum=None):
+160:         reference=self._heat
+161:         if isinstance(value,bool) or (not isinstance(value,(Real,torch.Tensor))):
+162:             raise ValueError(f'{name} must be a finite real scalar')
+163:         if isinstance(value,torch.Tensor) and value.device!=reference.device:
+164:             raise ValueError(f'{name} tensor must share the graph device')
+165:         if isinstance(value,torch.Tensor) and (value.dtype==torch.bool or value.is_complex()):
+166:             raise ValueError(f'{name} must be a finite real scalar')
+167:         if isinstance(value,torch.Tensor):
+168:             scale=value.to(dtype=reference.dtype)
+169:         else:
+170:             try:scalar=float(value)
+171:             except (OverflowError,TypeError,ValueError) as error:
+172:                 raise ValueError(f'{name} must be a finite real scalar') from error
+173:             if not math.isfinite(scalar):
+174:                 raise ValueError(f'{name} must be a finite real scalar')
+175:             scale=reference.new_tensor(scalar)
+176:         if scale.ndim!=0 or not bool(torch.isfinite(scale)):
+177:             raise ValueError(f'{name} must be a finite {"positive" if positive else "nonnegative"} scalar')
+178:         out_of_range=bool(scale<=0) if positive else bool(scale<0)
+179:         if out_of_range:
+180:             raise ValueError(f'{name} must be a finite {"positive" if positive else "nonnegative"} scalar')
+181:         if maximum is not None and bool(scale>maximum):
+182:             raise ValueError(f'{name} must not exceed {maximum}')
+183:         return scale
+184: 
+185:     def set_heat_multiplier(self,value):
+186:         self.set_inputs(heat_multiplier=value)
+187: 
+188:     def _checked_commands(self,commands,local,*,name,positive=False,maximum=None):
+189:         if commands is None:return {}
+190:         if not isinstance(commands,dict):
+191:             raise TypeError(f'{name} must be an edge-ID mapping')
+192:         checked={}
+193:         for edge_id,value in commands.items():
+194:             if not isinstance(edge_id,str) or edge_id not in local:
+195:                 raise ValueError(f'{name} edge ID {edge_id!r} is not a matching compiled actuator')
+196:             if name=='pump_rpm_ratios' and bool(self.equation_graph._pump_flow[local[edge_id]]):
+197:                 raise ValueError(f'{name} {edge_id!r} controls a flow-held pump; edit its flow setpoint track instead')
+198:             if name=='valve_openings' and bool(self.equation_graph._closed_valves[local[edge_id]]):
+199:                 raise ValueError(f'{name} {edge_id!r} changes the fixed valve active set')
+200:             checked[edge_id]=self._scale(value,name=f'{name}.{edge_id}',positive=positive,maximum=maximum)
+201:         return checked
+202: 
+203:     def set_inputs(self,*,heat_multiplier=None,pump_rpm_ratios=None,valve_openings=None,primary_inlet_K=None):
+204:         """Queue a whole validated command for the next accepted step only."""
+205:         if self.done:raise ValueError('experiment has no future step; create a new run or query equilibrium')
+206:         heat=self._pending if heat_multiplier is None else self._scale(heat_multiplier)
+207:         pumps=self._checked_commands(pump_rpm_ratios,self._pump_local,name='pump_rpm_ratios')
+208:         valves=self._checked_commands(valve_openings,self._valve_local,name='valve_openings',positive=True,maximum=1.)
+209:         # Supply temperature is a Kelvin boundary: strictly positive, no upper
+210:         # cap here (validate_parameters remains the physical backstop).
+211:         inlets=self._checked_commands(primary_inlet_K,self._hx_local,name='primary_inlet_K',positive=True)
+212:         if heat_multiplier is None and not pumps and not valves and not inlets:
+213:             raise ValueError('at least one heat, pump, valve or supply-temperature input is required')
+214:         # Nothing is mutated until all fields pass validation.
+215:         self._pending=heat
+216:         self._queued_pumps={**self._queued_pumps,**pumps}
+217:         self._queued_valves={**self._queued_valves,**valves}
+218:         self._queued_inlets={**self._queued_inlets,**inlets}
+220:     def _theta_at(self,index,heat,pumps,valves,inlets):
+221:         theta=self.definition.parameters(index,heat_multiplier=heat)
+222:         if not pumps and not valves and not inlets:return theta
+223:         indices=[];values=[]
+224:         for field,local,commands in (
+225:             ('pump_rpm_ratio',self._pump_local,pumps),
+226:             ('valve_opening',self._valve_local,valves),
+227:             ('primary_inlet_K',self._hx_local,inlets),
+228:         ):
+229:             if not commands:continue
+230:             start=self.equation_graph.parameter_layout[field].start
+231:             indices.extend(start+local[edge_id] for edge_id in commands)
+232:             values.extend(commands.values())
+233:         positions=torch.tensor(indices,dtype=torch.long,device=theta.device)
+234:         updated=theta.index_copy(0,positions,torch.stack(values))
+235:         self.equation_graph.validate_parameters(updated)
+236:         return updated
+237: 
+238:     def step(self):
+239:         if self.done:raise ValueError('experiment has no future step')
+240:         seq=self.seq+1;time=seq*self.definition.dt
+241:         pumps={**self._active_pumps,**self._queued_pumps}
+242:         valves={**self._active_valves,**self._queued_valves}
+243:         inlets={**self._active_inlets,**self._queued_inlets}
+244:         theta=self._theta_at(seq,self._pending,pumps,valves,inlets)
+245:         next_state,report=backward_euler_step(self.equation_graph.problem,self._state,theta,
+246:             time=time,dt=self.definition.dt,options=self.definition.newton_options)
+247:         derivative=torch.where(self.equation_graph.differential_mask,
+248:             (next_state-self._state)/self.definition.dt,torch.zeros_like(next_state))
+249:         frame=self._frame(next_state,derivative,theta,time,seq,report,self._pending)
+250:         # Commit only after the nonlinear solve and physical diagnostics succeed.
+251:         accepted={'seq':seq,'time_s':time}
+252:         if float(self._pending.detach())!=float(self._heat.detach()):
+253:             accepted['heat_multiplier']=float(self._pending.detach())
+254:         if self._queued_pumps:
+255:             accepted['pump_rpm_ratios']={edge_id:float(value.detach()) for edge_id,value in self._queued_pumps.items()}
+256:         if self._queued_valves:
+257:             accepted['valve_openings']={edge_id:float(value.detach()) for edge_id,value in self._queued_valves.items()}
+258:         if self._queued_inlets:
+259:             accepted['primary_inlet_K']={edge_id:float(value.detach()) for edge_id,value in self._queued_inlets.items()}
+260:         if len(accepted)>2:self._applied.append(accepted)
+261:         self._active_pumps=pumps;self._active_valves=valves;self._active_inlets=inlets
+262:         self._queued_pumps={};self._queued_valves={};self._queued_inlets={}
+263:         self._heat=self._pending;self._theta=theta;self._state=next_state;self.seq=seq
+264:         self._states.append(next_state);self._parameters.append(theta)
+265:         self._heat_history.append(float(self._heat.detach()))
+266:         if frame is not None:self._frames.append(frame)
+267:         return copy.deepcopy(frame)
+293:     def _frame(self,y,ydot,theta,time,seq,report,multiplier,presentation=False):
+294:         fields=self.equation_graph.unpack(y,theta)
+295:         diagnostics=self.equation_graph.diagnostics(y.new_tensor(time),y,ydot,theta)
+296:         if not all(bool(torch.isfinite(value).all()) for value in diagnostics.values()):
+297:             raise RuntimeError('non-finite DAE physical diagnostics')
+298:         heat_scale=1+abs(float(diagnostics['heat_input_W'].detach()))
+299:         balance_tolerance=max(1e-7,256*torch.finfo(y.dtype).eps)
+300:         if abs(float(diagnostics['energy_balance_W'].detach()))>balance_tolerance*heat_scale:
+301:             raise RuntimeError('DAE step violates global thermal energy balance')
+302:         if not self.record_frames and not presentation:return None
+303:         mapping={'node_pressure_Pa':'pressure','edge_flow_kg_s':'flow','node_temperature_K':'node_temperature',
+304:                  'cell_temperature_K':'water_temperature','solid_temperature_K':'solid_temperature',
+305:                  'primary_return_K':'primary_return_temperature','secondary_supply_K':'hx_secondary_temperature',
+306:                  'edge_outlet_K':'edge_outlet_temperature'}
+307:         layout=self.equation_graph.parameter_layout
+308:         pumps=dict(zip(self._pump_ids,theta[layout['pump_rpm_ratio']].detach().tolist()))
+309:         valves=dict(zip(self._valve_ids,theta[layout['valve_opening']].detach().tolist()))
+310:         inlets=dict(zip(self._hx_ids,theta[layout['primary_inlet_K']].detach().tolist()))
+311:         return {'kind':'frame','seq':seq,'time_s':float(time),
+312:                 'heat_multiplier':float(multiplier.detach()),
+313:                 'pump_rpm_ratios':pumps,'valve_openings':valves,
+314:                 'primary_inlet_K':inlets,
+315:                 **{name:fields[key].detach().tolist() for name,key in mapping.items()},
+316:                 'diagnostics':{name:float(value.detach()) for name,value in diagnostics.items()},
+317:                 'newton':asdict(report)}
+
+SOURCE solver/dae_newton.py
+502: class _ImplicitRoot(torch.autograd.Function):
+503:     @staticmethod
+504:     def forward(ctx, residual, state_scale, residual_scale, options, linear_partition, guess, *parameters):
+505:         y,report=_newton(residual,guess,parameters,state_scale,residual_scale,options,linear_partition)
+506:         ctx.residual=residual;ctx.state_scale=state_scale;ctx.residual_scale=residual_scale
+507:         ctx.options=options;ctx.linear_partition=linear_partition
+508:         ctx.save_for_backward(y,*parameters)
+509:         stats=y.new_tensor([report.iterations,report.scaled_residual_inf,report.backtracks])
+510:         ctx.mark_non_differentiable(stats)
+511:         return y,stats
+512: 
+513:     @staticmethod
+514:     @once_differentiable
+515:     def backward(ctx,grad_y,grad_stats):
+516:         y,*parameters=ctx.saved_tensors
+517:         values=[p.detach().requires_grad_(True) for p in parameters]
+518:         with torch.enable_grad():
+519:             z=(y/ctx.state_scale).detach().requires_grad_(True)
+520:             def scaled(value):return ctx.residual(value*ctx.state_scale,*values)/ctx.residual_scale
+521:             r=scaled(z)
+522:             rhs=grad_y*ctx.state_scale
+523:             if ctx.options.linear_solver=='dense':
+524:                 jacobian=torch.autograd.functional.jacobian(scaled,z,vectorize=True)
+525:                 dual,info=torch.linalg.solve_ex(jacobian.T,rhs,check_errors=False)
+526:                 if bool(info!=0):raise RuntimeError('singular DAE adjoint Jacobian')
+527:                 error=jacobian.T@dual-rhs
+528:             elif ctx.options.linear_solver=='gmres':
+529:                 def transpose_matvec(vector):
+530:                     return torch.autograd.grad(r,z,grad_outputs=vector,retain_graph=True)[0]
+531:                 dual=_gmres(transpose_matvec,rhs.detach(),ctx.options)
+532:                 error=transpose_matvec(dual).detach()-rhs
+533:             elif ctx.options.linear_solver=='pgmres':
+534:                 # M1 stage: the transpose operator's Krylov space STAGNATES
+535:                 # under the same polynomial family (measured on NV 1604:
+536:                 # adjoint plateau 0.0044 @ 6983 matvecs / 25 cycles — budget
+537:                 # is not the binding constraint; evidence in docs/benchmarks/
+538:                 # dae-pgmres-nv-20260928/). Until M2 supplies a transpose
+539:                 # preconditioner the adjoint uses the exact dense Jacobian:
+540:                 # one build per step, and the gradient is independent of the
+541:                 # forward linear path because the root is unique. Documented
+542:                 # in the pgmres receipt, never silent.
+543:                 jacobian=torch.autograd.functional.jacobian(scaled,z,vectorize=True)
+544:                 dual,info=torch.linalg.solve_ex(jacobian.T,rhs,check_errors=False)
+545:                 if bool(info!=0):raise RuntimeError('singular DAE adjoint Jacobian')
+546:                 error=jacobian.T@dual-rhs
+547:             else:
+548:                 dual,error=_block_adjoint(scaled,z,r,rhs.detach(),ctx.linear_partition)
+549:             linear_tolerance=max(1e-8,128*torch.finfo(y.dtype).eps)
+550:             if not bool(torch.isfinite(dual).all()) or float(error.abs().max())>linear_tolerance*(1+float(rhs.abs().max())):
+551:                 raise RuntimeError('DAE adjoint linear solve failed its residual check')
+552:             grads=torch.autograd.grad(r,values,grad_outputs=-dual.detach(),allow_unused=True)
+553:         grads=[torch.zeros_like(p) if g is None else g for p,g in zip(parameters,grads)]
+554:         # The converged root is independent of its numerical warm-start guess.
+555:         # Physical history/initial data enter as explicit parameters below.
+556:         return (None,None,None,None,None,None,*grads)
+619: def backward_euler_step(problem:DAEProblem,previous:Tensor,parameters:Tensor,*,time,dt,options=None):
+620:     """Advance one accepted step, differentiable in theta, history, dt and time."""
+621:     previous=_tensor(previous,problem.state_scale)
+622:     theta,t,delta=(_tensor(value,previous) for value in (parameters,time,dt))
+623:     _admit_parameters(problem,theta)
+624:     if delta.ndim!=0 or not bool(delta>0):raise ValueError('dt must be a positive scalar')
+625:     def residual(y,old,theta,t,delta):
+626:         ydot=torch.where(problem.differential_mask,(y-old)/delta,torch.zeros_like(y))
+627:         return problem.residual(t,y,ydot,theta)
+628:     y,report=_root(problem,residual,previous,(previous,theta,t,delta),options)
+629:     _accept_state(problem,y,theta)
+630:     return y,report
+
+SOURCE dae_runtime.py
+120:         self.set_inputs(heat_multiplier=value)
+121: 
+122:     def equilibrium(self,heat_multiplier=None):
+123:         return self._frame(self.experiment.equilibrium(heat_multiplier))
+124: 
+125:     def checkpoint(self):
+126:         return {'format':'liquid-dae-replay-checkpoint','version':3,'run_id':self.run_id,
+127:             'config_hash':self.config_hash,'liquidrun':copy.deepcopy(self._liquidrun),'controllers':[],
+128:             'seq':self.experiment.seq,'heat_multipliers':self.experiment.accepted_heat_multipliers,
+129:             'pump_rpm_ratios':self.experiment.accepted_pump_rpm_ratios,
+130:             'valve_openings':self.experiment.accepted_valve_openings,
+131:             'primary_inlet_K':self.experiment.accepted_primary_inlet_K,
+132:             'pending_heat_multiplier':self._pending,'applied_inputs':self.experiment.applied_inputs,
+133:             'pending_pump_rpm_ratios':self.experiment.pending_pump_rpm_ratios,
+134:             'pending_valve_openings':self.experiment.pending_valve_openings,
+135:             'pending_primary_inlet_K':self.experiment.pending_primary_inlet_K,
+136:             'restore_method':'replay accepted inputs; recompute roots and differentiable trajectory'}
+137: 
+138:     def executed_manifest(self):
+139:         from backend.liquidcooling.accepted_run_input import build_accepted_manifest
+140:         if self._executed_cache is None or self._executed_cache[0]!=self.experiment.seq:
+141:             manifest=build_accepted_manifest(self.definition,self.experiment.accepted_heat_multipliers,
+142:                 pump_rpm_ratios=self.experiment.accepted_pump_rpm_ratios,
+143:                 valve_openings=self.experiment.accepted_valve_openings,
+144:                 primary_inlet_K=self.experiment.accepted_primary_inlet_K)
+145:             self._executed_cache=(self.experiment.seq,manifest)
+148:     @classmethod
+149:     def from_checkpoint(cls,raw,checkpoint):
+150:         version=checkpoint.get('version')
+151:         if checkpoint.get('format')!='liquid-dae-replay-checkpoint' or isinstance(version,bool) or version not in (1,2,3):
+152:             raise ValueError('unsupported DAE checkpoint')
+153:         if version<3 and ('primary_inlet_K' in checkpoint or 'pending_primary_inlet_K' in checkpoint):
+154:             raise ValueError('legacy checkpoint cannot contain supply-temperature fields')
+155:         if checkpoint.get('controllers')!=[] or _canonical_hash(checkpoint['liquidrun'],[])!=checkpoint.get('config_hash'):
+156:             raise ValueError('checkpoint config hash does not match its manifest')
+157:         # Validate original input and compare the canonical form BEFORE replay.
+158:         current=load_dae_input(raw).manifest.model_dump(by_alias=True,mode='json',exclude_none=True)
+159:         if _canonical_hash(current,[])!=checkpoint['config_hash']:
+160:             raise ValueError('checkpoint hash does not match requested liquidrun')
+161:         seq=checkpoint.get('seq');scales=checkpoint.get('heat_multipliers')
+162:         if isinstance(seq,bool) or not isinstance(seq,int) or not 0<=seq<current['time']['N_t']:
+163:             raise ValueError('checkpoint seq is outside the configured horizon')
+164:         if not isinstance(scales,list) or len(scales)!=seq+1 or scales[0]!=1.:
+165:             raise ValueError('checkpoint heat multipliers do not match accepted samples')
+166:         for scale in scales+[checkpoint.get('pending_heat_multiplier')]:
+167:             try:finite=isinstance(scale,(int,float)) and math.isfinite(float(scale))
+168:             except (OverflowError,TypeError,ValueError):finite=False
+169:             if isinstance(scale,bool) or not finite or scale<0:
+170:                 raise ValueError('checkpoint heat multiplier must be finite and nonnegative')
+171:         events=checkpoint.get('applied_inputs')
+172:         if not isinstance(events,list):
+173:             raise ValueError('checkpoint applied_inputs must be a list')
+174:         by_seq={}
+175:         for event in events:
+176:             if not isinstance(event,dict) or isinstance(event.get('seq'),bool) or not isinstance(event.get('seq'),int):
+177:                 raise ValueError('checkpoint accepted events require an integer seq')
+178:             if event['seq'] in by_seq or not 1<=event['seq']<=seq:
+179:                 raise ValueError('checkpoint accepted event seq is duplicate or out of range')
+180:             by_seq[event['seq']]=event
+181:         simulation=cls(current,checkpoint['run_id'])
+182:         for index,scale in enumerate(scales[1:],start=1):
+183:             event=by_seq.get(index,{})
+184:             if version==1 and ('pump_rpm_ratios' in event or 'valve_openings' in event):
+185:                 raise ValueError('legacy checkpoint cannot contain actuator events')
+186:             if version<3 and 'primary_inlet_K' in event:
+187:                 raise ValueError('legacy checkpoint cannot contain supply-temperature events')
+188:             simulation.set_inputs(heat_multiplier=scale,
+189:                 pump_rpm_ratios=event.get('pump_rpm_ratios'),
+190:                 valve_openings=event.get('valve_openings'),
+191:                 primary_inlet_K=event.get('primary_inlet_K'))
+192:             simulation.step()
+193:         if simulation.experiment.applied_inputs!=checkpoint.get('applied_inputs'):
+194:             raise ValueError('checkpoint event record disagrees with accepted inputs')
+195:         if version>=2:
+196:             if (simulation.experiment.accepted_pump_rpm_ratios!=checkpoint.get('pump_rpm_ratios') or
+197:                 simulation.experiment.accepted_valve_openings!=checkpoint.get('valve_openings')):
+198:                 raise ValueError('checkpoint actuator traces disagree with accepted inputs')
+199:             pending_pumps=checkpoint.get('pending_pump_rpm_ratios')
+200:             pending_valves=checkpoint.get('pending_valve_openings')
+201:             if not isinstance(pending_pumps,dict) or not isinstance(pending_valves,dict):
+202:                 raise ValueError('checkpoint pending actuators must be edge-ID objects')
+203:         else:
+204:             pending_pumps={};pending_valves={}
+205:         if version>=3:
+206:             if simulation.experiment.accepted_primary_inlet_K!=checkpoint.get('primary_inlet_K'):
+207:                 raise ValueError('checkpoint supply-temperature trace disagrees with accepted inputs')
+208:             pending_inlets=checkpoint.get('pending_primary_inlet_K')
+209:             if not isinstance(pending_inlets,dict):
+210:                 raise ValueError('checkpoint pending supply temperatures must be an edge-ID object')
+211:         else:
+212:             pending_inlets={}
+213:         if not simulation.done:
+214:             simulation.set_inputs(heat_multiplier=checkpoint['pending_heat_multiplier'],
+215:                 pump_rpm_ratios=pending_pumps,valve_openings=pending_valves,
+216:                 primary_inlet_K=pending_inlets)
+217:         elif checkpoint['pending_heat_multiplier']!=scales[-1] or pending_pumps or pending_valves or pending_inlets:
+218:             raise ValueError('completed checkpoint cannot have a pending input')
+219:         return simulation

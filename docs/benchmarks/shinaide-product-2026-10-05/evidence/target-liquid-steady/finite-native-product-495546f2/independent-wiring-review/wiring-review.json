@@ -1,0 +1,102 @@
+{
+  "reviewKind": "Read-only source and pure standalone budget test; no native mesh execution",
+  "sources": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartPointRepairBudget.H",
+      "snapshot": "dcCartPointRepairBudget.H.snapshot",
+      "sha256": "61247a17a4a81c590143d45a6feaca02bb4264ba3d9f36f60aa63c32da0ff4a0",
+      "bytes": 836
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.C",
+      "snapshot": "dcCartCutCells.C.snapshot",
+      "sha256": "9e2e11f50f97af6073c63b732e5d18dd132235b3606dede66fe8af56bb46b9f5",
+      "bytes": 800269
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/src/mesh/dcCartMesh/dcCartCutCells/dcCartCutCells.H",
+      "snapshot": "dcCartCutCells.H.snapshot",
+      "sha256": "0ade6ede1fe56520efb483538dede716ca1af39b80237a1488764b4bc2295ede",
+      "bytes": 41892
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/aircooling/third_parties/dcCartMesh/applications/utilities/mesh/generation/dcCartMesh/dcCartMesh.C",
+      "snapshot": "dcCartMesh.C.snapshot",
+      "sha256": "af8b954dd3edac5a7159c0fc0ae1f0728e4283947c8a21c020220db2f0fc09a1",
+      "bytes": 140680
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/air/src/backend/tests/test_dccart_point_repair_budget.py",
+      "snapshot": "test_dccart_point_repair_budget.py.snapshot",
+      "sha256": "9f36bf5314ef15475c07b3735440ca7698d939c9c1f0b176dce83e126649d2b7",
+      "bytes": 2192
+    }
+  ],
+  "standaloneBudgetTest": {
+    "exitCode": 0,
+    "passed": 21,
+    "pytestReportedSeconds": 2.69,
+    "invocation": "budget-tests-invocation.json",
+    "stdout": "budget-tests.stdout",
+    "stderr": "budget-tests.stderr",
+    "requiresOpenFOAMBuild": false
+  },
+  "allowance": {
+    "formula": "min(20, max(0, runLimitSeconds-runElapsedSeconds-60))",
+    "invalidFiniteOrNegativeInput": 0,
+    "unlimitedRunLimitZeroAllowance": 20,
+    "flag": "Only literal string 1 enables",
+    "meaning": "Current global native budget allowance, not remaining total repair-stage allowance"
+  },
+  "clock": {
+    "callbackReadsEveryInvocation": true,
+    "captures": "APP timeLimit and timer by reference, valid during synchronous toPolyMesh call",
+    "elapsedStarts": "clockTime constructed before native dictionaries/mesh pipeline",
+    "timeIncrementResetsOverallStart": false,
+    "installedEvidence": "installed-clock-identities.json",
+    "nativeClockMonotonicityCertified": false,
+    "outerRunnerDeadline": "time.monotonic()"
+  },
+  "runnerBudget": {
+    "source": "runner-budget-excerpts.json",
+    "starts": "Before mesh system setup/mesher resolution",
+    "nativeCommandUses": "Current remaining whole-mesh-runner deadline, rounded integer seconds with max1",
+    "roundingPossibleAllowanceDifferenceSeconds": 0.5,
+    "reserveIsNotDownstreamCompletionGuarantee": true,
+    "jobExportIncludedByThisRunnerTimer": false,
+    "allProduct300SecondsAcceptance": false
+  },
+  "rankControlFlow": {
+    "cutCellsAppFlagChecks": "Two unconditional min/max reductions of exact1-enabled bool before callback construction",
+    "flagMismatch": "All participating cutCells ranks see same min/max mismatch and raise FatalError before toPolyMesh",
+    "missingBaseline": "All participating opt-in ranks sum missing m.writerBaseline at toPolyMesh entry and reject before writer work",
+    "baselineOracle": "baselineOnly true bypasses repair and baseline-presence gate; default callback is empty",
+    "defaultOff": "No apply and no repair callback; two new flag consensus reductions are still executed in cutCells APP branch",
+    "nonCutCells": "Existing builder branch does not use/check the repair option; not a supported repair path",
+    "finalWriterOrder": "apply after installed polyMesh zones and before existing writerBaseline verification",
+    "MPIExecutionValidated": false,
+    "arbitraryExternalUnevenCallback": "Not separately guarded by toPolyMesh; reviewed normal APP guarantees callback agreement",
+    "preexistingEarlierEnvironmentGates": "Existing literal/cone options earlier in the pipeline must already agree on all ranks. The new late flag consensus cannot repair a divergence that happened earlier."
+  },
+  "repairHeader": {
+    "existsAtInitialReview": false,
+    "existsAtFinalSourceRead": true,
+    "AIRStatus": "WIP; not ready/frozen; not copied or accepted by this review",
+    "requiredFollowup": [
+      "Start total stage clock before geometry/graph/census/cache preparation",
+      "Use minimum of remaining total20s and dynamic callback allowance, with explicit refresh allowance",
+      "Bound/check all expensive operations and elapsed after refresh; a pre-call check alone cannot guarantee wall-time cap",
+      "Local cap/invalid/rollback paths must converge on the same ordered collective tail; empty ranks participate",
+      "Verify rollback restores baseline geometry and cache consistency when setup/evaluation/refresh exceeds cap",
+      "Matching APP/library rebuild and actual isolated MPI checks still required before acceptance"
+    ]
+  },
+  "sourcePostReviewBinding": "source-post-review-binding.json",
+  "scopeLimitations": [
+    "No repair-header algorithm review while WIP",
+    "No native compile/link, MPI runtime, mesh writer, cache refresh, process watchdog or stock checker test",
+    "21 pure budget tests prove scalar policy and flag parser only",
+    "No claim of native20s total-stage wall cap or global300s mesh acceptance",
+    "No production source, case, old math receipt or index mutation"
+  ]
+}

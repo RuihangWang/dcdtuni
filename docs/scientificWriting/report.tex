@@ -1,0 +1,231 @@
+\documentclass[journal]{IEEEtran}
+\usepackage[pdftex]{graphicx}
+\usepackage{hyperref}
+\hypersetup{hidelinks, hypertexnames=false}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{cite}
+\usepackage{booktabs}
+\usepackage{array}
+
+\newcommand{\revdel}[1]{\textcolor{red}{\sout{#1}}}
+\newcommand{\revadd}[1]{\textcolor{blue}{#1}}
+
+\hyphenation{Open-FOAM}
+
+\begin{document}
+
+\title{From Word Spikes to Fluidity: Lessons from a Scientific Writing Workshop Applied to a DCTwin-CFD Manuscript}
+
+\author{Tianyu~Li \\
+Interdisciplinary Graduate Programme, Nanyang Technological University, Singapore \\
+\texttt{tianyu002@e.ntu.edu.sg}}
+
+\maketitle
+
+% ============================================================
+\section{The Workshop and the Coincidence}
+% ============================================================
+
+\IEEEPARstart{I}{n} early May 2026, I spent two and a half days in a Scientific Writing workshop led by Justin Lebrun of Scientific Reach, co-author of \emph{Scientific Writing~3.0: A Reader and Writer's Guide}~\cite{lebrun2021}. The workshop ran from 4 to 6~May --- two full days and one morning --- and covered principles of clarity, conciseness, and fluidity in scientific manuscripts, with a recurring emphasis on what Lebrun calls \emph{reading accidents}: moments where a reader is forced to pause, re-read, or lose the thread of an argument.
+
+The timing was fortunate. I was simultaneously finalising a conference manuscript --- internally called DCTwin-CFD --- on a multi-agent framework for automated data center Computational Fluid Dynamics (CFD) case generation. The draft existed; the deadline loomed. Every principle from the workshop could be tested immediately on my own prose, turning an abstract lecture into a live editing exercise. This report captures that experience. I focus on three concepts that proved most diagnostic for my writing: \emph{word spikes}, \emph{word meandering}, and \emph{fluidity}. For each, I first explain the idea, then show what it looked like in my manuscript, and finally present the revision. Deleted text appears in \revdel{red strikethrough}; replacement text in \revadd{blue}.
+
+% ============================================================
+\section{What Makes Readers Stumble}
+% ============================================================
+
+Lebrun's central thesis is simple: a scientific paper is a communication tool, not a display of erudition. A reviewer scanning 20 submissions in a weekend will not re-read a confusing sentence; they will simply lose faith in the paper. Every construction that interrupts the reader's forward motion --- an unusual word, a delayed verb, a missing logical link --- is a reading accident. The three accident types below are the ones I found most pervasive in my own writing.
+
+% ------------------------------------------------------------
+\subsection{Word Spikes: When Vocabulary Gets in the Way}
+% ------------------------------------------------------------
+
+A \emph{word spike} is an unnecessarily complex word used where a simpler alternative would be equally precise. The metaphor is apt: the reader's eye moves smoothly across familiar words until it hits a spike --- a polysyllabic rarity that demands conscious decoding.
+
+Non-native English writers are especially vulnerable. Academic culture rewards formal register, and thesaurus tools make it trivially easy to replace ``use'' with ``utilise,'' ``fix'' with ``ameliorate,'' or ``try'' with ``endeavour.'' The writer perceives sophistication; the reader perceives fog. Lebrun frames this as a design choice: cognitive effort spent decoding vocabulary is effort \emph{not} spent understanding ideas~\cite{lebrun2021}. Technical terms with precise meaning (``buoyancy-driven flow'') are necessary; ornamental complexity (``extraordinarily'' where ``highly'' suffices) is not.
+
+% ------------------------------------------------------------
+\subsection{Word Meandering: The Delayed Verb Problem}
+% ------------------------------------------------------------
+
+\emph{Word meandering} occurs when the subject of a sentence is separated from its main verb by a long stretch of modifiers, subordinate clauses, or parenthetical asides. The reader encounters the subject, begins forming a proposition, and then must hold that unfinished thought in working memory across 15, 20, or 30 intervening words before reaching the verb.
+
+The cognitive basis is well established. Miller showed that working memory holds roughly $7 \pm 2$ chunks. When a sentence exceeds this budget between subject and verb, the reader either loses the subject and re-reads, or guesses wrong and must re-parse. Both are reading accidents. A useful rule of thumb from the workshop: if the main verb has not appeared within ten words of the subject, the sentence needs surgery.
+
+% ------------------------------------------------------------
+\subsection{Fluidity: The Invisible Chain}
+% ------------------------------------------------------------
+
+\emph{Fluidity} is the smooth progression of ideas from one sentence to the next. Lebrun teaches it through the \emph{given--new contract}~\cite{lebrun2021}: each sentence should open with information the reader already knows (given) and close with new information. The new information of sentence~$n$ becomes the given of sentence~$n{+}1$, creating an invisible chain that pulls the reader forward without effort.
+
+Fluidity breaks at three scales. At the sentence level, consecutive sentences may each be clear in isolation yet share no logical link. At the paragraph level, a missing topic sentence forces the reader to infer the paragraph's purpose. At the section level, a major heading followed immediately by a sub-heading --- with no bridging text --- leaves the reader disoriented. Parenthetical figure references such as ``(Figure~1)'' also interrupt flow; a natural clause like ``as depicted in Figure~1'' maintains it.
+
+% ============================================================
+\section{A Manuscript on the Operating Table}
+% ============================================================
+
+With these three lenses in hand, I revisited my DCTwin-CFD manuscript --- a paper describing how AI agents convert floor plans and spreadsheets into runnable OpenFOAM thermal simulations. What follows are the diagnoses and the operations.
+
+% ------------------------------------------------------------
+\subsection{Spike Surgery}
+% ------------------------------------------------------------
+
+\textbf{Case~1: ``extraordinarily.''}
+The introduction originally read:
+
+\begin{quote}
+\revdel{preparing an OpenFOAM case for a realistic data center layout remains \textbf{extraordinarily} manual and error-prone}
+\end{quote}
+
+\noindent Seven syllables where two would do. The revision:
+
+\begin{quote}
+\revadd{preparing a CFD case with a numerical solver such as OpenFOAM remains \textbf{highly} manual}
+\end{quote}
+
+\noindent ``Extraordinarily'' adds no precision that ``highly'' lacks. It only adds a decoding pause.
+
+\medskip
+
+\textbf{Case~2: The evaluative opener ``Critically.''}
+
+\begin{quote}
+\revdel{\textbf{Critically}, many common errors --- a misoriented rack, a mismatched power value, or a missing containment baffle --- do not crash the solver but produce physically meaningless results that silently mislead engineering decisions.}
+\end{quote}
+
+\begin{quote}
+\revadd{Errors such as a misoriented rack or a mismatched power value do not crash the solver but silently produce meaningless results.}
+\end{quote}
+
+\noindent ``Critically'' is a spike that also editorialises: it tells the reader how to feel rather than letting the content speak. Removing it and the parenthetical catalogue trims the sentence from 31 to 21~words with no information loss.
+
+% ------------------------------------------------------------
+\subsection{De-Meandering}
+% ------------------------------------------------------------
+
+\textbf{Case~1: Five chained verbs in 64~words.}
+
+The original described the manual setup process in a single, breathless sentence:
+
+\begin{quote}
+\revdel{An engineer must translate CAD drawings into watertight STL geometry with hundreds of named surface regions, extract per-server power and airflow data from equipment schedules and spreadsheets, define boundary conditions for every rack inlet and outlet, cooling unit face, perforated tile, and baffle, configure mesh refinement to resolve thin gaps between closely spaced equipment, and assemble consistent solver dictionaries across dozens of interdependent files.}
+\end{quote}
+
+\noindent One subject (``An engineer''), five coordinate verbs, 64~words. By the fourth verb (``configure mesh refinement\ldots''), the reader has almost certainly lost the grammatical thread. The revision keeps only the three essential actions:
+
+\begin{quote}
+\revadd{an engineer must produce watertight STL geometry, assign boundary conditions for every rack and cooling unit, and assemble consistent solver dictionaries.}
+\end{quote}
+
+\noindent Three verbs, 21~words. The subject--verb connection is immediate.
+
+\medskip
+
+\textbf{Case~2: The contribution mega-sentence.}
+
+The original contribution statement packed three complex ideas into one sentence with inline numbering:
+
+\begin{quote}
+\revdel{This paper presents a multi-agent framework for automated data center CFD case generation with three contributions: (C1) a Builder--Evaluator--Judge multi-agent architecture that enables iterative, self-correcting geometry generation through a closed-loop verification cycle (Figure~1); (C2) a parametric geometry modeling system exposed through a Playwright-based headless browser API\ldots; and (C3) a sketch-to-simulation workflow that converts 2D layout pictures\ldots}
+\end{quote}
+
+\noindent The revision drops the numbered labels and gives each contribution its own sentence:
+
+\begin{quote}
+\revadd{This paper presents a multi-agent framework for automated data center CFD case generation. The framework introduces an Orchestrator--Builder--Evaluator architecture that enables iterative, self-correcting geometry generation through a closed-loop verification cycle. A Playwright-based headless browser API bridges LLM text generation and complex 3D geometry construction\ldots}
+\end{quote}
+
+\noindent One idea per sentence. The reader no longer juggles (C1), (C2), (C3) while parsing the grammar.
+
+% ------------------------------------------------------------
+\subsection{Restoring Fluidity}
+% ------------------------------------------------------------
+
+\textbf{Case~1: Parenthetical figure reference.}
+
+\begin{quote}
+\revdel{\ldots through a closed-loop verification cycle \textbf{(Figure~1)}.}
+
+\revadd{\ldots through a closed-loop verification cycle, \textbf{as depicted in Figure~1}.}
+\end{quote}
+
+\noindent The parenthetical ``(Figure~1)'' forces a micro context-switch. Weaving the reference into the clause (``as depicted in\ldots'') keeps the reader in the sentence.
+
+\medskip
+
+\textbf{Case~2: Orphan section heading.}
+
+The Method section originally jumped straight to a sub-heading with no introduction:
+
+\begin{quote}
+\revdel{2.\ Method \\ 2.1\ Pipeline Overview \\ {[}Figure~1 caption{]}}
+\end{quote}
+
+\noindent The reader expects orientation text under ``2.\ Method'' to learn what the section will cover. The revision inserts a bridging paragraph:
+
+\begin{quote}
+\revadd{2.\ Method \\ {[}Figure~1{]} \\ As illustrated in Figure~1, the Orchestrator drives the entire pipeline through five operations\ldots \\ 2.1\ Multi-Agent Architecture}
+\end{quote}
+
+\noindent One paragraph converts an abrupt structural jump into a smooth transition.
+
+\medskip
+
+\textbf{Case~3: Opening with background vs.\ opening with the problem.}
+
+\begin{quote}
+\revdel{Data centers consume an estimated 1--2\% of global electricity, with projections of substantial growth driven by cloud computing and large-scale AI training.}
+\end{quote}
+
+\begin{quote}
+\revadd{Thermal modeling via Computational Fluid Dynamics (CFD) is widely used to predict hotspots and optimize cooling in data centers.}
+\end{quote}
+
+\noindent The original opening starts with electricity statistics --- interesting but tangential. The reader must wade through general context before discovering what the paper is about. The revised opening enters the paper's domain in the first sentence, respecting the reader's time and establishing the topic immediately.
+
+\medskip
+
+Table~\ref{tab:stats} summarises the quantitative impact across the full manuscript.
+
+\begin{table}[t]
+\centering
+\caption{Approximate revision statistics for the DCTwin manuscript.}
+\label{tab:stats}
+\begin{tabular}{lcc}
+\toprule
+Metric & Before & After \\
+\midrule
+Mean sentence length (words) & 32.4 & 24.1 \\
+Longest sentence (words) & 64 & 42 \\
+Word spikes identified & 12 & 0 \\
+Orphan section headings & 2 & 0 \\
+Parenthetical figure refs & 5 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{What Changes Going Forward}
+% ============================================================
+
+The most lasting impact of the workshop is a change of question. Before the training, my revision criterion was writer-centric: ``Does this sentence express what I mean?'' Now I ask: ``Can the reader extract my meaning without stumbling?'' The difference sounds small, but it changes nearly every editing decision. A word that \emph{I} find precise may spike someone else; a sentence that is grammatically correct may still meander past working-memory limits; two paragraphs may each be well-written yet fail to connect.
+
+On a practical level, I now apply a three-pass self-review before every submission:
+
+\begin{enumerate}
+\item \textbf{Spike scan.} Read each sentence and flag any word that a colleague outside my sub-field might need to look up. Replace it unless it carries irreplaceable technical precision.
+\item \textbf{Verb-distance check.} For every sentence longer than 20~words, locate the subject and main verb. If they are more than ten words apart, restructure.
+\item \textbf{Fluidity read-through.} Read the manuscript aloud, one paragraph at a time. Wherever I stumble or lose the thread, mark the spot and apply the given--new contract.
+\end{enumerate}
+
+I have also started using Fluiditext~\cite{kinnunen2012swan}, a web tool from the Lebrun team that highlights potential fluidity problems. No tool replaces careful reading, but the automated pass catches patterns that tired eyes miss.
+
+Looking back, the workshop's deepest lesson was not any single technique but a perspective shift: writing is not the end of research but a continuation of it. A result that the reader cannot follow might as well not exist. The three diagnostic lenses --- spikes, meandering, fluidity --- give that perspective concrete, actionable form. I plan to carry them into every manuscript I write from here.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

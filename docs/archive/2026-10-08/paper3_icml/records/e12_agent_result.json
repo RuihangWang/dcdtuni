@@ -1,0 +1,628 @@
+{
+  "arms_budget": {
+    "forward_solves_per_step": {
+      "ste_s0": [
+        32.0
+      ],
+      "grpo_s0": [
+        16.0
+      ]
+    },
+    "physics_budget_matched": false,
+    "note": "the two arms do NOT spend the same number of physics evaluations per step, so a difference between them is not attributable to the gradient alone. The pathwise arm runs an extra forward pass per sample to build Jpath. The mismatch runs AGAINST the finding rather than for it: the arm with the adjoint also has the larger physics budget and still does worse, so the adverse result is not an artefact of the adjoint arm being starved. Any prose comparing the arms must state the two rates."
+  },
+  "provenance": {
+    "source": "train_rl.py per-eval-block records under ddl/case/benchC/E12_geom_posttrain/loggers/20260917T1355Z_gpuserver",
+    "extractor": "extract_agent_result.py (this record is script-derived; no number here is prose-carried)",
+    "note": "regret = (J_agent - J_oracle)/J_oracle; negative regret means the agent's hard design beats the reference labelled J_oracle. J=1e9 is the infeasibility penalty, so regret_mean on any split containing an infeasible task is not interpretable; medians and feasible-only medians are."
+  },
+  "arms": {
+    "ste_s0": {
+      "arm": "ste_s0",
+      "n_eval_blocks": 5,
+      "blocks": [
+        {
+          "step": 0,
+          "val": {
+            "regret_median": 0.007738632285377243,
+            "regret_median_feasible_only": 0.007738632285377243,
+            "regret_mean": 0.008244795483473403,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.17465304142025,
+            "J_excess_median": 0.37271032153002537
+          },
+          "test": {
+            "regret_median": 0.010695506328711305,
+            "regret_median_feasible_only": 0.010695506328711305,
+            "regret_mean": 0.010095286842973967,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.72161329639515,
+            "J_excess_median": 0.5012254294967136
+          },
+          "ood": {
+            "regret_median": 0.0041756055766099896,
+            "regret_median_feasible_only": 0.002072269292747409,
+            "regret_mean": 2537117.584370416,
+            "feasible_rate": 0.75,
+            "n_infeasible": 2,
+            "J_mean": 125000055.25371313,
+            "J_excess_median": 0.19214437444822252
+          },
+          "train_J_mean": null,
+          "train_J_best": null,
+          "j_scale": null,
+          "task_grad_degenerate": null,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 0,
+          "adjoint_solves_per_step": null,
+          "forward_solves_per_step": null,
+          "grad_norms": null,
+          "probe_arith_acc": 0.8
+        },
+        {
+          "step": 50,
+          "val": {
+            "regret_median": 0.07065283895046509,
+            "regret_median_feasible_only": 0.07065283895046509,
+            "regret_mean": 0.0707521483896403,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 51.19904018512624,
+            "J_excess_median": 3.4718927474065886
+          },
+          "test": {
+            "regret_median": 0.06480531160576096,
+            "regret_median_feasible_only": 0.06480531160576096,
+            "regret_mean": 0.07077440676197633,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 51.64318758760202,
+            "J_excess_median": 3.0617486773525293
+          },
+          "ood": {
+            "regret_median": 0.0748797991530471,
+            "regret_median_feasible_only": 0.05076887834241534,
+            "regret_mean": 2831396.094550928,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000045.87899394,
+            "J_excess_median": 3.6587345167401715
+          },
+          "train_J_mean": 1268.1852339244795,
+          "train_J_best": 106.64641819797029,
+          "j_scale": 13447.219669817463,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 1600,
+          "forward_solves_cumulative": 1600,
+          "adjoint_solves_per_step": 32.0,
+          "forward_solves_per_step": 32.0,
+          "grad_norms": {
+            "kl": 0.5817984938621521,
+            "physics": 67.71222686767578
+          },
+          "probe_arith_acc": 0.6
+        },
+        {
+          "step": 100,
+          "val": {
+            "regret_median": 0.015692470981581656,
+            "regret_median_feasible_only": 0.015692470981581656,
+            "regret_mean": 0.05315217296656682,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 50.38856310429647,
+            "J_excess_median": 0.7305365369290406
+          },
+          "test": {
+            "regret_median": 0.03462072524421156,
+            "regret_median_feasible_only": 0.03462072524421156,
+            "regret_mean": 0.0571780534038524,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 51.03112345638193,
+            "J_excess_median": 1.6490149941395522
+          },
+          "ood": {
+            "regret_median": 0.058782485630488254,
+            "regret_median_feasible_only": 0.0056416553613333285,
+            "regret_mean": 2831396.099807391,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000046.19518276,
+            "J_excess_median": 2.897217315586161
+          },
+          "train_J_mean": 548.3875086660042,
+          "train_J_best": 115.72217878107,
+          "j_scale": 4619.600917972803,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 3200,
+          "forward_solves_cumulative": 3200,
+          "adjoint_solves_per_step": 32.0,
+          "forward_solves_per_step": 32.0,
+          "grad_norms": {
+            "kl": 0.4365138113498688,
+            "physics": 345.4456787109375
+          },
+          "probe_arith_acc": 0.75
+        },
+        {
+          "step": 150,
+          "val": {
+            "regret_median": 0.03990323128088599,
+            "regret_median_feasible_only": 0.03990323128088599,
+            "regret_mean": 0.28232366513801366,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 61.58946680010214,
+            "J_excess_median": 1.8634213833683617
+          },
+          "test": {
+            "regret_median": 0.02765015578062121,
+            "regret_median_feasible_only": 0.02765015578062121,
+            "regret_mean": 0.03370736713958786,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 49.88612409847887,
+            "J_excess_median": 1.29775983005241
+          },
+          "ood": {
+            "regret_median": 0.024388657721991173,
+            "regret_median_feasible_only": 0.02278587978527813,
+            "regret_mean": 2831396.0830829274,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000045.25732106,
+            "J_excess_median": 1.2030738416604443
+          },
+          "train_J_mean": 4813.162635021888,
+          "train_J_best": 110.9187097986422,
+          "j_scale": 3656.2861194319935,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 4800,
+          "forward_solves_cumulative": 4800,
+          "adjoint_solves_per_step": 32.0,
+          "forward_solves_per_step": 32.0,
+          "grad_norms": {
+            "kl": 0.3665623366832733,
+            "physics": 4136.2724609375
+          },
+          "probe_arith_acc": 0.775
+        },
+        {
+          "step": 200,
+          "val": {
+            "regret_median": 0.13683898742859835,
+            "regret_median_feasible_only": 0.13683898742859835,
+            "regret_mean": 0.10431810728881327,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 52.752614779354175,
+            "J_excess_median": 6.672841657188581
+          },
+          "test": {
+            "regret_median": 0.030790191627182224,
+            "regret_median_feasible_only": 0.030790191627182224,
+            "regret_mean": 0.06182340431328523,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 51.261264195622964,
+            "J_excess_median": 1.4947114016037162
+          },
+          "ood": {
+            "regret_median": 0.11522990404029587,
+            "regret_median_feasible_only": 0.11522990404029587,
+            "regret_mean": 0.09195404802500518,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 53.356843284042945,
+            "J_excess_median": 5.797688188269856
+          },
+          "train_J_mean": 1278.8808622646425,
+          "train_J_best": 117.01371648812088,
+          "j_scale": 10362.916185929373,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 6400,
+          "forward_solves_cumulative": 6400,
+          "adjoint_solves_per_step": 32.0,
+          "forward_solves_per_step": 32.0,
+          "grad_norms": {
+            "kl": 0.37798672914505005,
+            "physics": 183.26132202148438
+          },
+          "probe_arith_acc": 0.775
+        }
+      ],
+      "last_step_logged": 199,
+      "n_step_records": 200,
+      "n_step_records_non_eval_payloads": 197,
+      "n_jsonl_lines": 203,
+      "n_step_bearing_lines": 202,
+      "population": "distinct training steps 1..max, the population the run was configured for and the one records/e12_v0_audit.json uses; n_step_records_non_eval_payloads is the narrower record-level filter, kept and named because the two differ",
+      "sf_zero_step_count": 0,
+      "sf_zero_steps": [],
+      "duplicate_step_values": [
+        1
+      ],
+      "source_mismatches": [],
+      "rescale_ge_1e11_steps": [],
+      "rescale_1e6_to_1e11_steps": [
+        1
+      ],
+      "degenerate_step_count": 0,
+      "degenerate_steps": [],
+      "train_J_mean_min": 112.27171699568743,
+      "train_J_mean_max": 188952.17846971014,
+      "j_scale_min": 109.04377187645694,
+      "j_scale_max": 94004.05849127803,
+      "oom_total": 0,
+      "done_record_present": true,
+      "done_record": {
+        "event": "done",
+        "physics": {
+          "forward": 6400,
+          "adjoint": 6400
+        },
+        "wall_secs": 37873.6,
+        "impl_version": "train_rl-v2.2-20260917",
+        "steps_done": 200,
+        "steps_requested": 200,
+        "oom_events": 0,
+        "frac_steps_completed": 1.0,
+        "run_invalid": false,
+        "run_partial": false,
+        "invalid_reason": null,
+        "adapter_dir": "final"
+      },
+      "args_sha": "10ac5afcda51c119",
+      "steps_requested": 200
+    },
+    "grpo_s0": {
+      "arm": "grpo_s0",
+      "n_eval_blocks": 5,
+      "blocks": [
+        {
+          "step": 0,
+          "val": {
+            "regret_median": 0.007738632285377243,
+            "regret_median_feasible_only": 0.007738632285377243,
+            "regret_mean": 0.008244795483473403,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.17465304142025,
+            "J_excess_median": 0.37271032153002537
+          },
+          "test": {
+            "regret_median": 0.010695506328711305,
+            "regret_median_feasible_only": 0.010695506328711305,
+            "regret_mean": 0.010095286842973967,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.72161329639515,
+            "J_excess_median": 0.5012254294967136
+          },
+          "ood": {
+            "regret_median": 0.0041756055766099896,
+            "regret_median_feasible_only": 0.002072269292747409,
+            "regret_mean": 2537117.584370416,
+            "feasible_rate": 0.75,
+            "n_infeasible": 2,
+            "J_mean": 125000055.25371313,
+            "J_excess_median": 0.19214437444822252
+          },
+          "train_J_mean": null,
+          "train_J_best": null,
+          "j_scale": null,
+          "task_grad_degenerate": null,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 0,
+          "adjoint_solves_per_step": null,
+          "forward_solves_per_step": null,
+          "grad_norms": null,
+          "probe_arith_acc": 0.8
+        },
+        {
+          "step": 50,
+          "val": {
+            "regret_median": -0.00265688166484983,
+            "regret_median_feasible_only": -0.00265688166484983,
+            "regret_mean": -0.005644198809126851,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 47.504709002990815,
+            "J_excess_median": -0.12810100075908437
+          },
+          "test": {
+            "regret_median": 0.001518349076491203,
+            "regret_median_feasible_only": 0.001518349076491203,
+            "regret_mean": -0.0010935140051015664,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.184599957255344,
+            "J_excess_median": 0.06957802817601788
+          },
+          "ood": {
+            "regret_median": 0.004487313051258244,
+            "regret_median_feasible_only": 0.004487313051258244,
+            "regret_mean": 0.004085512761966152,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.993621695850884,
+            "J_excess_median": 0.21213154283748992
+          },
+          "train_J_mean": 47.717229092677584,
+          "train_J_best": 47.63690155170178,
+          "j_scale": null,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 800,
+          "adjoint_solves_per_step": 0.0,
+          "forward_solves_per_step": 16.0,
+          "grad_norms": {
+            "kl": 0.4025658667087555,
+            "sf": 19.679729461669922
+          },
+          "probe_arith_acc": 0.875
+        },
+        {
+          "step": 100,
+          "val": {
+            "regret_median": -0.00265688166484983,
+            "regret_median_feasible_only": -0.00265688166484983,
+            "regret_mean": -0.006281516234771334,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 47.47312170302338,
+            "J_excess_median": -0.12810100075908437
+          },
+          "test": {
+            "regret_median": -9.13999266341297e-16,
+            "regret_median_feasible_only": -9.13999266341297e-16,
+            "regret_mean": -0.0031626980492035946,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 48.07949627578707,
+            "J_excess_median": -4.618527782440651e-14
+          },
+          "ood": {
+            "regret_median": 0.0038318645740561966,
+            "regret_median_feasible_only": 0.0026441626493107816,
+            "regret_mean": 2537117.3217520225,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000042.62351063,
+            "J_excess_median": 0.18152505218799675
+          },
+          "train_J_mean": 50.35792758783241,
+          "train_J_best": 50.35792758783239,
+          "j_scale": null,
+          "task_grad_degenerate": 4,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 1600,
+          "adjoint_solves_per_step": 0.0,
+          "forward_solves_per_step": 16.0,
+          "grad_norms": {
+            "kl": 0.20201046764850616,
+            "sf": 0.0
+          },
+          "probe_arith_acc": 0.8
+        },
+        {
+          "step": 150,
+          "val": {
+            "regret_median": -0.005024749935382839,
+            "regret_median_feasible_only": -0.005024749935382839,
+            "regret_mean": -0.006873483302404586,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 47.444580133113256,
+            "J_excess_median": -0.24226728039958445
+          },
+          "test": {
+            "regret_median": -0.0028509021283359306,
+            "regret_median_feasible_only": -0.0057018042566703495,
+            "regret_mean": 2727781.0299421195,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000042.15993258,
+            "J_excess_median": -0.13495373478500383
+          },
+          "ood": {
+            "regret_median": 0.004487313051258316,
+            "regret_median_feasible_only": 0.00395505960371502,
+            "regret_mean": 2537117.3218567413,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000042.63112374,
+            "J_excess_median": 0.21213154283749347
+          },
+          "train_J_mean": 50.58905450918523,
+          "train_J_best": 50.19895756029892,
+          "j_scale": null,
+          "task_grad_degenerate": 0,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 2400,
+          "adjoint_solves_per_step": 0.0,
+          "forward_solves_per_step": 16.0,
+          "grad_norms": {
+            "kl": 0.24877741932868958,
+            "sf": 12.017305374145508
+          },
+          "probe_arith_acc": 0.825
+        },
+        {
+          "step": 200,
+          "val": {
+            "regret_median": -0.007154428902926986,
+            "regret_median_feasible_only": -0.007154428902926986,
+            "regret_mean": -0.011554115164775747,
+            "feasible_rate": 1.0,
+            "n_infeasible": 0,
+            "J_mean": 47.21570350616533,
+            "J_excess_median": -0.34782034654104166
+          },
+          "test": {
+            "regret_median": -0.012753662222738271,
+            "regret_median_feasible_only": -0.014202732053761036,
+            "regret_mean": 2727781.0245558564,
+            "feasible_rate": 0.875,
+            "n_infeasible": 1,
+            "J_mean": 125000041.8875973,
+            "J_excess_median": -0.6080490052671195
+          },
+          "ood": {
+            "regret_median": 455.3878059339578,
+            "regret_median_feasible_only": 0.004879867267127452,
+            "regret_mean": 7847055.95709826,
+            "feasible_rate": 0.375,
+            "n_infeasible": 5,
+            "J_mean": 375005722.7443779,
+            "J_excess_median": 22767.957999934457
+          },
+          "train_J_mean": 48.76220680052023,
+          "train_J_best": 48.73723709002318,
+          "j_scale": null,
+          "task_grad_degenerate": 2,
+          "adjoint_solves_cumulative": 0,
+          "forward_solves_cumulative": 3200,
+          "adjoint_solves_per_step": 0.0,
+          "forward_solves_per_step": 16.0,
+          "grad_norms": {
+            "kl": 0.5349735021591187,
+            "sf": 2.3934733867645264
+          },
+          "probe_arith_acc": 0.825
+        }
+      ],
+      "last_step_logged": 199,
+      "n_step_records": 200,
+      "n_step_records_non_eval_payloads": 197,
+      "n_jsonl_lines": 203,
+      "n_step_bearing_lines": 202,
+      "population": "distinct training steps 1..max, the population the run was configured for and the one records/e12_v0_audit.json uses; n_step_records_non_eval_payloads is the narrower record-level filter, kept and named because the two differ",
+      "sf_zero_step_count": 15,
+      "sf_zero_steps": [
+        1,
+        78,
+        79,
+        100,
+        101,
+        105,
+        114,
+        117,
+        119,
+        121,
+        128,
+        133,
+        137,
+        171,
+        197
+      ],
+      "duplicate_step_values": [
+        1
+      ],
+      "source_mismatches": [],
+      "rescale_ge_1e11_steps": [],
+      "rescale_1e6_to_1e11_steps": [],
+      "degenerate_step_count": 65,
+      "degenerate_steps": [
+        1,
+        2,
+        4,
+        40,
+        41,
+        42,
+        43,
+        47,
+        49,
+        51,
+        54,
+        57,
+        59,
+        62,
+        65,
+        67,
+        71,
+        74,
+        76,
+        78,
+        79,
+        80,
+        81,
+        84,
+        91,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        104,
+        105,
+        109,
+        110,
+        113,
+        114,
+        115,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        137,
+        139,
+        141,
+        144,
+        161,
+        169,
+        171,
+        181,
+        189,
+        194,
+        195,
+        197,
+        199,
+        200
+      ],
+      "train_J_mean_min": 44.14171100688519,
+      "train_J_mean_max": 187500038.69763955,
+      "j_scale_min": null,
+      "j_scale_max": null,
+      "oom_total": 0,
+      "done_record_present": true,
+      "done_record": {
+        "event": "done",
+        "physics": {
+          "forward": 3200,
+          "adjoint": 0
+        },
+        "wall_secs": 37010.5,
+        "impl_version": "train_rl-v2.2-20260917",
+        "steps_done": 200,
+        "steps_requested": 200,
+        "oom_events": 0,
+        "frac_steps_completed": 1.0,
+        "run_invalid": false,
+        "run_partial": false,
+        "invalid_reason": null,
+        "adapter_dir": "final"
+      },
+      "args_sha": "f527c0aeaee8af97",
+      "steps_requested": 200
+    }
+  },
+  "snapshot_of_steps": {
+    "ste_s0": 199,
+    "grpo_s0": 199
+  },
+  "is_final": true
+}

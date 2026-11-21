@@ -1,0 +1,140 @@
+--- src/agent/training/shinaide_language_validation_worker_v4.py
++++ src/agent/training/shinaide_language_validation_worker_v5.py
+@@ -66,11 +66,12 @@
+  relative=0. if aa==dd==0. else math.sqrt(dd/max(aa,1e-300));cosine=1. if aa==bb==0. else dot/math.sqrt(max(aa*bb,1e-300))
+  passed=all(not r.get("None_mask_differs") and r.get("passed",True) for r in rows.values()) and relative<=criteria["global_gradient_relative_L2_max"] and cosine>=criteria["global_gradient_cosine_min"]
+  return {"passed":passed,"all_names_and_None_finite_masks_equal":not any(r.get("None_mask_differs") for r in rows.values()),"all_tensors":rows,"global_relative_L2":relative,"global_cosine":cosine}
+-def teacher_result(hook,trace,teacher,cache,replay_only=False):
++def teacher_result(hook,trace,teacher,cache,replay_only=False,record_replay=None):
+  from agent.training.shinaide_language_source_hook_v3r1 import categorical_engine_admission
+  from agent.training.shinaide_language_prefix_codec_v1 import parse_unique,resolve_schema
+  hook._validation_teacher_cache=cache
+  result=hook.teacher_force(trace,purpose="teacher_diagnostic" if teacher else "sample_replay")
++ if record_replay is not None:record_replay(result)
+  if trace.generation_status=="failed":return result,None,"failed_prefix",None
+  try:raw=parse_unique(trace.prefix_text)
+  except ValueError as exc:return result,None,"prefix_invalid",str(exc)
+@@ -78,6 +79,77 @@
+  if pending:return result,None,"engine_implementation_pending",pending
+  schema=resolve_schema(trace.prefix_text,hook.family_ref)
+  return result,schema,"engine_admitted",None
++def validate_recorded_attempt(hook,trace,teacher,gen,projectors,criteria,rows,row,run,directory,item):
++ idx=row["index"]
++ import torch
++ from agent.training.shinaide_six_family_numeric_head_v1 import compose_target_score
++ from agent.training.shinaide_language_validation_recording_v1 import AttemptRecorder,serial
++ recorder=AttemptRecorder(run,directory,row,rows)
++ recorder.snapshot("trace-ready")
++ try:
++  first,schema,status,detail=teacher_result(hook,trace,teacher,False,record_replay=lambda r:recorder.snapshot("first-prefix-replay",full_prefix_replay=r));sample=None;latent=None
++  row.update(status=status,detail=detail)
++  recorder.snapshot("first-admission",status=status,detail=detail)
++  if schema is not None:
++   if teacher:latent=torch.tensor(item["numeric_latent"],device="cuda:0",dtype=torch.float64)
++   sample=raw_numeric(projectors,first["last_hidden"],schema,latent=latent,generator=gen);latent=sample["latent"].detach()
++   row["complete_numeric_sample"]=serial(sample)
++   recorder.snapshot("first-numeric-obtained",numeric=sample,schema=schema.identity() if hasattr(schema,"identity") else None)
++   score=compose_target_score(first["prefix_log_density"],sample)["full_HF_target_log_density"]
++  else:score=first["prefix_log_density"]
++  terms=first["token_log_densities"].detach().cpu();first_score=float(score.detach());first_loss=-score
++  row.update(full_prefix_score=float(first["prefix_log_density"].detach()),full_target_score=first_score,first_loss=float(first_loss.detach()),
++   behavior_prefix_abs=first.get("sampling_replay_prefix_logdensity_abs"),behavior_token_max_abs=first.get("sampling_replay_logprob_max_abs"),
++   actual_forward_observed=True,actual_sampling_observed=not teacher,actual_model_validation_pending=True)
++  recorder.snapshot("first-complete-score",full_target_score=score,first_loss=first_loss,prefix_replay=first)
++  g1=gradients(hook,first_loss);loss1=float(first_loss.detach());saved_sample=None
++  if sample is not None:saved_sample={k:(v.detach().cpu().tolist() if hasattr(v,"detach") else v) for k,v in sample.items()}
++  row.update(status=status,detail=detail,full_prefix_score=float(first["prefix_log_density"].detach()),complete_numeric_sample=saved_sample,
++   behavior_prefix_abs=first.get("sampling_replay_prefix_logdensity_abs"),behavior_token_max_abs=first.get("sampling_replay_logprob_max_abs"),
++   actual_forward_observed=True,actual_sampling_observed=not teacher,actual_model_validation_pending=True)
++  if not teacher and first["sampling_replay_prefix_logdensity_abs"]>criteria["per_sample_joint_log_density_max_abs"]:raise ValueError("behavior/fullteacher prefix likelihood gate")
++  del first,score,first_loss,sample;torch.cuda.empty_cache()
++  second,schema2,status2,detail2=teacher_result(hook,trace,teacher,True,record_replay=lambda r:recorder.snapshot("second-prefix-replay",full_prefix_replay=r))
++  row.update(second_status=status2,second_detail=detail2)
++  recorder.snapshot("second-admission",status=status2,detail=detail2)
++  if status!=status2 or detail!=detail2:raise ValueError("unchanged admission/score path required")
++  if schema2 is not None:
++   sample2=raw_numeric(projectors,second["last_hidden"],schema2,latent=latent)
++   row["second_complete_numeric_sample"]=serial(sample2)
++   recorder.snapshot("second-numeric-obtained",numeric=sample2)
++   score2=compose_target_score(second["prefix_log_density"],sample2)["full_HF_target_log_density"]
++   row["second_full_target_score"]=float(score2.detach())
++   recorder.snapshot("second-complete-score",full_target_score=score2,prefix_replay=second)
++   if saved_sample["free_values"]!=sample2["free_values"].detach().cpu().tolist() or saved_sample["action"]!=sample2["action"]:raise ValueError("same stored numerical samples/action values required")
++  else:sample2=None;score2=second["prefix_log_density"]
++  joint_abs=abs(float(score2.detach())-first_score);token_abs=float((second["token_log_densities"].detach().cpu()-terms).abs().max()) if len(terms) else 0.
++  row.update(joint_log_density_abs=joint_abs,per_token_logprob_max_abs=token_abs,second_full_target_score=float(score2.detach()))
++  recorder.snapshot("replay-discrepancies",joint_log_density_abs=joint_abs,per_token_logprob_max_abs=token_abs)
++  if joint_abs>criteria["per_sample_joint_log_density_max_abs"]:raise ValueError("cached/fullteacher joint likelihood gate")
++  loss2=-score2
++  row["second_loss"]=float(loss2.detach())
++  recorder.snapshot("second-loss",loss=loss2,first_loss=loss1)
++  if abs(float(loss2.detach())-loss1)>1e-4+.005*abs(loss1):raise ValueError("frozen loss gate")
++  g2=gradients(hook,loss2);comparison=compare_gradients(g1,g2,criteria)
++  save(directory/"all_parameter_gradient_comparison.json",comparison)
++  row["all_parameter_gradient_comparison"]=comparison
++  recorder.snapshot("gradient-comparison",comparison=comparison)
++  if not comparison["passed"]:raise ValueError("frozen all-parameter gradient comparison gate")
++  row.update(joint_log_density_abs=joint_abs,per_token_logprob_max_abs=token_abs,gradient_comparison_passed=True,teacher_legality_in_actual_denominator=False)
++  if sample2 is not None and sample2.get("action") is not None:
++   try:compiled=hook.rollout.compile_density(schema2,sample2,second["prefix_log_density"],label=("teacher" if teacher else "draw")+f"-{idx:02d}-actual4B-validation")
++   except BaseException as exc:
++    if not static_failure(exc):raise
++    compiled={"status":"static_gate_rejected","error":type(exc).__name__+": "+str(exc),"full_action":sample2["action"],"no_retry":True,"new_physical_calls":0}
++   save(directory/"actual_compiler_receipt.json",compiled);row["compiler_status"]=compiled["status"]
++  elif sample2 is not None:row["compiler_status"]="numeric_static_gate_rejected";row["static_admission_error"]=sample2["static_admission_error"]
++  row["validation_status"]="completed"
++  recorder.snapshot("completed",compiler_status=row.get("compiler_status"))
++  del second,score2,loss2,g1,g2,sample2;torch.cuda.empty_cache()
++ except BaseException as exc:
++  recorder.failure(exc)
++  raise
++
+ def execute(args,plan,run):
+  approval=checked_approval(args.root_approval,args.root_approval_sha256,plan,args.plan_sha256)
+  entry=read(run/"runtime_entry.json")
+@@ -168,44 +240,7 @@
+      save(directory/"trace.json",exc.trace.identity());raise
+    save(directory/"trace.json",trace.identity());row={"index":idx,"teacher_only":teacher,"mode":item.get("mode","teacher_diagnostic"),"trace":str((directory/"trace.json").relative_to(REPO_ROOT)),"first_attempt":not teacher,"retry":0}
+    rows.append(row);save(run/"attempts.json",rows)
+-   first,schema,status,detail=teacher_result(hook,trace,teacher,False);sample=None;latent=None
+-   if schema is not None:
+-    if teacher:latent=torch.tensor(item["numeric_latent"],device="cuda:0",dtype=torch.float64)
+-    sample=raw_numeric(projectors,first["last_hidden"],schema,latent=latent,generator=gen);latent=sample["latent"].detach()
+-    score=compose_target_score(first["prefix_log_density"],sample)["full_HF_target_log_density"]
+-   else:score=first["prefix_log_density"]
+-   terms=first["token_log_densities"].detach().cpu();first_score=float(score.detach());first_loss=-score
+-   g1=gradients(hook,first_loss);loss1=float(first_loss.detach());saved_sample=None
+-   if sample is not None:saved_sample={k:(v.detach().cpu().tolist() if hasattr(v,"detach") else v) for k,v in sample.items()}
+-   row.update(status=status,detail=detail,full_prefix_score=float(first["prefix_log_density"].detach()),complete_numeric_sample=saved_sample,
+-    behavior_prefix_abs=first.get("sampling_replay_prefix_logdensity_abs"),behavior_token_max_abs=first.get("sampling_replay_logprob_max_abs"),
+-    actual_forward_observed=True,actual_sampling_observed=not teacher,actual_model_validation_pending=True)
+-   if not teacher and first["sampling_replay_prefix_logdensity_abs"]>criteria["per_sample_joint_log_density_max_abs"]:raise ValueError("behavior/fullteacher prefix likelihood gate")
+-   del first,score,first_loss,sample;torch.cuda.empty_cache()
+-   second,schema2,status2,detail2=teacher_result(hook,trace,teacher,True)
+-   if status!=status2 or detail!=detail2:raise ValueError("unchanged admission/score path required")
+-   if schema2 is not None:
+-    sample2=raw_numeric(projectors,second["last_hidden"],schema2,latent=latent)
+-    score2=compose_target_score(second["prefix_log_density"],sample2)["full_HF_target_log_density"]
+-    if saved_sample["free_values"]!=sample2["free_values"].detach().cpu().tolist() or saved_sample["action"]!=sample2["action"]:raise ValueError("same stored numerical samples/action values required")
+-   else:sample2=None;score2=second["prefix_log_density"]
+-   joint_abs=abs(float(score2.detach())-first_score);token_abs=float((second["token_log_densities"].detach().cpu()-terms).abs().max()) if len(terms) else 0.
+-   if joint_abs>criteria["per_sample_joint_log_density_max_abs"]:raise ValueError("cached/fullteacher joint likelihood gate")
+-   loss2=-score2
+-   if abs(float(loss2.detach())-loss1)>1e-4+.005*abs(loss1):raise ValueError("frozen loss gate")
+-   g2=gradients(hook,loss2);comparison=compare_gradients(g1,g2,criteria)
+-   save(directory/"all_parameter_gradient_comparison.json",comparison)
+-   if not comparison["passed"]:raise ValueError("frozen all-parameter gradient comparison gate")
+-   row.update(joint_log_density_abs=joint_abs,per_token_logprob_max_abs=token_abs,gradient_comparison_passed=True,teacher_legality_in_actual_denominator=False)
+-   if sample2 is not None and sample2.get("action") is not None:
+-    try:compiled=hook.rollout.compile_density(schema2,sample2,second["prefix_log_density"],label=("teacher" if teacher else "draw")+f"-{idx:02d}-actual4B-validation")
+-    except BaseException as exc:
+-     if not static_failure(exc):raise
+-     compiled={"status":"static_gate_rejected","error":type(exc).__name__+": "+str(exc),"full_action":sample2["action"],"no_retry":True,"new_physical_calls":0}
+-    save(directory/"actual_compiler_receipt.json",compiled);row["compiler_status"]=compiled["status"]
+-   elif sample2 is not None:row["compiler_status"]="numeric_static_gate_rejected";row["static_admission_error"]=sample2["static_admission_error"]
+-   save(directory/"validation.json",row);save(run/"attempts.json",rows)
+-   del second,score2,loss2,g1,g2,sample2;torch.cuda.empty_cache()
++   validate_recorded_attempt(hook,trace,teacher,gen,projectors,criteria,rows,row,run,directory,item)
+   after=weight_identity(hook);save(run/"weights_after.json",after)
+   if after!=before:raise ValueError("all frozen/model/projector tensor bytes changed")
+   terminal={"status":"completed_execution_only","attempt_rows":rows,"exact18_first_sampler_attempts":sum(not x["teacher_only"] for x in rows)==18,"exact6_teacher_only":sum(x["teacher_only"] for x in rows)==6,

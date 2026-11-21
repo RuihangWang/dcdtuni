@@ -1,0 +1,238 @@
+FFFFF.FFFFF                                                              [100%]
+=================================== FAILURES ===================================
+_____ test_two_ports_preserve_independent_sessions_in_one_host_cookie_jar ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff92963e950>
+
+    def test_two_ports_preserve_independent_sessions_in_one_host_cookie_jar(monkeypatch):
+        main, integration = AuthStore("main"), AuthStore("integration")
+        jar = http.cookiejar.CookieJar()
+        first = login(monkeypatch, main, 8390)
+        absorb(jar, first, 8390)
+        second = login(monkeypatch, integration, 8396, cookie_header(jar, 8396))
+        absorb(jar, second, 8396)
+>       assert {cookie.name for cookie in jar} == {"stlgen_session_8390", "stlgen_session_8396"}
+E       AssertionError: assert {'stlgen_session'} == {'stlgen_sess...session_8396'}
+E         
+E         Extra items in the left set:
+E         'stlgen_session'
+E         Extra items in the right set:
+E         'stlgen_session_8396'
+E         'stlgen_session_8390'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:163: AssertionError
+______ test_login_preserves_existing_cookie_security_and_uses_bound_port _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff9297f43a0>
+
+    def test_login_preserves_existing_cookie_security_and_uses_bound_port(monkeypatch):
+        store = AuthStore("own")
+        handler = Handler(8396, body=b'{"username":"fixture-user","password":"fixture-password"}')
+        handler.headers["Host"] = "untrusted.invalid:8390"
+        monkeypatch.setattr(server, "AUTH_MGR", store)
+        server.handle_auth_login(handler)
+        cookie = response_cookies(handler)
+>       assert list(cookie) == ["stlgen_session_8396"]
+E       AssertionError: assert ['stlgen_session'] == ['stlgen_session_8396']
+E         
+E         At index 0 diff: 'stlgen_session' != 'stlgen_session_8396'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:178: AssertionError
+____________ test_valid_scoped_cookie_has_priority_over_own_legacy _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff92963e890>
+
+    def test_valid_scoped_cookie_has_priority_over_own_legacy(monkeypatch):
+        store = AuthStore("own")
+        store.seed("scoped")
+        store.seed("legacy")
+        monkeypatch.setattr(server, "AUTH_MGR", store)
+        session = server._get_session(Handler(8396, "stlgen_session_8396=scoped; stlgen_session=legacy"))
+>       assert session["_token"] == "scoped"
+E       AssertionError: assert 'legacy' == 'scoped'
+E         
+E         - scoped
+E         + legacy
+
+src/server/tests/test_auth_cookie_port_isolation.py:190: AssertionError
+__ test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy[wrong-store] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff92b4105b0>
+scoped_value = 'wrong-store'
+
+    @pytest.mark.parametrize("scoped_value", ["wrong-store", ""])
+    def test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy(monkeypatch, scoped_value):
+        store = AuthStore("own")
+        store.seed("legacy")
+        monkeypatch.setattr(server, "AUTH_MGR", store)
+>       assert server._get_session(Handler(8396, f"stlgen_session_8396={scoped_value}; stlgen_session=legacy")) is None
+E       AssertionError: assert {'_token': 'legacy', 'role': 'admin', 'username': 'fixture-user'} is None
+E        +  where {'_token': 'legacy', 'role': 'admin', 'username': 'fixture-user'} = <function _get_session at 0x7ff929a4a050>(<server.tests.test_auth_cookie_port_isolation.Handler object at 0x7ff92b4110c0>)
+E        +    where <function _get_session at 0x7ff929a4a050> = server._get_session
+E        +    and   <server.tests.test_auth_cookie_port_isolation.Handler object at 0x7ff92b4110c0> = Handler(8396, 'stlgen_session_8396=wrong-store; stlgen_session=legacy')
+
+src/server/tests/test_auth_cookie_port_isolation.py:199: AssertionError
+_______ test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy[] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff929813d00>
+scoped_value = ''
+
+    @pytest.mark.parametrize("scoped_value", ["wrong-store", ""])
+    def test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy(monkeypatch, scoped_value):
+        store = AuthStore("own")
+        store.seed("legacy")
+        monkeypatch.setattr(server, "AUTH_MGR", store)
+>       assert server._get_session(Handler(8396, f"stlgen_session_8396={scoped_value}; stlgen_session=legacy")) is None
+E       AssertionError: assert {'_token': 'legacy', 'role': 'admin', 'username': 'fixture-user'} is None
+E        +  where {'_token': 'legacy', 'role': 'admin', 'username': 'fixture-user'} = <function _get_session at 0x7ff929a4a050>(<server.tests.test_auth_cookie_port_isolation.Handler object at 0x7ff929813130>)
+E        +    where <function _get_session at 0x7ff929a4a050> = server._get_session
+E        +    and   <server.tests.test_auth_cookie_port_isolation.Handler object at 0x7ff929813130> = Handler(8396, 'stlgen_session_8396=; stlgen_session=legacy')
+
+src/server/tests/test_auth_cookie_port_isolation.py:199: AssertionError
+____ test_scoped_logout_expires_only_own_namespace_and_preserves_other_port ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff9297f4250>
+
+    def test_scoped_logout_expires_only_own_namespace_and_preserves_other_port(monkeypatch):
+        own, foreign = AuthStore("own"), AuthStore("foreign")
+        own.seed("own-token")
+        foreign.seed("foreign-token")
+        monkeypatch.setattr(server, "AUTH_MGR", own)
+        handler = Handler(8396, "stlgen_session_8396=own-token; stlgen_session_8390=foreign-token; stlgen_session=foreign-token")
+        server.handle_auth_logout(handler)
+        cookie = response_cookies(handler)
+>       assert list(cookie) == ["stlgen_session_8396"]
+E       AssertionError: assert ['stlgen_session'] == ['stlgen_session_8396']
+E         
+E         At index 0 diff: 'stlgen_session' != 'stlgen_session_8396'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:220: AssertionError
+__________ test_legacy_logout_expires_legacy_only_when_it_was_chosen ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff92981ef50>
+
+    def test_legacy_logout_expires_legacy_only_when_it_was_chosen(monkeypatch):
+        own = AuthStore("own")
+        own.seed("legacy")
+        monkeypatch.setattr(server, "AUTH_MGR", own)
+        handler = Handler(8396, "stlgen_session=legacy")
+        server.handle_auth_logout(handler)
+        cookie = response_cookies(handler)
+>       assert set(cookie) == {"stlgen_session", "stlgen_session_8396"}
+E       AssertionError: assert {'stlgen_session'} == {'stlgen_sess...session_8396'}
+E         
+E         Extra items in the right set:
+E         'stlgen_session_8396'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:234: AssertionError
+__ test_own_legacy_cookie_migrates_on_login_and_cannot_resurrect_after_logout __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff9297352a0>
+
+    def test_own_legacy_cookie_migrates_on_login_and_cannot_resurrect_after_logout(monkeypatch):
+        own = AuthStore("own")
+        own.seed("legacy")
+        jar = http.cookiejar.CookieJar()
+        initial = Handler(8396)
+        initial.send_header("Set-Cookie", "stlgen_session=legacy; Path=/")
+        absorb(jar, initial, 8396)
+        signed_in = login(monkeypatch, own, 8396, cookie_header(jar, 8396))
+        absorb(jar, signed_in, 8396)
+>       assert {cookie.name for cookie in jar} == {"stlgen_session_8396"}
+E       AssertionError: assert {'stlgen_session'} == {'stlgen_session_8396'}
+E         
+E         Extra items in the left set:
+E         'stlgen_session'
+E         Extra items in the right set:
+E         'stlgen_session_8396'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:248: AssertionError
+________________ test_login_never_clears_foreign_legacy_cookie _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff92981f040>
+
+    def test_login_never_clears_foreign_legacy_cookie(monkeypatch):
+        own, foreign = AuthStore("own"), AuthStore("foreign")
+        foreign.seed("foreign-legacy")
+        handler = login(monkeypatch, own, 8396, "stlgen_session=foreign-legacy")
+>       assert list(response_cookies(handler)) == ["stlgen_session_8396"]
+E       AssertionError: assert ['stlgen_session'] == ['stlgen_session_8396']
+E         
+E         At index 0 diff: 'stlgen_session' != 'stlgen_session_8396'
+E         Use -v to get more diff
+
+src/server/tests/test_auth_cookie_port_isolation.py:260: AssertionError
+_____________ test_worker_uses_http_page_port_not_terminal_ws_port _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff929734130>
+
+    def test_worker_uses_http_page_port_not_terminal_ws_port(monkeypatch):
+        fake = FakePlaywright()
+        captured = []
+        original_sync = fake.sync
+    
+        def sync():
+            playwright = original_sync()
+            original_launch = playwright.chromium.launch
+    
+            def launch(**kwargs):
+                browser = original_launch(**kwargs)
+                original_context = browser.new_context
+    
+                def new_context(**options):
+                    context = original_context(**options)
+                    context.add_cookies = lambda rows: captured.extend(rows)
+                    return context
+    
+                browser.new_context = new_context
+                return browser
+    
+            playwright.chromium.launch = launch
+            return playwright
+    
+        import sys
+        from types import ModuleType
+        module = ModuleType("playwright.sync_api")
+        module.sync_playwright = sync
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
+        store = AuthStore("worker")
+        monkeypatch.setattr(server, "AUTH_MGR", store)
+        monkeypatch.setattr(server, "WS_PORT", 8397)
+        monkeypatch.setattr(server, "_BROWSER_HEADLESS", True)
+        monkeypatch.setattr(server, "_browser_state", None)
+        monkeypatch.setenv("DCDTUNI_BROWSER_SOFTWARE", "1")
+        monkeypatch.delenv("DCDTUNI_BROWSER_MAX_FPS", raising=False)
+        state = server._BrowserWorkerState()
+        state.queue.put(None)
+        server._browser_worker("http://127.0.0.1:8396/", state)
+        assert len(captured) == 1
+>       assert captured[0]["name"] == "stlgen_session_8396"
+E       AssertionError: assert 'stlgen_session' == 'stlgen_session_8396'
+E         
+E         - stlgen_session_8396
+E         ?               -----
+E         + stlgen_session
+
+src/server/tests/test_auth_cookie_port_isolation.py:304: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[browser-session] automation preview frame budget: 4 FPS
+[browser-session] worker session issued
+[browser-session] headless=new; loading http://127.0.0.1:8396/ ...
+[browser-session] ready (interactive project loader and editor model inventory); WebGL: mock SwiftShader
+=========================== short test summary info ============================
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_two_ports_preserve_independent_sessions_in_one_host_cookie_jar
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_login_preserves_existing_cookie_security_and_uses_bound_port
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_valid_scoped_cookie_has_priority_over_own_legacy
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy[wrong-store]
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_present_invalid_scoped_cookie_cannot_downgrade_to_legacy[]
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_scoped_logout_expires_only_own_namespace_and_preserves_other_port
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_legacy_logout_expires_legacy_only_when_it_was_chosen
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_own_legacy_cookie_migrates_on_login_and_cannot_resurrect_after_logout
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_login_never_clears_foreign_legacy_cookie
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_worker_uses_http_page_port_not_terminal_ws_port
+10 failed, 1 passed in 0.20s

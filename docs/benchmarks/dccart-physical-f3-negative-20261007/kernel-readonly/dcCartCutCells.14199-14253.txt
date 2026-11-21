@@ -1,0 +1,55 @@
+14199:     label added=0,decomposed=0,volumeFailures=0,edgeFailures=0;
+14200:     for (label c=0;c<oldCells;++c)
+14201:     {
+14202:         if (!marked[c]) { continue; }
+14203:         const label ap=insertPoint(apex[c],false);if (ap<0) { ++closePoints;continue; }
+14204:         struct edgeUse { label child,a,b; };
+14205:         std::map<std::pair<label,label>,std::vector<edgeUse>> edges;
+14206:         const bool orig=m.cellOrigAlive[c];const scalar refV=m.cellRefVol[c];const point refC=m.cellRefCentre[c];
+14207:         const label level=m.cellLevel[c],rank=m.cellRank[c];const uint64_t leaf=m.cellLeaf[c],piece=m.cellPiece[c];
+14208:         scalar childVolume=0;bool first=true;
+14209:         for (label f:bases[c])
+14210:         {
+14211:             const bool own=m.owner[f]==c;
+14212:             if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<"conforming base lost parent incidence"<<exit(FatalError); }
+14213:             vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);
+14214:             const scalar v=((own ? area : -area)&(centre-apex[c]))/3;
+14215:             if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;
+14216:             const label child=first ? c : m.nCells++;
+14217:             if (!first)
+14218:             {
+14219:                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
+14220:                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+14221:                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
+14222:                 if (literalUnions) { unionParent.push_back(c); }
+14223:                 m.completeCavityLineage.inherit(child,c,cavityAvailable);
+14224:             }
+14225:             first=false;
+14226:             const auto& poly=m.faces[f];
+14227:             for (size_t j=0;j<poly.size();++j)
+14228:             {
+14229:                 label a=poly[j],b=poly[(j+1)%poly.size()];if (!own) { std::swap(a,b); }
+14230:                 edges[std::minmax(a,b)].push_back(edgeUse{child,a,b});
+14231:             }
+14232:             if (own) { m.owner[f]=child; }else { m.neighbour[f]=child; }
+14233:         }
+14234:         if (!std::isfinite(childVolume) || mag(childVolume-parentVolume[c])/parentVolume[c]>1e-10) { ++volumeFailures; }
+14235:         for (const auto& row:edges)
+14236:         {
+14237:             const auto& e=row.second;
+14238:             if (e.size()!=2 || e[0].a!=e[1].b || e[0].b!=e[1].a || e[0].child==e[1].child)
+14239:             { ++edgeFailures;continue; }
+14240:             const std::vector<label> side{e[0].b,e[0].a,ap};
+14241:             if (!writablePolygon(side)) { ++edgeFailures;continue; }
+14242:             m.faces.push_back(side);m.owner.push_back(e[0].child);m.neighbour.push_back(e[1].child);
+14243:             m.patch.push_back(-1);m.zone.push_back(-1);m.faceAlive.push_back(true);
+14244:             if (traceCones) { m.coneEvidenceBase.push_back(-1); }
+14245:             if (samePhysicalRole) { unionBase.push_back(-1); }
+14246:         }
+14247:         ++decomposed;
+14248:     }
+14249:     closePoints=returnReduce(closePoints,sumOp<label>());volumeFailures=returnReduce(volumeFailures,sumOp<label>());
+14250:     edgeFailures=returnReduce(edgeFailures,sumOp<label>());
+14251:     if (closePoints || volumeFailures || edgeFailures)
+14252:     { FatalErrorInFunction<<"conforming cone refused: point/volume/edge failures "<<closePoints<<' '<<volumeFailures<<' '<<edgeFailures<<exit(FatalError); }
+14253:     if(completeRepairEnabled&&!literalUnions)

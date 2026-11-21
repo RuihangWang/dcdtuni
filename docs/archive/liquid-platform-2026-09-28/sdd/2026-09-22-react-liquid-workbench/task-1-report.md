@@ -1,0 +1,10 @@
+# React runtime workbench report
+Implemented dynamic graph compiler (f4c3f6aa), observable runtime client, pure experiment conversion helper, React controls and live monitor, CSS, narrow Vite canonical-data access, and a separate mock Single_Control case. Legacy entry retained. No modifications to original cases or backend numerical kernels.
+
+Evidence before implementation: liquidExperiment tests failed on missing module; client lifecycle race test failed with running instead of expected paused. Both passed after implementation.
+
+Focused verification: `npx vitest run test/liquidExperiment.test.ts test/liquidRuntimeClient.test.ts test/dynamicLiquidGraph.test.ts` initially17pass (4+7+6); after adding lifecycle race regression, client+experiment12pass(8+4), dynamic compiler unchanged6pass. `npx tsc --noEmit` passed after UI integration. Earlier production build passed before new panels (not evidence for latest production build). `git diff --check` passed.
+
+Real browser through required src/start_server.sh --app react --dev --port8350, backend8352/WS8353. Browser-use unique liquid-platform-8350 session, RTX4090 ANGLE Vulkan confirmed. Authenticated through normal app login. Loaded case/LiquidSingle_Control using actual /api/read-file + editor loadProject, selected liquid solver, prepared and started through visible UI controls. Completed180s/181frames in server result run-ce3783ba3cb04fa0aae56e0f199b6220; final chip48.9444°C, max recorded thermal energy imbalance5.91e-5W. These are mock numerical observations, not hardware accuracy or performance claims. Live chart screenshot /tmp/liquid-runtime-ui.png showed31s/32frames and no UI error, same active run. Screenshots inspected locally. Case has initial solid340K/currentfluid35°C, so baseline includes startup cooling.
+
+Known wider-goal work: backend checkpoint/persistence review fixes queued; UI checkpoint restore/replay; explicit UID-based 3D thermal coloring/time-scrub; multi-controller authoring/optimization; other case variants; OV and agent training. Model geometry detail is a different implementation task, not included in this review.

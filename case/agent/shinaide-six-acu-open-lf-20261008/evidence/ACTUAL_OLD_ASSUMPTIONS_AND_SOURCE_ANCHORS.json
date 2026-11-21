@@ -1,0 +1,124 @@
+{
+  "src/agent/harness/shinaide_fan_contract_v3.py": {
+    "anchors": [
+      {
+        "line": 86,
+        "text": "\"flow_m3s\":finite(physics[\"volumeFlowRate\"],uid+\".ACU_volume_flow\",True),"
+      },
+      {
+        "line": 97,
+        "text": "controls={\"compiled_supply_flow_m3s\":finite(effective[\"supplyAirVolumeFlowRateM3s\"],uid+\".effective_flow\",True),"
+      }
+    ],
+    "sha256": "8fb967e1834f4401eb38c1119a504203b00c51516fc0c41d239982fe16481a4d"
+  },
+  "src/agent/harness/shinaide_lf_oracle_contract_v1.py": {
+    "anchors": [
+      {
+        "line": 15,
+        "text": "ACU_UID_ORDER=(\"m_14\",\"m_18\",\"m_2\",\"m_6\")"
+      },
+      {
+        "line": 53,
+        "text": "if not isinstance(value,(tuple,list)) or len(value)!=9:raise ValueError(\"controls require nine scalar values; no broadcasting\")"
+      },
+      {
+        "line": 103,
+        "text": "if set(acus)!=set(ACU_UID_ORDER) or CDU_UID not in cdus:raise ValueError(\"actual four ACU/CDU inventory required\")"
+      }
+    ],
+    "sha256": "8e2a14eb3825f38aea80d2ceb902a35fa79990e2caae57f04eb11359c3eed853"
+  },
+  "src/agent/scenario_hybrid/air_network.py": {
+    "anchors": [
+      {
+        "line": 65,
+        "text": "if len(c[\"servers\"])!=56 or len(c[\"acus\"])!=4:raise ValueError(\"exact Shinaide inventory; no8rack replacement\")"
+      },
+      {
+        "line": 81,
+        "text": "if set(baffles)!={\"con_f\",\"con_b\",\"con_b_copy\"}:raise NotImplementedError(\"different containment needs independent topology gate\")"
+      },
+      {
+        "line": 150,
+        "text": "self.network=AirNetwork(tuple(names),tuple(height),tuple(edges),tuple(directed),tuple(servers),tuple(self.server_flow),tuple(self.air_W/1000),tuple(units),(1.,)*4,rho=self.rho,cp=self.cp)"
+      },
+      {
+        "line": 156,
+        "text": "if controls.shape!=(8,) or controls.dtype!=torch.float64 or controls.device.type!=\"cpu\" or not torch.isfinite(controls).all() or (controls[4:]<=0).any():raise ValueError(\"float64 CPU finite4temperatures/positive4flows, no broadcast\")"
+      }
+    ],
+    "sha256": "86214beb0ec677aa772376a0a735d898ecde1713750432cb4bcf0e3aac6ea97d"
+  },
+  "src/agent/scenario_hybrid/energy.py": {
+    "anchors": [
+      {
+        "line": 91,
+        "text": "if bool(xp.any(flow<=0)) or bool(xp.any(tra<tsa)):"
+      },
+      {
+        "line": 102,
+        "text": "coil_leaving=tsa-fan_kw*1000./(air.rho*air.cp*flow)"
+      },
+      {
+        "line": 106,
+        "text": "fan_kw=flow;measured_room=flow;coil_leaving=flow"
+      },
+      {
+        "line": 130,
+        "text": "q_design=(it+sum(f.rated_power_kw for f in fans)) if plant_design_load_kw is None else plant_design_load_kw"
+      }
+    ],
+    "sha256": "817a2d1cb2d9d8c60509a8fdd5e64180a2956d5db8b3888a45d86f6dd663a209"
+  },
+  "src/agent/scenario_hybrid/network_numerics_v2.py": {
+    "anchors": [
+      {
+        "line": 33,
+        "text": "n=len(net.node_names);self.net=net;self.n=n;self.leaf=4;self.neighbor=3"
+      },
+      {
+        "line": 68,
+        "text": "seed=(controls[:4]@controls[4:]/controls[4:].sum()-net.reference_c)/net.temperature_scale_k"
+      },
+      {
+        "line": 78,
+        "text": "fixed=torch.cat((u.new_tensor(net.server_flow_m3s),controls[4:]*u.new_tensor(net.unit_rated_flow_m3s)));q=torch.cat((passive,fixed));qp=.5*(torch.sqrt(passive.square()+net.thermal_flow_smoothing_m3s**2)+passive);qm=qp-passive"
+      }
+    ],
+    "sha256": "b688d5f0e2a2e97db6e43db2b6818796d99b35f81ed7c68fbd61db5c58ddb11e"
+  },
+  "src/frontend/shared/js/cfdrun_build.js": {
+    "anchors": [
+      {
+        "line": 490,
+        "text": "velocity: p.physics.velocity || 2.0"
+      },
+      {
+        "line": 684,
+        "text": "volumeFlowRate: p.physics.volumeFlowRate || 4.0,"
+      },
+      {
+        "line": 685,
+        "text": "velocity: p.physics.velocity || 2.0,"
+      },
+      {
+        "line": 715,
+        "text": "volumeFlowRate: p.physics.volumeFlowRate || 4.0,"
+      },
+      {
+        "line": 716,
+        "text": "velocity: p.physics.velocity || 2.0"
+      },
+      {
+        "line": 939,
+        "text": "volumeFlowRate: p.physics.volumeFlowRate || 4.0,"
+      },
+      {
+        "line": 940,
+        "text": "velocity: p.physics.velocity || 2.0"
+      }
+    ],
+    "sha256": "4b545a8f3026d59e6512d75b0b8e2ab84ba26d0f0a3f9fe35fe61c1b6181d894"
+  }
+}

@@ -1,0 +1,87 @@
+--- a/src/backend/aircooling/runner/stlgen_runner.py
++++ b/src/backend/aircooling/runner/stlgen_runner.py
+@@ -7716,8 +7716,9 @@
+         createBaffles and the wall-baffle conversion run unchanged.
+         """
+         self._start_mesh_budget()
++        case_dir = self.mesh_dir
++        self._archive_dcCart_previous_outputs(case_dir)
+         self._ensure_mesh_system_files()
+-        case_dir = self.mesh_dir
+         baffles_dict = case_dir / "system" / "createBafflesDict"
+         total_steps = 2 + (1 if baffles_dict.exists() else 0)
+         step = 0
+@@ -7933,30 +7934,67 @@
+                 f"room walls reach room.height (房间外壳不封闭，请检查房间墙是否达到天花板高度)."
+             )
+ 
++    @staticmethod
++    def _archive_dcCart_previous_outputs(case_dir: Path) -> Optional[Path]:
++        """Relocate prior native output before retry; keep inputs and other engines intact."""
++        if not case_dir.exists():
++            return None
++        case_dir = case_dir.resolve(strict=True)
++        prefixes = ("conforming-", "raw-native-", "generated-ap-", "thin-current-star-",
++                    "coverage-diagnostic-", "cap-birth-", "log.mpi_solver")
++        outputs = [entry for entry in sorted(case_dir.iterdir())
++                   if re.fullmatch(r"processor[0-9]+", entry.name)
++                   or (entry.is_file() and (entry.name.startswith(prefixes)
++                                           or entry.name == "seam-plane-coordinates.json"))]
++        if not outputs:
++            return None
++        for entry in outputs:
++            if entry.is_symlink() or not entry.resolve(strict=True).is_relative_to(case_dir):
++                raise RuntimeError(f"Refusing unsafe dcCart output archive: {entry}")
++        history = case_dir.parent / "_dcCart_mesh_history" / case_dir.name
++        if not history.resolve().is_relative_to(case_dir.parent):
++            raise RuntimeError(f"Refusing unsafe dcCart history path: {history}")
++        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
++        archive = history / f"{stamp}-pid{os.getpid()}-ns{time.monotonic_ns()}"
++        archive.mkdir(parents=True, exist_ok=False)
++        try:
++            # Same-filesystem rename preserves all bytes without copying a large mesh.
++            for entry in outputs:
++                entry.rename(archive / entry.name)
++        except OSError:
++            logger.error(f"dcCart retry stopped: prior output remains in {case_dir} and {archive}")
++            raise
++        logger.info(f"Archived previous dcCart native output from {case_dir} to {archive}")
++        return archive
++
+     def _run_dcCart_parallel(self, mesher: str, budget: str, n_procs: int, case_dir: Path) -> bool:
+-        """mpirun dcCartMesh; True when every rank wrote its processor mesh.
++        """mpirun dcCartMesh; retain failed ranks and archive them before retry.
+ 
+         dcCartMesh reads only ``numberOfSubdomains`` from decomposeParDict
+-        (it partitions itself) and needs the processor<i> directories to
+-        exist. Leaves the processor meshes in place for baffles and solving.
++        (it partitions itself). Existing native outputs are recoverably relocated
++        before creating fresh processor directories, never reused as a new mesh.
+         """
++        self._archive_dcCart_previous_outputs(case_dir)
+         generate_decompose_par_dict(case_dir, n_procs)
+-        self._clean_processor_dirs(case_dir)
+         for i in range(n_procs):
+             (case_dir / f"processor{i}").mkdir(parents=True, exist_ok=True)
+         try:
+             self._run_cmd(f"mpirun -np {n_procs} {mesher} -overwrite{budget} -parallel", case_dir)
+         except RuntimeError as exc:
+             logger.warning(f"dcCartMesh -parallel: {exc}")
+-            self._clean_processor_dirs(case_dir)
++            logger.warning(f"Failed dcCart native output retained in {case_dir}; retry will archive it")
+             return False
++        except BaseException:
++            # Cancellation/interrupt preserves the evidence and its original exception.
++            logger.warning(f"Interrupted dcCart native output retained in {case_dir}; retry will archive it")
++            raise
+         missing = [
+             i for i in range(n_procs)
+             if not (case_dir / f"processor{i}" / "constant" / "polyMesh" / "faces").exists()
+         ]
+         if missing:
+             logger.warning(f"dcCartMesh -parallel: ranks {missing} wrote no mesh")
+-            self._clean_processor_dirs(case_dir)
++            logger.warning(f"Incomplete dcCart native output retained in {case_dir}; retry will archive it")
+             return False
+         return True
+ 

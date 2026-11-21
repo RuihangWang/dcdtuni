@@ -1,0 +1,120 @@
+--- a/src/frontend/react/src/geometry/pduEquipmentVisuals.ts
++++ b/src/frontend/react/src/geometry/pduEquipmentVisuals.ts
+@@ -1,9 +1,9 @@
+ /**
+- * Generic power-distribution cabinet detail for explicitly named PDU BOXes.
++ * Generic cabinet detail for explicitly named PDU and UPS power BOXes.
+  *
+  * Local meshes share the original owner and transform but never enter
+  * renderMeshes. The saved BOX and its six surfaces remain the STL/CFD
+- * authority; a name identifies a visual, not a new electrical component.
++ * authority; a display role identifies the skin, not a new electrical component.
+  */
+ import * as THREE from 'three'
+ import type { Construction } from '../schema/cfdproj'
+@@ -32,6 +32,15 @@
+ export function isPduDisplayModel(model: Construction): boolean {
+   return model.kind === 'box' &&
+     /^\s*pdu(?=$|[\s_\-\u2010-\u2015])/iu.test(String(model.meta?.name ?? ''))
++}
++
++/** Explicit UPS cabinets use the same display-only fabrication details while
++ * retaining their UPS identity and BOX geometry authority. */
++function powerCabinetDisplayRole(model: Construction): 'pdu' | 'ups' | null {
++  if (isPduDisplayModel(model)) return 'pdu'
++  return model.kind === 'box' &&
++    /^\s*ups(?=$|[\s_\-\u2010-\u2015])/iu.test(String(model.meta?.name ?? ''))
++    ? 'ups' : null
+ }
+ 
+ function bevelBox(x: number, y: number, z: number, radius: number) {
+@@ -80,8 +89,14 @@
+   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+ }
+ 
++/** Existing PDU-only callers retain their original admission contract. */
+ export function buildPduEquipmentVisual(model: Construction): THREE.Group | null {
+-  if (!isPduDisplayModel(model)) return null
++  return isPduDisplayModel(model) ? buildPowerCabinetVisual(model) : null
++}
++
++export function buildPowerCabinetVisual(model: Construction): THREE.Group | null {
++  const cabinetRole = powerCabinetDisplayRole(model)
++  if (!cabinetRole) return null
+   // Keep the owned BOX surfaces usable without the optional texture library.
+   if (!(window as unknown as { pbrMaterials?: unknown }).pbrMaterials) return null
+   const size = model.geometry?.size
+@@ -104,9 +119,9 @@
+   const lip = Math.min(0.016, d * 0.025)
+   const plinth = Math.min(0.085, h * 0.04)
+   const group = new THREE.Group()
+-  group.name = 'pdu-equipment-detail:' + model.uid
++  group.name = cabinetRole + '-equipment-detail:' + model.uid
+   group.userData = {
+-    equipmentVisualRole: 'pdu',
++    equipmentVisualRole: cabinetRole,
+     equipmentVisualDetail: true,
+     exportExcluded: true,
+     selectable: true,
+@@ -149,10 +164,10 @@
+     material.transparent = opacity < 1
+     material.depthWrite = opacity >= 1
+     const mesh = new THREE.Mesh(geometry, material)
+-    mesh.name = 'generic-pdu-' + name
++    mesh.name = 'generic-' + cabinetRole + '-' + name
+     mesh.userData = {
+       equipmentVisualDetail: true,
+-      equipmentVisualRole: 'pdu',
++      equipmentVisualRole: cabinetRole,
+       exportExcluded: true,
+       selectable: true,
+       modelId: model.uid,
+--- a/src/frontend/react/src/interaction/sceneBuilder.ts
++++ b/src/frontend/react/src/interaction/sceneBuilder.ts
+@@ -49,7 +49,7 @@
+ import { anyRegionVisible, isPreviewRegionVisible } from '../io/stlPreviewState'
+ import { isLiquidModeActive, subscribeLiquidMode } from '../liquid/liquidModeState'
+ import { buildLiquidEquipmentVisual } from '../geometry/liquidEquipmentVisuals'
+-import { buildPduEquipmentVisual } from '../geometry/pduEquipmentVisuals'
++import { buildPowerCabinetVisual } from '../geometry/pduEquipmentVisuals'
+ 
+ /** The mutable scene registries the shared modules read and write. */
+ export interface SceneRegistries {
+@@ -367,13 +367,13 @@
+         api.renderBoxModel(model, group, faceLayouts, islands)
+       }
+ 
+-      // Explicit PDU names get display-only detail in either cooling mode.
++      // Explicit power-cabinet names get display-only detail in either mode.
+       // The physical kind remains BOX and the original export registry is
+       // untouched. The role only makes whole-cabinet selection readable.
+-      const pduVisual = buildPduEquipmentVisual(model)
+-      if (pduVisual) {
+-        group.userData.equipmentVisualRole = 'pdu'
+-        group.add(pduVisual)
++      const powerVisual = buildPowerCabinetVisual(model)
++      if (powerVisual) {
++        group.userData.equipmentVisualRole = powerVisual.userData.equipmentVisualRole
++        group.add(powerVisual)
+       }
+ 
+       // The CDU cabinet is the same physical asset in either simulation mode.
+--- a/src/frontend/react/src/interaction/selectionHighlight.ts
++++ b/src/frontend/react/src/interaction/selectionHighlight.ts
+@@ -318,11 +318,12 @@
+   const cap = viewFadeOpacity(fades)
+   for (const [uid, root] of roots) {
+     const wholeModel = !selection.node || selection.node.type === 'model'
+-    const pduFace = root.userData.equipmentVisualRole === 'pdu' &&
++    const powerCabinet = root.userData.equipmentVisualRole === 'pdu' ||
++      root.userData.equipmentVisualRole === 'ups'
++    const powerFace = powerCabinet &&
+       selection.node?.type === 'face' && selection.node.uid === uid
+-    const readableCabinet = wholeModel &&
+-      (modelKind(uid) === 'cdu' || root.userData.equipmentVisualRole === 'pdu')
+-    const style: HighlightStyle = readableCabinet || pduFace
++    const readableCabinet = wholeModel && (modelKind(uid) === 'cdu' || powerCabinet)
++    const style: HighlightStyle = readableCabinet || powerFace
+       ? 'cabinet' : highlightStyle(selection.node)
+     const active = uid === selection.uid
+     const span = equipmentSpan(uid)

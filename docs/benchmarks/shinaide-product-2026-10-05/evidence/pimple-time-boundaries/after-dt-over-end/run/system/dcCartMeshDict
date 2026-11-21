@@ -1,0 +1,40 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dcCartMeshDict;
+}
+
+// Written by STLGenRunner (meshEngine: dcCart). Geometry, refinementSurfaces,
+// refinementRegions and locationsInMesh come from snappyHexMeshDict.
+nCellsBetweenLevels 1;
+timeLimitSeconds    300;
+// Write every flow-through baffle's <zone>_master/_slave pair in the mesher
+// itself (and a processorCyclic patch for each pair a rank boundary
+// separates). That is all redistributePar and createBaffles existed to do, so
+// both passes are skipped below -- 29 s of the Base604 mesh pipeline.
+splitBaffles        true;
+// The same ceiling the snappy path writes into snappyHexMeshDict, and the same
+// fallback. dcCartMesh stops refining once its octree reaches it, exactly where
+// meshRefinement::refineCandidates stops in snappyHexMesh.
+maxGlobalCells      5000000;
+// Near-coincidence weld of the surfaces before the cut (see the runner comment
+// above): 0 turns it off. DCCART_WELD_TOL / DCCART_WELD=0 in the environment win.
+weldTolerance       0.0012;
+// First-layer floor on top of the weld (dcCartSurfaces::weldNearCoincident):
+// per surface class the band widens to firstLayerMinFraction x that class's
+// refinement-level spacing, capped at firstLayerMax m, so no axis-aligned
+// surface carves a slab thinner than that. 0 = classic weld only. A gap
+// between two solids wider than firstLayerSealGap (< 0: weldTolerance) is
+// never sealed. DCCART_FIRSTLAYER_FRACTION / DCCART_FIRSTLAYER_MAX win.
+firstLayerMinFraction 0.3;
+firstLayerMax       0.005;
+firstLayerSealGap   -1;
+
+background
+{
+    x (-0.25 0.0 0.25 0.5 0.75 1.0 1.25);
+    y (-0.25 0.0 0.25 0.5 0.75 1.0 1.25);
+    z (-0.25 0.0 0.25 0.5 0.75 1.0 1.25);
+}

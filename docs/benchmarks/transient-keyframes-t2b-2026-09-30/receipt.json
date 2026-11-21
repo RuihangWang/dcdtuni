@@ -1,0 +1,28 @@
+{
+  "format": "dcdtuni-stage-receipt/v1",
+  "stage": "transient-keyframes T2b (timeline strip + track panel)",
+  "date": "2026-09-30",
+  "verdict": "pass",
+  "branch": "feat/transient-t2b",
+  "code": "cf47bc04",
+  "machine": "40901, isolated worktree ~/scratch/wt-t2b (8360 untouched)",
+  "tests": {"vitest": {"files": 306, "tests": 3106, "failed": 0}, "tsc_b": "clean", "vite_build": "ok", "node_transient_and_guard": {"passed": 26, "failed": 0}},
+  "smoke": {
+    "case": "Base_coldAisleIso",
+    "seek_click_50pct": {"playhead": 299},
+    "track_panel_rows": ["e_3: 服务器功率 · fan-server_1 W"],
+    "add_keyframe": {"t": 299, "value": 150},
+    "editor_value": {"value": 400, "live_power_at_playhead": 400},
+    "ramp_drag": {"rampS": 81},
+    "diamond_drag": {"from": 299, "to": 348},
+    "refused_ramp_400": {"unchanged": true, "field_reverted": 81, "strip_message": "未执行：ramp longer than the gap to the previous keyframe"},
+    "undo_redo": {"after_undo_t": 299, "after_redo_t": 348},
+    "save_reopen": {"path": "/tmp/t2bgate/Base_coldAisleIso.cfdproj", "keyframes": [{"t": 0, "value": 150}, {"t": 348, "value": 400, "rampS": 81}], "power_t0": 150, "power_t348": 400, "power_t308_mid_ramp": 276.5432}
+  },
+  "defects_fixed": [
+    {"commit": "166c7559", "what": "timeline strip clipped: the toolbar fit now re-measures when #toolbar-content's children change"},
+    {"commit": "cf47bc04", "what": "strip controls past the toolbar edge in a narrow window: the strip wraps and calls refitToolbar() on its own height changes"}
+  ],
+  "open": ["validator refusal reasons are English (localise in T2c)", "inspector keyframe badges + read-only static fields, solve-tab trim (T2c)", "toolbar/strip inert during a solve (revisit for T5 playback)"],
+  "teardown": "8390 stopped and the worktree removed after the gate"
+}

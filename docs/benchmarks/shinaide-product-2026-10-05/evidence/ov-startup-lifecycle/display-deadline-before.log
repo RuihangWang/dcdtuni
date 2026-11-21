@@ -1,0 +1,31 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_expired_total_deadline_never_starts_the_next_display_child ________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-display-before/test_expired_total_deadline_ne0')
+
+    def test_expired_total_deadline_never_starts_the_next_display_child(tmp_path):
+        binaries=tmp_path/"display-bin";binaries.mkdir()
+        wait=tmp_path/"display-probe.py"
+        wait.write_text("import time;time.sleep(60)\n")
+        xdpy=binaries/"xdpyinfo"
+        xdpy.write_text(f"#!/bin/sh\nexec {sys.executable} {wait}\n");xdpy.chmod(0o755)
+        marker=tmp_path/"xvfb-was-started"
+        xvfb_script=tmp_path/"fake-xvfb.py"
+        xvfb_script.write_text(f"import pathlib,time;pathlib.Path({str(marker)!r}).write_text('started');time.sleep(60)\n")
+        xvfb=binaries/"Xvfb"
+        xvfb.write_text(f"#!/bin/sh\nexec {sys.executable} {xvfb_script}\n");xvfb.chmod(0o755)
+        env=dict(os.environ,PATH=str(binaries)+":"+os.environ["PATH"])
+        runtime,process,output=launch(tmp_path,"raise AssertionError('no Kit after expiry')",
+            env=env,timeout=.15,extra=("--display",":fake"))
+        try:
+            assert process.wait(timeout=5)!=0
+>           assert "deadline" in (runtime/"kit.failure").read_text()
+E           AssertionError: assert 'deadline' in 'Xvfb display did not become available\n'
+E            +  where 'Xvfb display did not become available\n' = read_text()
+E            +    where read_text = (PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-display-before/test_expired_total_deadline_ne0/runtime') / 'kit.failure').read_text
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:409: AssertionError
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_expired_total_deadline_never_starts_the_next_display_child
+1 failed, 1 passed, 19 deselected in 3.08s

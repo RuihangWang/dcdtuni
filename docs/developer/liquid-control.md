@@ -1,0 +1,19 @@
+# Simulated PID controller
+
+> **Status (as of 2026-10-21):** this controller drives the v2 runtime path (`LiquidSimulation`). The Newton DAE runs that new experiments use reject PID controllers; a PI closed loop inside the DAE is a next step.
+
+`backend.liquidcooling.control` provides a pure explicit-state controller for the liquid simulation. It sends no commands to real equipment. `PIDConfig` holds nonnegative Kp/Ki/Kd, setpoint, output bias/limits, direct or reverse action, optional slew rate and derivative filter time. Measurement and setpoint use the same engineering units; output units come from the actuator binding.
+
+Action is explicit: **reverse** (the default) uses `setpoint - measurement`, so increasing measured pressure reduces the pump command. **Direct** uses `measurement - setpoint`, so increasing measured temperature can increase a cooling command. This follows the controller-action convention illustrated in [Emerson's controller manual](https://www.emerson.com/is/content/emerson/en/final-control/flow-controls/documents/d200299x012.pdf). The correct choice still depends on the actuator/process sign.
+
+`initial_pid_state(config)` starts from the bias. Providing both measurement and an explicit output tracks a manual command for bumpless automatic transfer. `pid_step(config, state, measurement, dt_s, setpoint=None, gains=None)` returns `PIDStepResult` with the output tensor, new state, unconstrained output and saturation/rate-limit flags; the prior state is unchanged.
+
+Derivative acts on measurement, avoiding setpoint kick. Conditional integration prevents windup when the integral update would push farther into an output or slew limit. The output is the tracked simulated command; independently measured actuator lag is a plant state, not silently assumed to have been simulated here. Hard limits and conditional integration are piecewise differentiable.
+
+The optional tensor `gains=[kp,ki,kd]` keeps gradients through multiple controller steps. Gain bounds and finite state are checked. This proves a controller gradient path only; end-to-end gradients through hydraulics, thermal state, observations and the objective require separate verification.
+
+Tests: proportional action/bias, integration, saturation recovery, reverse cooling action, time-scaled slew limit, derivative filter, no setpoint kick, manual transfer, invalid observations/timesteps and multi-step gain gradients against centered finite differences. Before implementation, first test failed because control module did not exist; after implementation all **13 tests passed in 3.33 s**. This has not yet been exercised as a closed-loop UI demo.
+
+Self-review added two regression cases: a pure-integral update that crosses a limit must accept the admissible fraction (rejecting the whole update could pin output at zero), and limit diagnostics must retain the original requested command even after antiwindup projects stored integral state. Each first failed on the earlier implementation, then was corrected. `unclamped_output` means that original requested command, and flags report limits encountered in that update. The full controller suite now has 15 cases including these boundary behaviors.
+
+Independent review led to a second focused fix: the action labels/default now follow the equations above; a manual state's optional `tracking_setpoint` allows the first automatic step to initialize its integral using the effective tensor gains, then clears that tracking marker; real-number input checks happen before dtype conversion; a nonfinite requested command raises before saturation can hide it. Checkpoint serializers must preserve `tracking_setpoint` when present. Eight reviewed-path tests first failed before these changes. Test durations are historical observations, not performance guarantees.

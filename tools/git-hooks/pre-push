@@ -1,0 +1,16 @@
+#!/bin/sh
+# Owner's pre-push hook for the 40901 main checkout: main goes out only with the
+# owner's signed release stamp (tools/release_stamp.sh), then git-lfs's own check.
+# Install (owner only): cp tools/git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+command -v git-lfs >/dev/null 2>&1 || { echo >&2 "\nThis repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the 'pre-push' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks').\n"; exit 2; }
+# Both checks read the same ref list from stdin: keep it.
+refs="$(cat)"
+printf '%s\n' "$refs" | while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$remote_ref" = refs/heads/main ] || continue
+    [ "$local_sha" = 0000000000000000000000000000000000000000 ] && continue
+    tools/release_stamp.sh verify --commit "$local_sha" || {
+        echo >&2 "推送被拒绝：要推送的 main（${local_sha}）没有有效的发布印章。先运行 tools/release_stamp.sh stamp 再推送。"
+        exit 1
+    }
+done || exit 1
+printf '%s\n' "$refs" | git lfs pre-push "$@"

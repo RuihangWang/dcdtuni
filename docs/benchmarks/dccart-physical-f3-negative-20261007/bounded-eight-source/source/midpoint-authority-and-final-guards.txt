@@ -1,0 +1,319 @@
+
+# actual frozen H lines 25-57
+25:// Dedicated point-only lineage: no new original passing hard failures.
+26:// All five actual family counts/worst remain non-increasing, D strictly improves.
+27:inline bool pointHard(const O::Values& old,const O::Values& next,Statistics& s)
+28:{
+29:    s=Statistics();
+30:    if(old.refusal!=O::Refusal::none||next.refusal!=O::Refusal::none
+31:      ||old.cells.size()!=next.cells.size()||old.metrics.size()!=next.metrics.size()
+32:      ||old.determinant.size()!=next.determinant.size())return false;
+33:    for(const auto& row:old.determinant)
+34:    {
+35:        auto p=next.determinant.find(row.first);
+36:        if(p==next.determinant.end()||!O::finite(row.second)||row.second<0
+37:          ||!O::finite(p->second)||p->second<0)return false;
+38:        if(row.second>=.001&&p->second<.001)return false;
+39:        if(row.second<.001){++s.oldD;s.oldDWorst=max(s.oldDWorst,W::severity(row.second,0));}
+40:        if(p->second<.001){++s.newD;s.newDWorst=max(s.newDWorst,W::severity(p->second,0));}
+41:    }
+42:    if(s.newD>=s.oldD||s.newDWorst>s.oldDWorst)return false;
+43:    for(const auto& row:old.metrics)
+44:    {
+45:        auto p=next.metrics.find(row.first);if(p==next.metrics.end())return false;
+46:        for(unsigned k=0;k<4;++k)
+47:        {
+48:            const scalar a=row.second[k],b=p->second[k];
+49:            if(!O::finite(a)||a<0||!O::finite(b)||b<0)return false;
+50:            if(k<3&&W::pass(a,k+1)&&!W::pass(b,k+1))return false;
+51:            if(!W::pass(a,k+1)){++s.oldBad[k];s.oldWorst[k]=max(s.oldWorst[k],W::severity(a,k+1));}
+52:            if(!W::pass(b,k+1)){++s.newBad[k];s.newWorst[k]=max(s.newWorst[k],W::severity(b,k+1));}
+53:        }
+54:    }
+55:    for(unsigned k=0;k<4;++k)
+56:        if(s.newBad[k]>s.oldBad[k]||s.newWorst[k]>s.oldWorst[k])return false;
+57:    return true;
+
+# actual frozen H lines 63-77
+63:inline bool between(const point& a,const point& b,const point& p,bool strict)
+64:{
+65:    bool unequal=false;
+66:    for(direction k=0;k<3;++k)
+67:    {
+68:        if(p[k]<min(a[k],b[k])||p[k]>max(a[k],b[k]))return false;
+69:        if(a[k]!=b[k]){unequal=true;if(strict&&(p[k]==a[k]||p[k]==b[k]))return false;}
+70:    }
+71:    return unequal;
+72:}
+73:inline bool collinear(const point& a,const point& b,const point& p,E::Context& ec)
+74:{
+75:    const auto o=E::vector(ep(a),ec);
+76:    return zero(E::cross(E::difference(E::vector(ep(b),ec),o,ec),
+77:                         E::difference(E::vector(ep(p),ec),o,ec),ec))&&ec.good();
+
+# actual frozen H lines 494-597
+494:    bool capture(Cut& raw,const polyMesh& actual,const Bindings& map,const Authority& authority,
+495:                 const O::Catalogue& cat,const labelList& patchMap,label compactPoint)
+496:    {
+497:        if(published_)return false;
+498:        ready_=false;prepared_.reset();groups_.clear();grant_=O::PhysicalMotionGrant();rep_=-1;
+499:        owner_=nullptr;installed_=nullptr;before_=O::View();old_.clear(O::Refusal::shape);next_.clear(O::Refusal::shape);
+500:        if(!awake())return fail(Refusal::clock);
+501:        if(raw.points.size()>O::Caps::normalIndexBytes/sizeof(point))return fail(Refusal::capacity);
+502:        if(!cat.legacyJournal||!cat.legacyJournal->complete||!cat.legacyJournal->commits.empty())
+503:            return fail(Refusal::journal); // earliest-only grammar; never clear a prefix
+504:        if(!O::sameFingerprint(authority.sourceFingerprint,bounded_.sourceFingerprint))
+505:            return fail(Refusal::source);
+506:        O::NormalIndex ix;
+507:        if(!O::produceIndex(raw,actual,map,bounded_,ix)||compactPoint<0||compactPoint>=actual.nPoints())
+508:            return fail(Refusal::source);
+509:        rep_=ix.nativePoint[compactPoint];
+510:        if(rep_<0||rep_>=label(raw.points.size())||map.alias[rep_]!=rep_)return fail(Refusal::alias);
+511:        // First grammar admits one native member, not a partially moved alias class.
+512:        std::size_t members=0;
+513:        for(std::size_t p=0;p<map.alias.size();++p)
+514:        {if((p&255)==0&&!awake())return fail(Refusal::clock);if(map.alias[p]==rep_)++members;}
+515:        if(members!=1)return fail(Refusal::alias);
+516:        const auto& pf=actual.pointFaces()[compactPoint];
+517:        if(pf.empty()||pf.size()>512||W::zonedPoint(actual,compactPoint))return fail(Refusal::capacity);
+518:        std::set<label> core,bases;
+519:        std::map<label,S::Witness> sources;
+520:        for(label f:pf)
+521:        {
+522:            if(!awake())return fail(Refusal::clock);
+523:            core.insert(ix.nativeCell[actual.faceOwner()[f]]);
+524:            if(f<actual.nInternalFaces())core.insert(ix.nativeCell[actual.faceNeighbour()[f]]);
+525:            else
+526:            {
+527:                S::Witness w;
+528:                if(!S::bind(raw,actual,map,ix,bounded_,cat,patchMap,ix.nativeFace[f],w))return fail(Refusal::source);
+529:                sources.emplace(w.sourceFacet,w);bases.insert(w.sourceFacet);
+530:            }
+531:            if(core.size()>O::Caps::core)return fail(Refusal::capacity);
+532:        }
+533:        if(bases.size()!=2)return fail(Refusal::shape);
+534:        std::vector<std::vector<label>> cf(raw.nCells);
+535:        for(label f=0;f<label(raw.faces.size());++f)
+536:        {
+537:            if((f&255)==0&&!awake())return fail(Refusal::clock);
+538:            if(!raw.faceAlive[f])continue;
+539:            if(raw.owner[f]<-1||raw.owner[f]>=raw.nCells||raw.neighbour[f]<-1
+540:              ||raw.neighbour[f]>=raw.nCells||(raw.owner[f]<0&&raw.neighbour[f]<0))return fail(Refusal::shape);
+541:            if(raw.owner[f]>=0)cf[raw.owner[f]].push_back(f);
+542:            if(raw.neighbour[f]>=0)cf[raw.neighbour[f]].push_back(f);
+543:        }
+544:        if(!O::capture(raw,actual,map,bounded_,std::vector<label>(core.begin(),core.end()),
+545:                       cf,ix,cat.epoch,before_))return fail(Refusal::installed);
+546:        before_.legacyJournal=cat.legacyJournal;
+547:        // All 12 existing predicates, source and journal dependencies are checked.
+548:        if(!O::current(before_,raw,bounded_,false,cf))return fail(Refusal::stale);
+549:        E::Context ec([&](){return awake();});
+550:        for(label base:bases)
+551:        {
+552:            const auto& w=sources.at(base);Group g;g.source=base;g.patch=w.constructionPatch;g.zone=w.zone;g.outline=w.sourceWorld;
+553:            if(!reduceOutline(g.outline,ec))return fail(Refusal::geometry);
+554:            bool plane=false;
+555:            for(direction k=0;k<3;++k)
+556:            {
+557:                bool fixed=true;for(const auto& p:g.outline)if(p[k]!=g.outline[0][k])fixed=false;
+558:                if(fixed){if(plane)return fail(Refusal::geometry);plane=true;g.axis=k;}
+559:            }
+560:            if(!plane||!simple(g.outline,g.axis,ec))return fail(Refusal::geometry);
+561:            groups_.push_back(std::move(g));
+562:        }
+563:        for(label f=0;f<label(raw.faces.size());++f)
+564:        {
+565:            if((f&255)==0&&!awake())return fail(Refusal::clock);
+566:            if(!raw.faceAlive[f])continue;
+567:            for(Group& g:groups_)if(cat.normalFacetSources[f]==g.source)
+568:            {
+569:                S::Witness w;
+570:                if(g.facets.size()>=128||!S::bind(raw,actual,map,ix,bounded_,cat,patchMap,f,w))return fail(Refusal::source);
+571:                if(w.sourceWorld!=sources.at(g.source).sourceWorld||w.constructionPatch!=g.patch||w.zone!=g.zone)
+572:                    return fail(Refusal::source);
+573:                g.facets.push_back(f);
+574:            }
+575:        }
+576:        grant_.point_=rep_;grant_.epoch_=before_.epoch;grant_.source_=before_.source;
+577:        for(const auto& f:before_.faces)if(!f.internal&&std::find(f.ring.begin(),f.ring.end(),rep_)!=f.ring.end())
+578:            grant_.physicalFaces_.insert(f.native);
+579:        if(!footprint(raw,raw.points[rep_],ec)||!awake())return fail(Refusal::coverage);
+580:        inputCheckpoint_.reset(new Cut(raw));
+581:        // Equality is proved, never inferred from insertion order or source IDs.
+582:        // Allowed pointer differences: baseline self-reference, W/D state,
+583:        // current context and complete state; the original checkpoint has NONE.
+584:        const auto gate=[&](){return deadline_.available();};
+585:        if(!raw.writerBaseline||!raw.writerBaseline->checkpoint||!sourceSeal_
+586:          ||!DependencySeal::plainCheckpoint(*raw.writerBaseline->checkpoint)
+587:          ||!sameRawRecipe(*raw.writerBaseline->checkpoint,*inputCheckpoint_,gate))return fail(Refusal::stale);
+588:        auto seal=std::make_shared<DependencySeal>();
+589:        seal->source=sourceSeal_;seal->sourceInstance=sourceAuthority_.sourceSnapshot.get();
+590:        seal->inputRecipe=inputCheckpoint_;seal->baselineInstance=raw.writerBaseline.get();seal->baseline=*raw.writerBaseline;
+591:        if(!seal->current(raw,sourceAuthority_,gate))return fail(Refusal::stale);
+592:        dependencySeal_=std::move(seal);
+593:        if(!O::evaluate(before_,{},[&](){return awake();},old_)||!O::installedBinding(before_,old_))
+594:            return fail(Refusal::installed);
+595:        owner_=&raw;installed_=&actual;revision_=raw.completeCavityLineage.revision();
+596:        oldGlobalPoints_=raw.points; // complete final input recheck; never an earliest surrogate
+597:        refusal_=Refusal::none;return true;
+
+# actual frozen H lines 599-641
+599:    bool midpoint(point& target)
+600:    {
+601:        if(rep_<0||groups_.size()!=2||!awake())return false;
+602:        E::Context ec([&](){return awake();});std::vector<std::pair<point,point>> edges;
+603:        for(std::size_t i=0;i<groups_[0].outline.size();++i)
+604:        {
+605:            const point a=groups_[0].outline[i],b=groups_[0].outline[(i+1)%groups_[0].outline.size()];
+606:            if(!collinear(a,b,owner_->points[rep_],ec)||!between(a,b,owner_->points[rep_],true))continue;
+607:            for(std::size_t j=0;j<groups_[1].outline.size();++j)
+608:            {
+609:                const point c=groups_[1].outline[j],d=groups_[1].outline[(j+1)%groups_[1].outline.size()];
+610:                if(!((a==c&&b==d)||(a==d&&b==c)))continue;
+611:                unsigned varying=0;for(direction k=0;k<3;++k)if(a[k]!=b[k])++varying;
+612:                if(varying!=1)return false;edges.emplace_back(a,b);
+613:            }
+614:        }
+615:        if(edges.size()!=1||!ec.good())return false;
+616:        target=(edges[0].first+edges[0].second)*.5;return O::finite(target);
+617:    }
+618:    bool local(const point& q,Statistics& statistics)
+619:    {
+620:        if(!owner_||!installed_||!awake())return fail(Refusal::clock);
+621:        E::Context ec([&](){return awake();});
+622:        if(!O::finite(q)||O::bits(q,owner_->points[rep_])||!footprint(*owner_,q,ec)||!exactCore(q,ec))
+623:            return fail(Refusal::coverage);
+624:        const std::map<label,point> move{{rep_,q}};
+625:        if(!O::evaluate(before_,move,[&](){return awake();},next_,
+626:            [&](const O::GeometryMesh& m,const std::map<label,label>& c,const std::map<label,label>& f)
+627:            {return P::installedGeometry(m,c,f,before_,[&](){return awake();});},&grant_))
+628:            return fail(Refusal::geometry);
+629:        if(!pointHard(old_,next_,statistics))return fail(Refusal::quality);
+630:        const std::set<label> core(before_.core.begin(),before_.core.end());
+631:        for(const auto& c:before_.cells)if(!core.count(c.native))
+632:        {
+633:            const auto a=old_.cells.at(c.native),b=next_.cells.at(c.native);
+634:            if(!O::bits(a.first,b.first)||!O::bits(a.second,b.second))return fail(Refusal::installed);
+635:        }
+636:        for(std::size_t p=0;p<oldGlobalPoints_.size();++p)
+637:        {
+638:            if((p&255)==0&&!awake())return fail(Refusal::clock);
+639:            if(label(p)!=rep_&&mag(q-oldGlobalPoints_[p])<=3e-6)return fail(Refusal::alias);
+640:        }
+641:        proposed_=q;refusal_=Refusal::none;return true;
+
+# actual frozen H lines 645-758
+645:    bool stage(const Time& time,const wordList& names,const wordList& types,const wordList& zones,
+646:               const W::State& originalSeeds,const Bindings& oldMap,const labelList& patchMap,
+647:               const std::vector<label>& creator,const std::vector<label>& parents,
+648:               Statistics& statistics)
+649:    {
+650:        if(!owner_||!installed_||!awake()||!O::finite(proposed_))return fail(Refusal::clock);
+651:        try
+652:        {
+653:            Cut current(*owner_);current.points[rep_]=proposed_;
+654:            newGlobalPoints_=current.points;
+655:            Cut lowered(current);dcCartCutCells::writerNumericData numeric;Bindings b;
+656:            dcCartCutCells::lowerWriterNumeric(lowered,names,types,zones,numeric,&b);
+657:            if(!awake()||!sameBindings(oldMap,b))return fail(Refusal::alias);
+658:            auto f=std::make_shared<Frame>();f->bindings=std::move(b);
+659:            f->mesh=std::shared_ptr<polyMesh>(new polyMesh(
+660:                IOobject("physicalPointCurrentPrivate","constant",time,IOobject::NO_READ,IOobject::NO_WRITE,false),
+661:                std::move(numeric.points),std::move(numeric.faces),std::move(numeric.owner),std::move(numeric.neighbour),false));
+662:            List<polyPatch*> patches(installed_->boundaryMesh().size());
+663:            forAll(patches,i)patches[i]=installed_->boundaryMesh()[i].clone(f->mesh->boundaryMesh()).ptr();
+664:            f->mesh->addPatches(patches,false);
+665:            f->mesh->cellCentres();f->mesh->cellVolumes();f->mesh->faceAreas();f->mesh->faceCentres();
+666:            if(!awake())return fail(Refusal::clock);
+667:            f->cellFaces.resize(current.nCells);
+668:            for(label id=0;id<label(current.faces.size());++id)if(current.faceAlive[id])
+669:            {if(current.owner[id]>=0)f->cellFaces[current.owner[id]].push_back(id);
+670:             if(current.neighbour[id]>=0)f->cellFaces[current.neighbour[id]].push_back(id);}
+671:            O::NormalIndex index;
+672:            if(!O::produceIndex(current,*f->mesh,f->bindings,bounded_,index))return fail(Refusal::installed);
+673:            O::View now;
+674:            if(!O::capture(current,*f->mesh,f->bindings,bounded_,before_.core,f->cellFaces,index,before_.epoch,now))
+675:                return fail(Refusal::installed);
+676:            O::Values actual;
+677:            if(!O::evaluate(now,{},[&](){return awake();},actual)||!O::installedBinding(now,actual)
+678:              ||!pointHard(old_,actual,statistics))return fail(Refusal::quality);
+679:            // Actual new fields are checked against the proposal; untouched full-halo bits are mandatory.
+680:            for(const auto& x:next_.cells)
+681:            {const auto y=actual.cells.at(x.first);if(!O::bits(x.second.first,y.first)||!O::bits(x.second.second,y.second))return fail(Refusal::installed);}
+682:            for(const auto& x:next_.faces)
+683:            {const auto y=actual.faces.at(x.first);if(!O::bits(x.second.first,y.first)||!O::bits(x.second.second,y.second))return fail(Refusal::installed);}
+684:            f->catalogue=std::make_shared<O::Catalogue>();
+685:            O::captureCatalogue(current,*f->mesh,f->bindings,bounded_,f->cellFaces,*f->catalogue);
+686:            std::vector<label> sourceCopy=creator;
+687:            if(!f->catalogue->legacyJournal||!f->catalogue->legacyJournal->complete
+688:              ||!f->catalogue->legacyJournal->commits.empty()
+689:              ||!O::retainNormalFacetSources(current,sourceCopy,bounded_,*f->catalogue))return fail(Refusal::journal);
+690:            // Old W/D clock and authority copied unchanged. No restart or extra candidate opportunity.
+691:            f->seeds=std::make_shared<W::State>(originalSeeds);
+692:            if(!f->seeds->pool.empty()||!f->seeds->committed.empty())return fail(Refusal::journal);
+693:            W::capture(*f->seeds,current,*f->mesh,f->bindings,parents,bounded_.normalOriginFromSnapshot);
+694:            if(!awake())return fail(Refusal::clock);
+695:            auto journal=std::make_shared<O::PhysicalPointJournal>();
+696:            journal->owner_=owner_;journal->sourceInstance_=bounded_.sourceSnapshot;journal->source_=before_.source;
+697:            journal->sourceAuthority_=sourceAuthority_;journal->dependencySeal_=dependencySeal_;journal->installed_=std::make_shared<O::View>(now);
+698:            journal->core_=before_.core;journal->origins_=before_.origins;journal->cells_=before_.cells;
+699:            if(current.cellOrigAlive.size()!=std::size_t(current.nCells)
+700:              ||current.cellLevel.size()!=std::size_t(current.nCells)||current.cellRank.size()!=std::size_t(current.nCells)
+701:              ||current.cellLeaf.size()!=std::size_t(current.nCells)||current.cellPiece.size()!=std::size_t(current.nCells)
+702:              ||(!current.cellRefVol.empty()&&current.cellRefVol.size()!=std::size_t(current.nCells))
+703:              ||(!current.cellRefCentre.empty()&&current.cellRefCentre.size()!=std::size_t(current.nCells)))
+704:                return fail(Refusal::shape);
+705:            journal->referenceVolumes_=current.cellRefVol.size();journal->referenceCentres_=current.cellRefCentre.size();
+706:            for(const auto& c:before_.cells)
+707:            {
+708:                O::PhysicalPointJournal::CellState state;const label id=c.native;
+709:                if(id<0||id>=current.nCells)return fail(Refusal::shape);
+710:                state.native=id;state.level=current.cellLevel[id];state.rank=current.cellRank[id];
+711:                state.leaf=current.cellLeaf[id];state.piece=current.cellPiece[id];state.original=current.cellOrigAlive[id];
+712:                if(journal->referenceVolumes_)state.referenceVolume=current.cellRefVol[id];
+713:                if(journal->referenceCentres_)state.referenceCentre=current.cellRefCentre[id];
+714:                journal->cellState_.push_back(state);
+715:            }
+716:            journal->faces_=before_.faces;journal->point_=rep_;journal->old_=oldGlobalPoints_[rep_];journal->next_=proposed_;
+717:            journal->nativeCells_=owner_->nCells;journal->nativePoints_=owner_->points.size();journal->nGrid_=owner_->nGridPoints;
+718:            std::set<label> protectedPoints;
+719:            for(const auto& a:before_.aliases)for(label p:a.members)protectedPoints.insert(p);
+720:            std::set<label> protectedFaces;
+721:            for(const auto& x:journal->faces_)protectedFaces.insert(x.native);
+722:            for(const auto& g:groups_)for(label id:g.facets)
+723:            {
+724:                for(label p:current.faces[id])protectedPoints.insert(p);
+725:                if(protectedFaces.insert(id).second)
+726:                {
+727:                    O::Face face;face.native=id;face.rawOwner=current.owner[id];face.rawNeighbour=current.neighbour[id];
+728:                    face.patch=current.patch[id];face.zone=current.zone[id];face.rawRing=current.faces[id];
+729:                    journal->faces_.push_back(std::move(face));
+730:                }
+731:            }
+732:            if(protectedPoints.size()>O::Caps::aliasMembers||journal->faces_.size()>O::Caps::faces)return fail(Refusal::capacity);
+733:            // Complete alias equivalence for every protected source/halo point;
+734:            // never admit a representative while omitting external class members.
+735:            std::set<label> protectedReps;
+736:            for(label p:protectedPoints)protectedReps.insert(f->bindings.alias.at(p));
+737:            for(std::size_t p=0;p<f->bindings.alias.size();++p)
+738:            {
+739:                if((p&255)==0&&!awake())return fail(Refusal::clock);
+740:                if(protectedReps.count(f->bindings.alias[p]))protectedPoints.insert(label(p));
+741:                if(protectedPoints.size()>O::Caps::aliasMembers)return fail(Refusal::capacity);
+742:            }
+743:            for(label p:protectedPoints)
+744:            {
+745:                journal->protectedPoints_.emplace_back(p,current.points[p]);
+746:                journal->protectedAlias_.emplace_back(p,f->bindings.alias[p]);
+747:            }
+748:            journal->complete_=true;f->physicalJournal=journal;f->catalogue->physicalPointJournal=journal;
+749:            for(auto& view:f->catalogue->views)view.physicalPointJournal=journal;
+750:            auto catalogue=std::make_shared<dcCartCutCells::writerCurrentContext>();
+751:            static_cast<O::Catalogue&>(*catalogue)=*f->catalogue;
+752:            auto seeds=std::make_shared<dcCartCutCells::writerWeightUnionState>();
+753:            static_cast<W::State&>(*seeds)=*f->seeds;
+754:            next_=std::move(actual);prepared_=std::move(f);
+755:            preparedCatalogue_=std::move(catalogue);preparedSeeds_=std::move(seeds);
+756:            ready_=true;refusal_=Refusal::none;return true;
+757:        }
+758:        catch(...){return fail(Refusal::allocation);}

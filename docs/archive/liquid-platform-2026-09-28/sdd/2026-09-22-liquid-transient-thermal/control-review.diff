@@ -1,0 +1,339 @@
+# Scoped PID review: f9a23a94..3b2f3137
+3b2f3137 fix(liquid): retain admissible integral action at controller limits
+b63b7f63 feat(liquid): add explicit-state PID with bounded differentiable controls
+ docs/developer/liquid-control.md                   |  13 ++
+ src/backend/liquidcooling/control.py               | 166 +++++++++++++++++++++
+ .../tests/test_liquid/test_liquid_control.py       | 135 +++++++++++++++++
+ 3 files changed, 314 insertions(+)
+diff --git a/docs/developer/liquid-control.md b/docs/developer/liquid-control.md
+new file mode 100644
+index 00000000..2eaae9c9
+--- /dev/null
++++ b/docs/developer/liquid-control.md
+@@ -0,0 +1,13 @@
++# Simulated PID controller
++
++`backend.liquidcooling.control` provides a pure explicit-state controller for the liquid simulation. It sends no commands to real equipment. `PIDConfig` holds nonnegative Kp/Ki/Kd, setpoint, output bias/limits, direct or reverse action, optional slew rate and derivative filter time. Measurement and setpoint use the same engineering units; output units come from the actuator binding.
++
++`initial_pid_state(config)` starts from the bias. Providing both measurement and an explicit output tracks a manual command for bumpless automatic transfer. `pid_step(config, state, measurement, dt_s, setpoint=None, gains=None)` returns `PIDStepResult` with the output tensor, new state, unconstrained output and saturation/rate-limit flags; the prior state is unchanged.
++
++Derivative acts on measurement, avoiding setpoint kick. Conditional integration prevents windup when the integral update would push farther into an output or slew limit. The output is the tracked simulated command; independently measured actuator lag is a plant state, not silently assumed to have been simulated here. Hard limits and conditional integration are piecewise differentiable.
++
++The optional tensor `gains=[kp,ki,kd]` keeps gradients through multiple controller steps. Gain bounds and finite state are checked. This proves a controller gradient path only; end-to-end gradients through hydraulics, thermal state, observations and the objective require separate verification.
++
++Tests: proportional action/bias, integration, saturation recovery, reverse cooling action, time-scaled slew limit, derivative filter, no setpoint kick, manual transfer, invalid observations/timesteps and multi-step gain gradients against centered finite differences. Before implementation, first test failed because control module did not exist; after implementation all **13 tests passed in 3.33 s**. This has not yet been exercised as a closed-loop UI demo.
++
++Self-review added two regression cases: a pure-integral update that crosses a limit must accept the admissible fraction (rejecting the whole update could pin output at zero), and limit diagnostics must retain the original requested command even after antiwindup projects stored integral state. Each first failed on the earlier implementation, then was corrected. `unclamped_output` means that original requested command, and flags report limits encountered in that update. The full controller suite now has 15 cases including these boundary behaviors.
+diff --git a/src/backend/liquidcooling/control.py b/src/backend/liquidcooling/control.py
+new file mode 100644
+index 00000000..02b7e259
+--- /dev/null
++++ b/src/backend/liquidcooling/control.py
+@@ -0,0 +1,166 @@
++"""Explicit-state PID for simulated actuators, with differentiable smooth regions.
++
++This module does not communicate with plant equipment. Output units are chosen
++by the binding (for example pump speed ratio or valve opening). Setpoint and
++measurement must use the same engineering units; gains carry the corresponding
++output/input units. Hard saturation and antiwindup are piecewise differentiable.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++import math
++from typing import Literal
++
++import torch
++from torch import Tensor
++
++
++@dataclass(frozen=True)
++class PIDConfig:
++    kp: float
++    ki: float
++    kd: float = 0.0
++    setpoint: float = 0.0
++    bias: float = 0.0
++    output_min: float = 0.0
++    output_max: float = 1.0
++    action: Literal["direct", "reverse"] = "direct"
++    rate_limit_per_s: float | None = None
++    derivative_tau_s: float = 0.0
++
++    def __post_init__(self):
++        fields = ("kp", "ki", "kd", "setpoint", "bias", "output_min", "output_max", "derivative_tau_s")
++        for name in fields:
++            value = getattr(self, name)
++            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
++                raise ValueError(f"{name} must be a finite number")
++        if min(self.kp, self.ki, self.kd, self.derivative_tau_s) < 0:
++            raise ValueError("gains and derivative_tau_s must be non-negative; select action for direction")
++        if self.output_min >= self.output_max:
++            raise ValueError("output_min must be below output_max")
++        if not self.output_min <= self.bias <= self.output_max:
++            raise ValueError("bias must be within output limits")
++        if self.action not in ("direct", "reverse"):
++            raise ValueError("action must be direct or reverse")
++        if self.rate_limit_per_s is not None:
++            value = self.rate_limit_per_s
++            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
++                raise ValueError("rate_limit_per_s must be positive and finite")
++
++
++@dataclass(frozen=True)
++class PIDState:
++    integral: Tensor
++    derivative: Tensor
++    last_output: Tensor
++    last_measurement: Tensor | None = None
++
++
++@dataclass(frozen=True)
++class PIDStepResult:
++    output: Tensor
++    state: PIDState
++    unclamped_output: Tensor
++    saturated: bool
++    rate_limited: bool
++
++
++def _scalar(value: float | Tensor, name: str, device=None) -> Tensor:
++    result = torch.as_tensor(value, dtype=torch.float64, device=device)
++    if result.numel() != 1 or not bool(torch.isfinite(result).all()):
++        raise ValueError(f"{name} must be a finite scalar")
++    return result.reshape(())
++
++
++def initial_pid_state(
++    config: PIDConfig, *, measurement: float | Tensor | None = None,
++    output: float | Tensor | None = None, setpoint: float | Tensor | None = None,
++) -> PIDState:
++    """Initialize normally, or track an explicit manual output for transfer."""
++    measured = None if measurement is None else _scalar(measurement, "measurement")
++    device = measured.device if measured is not None else None
++    applied = _scalar(config.bias if output is None else output, "output", device)
++    if not bool((applied >= config.output_min) & (applied <= config.output_max)):
++        raise ValueError("initial output must be within configured limits")
++    integral = torch.zeros_like(applied)
++    if output is not None:
++        if measured is None:
++            raise ValueError("manual tracking requires a measurement")
++        target = _scalar(config.setpoint if setpoint is None else setpoint, "setpoint", device)
++        direction = 1.0 if config.action == "direct" else -1.0
++        integral = applied - config.bias - config.kp * direction * (target - measured)
++    return PIDState(integral, torch.zeros_like(applied), applied, measured)
++
++
++def pid_step(
++    config: PIDConfig, state: PIDState, measurement: float | Tensor, dt_s: float,
++    *, setpoint: float | Tensor | None = None, gains: Tensor | None = None,
++) -> PIDStepResult:
++    """Compute one update, returning new state without mutating the old state.
++
++    Derivative acts on the measurement to avoid setpoint kick. Conditional
++    integration blocks windup against both output and slew limits. Optional
++    tensor gains [kp, ki, kd] retain autograd across a rollout for optimisation.
++    The actuator's command is also its tracked output here; additional measured
++    actuator lag belongs in the plant's explicit state.
++    """
++    if isinstance(dt_s, bool) or not isinstance(dt_s, (int, float)) or not math.isfinite(dt_s) or dt_s <= 0:
++        raise ValueError("dt_s must be positive and finite")
++    measured = _scalar(measurement, "measurement")
++    device = measured.device
++    target = _scalar(config.setpoint if setpoint is None else setpoint, "setpoint", device)
++    old_integral = _scalar(state.integral, "state.integral", device)
++    old_derivative = _scalar(state.derivative, "state.derivative", device)
++    old_output = _scalar(state.last_output, "state.last_output", device)
++    if not bool((old_output >= config.output_min) & (old_output <= config.output_max)):
++        raise ValueError("state.last_output is outside configured limits")
++
++    gain_values = torch.as_tensor(
++        [config.kp, config.ki, config.kd] if gains is None else gains,
++        dtype=torch.float64, device=device,
++    )
++    if gain_values.shape != (3,) or not bool(torch.isfinite(gain_values).all()) or bool((gain_values < 0).any()):
++        raise ValueError("gains must contain three finite non-negative values")
++    kp, ki, kd = gain_values.unbind()
++    direction = 1.0 if config.action == "direct" else -1.0
++    error = direction * (target - measured)
++    if state.last_measurement is None:
++        raw_derivative = torch.zeros_like(measured)
++    else:
++        previous = _scalar(state.last_measurement, "state.last_measurement", device)
++        raw_derivative = -direction * (measured - previous) / dt_s
++    alpha = dt_s / (config.derivative_tau_s + dt_s)
++    derivative = old_derivative + alpha * (raw_derivative - old_derivative)
++    delta_integral = ki * error * dt_s
++    integral = old_integral + delta_integral
++
++    def bound(command: Tensor) -> tuple[Tensor, Tensor]:
++        limited = torch.clamp(command, config.output_min, config.output_max)
++        applied = limited
++        if config.rate_limit_per_s is not None:
++            distance = config.rate_limit_per_s * dt_s
++            applied = torch.minimum(torch.maximum(limited, old_output - distance), old_output + distance)
++        return limited, applied
++
++    proportional_derivative = config.bias + kp * error + kd * derivative
++    raw = proportional_derivative + integral
++    requested = raw
++    candidate_limited, candidate_output = bound(requested)
++    pushes_limit = ((raw > candidate_output) & (delta_integral > 0)) | ((raw < candidate_output) & (delta_integral < 0))
++    # Accept the portion of an integral update that reaches a limit, but none
++    # beyond it. Rejecting the entire update would pin a pure-I controller at
++    # zero forever when its first update overshoots the output bound.
++    room = candidate_output - (proportional_derivative + old_integral)
++    zero = torch.zeros_like(room)
++    admissible_delta = torch.minimum(torch.maximum(delta_integral, torch.minimum(room, zero)), torch.maximum(room, zero))
++    integral = old_integral + torch.where(pushes_limit, admissible_delta, delta_integral)
++    raw = proportional_derivative + integral
++    limited, applied = bound(raw)
++    if not bool(torch.isfinite(torch.stack((applied, integral, derivative, raw))).all()):
++        raise ValueError("PID arithmetic produced a non-finite state")
++    next_state = PIDState(integral, derivative, applied, measured)
++    return PIDStepResult(
++        applied, next_state, requested,
++        bool((requested != candidate_limited) | (raw != limited)),
++        bool((candidate_limited != candidate_output) | (limited != applied)),
++    )
+diff --git a/src/backend/tests/test_liquid/test_liquid_control.py b/src/backend/tests/test_liquid/test_liquid_control.py
+new file mode 100644
+index 00000000..a1636d52
+--- /dev/null
++++ b/src/backend/tests/test_liquid/test_liquid_control.py
+@@ -0,0 +1,135 @@
++"""Behavioral control tests in output units, independent of a plant solver."""
++import pytest
++import torch
++
++
++def api():
++    from backend.liquidcooling.control import PIDConfig, initial_pid_state, pid_step
++    return PIDConfig, initial_pid_state, pid_step
++
++
++def test_proportional_action_bias_and_input_state_are_explicit():
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0, setpoint=10.0, bias=0.5)
++    state = init(cfg)
++    result = step(cfg, state, measurement=8.0, dt_s=1.0)
++    assert result.output.item() == pytest.approx(0.7)
++    assert state.integral.item() == 0.0
++    assert state.last_measurement is None
++    assert result.state.last_measurement.item() == 8.0
++
++
++def test_integral_action_accumulates_when_unsaturated():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=0.05, setpoint=10.0)
++    state = init(cfg)
++    for _ in range(3):
++        result = step(cfg, state, 8.0, 1.0)
++        state = result.state
++    assert result.output.item() == pytest.approx(0.3)
++
++
++def test_integral_only_controller_can_reach_limit_without_getting_stuck_at_zero():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=1.0, setpoint=2.0)
++    state = init(cfg)
++    for _ in range(3):
++        result = step(cfg, state, 0.0, 1.0)
++        state = result.state
++    assert result.output.item() == 1.0
++    assert state.integral.item() == 1.0
++    recovery = step(cfg, state, 2.5, 1.0)
++    assert recovery.output.item() == pytest.approx(0.5)
++
++
++def test_antiwindup_projection_keeps_requested_limit_diagnostics():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=1.0, setpoint=2.0, rate_limit_per_s=0.25)
++    result = step(cfg, init(cfg), 0.0, 1.0)
++    assert result.output.item() == pytest.approx(0.25)
++    assert result.unclamped_output.item() == pytest.approx(2.0)
++    assert result.saturated
++    assert result.rate_limited
++
++
++def test_saturation_does_not_wind_up_and_recovers_after_error_reverses():
++    C, init, step = api()
++    cfg = C(kp=0.2, ki=0.1, setpoint=10.0, bias=0.5)
++    state = init(cfg)
++    for _ in range(50):
++        result = step(cfg, state, 0.0, 1.0)
++        state = result.state
++    assert result.output.item() == 1.0
++    assert state.integral.item() == 0.0
++    recovery = step(cfg, state, 11.0, 1.0)
++    assert recovery.output.item() < 0.5
++
++
++def test_reverse_action_increases_cooling_when_temperature_is_high():
++    C, init, step = api()
++    cfg = C(kp=0.05, ki=0.0, setpoint=30.0, bias=0.5, action="reverse")
++    result = step(cfg, init(cfg), 35.0, 1.0)
++    assert result.output.item() == pytest.approx(0.75)
++
++
++def test_rate_limit_is_per_second_and_part_of_antiwindup():
++    C, init, step = api()
++    cfg = C(kp=0.2, ki=0.1, setpoint=10.0, bias=0.2, rate_limit_per_s=0.1)
++    result = step(cfg, init(cfg), 0.0, 0.5)
++    assert result.output.item() == pytest.approx(0.25)
++    assert result.rate_limited
++    assert result.state.integral.item() == 0.0
++
++
++def test_derivative_is_on_measurement_without_setpoint_kick():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=0.0, kd=0.1, setpoint=10.0, bias=0.5)
++    state = init(cfg, measurement=8.0)
++    result = step(cfg, state, 8.0, 1.0, setpoint=20.0)
++    assert result.output.item() == pytest.approx(0.5)
++
++
++def test_derivative_filter_matches_first_order_discretisation():
++    C, init, step = api()
++    cfg = C(kp=0.0, ki=0.0, kd=0.1, bias=0.5, derivative_tau_s=1.0)
++    state = init(cfg, measurement=0.0)
++    result = step(cfg, state, 1.0, 1.0)
++    assert result.state.derivative.item() == pytest.approx(-0.5)
++    assert result.output.item() == pytest.approx(0.45)
++
++
++def test_manual_tracking_produces_bumpless_first_automatic_output():
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0, setpoint=10.0, bias=0.5)
++    state = init(cfg, measurement=8.0, output=0.4)
++    result = step(cfg, state, 8.0, 1.0)
++    assert result.output.item() == pytest.approx(0.4)
++
++
++@pytest.mark.parametrize("measurement,dt", [(float("nan"),1.0),(8.0,0.0),(8.0,-1.0),(8.0,float("inf"))])
++def test_invalid_observation_or_timestep_cannot_emit_command(measurement, dt):
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.0)
++    with pytest.raises(ValueError):
++        step(cfg, init(cfg), measurement, dt)
++
++
++def test_multistep_gain_gradient_matches_finite_difference():
++    C, init, step = api()
++    cfg = C(kp=0.1, ki=0.02, setpoint=2.0, bias=0.1, output_max=2.0)
++    def run(gains):
++        state = init(cfg)
++        total = torch.zeros((), dtype=torch.float64)
++        for measurement in (1.0, 1.2, 1.4):
++            result = step(cfg, state, measurement, 0.5, gains=gains)
++            state = result.state
++            total = total + result.output.square()
++        return total
++    gains = torch.tensor([0.1, 0.02, 0.0], dtype=torch.float64, requires_grad=True)
++    loss = run(gains)
++    grad = torch.autograd.grad(loss, gains)[0]
++    h = 1e-6
++    for index in (0,1):
++        delta = torch.zeros_like(gains); delta[index] = h
++        finite_difference = (run(gains.detach()+delta)-run(gains.detach()-delta))/(2*h)
++        assert grad[index].item() == pytest.approx(finite_difference.item(), rel=1e-5, abs=1e-8)

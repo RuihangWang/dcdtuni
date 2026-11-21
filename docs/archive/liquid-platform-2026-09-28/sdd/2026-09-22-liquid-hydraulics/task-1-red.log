@@ -1,0 +1,289 @@
+FFFFFFFFFFFFFFFF                                                         [100%]
+=================================== FAILURES ===================================
+_______ test_valve_schedule_matches_isa_flow_and_direction[False-linear] _______
+
+characteristic = 'linear', reverse = False
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+__ test_valve_schedule_matches_isa_flow_and_direction[False-equal_percentage] __
+
+characteristic = 'equal_percentage', reverse = False
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+___ test_valve_schedule_matches_isa_flow_and_direction[False-quick_opening] ____
+
+characteristic = 'quick_opening', reverse = False
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+_______ test_valve_schedule_matches_isa_flow_and_direction[True-linear] ________
+
+characteristic = 'linear', reverse = True
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+__ test_valve_schedule_matches_isa_flow_and_direction[True-equal_percentage] ___
+
+characteristic = 'equal_percentage', reverse = True
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+____ test_valve_schedule_matches_isa_flow_and_direction[True-quick_opening] ____
+
+characteristic = 'quick_opening', reverse = True
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
+        graph = _graph(characteristic=characteristic, reverse=reverse)
+        _, m, info = nh.gga_solve(graph)
+        alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
+        factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
+                  "quick_opening": alpha.sqrt()}[characteristic]
+        # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
+        expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
+        if reverse:
+            expected = -expected
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:42: AssertionError
+____________ test_pump_schedule_changes_single_reference_loop_flow _____________
+
+    def test_pump_schedule_changes_single_reference_loop_flow():
+        graph = _graph(opening=(1., 1., 1., 1.), loop=True)
+        P, m, info = nh.gga_solve(graph)
+        rho = graph.fluid_rho
+        resistance = 1e5 * (rho / 1000.) * (3600. / (rho * 2.5)) ** 2
+        rpm = torch.tensor([1., 1., .6, .6], dtype=torch.float64)
+        expected = (rho * graph.g_mag * 20. * rpm**2 /
+                    (resistance + graph.g_mag * 5e5 * rpm**2 / rho)).sqrt()
+        assert info["converged"]
+>       torch.testing.assert_close(m[0], expected, rtol=1e-8, atol=1e-10)
+E       AssertionError: Tensor-likes are not close!
+E       
+E       Mismatched elements: 4 / 4 (100.0%)
+E       Greatest absolute difference: 5.726163537621008 at index (2,) (up to 1e-10 allowed)
+E       Greatest relative difference: 9.882609718259364 at index (2,) (up to 1e-08 allowed)
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:56: AssertionError
+_________ test_constant_static_and_broadcast_controls_retain_solution __________
+
+    def test_constant_static_and_broadcast_controls_retain_solution():
+        graph = _graph(opening=(.7,) * 4, loop=True, rpm=(.8,) * 4)
+        P, m, info = nh.gga_solve(graph)
+        graph.valve_params.opening = graph.valve_params.opening[:, 0]
+        graph.pump_params.rpm_ratio = graph.pump_params.rpm_ratio[:, :1]
+        P_static, m_static, static_info = nh.gga_solve(graph)
+        assert info["converged"] and static_info["converged"]
+        torch.testing.assert_close(P_static, P, rtol=0, atol=0)
+        torch.testing.assert_close(m_static, m, rtol=0, atol=0)
+        torch.testing.assert_close(m, m[:, :1].expand_as(m), rtol=0, atol=0)
+>       assert len(info["per_step"]) == graph.N_t
+E       KeyError: 'per_step'
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:72: KeyError
+___ test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[linear] ___
+
+characteristic = 'linear'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        graph = _graph(opening=(1., 0., 0., 1.), characteristic=characteristic)
+        P, m, info = nh.gga_solve(graph)
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:81: AssertionError
+_ test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[equal_percentage] _
+
+characteristic = 'equal_percentage'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        graph = _graph(opening=(1., 0., 0., 1.), characteristic=characteristic)
+        P, m, info = nh.gga_solve(graph)
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:81: AssertionError
+_ test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[quick_opening] _
+
+characteristic = 'quick_opening'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        graph = _graph(opening=(1., 0., 0., 1.), characteristic=characteristic)
+        P, m, info = nh.gga_solve(graph)
+>       assert info["converged"]
+E       assert False
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:81: AssertionError
+_____ test_nonfinite_later_control_does_not_hide_behind_first_step_success _____
+
+    def test_nonfinite_later_control_does_not_hide_behind_first_step_success():
+        graph = _graph(opening=(1., 1., 1., 1.), loop=True)
+        graph.pump_params.rpm_ratio[0, 2] = float("nan")
+        _, _, info = nh.gga_solve(graph)
+>       assert not info["converged"]
+E       assert not True
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:93: AssertionError
+__________ test_large_tolerance_cannot_accept_gross_momentum_residual __________
+
+    def test_large_tolerance_cannot_accept_gross_momentum_residual():
+        graph = _graph(opening=(1.,))
+        _, _, info = nh.gga_solve(graph, tol=1e20, max_iter=1)
+>       assert not info["converged"]
+E       assert not True
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:103: AssertionError
+______ test_closed_valve_isolation_reports_unsolvable_pressure_reference _______
+
+    def test_closed_valve_isolation_reports_unsolvable_pressure_reference():
+        graph = _graph(opening=(1., 0.), loop=True, rpm=(1., 1.))
+        # Two valves in series connect a pressure reference to a free node. Closing
+        # both isolates the node: zero leakage must not manufacture a pressure datum.
+        from backend.liquidcooling.graphcompiling.compiled_graph import ValveIndices
+        graph.valve_indices = ValveIndices(torch.tensor([0, 1]), graph.edge_from, graph.edge_to)
+        graph.valve_params.D = graph.valve_params.D.repeat(2)
+        graph.valve_params.Kv_max = graph.valve_params.Kv_max.repeat(2)
+        graph.valve_params.characteristic = graph.valve_params.characteristic.repeat(2)
+        graph.valve_params.opening = graph.valve_params.opening.repeat(2, 1)
+        graph.pump_indices = graph.pump_params = None
+        _, m, info = nh.gga_solve(graph)
+>       assert not info["converged"]
+E       assert not True
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:118: AssertionError
+________ test_valve_headloss_derivative_matches_isa_pressure_drop[-1.0] ________
+
+sign = -1.0
+
+    @pytest.mark.parametrize("sign", [-1., 1.])
+    def test_valve_headloss_derivative_matches_isa_pressure_drop(sign):
+        graph = _graph(opening=(.5,))
+        m = torch.tensor([sign * .2], dtype=torch.float64)
+        dp, derivative = nh._compute_all_headlosses(m, graph)
+        rho = graph.fluid_rho
+        R = 1e5 * (rho / 1000.) * (3600. / (rho * 1.25)) ** 2
+>       torch.testing.assert_close(dp, R * m * m.abs(), rtol=1e-12, atol=1e-10)
+E       AssertionError: Tensor-likes are not close!
+E       
+E       Mismatched elements: 1 / 1 (100.0%)
+E       Greatest absolute difference: 33277.43229689067 at index (0,) (up to 1e-10 allowed)
+E       Greatest relative difference: 1.0 at index (0,) (up to 1e-12 allowed)
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:131: AssertionError
+________ test_valve_headloss_derivative_matches_isa_pressure_drop[1.0] _________
+
+sign = 1.0
+
+    @pytest.mark.parametrize("sign", [-1., 1.])
+    def test_valve_headloss_derivative_matches_isa_pressure_drop(sign):
+        graph = _graph(opening=(.5,))
+        m = torch.tensor([sign * .2], dtype=torch.float64)
+        dp, derivative = nh._compute_all_headlosses(m, graph)
+        rho = graph.fluid_rho
+        R = 1e5 * (rho / 1000.) * (3600. / (rho * 1.25)) ** 2
+>       torch.testing.assert_close(dp, R * m * m.abs(), rtol=1e-12, atol=1e-10)
+E       AssertionError: Tensor-likes are not close!
+E       
+E       Mismatched elements: 1 / 1 (100.0%)
+E       Greatest absolute difference: 33277.43229689067 at index (0,) (up to 1e-10 allowed)
+E       Greatest relative difference: 1.0 at index (0,) (up to 1e-12 allowed)
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:131: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[False-linear]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[False-equal_percentage]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[False-quick_opening]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[True-linear]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[True-equal_percentage]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_schedule_matches_isa_flow_and_direction[True-quick_opening]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_pump_schedule_changes_single_reference_loop_flow
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_constant_static_and_broadcast_controls_retain_solution
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[linear]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[equal_percentage]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees[quick_opening]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_nonfinite_later_control_does_not_hide_behind_first_step_success
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_large_tolerance_cannot_accept_gross_momentum_residual
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_closed_valve_isolation_reports_unsolvable_pressure_reference
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_headloss_derivative_matches_isa_pressure_drop[-1.0]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_headloss_derivative_matches_isa_pressure_drop[1.0]
+16 failed in 3.53s

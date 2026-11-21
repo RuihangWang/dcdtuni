@@ -1,0 +1,82 @@
+{
+  "scope": "static-mesh pressure-component MPI regression; not full Shinaide production convergence or physical accuracy",
+  "platform": "OpenFOAM v2412 linux64GccDPInt32Opt, conda dcdtuni, MPI >=2 ranks, CPU24-31, CUDA empty",
+  "upstream": "upstream-v2412/source-receipt.json",
+  "byteIdenticalUpstreamEquations": [
+    "UEqn.H",
+    "TEqn.H"
+  ],
+  "changedBehaviour": [
+    "component pressure references shared between SIMPLE and PIMPLE",
+    "SIMPLE final write after convergence loop preserves explicit BC values",
+    "PIMPLE static-only guard",
+    "runner transient default owned PIMPLE_new; missing build fails before MPI"
+  ],
+  "supportedCoupling": "ordinary cyclic and processor/processorCyclic; AMI/ACMI/unknown fail closed",
+  "pressureConvention": "p and configured pRefValue are total kinematic pressure, m^2/s^2; p_rgh=p-rhok*gh",
+  "sourceSha256": {
+    "src/backend/aircooling/runner/stlgen_runner.py": "461608bbe264ec48c29c77713a5471fbf81fbc04e4c40ec336674a975c1f5ea3",
+    "src/backend/aircooling/third_parties/foam/Allwmake": "c4defe6b5a7b7900ab1288d2d6463d8fbeabfcaf2aa4c40ad437fefec6350937",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/Make/files": "16af9e64b4188e3219999139da2301fb48e460b95777654880a8172460885d0d",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/Make/options": "2559497e75045ec5f83f71ec92f7770e6d0d4dab256ff5aec08c85dfcaac5e24",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/TEqn.H": "fab0e7dbd7ad35787f6902405e9a788decc3ed60bb680df9b77a2cd38d16f568",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/UEqn.H": "59111bf4523ab6c111c1735fa8cd3a92f06e43df3565a3845e64a25aaefa6497",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/buoyantBoussinesqPimpleFoam_new.C": "c490efa036307563da1b8b077f1d9ce8b37fdd0f87b090e1b3efcdb2b833c09e",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/createFields.H": "6a58b62ee58102ae86375a898e6c06f8549f4106f08e01394cc4ac2750b6e370",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqPimpleFoam_new/pEqn.H": "c2ce043de8338177b7875e06c7f82ab99adb1ac1ee248d8893e8eabc0f63e67e",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqSimpleFoam_new/Make/options": "3284251641fd566abd5d1b98926c42e79c92f03a0a5d3d1ce7e8de9217467fe8",
+    "src/backend/aircooling/third_parties/foam/src/applications/solvers/buoyantBoussinesqSimpleFoam_new/buoyantBoussinesqSimpleFoam_new.C": "96a6978193cac7786dc5687eb5092579a37f732dd44a28c30b5dcc879f9656a0",
+    "src/backend/aircooling/third_parties/foam/src/lib/pressureComponents/pressureComponentReferences.H": "d6eaddd58f7ab1a9bdb88d016e9b8b021d3fb11af93478e57fb1819432eaa3f6",
+    "src/backend/aircooling/third_parties/foam/template/system/transient/controlDict.j2": "1b730f5d94b710a58686033d537088dab3f1280a97e5ebf0e5379fa26a816362",
+    "src/backend/tests/test_pimple_component_solver.py": "3e1002d8fe2d1838270fb7a584c3d7da080a2455c4400702918e16373c6ebfb2",
+    "src/backend/tests/test_pressure_component_references.py": "24dc60e0dc08e281c8164b097e7b8d8c3bde2532b5bc053f1d9e7f51296fc385",
+    "tools/verify_pressure_component_gauges.sh": "3e3253f03735bd40f142693f2c76b0a4eb235c54870b21d9407fa5789bd33dd5"
+  },
+  "executables": {
+    "buoyantBoussinesqPimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqPimpleFoam_new",
+      "sha256": "bf09cd25c2cb9538192e7e6287d6a2d98fd0af126614314fd914e4d27f56267a"
+    },
+    "pressureComponentKernel": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/platforms/linux64GccDPInt32Opt/bin/pressureComponentKernel",
+      "sha256": "8f379e40b1448568c8f0d399f00e828646259ae789ef618c6fd3218c4a5d0ed9"
+    },
+    "buoyantBoussinesqSimpleFoam_new": {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqSimpleFoam_new",
+      "sha256": "066b4a5fbda1b27348cf92fd82c7c4a67246852b1a51340dfd4fa19e14d44214"
+    }
+  },
+  "accepted": {
+    "pytest": "pimple-final-ut-pytest-output.txt",
+    "result": "31 passed in 23.62s",
+    "numericalTests": 18,
+    "selectionAndExistingResolverTests": 13,
+    "actualSolverTests": {
+      "SIMPLE": 2,
+      "PIMPLE": 2,
+      "dynamicPreflightRejection": 1
+    },
+    "assertions": [
+      "actual End line",
+      "SIMPLE convergence marker (completed iteration)",
+      "final explicit nonuniform U/T physical patch values",
+      "total/reduced pressure values and hydrostatic relation",
+      "anchored component remains unshifted",
+      "closed component pRefValue honored"
+    ]
+  },
+  "baseline": {
+    "stockValid": "pimple-stock-pytest-output.txt",
+    "result": "1 failed, 1 passed, 15 deselected",
+    "failure": "closed-component DIC zero diagonal / floating point exception",
+    "fixtureDevelopmentFailure": "pimple-stock-invalid-fixture-pytest-output.txt",
+    "runnerFirstFail": "pimple-runner-before-pytest-output.txt",
+    "explicitBCFirstFail": "pimple-fixed-pytest-output.txt",
+    "explicitBCFirstFailResult": "2 failed, 29 passed"
+  },
+  "raw": {
+    "file": "pimple-raw.json",
+    "sha256": "17365a56f17eed62a188894a8a4963a82d0b942e6cf1db36cdbd556b4e923c2e",
+    "acceptedFileCount": 118
+  }
+}

@@ -1,0 +1,104 @@
+"""Differentiable losses for joint categorical/continuous design policies.
+
+Selection is independent Bernoulli conditional on each recorded proposal. HF
+failures retain finite target rewards; unpurchased outcomes stay NaN. Coefficients
+are fixed before current HF purchases. Loss gradients precede clipping/Adam.
+"""
+from __future__ import annotations
+import torch
+from agent.methods.estimators import rloo_advantages, ht_peer_baseline
+
+METHODS = ("hf-rloo", "lf-rloo", "scalar-aipw", "continuous-lax", "hf-path")
+
+def _vector(value, n, device, name, *, selected=None):
+    result = torch.as_tensor(value, dtype=torch.float64, device=device)
+    if result.shape != (n,):
+        raise ValueError(f"{name} must have one value per proposal")
+    used = result if selected is None else result[selected]
+    if not torch.isfinite(used).all():
+        raise ValueError(f"{name} requires finite purchased outcomes, including failures")
+    return result
+
+def _path(sample, gradient, name):
+    if gradient is None:
+        raise ValueError(f"{name} is unavailable; preserve forward outcomes and stop this gradient method")
+    gradient = torch.as_tensor(gradient, dtype=sample.values.dtype, device=sample.values.device)
+    if gradient.shape != sample.values.shape or not torch.isfinite(gradient).all():
+        raise ValueError(f"{name} must be a finite physical derivative per numerical value")
+    return (sample.values * gradient.detach()).sum(-1)
+
+def joint_policy_loss(sample, *, method, hf_rewards=None, lf_rewards=None,
+                      selected=None, probabilities=None, coefficient=1.0,
+                      proxy_gradients=None, hf_gradients=None,
+                      known_rewards=None, known_gradients=None):
+    """One IID group for one prompt; no group-standardization or missing imputation.
+
+    LAX proxy is LF minus the optional known smooth reward, with the exact same
+    derivative subtraction. The categorical target score is retained. A common
+    known-reward path correction, if provided, applies to every score baseline.
+    HF-path is a different, fully differentiable oracle baseline and needs all HF.
+    Missing optional gradients stop that method; they never change target I0.
+    """
+    if method not in METHODS:
+        raise ValueError("unknown estimator")
+    n = len(sample.actions)
+    if n < 2 or sample.values.ndim != 2:
+        raise ValueError("at least two IID proposals for one prompt required")
+    device = sample.values.device
+    if not torch.isfinite(torch.as_tensor(coefficient)).all():
+        raise ValueError("coefficient must be finite and frozen before current outcomes")
+    beta = float(coefficient)
+    known = torch.zeros(n, dtype=torch.float64, device=device)
+    known_path = torch.zeros(n, dtype=torch.float64, device=device)
+    if (known_rewards is None) != (known_gradients is None):
+        raise ValueError("known reward and its exact derivative must be provided together")
+    if known_rewards is not None:
+        known = _vector(known_rewards, n, device, "known reward").detach()
+        known_path = _path(sample, known_gradients, "known derivative")
+    if method in ("hf-rloo", "hf-path"):
+        hf = _vector(hf_rewards, n, device, "HF reward").detach()-known
+        baseline = (hf.sum() - hf) / (n-1)
+        if method == "hf-rloo":
+            advantage = rloo_advantages(hf).to(device)
+            loss = -(advantage.detach()*sample.log_prob).mean()
+        else:
+            loss = -((hf-baseline).detach()*sample.discrete_log_prob).mean()
+            loss = loss - (_path(sample, hf_gradients, "HF derivative")-known_path).mean()
+    elif method == "lf-rloo":
+        lf = _vector(lf_rewards, n, device, "LF reward").detach()-known
+        advantage = rloo_advantages(lf).to(device)
+        baseline = (lf.sum() - lf) / (n-1)
+        loss = -(advantage.detach()*sample.log_prob).mean()
+    else:
+        mask = torch.as_tensor(selected, dtype=torch.bool, device=device)
+        if mask.shape != (n,):
+            raise ValueError("selection must contain one independent Bernoulli draw per proposal")
+        q = _vector(probabilities, n, device, "acquisition probability").detach()
+        if (q <= 0).any() or (q > 1).any():
+            raise ValueError("probabilities must lie in (0,1]")
+        hf = _vector(hf_rewards, n, device, "HF reward", selected=mask).detach()-known
+        lf = _vector(lf_rewards, n, device, "LF reward").detach()-known
+        baseline = ht_peer_baseline(hf.cpu(), mask.cpu(), q.cpu()).to(device)
+        if method == "scalar-aipw":
+            signal = beta*lf
+            signal = signal.clone()
+            signal[mask] += (hf[mask]-beta*lf[mask])/q[mask]
+            loss = -((signal-baseline).detach()*sample.log_prob).mean()
+        else:
+            weighted_hf = torch.zeros_like(q)
+            weighted_hf[mask] = hf[mask]/q[mask]
+            proxy = lf
+            proxy_path = _path(sample, proxy_gradients, "LF derivative")-known_path
+            loss = -((weighted_hf-baseline).detach()*sample.discrete_log_prob).mean()
+            loss -= ((weighted_hf-beta*proxy-baseline).detach()*sample.continuous_log_prob).mean()
+            loss -= beta*proxy_path.mean()
+    # The same complete known term is supplied to every method, outside sparse
+    # acquisition. Keep its categorical derivative because x is conditional on s.
+    if known_rewards is not None:
+        known_baseline=(known.sum()-known)/(n-1)
+        loss -= ((known-known_baseline)*sample.discrete_log_prob).mean()+known_path.mean()
+    return loss, {"target": "LF" if method == "lf-rloo" else "HF",
+                  "HF_purchased": n if method in ("hf-rloo","hf-path") else
+                      (0 if method == "lf-rloo" else int(mask.sum())),
+                  "coefficient": beta, "baseline": baseline.detach().cpu().tolist(),
+                  "common_known_path": known_rewards is not None}

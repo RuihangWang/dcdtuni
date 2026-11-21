@@ -1,0 +1,1360 @@
+diff --git a/src/frontend/omniverse/cfd_demo/scripts/resolve_vulkan_gpu.py b/src/frontend/omniverse/cfd_demo/scripts/resolve_vulkan_gpu.py
+index 96062cf0..a7ba97c6 100644
+--- a/src/frontend/omniverse/cfd_demo/scripts/resolve_vulkan_gpu.py
++++ b/src/frontend/omniverse/cfd_demo/scripts/resolve_vulkan_gpu.py
+@@ -52,6 +52,31 @@ def device_index(summary, physical_uuid):
+     return matches[0]
+ 
+ 
++def resolve_gpu(physical_index, environment, run):
++    """Select the requested physical card; run owns bounded subprocess cleanup."""
++    requested = str(physical_index)
++    if not requested.isdigit():
++        raise ValueError("GPU must be a physical index")
++    result = run(["nvidia-smi", "-i", requested,
++                  "--query-gpu=index,uuid,pci.bus_id", "--format=csv,noheader,nounits"],
++                 env=environment, timeout=20)
++    lines = result.stdout.strip().splitlines()
++    if len(lines) != 1:
++        raise ValueError("Expected exactly one physical GPU")
++    fields = [field.strip() for field in lines[0].split(",")]
++    if len(fields) != 3 or fields[0] != requested or not fields[1].startswith("GPU-"):
++        raise ValueError("Requested physical index does not match NVIDIA response")
++    uuid.UUID(fields[1].removeprefix("GPU-"))
++    icd = select_icd(environment)
++    selected = dict(environment, VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd)
++    summary = run(["vulkaninfo", "--summary"], env=selected, timeout=20)
++    active = device_index(summary.stdout, fields[1])
++    override = environment.get("DC_CFD_ACTIVE_GPU")
++    if override and override != str(active):
++        raise ValueError("activeGpu override does not match requested physical UUID")
++    return fields[0], fields[1], fields[2], active, icd
++
++
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--uuid", required=True)
+diff --git a/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh b/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh
+index 217fc6c1..d51811e5 100755
+--- a/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh
++++ b/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh
+@@ -11,42 +11,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+ ASSET_ROOT="${DC_CFD_ASSET_ROOT:-$ROOT}"
+ REF="$ASSET_ROOT/src/frontend/omniverse/Ref_code/kit-cae"
+ BUILD="${DC_CFD_KIT_BUILD:-$REF/_build/linux-x86_64/release}"
+-# Fail fast, before ANY side effect (Xvfb :99 and Kit are started further down).
+-# kit-cae is NVIDIA's public repo, cloned and built out of band, so a clone of this
+-# repo does not have it. Without this check the script started Xvfb and only then
+-# died at `cd "$BUILD"`, leaving an orphan Xvfb that `fuser -k` cannot reach.
+-if [ ! -x "$BUILD/omni.cae_streaming.kit.sh" ]; then
+-    echo "[start_demo] ERROR: kit-cae is not built: $BUILD/omni.cae_streaming.kit.sh is missing." >&2
+-    echo "[start_demo] Clone NVIDIA-Omniverse/kit-cae (tag v2.0.1) into $REF and run ./repo.sh build" \
+-         "- see cfd_demo/DEPLOY.md section 2b and Troubleshooting." >&2
+-    exit 1
+-fi
+ DEMO="$ROOT/src/frontend/omniverse/cfd_demo"
+ EXT_DIR="$DEMO/kit/extensions"
+ # One physical GPU, default GPU0. CUDA is pinned by UUID; Vulkan's index
+ # must still match the same PCI bus (its enumeration ignores the CUDA mask).
+ GPU="${DC_CFD_GPU:-${CFD_GPU:-0}}"
+ [[ "$GPU" =~ ^[0-9]+$ ]] || { echo "[start_demo] ERROR: GPU must be a physical index" >&2; exit 2; }
+-GPU_INFO="$(nvidia-smi -i "$GPU" --query-gpu=index,uuid,pci.bus_id --format=csv,noheader,nounits)" \
+-  || { echo "[start_demo] ERROR: GPU #$GPU does not exist" >&2; exit 2; }
+-IFS=',' read -r GPU_INDEX GPU_UUID GPU_BUS_ID <<< "$GPU_INFO"
+-GPU_INDEX="${GPU_INDEX//[[:space:]]/}"; GPU_UUID="${GPU_UUID//[[:space:]]/}"
+-GPU_BUS_ID="${GPU_BUS_ID//[[:space:]]/}"
+-[[ "$GPU_INDEX" == "$GPU" && "$GPU_UUID" == GPU-* && "$GPU_INFO" != *$'\n'* ]] \
+-  || { echo "[start_demo] ERROR: expected exactly one physical GPU" >&2; exit 2; }
+-export CUDA_VISIBLE_DEVICES="$GPU_UUID"
+-CAE_DEVICE="cuda:0"
+-# Resolve by UUID under one process-local NVIDIA ICD. CUDA masks do not
+-# select Vulkan devices, and nvidia-smi ordinal is not a Vulkan ordinal.
+-GPU_SELECTION="$(python3 "$DEMO/scripts/resolve_vulkan_gpu.py" --uuid "$GPU_UUID")" || exit 2
+-IFS=$'\t' read -r ACTIVE_GPU VULKAN_ICD <<< "$GPU_SELECTION"
+-[[ "$ACTIVE_GPU" =~ ^[0-9]+$ && -f "$VULKAN_ICD" ]] || exit 2
+-if [[ -n "${DC_CFD_ACTIVE_GPU:-}" && "$DC_CFD_ACTIVE_GPU" != "$ACTIVE_GPU" ]]; then
+-    echo "[start_demo] ERROR: activeGpu override does not match requested physical UUID" >&2
+-    exit 2
+-fi
+-export VK_DRIVER_FILES="$VULKAN_ICD"
+-export VK_ICD_FILENAMES="$VULKAN_ICD"
+ # Signalling port the web UI dials. Parameterised for start_server.sh --ov-port;
+ # the historical fixed value stays the default.
+ SIGNAL_PORT="${DC_CFD_SIGNAL_PORT:-8301}"
+@@ -69,7 +39,39 @@ export CUDA_CACHE_PATH="$CACHE_ROOT/cuda"
+ export XDG_CACHE_HOME="$CACHE_ROOT/xdg-cache"
+ export XDG_CONFIG_HOME="$CACHE_ROOT/xdg-config"
+ export XDG_DATA_HOME="$CACHE_ROOT/xdg-data"
+-printf 'index=%s\nuuid=%s\npci_bus_id=%s\nactive_gpu=%s\nvulkan_icd=%s\n' "$GPU" "$GPU_UUID" "$GPU_BUS_ID" "$ACTIVE_GPU" "$VULKAN_ICD" > "$RUNTIME/gpu.txt"
++# Establish ownership before GPU/display preflight. The supervised child is
++# reached only with the supervisor's resolved, UUID-bound selection.
++if [[ "${1:-}" != --supervised-child ]]; then
++    SUPERVISOR=(python3 "$DEMO/scripts/supervise_kit.py" --runtime "$RUNTIME"
++        --display "${DC_CFD_DISPLAY:-:99}" --gpu "$GPU" --signal-port "$SIGNAL_PORT"
++        --required-executable "$BUILD/omni.cae_streaming.kit.sh"
++        --startup-timeout "${DC_CFD_STARTUP_TIMEOUT:-300}"
++        --preflight-timeout "${DC_CFD_PREFLIGHT_TIMEOUT:-20}")
++    if [[ "${DC_CFD_MANAGED:-0}" == 1 ]]; then
++        exec "${SUPERVISOR[@]}" --managed --parent-pid "${DC_CFD_PARENT_PID:-$PPID}" -- \
++            bash "$DEMO/scripts/start_demo.sh" --supervised-child
++    fi
++    "${SUPERVISOR[@]}" -- bash "$DEMO/scripts/start_demo.sh" --supervised-child \
++        > "$RUNTIME/launcher.log" 2>&1 &
++    echo "[start_demo] Supervisor PID $! ; log: $RUNTIME/kit.log"
++    echo "[start_demo] to start web UI: (cd $DEMO/web && npm run dev)"
++    exit 0
++fi
++[[ "${DC_CFD_SUPERVISOR_PID:-}" =~ ^[0-9]+$ ]] &&
++    [[ "$PPID" == "$DC_CFD_SUPERVISOR_PID" ]] &&
++    [[ "$(cat "$RUNTIME/supervisor.pid")" == "$DC_CFD_SUPERVISOR_PID" ]] ||
++    { echo "[start_demo] ERROR: supervised child requires its live owner" >&2; exit 2; }
++GPU_INDEX="${DC_CFD_RESOLVED_GPU:-}"
++GPU_UUID="${DC_CFD_RESOLVED_UUID:-}"
++GPU_BUS_ID="${DC_CFD_RESOLVED_PCI:-}"
++ACTIVE_GPU="${DC_CFD_RESOLVED_ACTIVE_GPU:-}"
++VULKAN_ICD="${DC_CFD_RESOLVED_ICD:-}"
++[[ "$GPU_INDEX" == "$GPU" && "$GPU_UUID" == GPU-* &&
++   "$ACTIVE_GPU" =~ ^[0-9]+$ && -f "$VULKAN_ICD" ]] ||
++    { echo "[start_demo] ERROR: missing supervised GPU selection" >&2; exit 2; }
++export CUDA_VISIBLE_DEVICES="$GPU_UUID"
++export VK_DRIVER_FILES="$VULKAN_ICD" VK_ICD_FILENAMES="$VULKAN_ICD"
++CAE_DEVICE="cuda:0"
+ AI_ENABLED="${DC_CFD_AI:-0}"
+ [[ "$AI_ENABLED" == 0 ]] || { echo "[start_demo] ERROR: this display launcher does not start an AI GPU worker" >&2; exit 2; }
+ # NOTE: /app/window/hideUi MUST stay false. In this headless --no-window
+@@ -161,13 +163,6 @@ KIT_COMMAND=( "$BUILD/omni.cae_streaming.kit.sh" --no-window
+   --/app/window/hideUi="$HIDE_UI"
+   --/persistent/app/viewport/Viewport/Viewport0/hud/visible=false
+  )
+-SUPERVISOR=(python3 "$DEMO/scripts/supervise_kit.py" --runtime "$RUNTIME" --display "$DISPLAY")
+-if [[ "${DC_CFD_MANAGED:-0}" == 1 ]]; then
+-    # exec preserves the launcher child PID; supervisor and Kit each receive
+-    # parent-death signals, covering cancellation before either socket is up.
+-    exec "${SUPERVISOR[@]}" --managed -- "${KIT_COMMAND[@]}"
+-fi
+-"${SUPERVISOR[@]}" -- "${KIT_COMMAND[@]}" > "$RUNTIME/launcher.log" 2>&1 &
+-echo "[start_demo] Supervisor PID $! ; log: $RUNTIME/kit.log"
+-
+-echo "[start_demo] to start web UI: (cd $DEMO/web && npm run dev)"
++# The built wrapper also uses exec; disallow an inherited EXEC override.
++unset EXEC
++exec "${KIT_COMMAND[@]}"
+diff --git a/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py b/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
+index 57270260..c3829b0c 100644
+--- a/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
++++ b/src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py
+@@ -1,12 +1,13 @@
+ #!/usr/bin/env python3
+-"""Own one Kit child through a private socket and Linux parent-death signals.
++"""Own OV preflight and one Kit session through a private control listener.
+ 
+-Only the launcher cleans the private socket with fuser; this helper never
+-searches for or signals existing processes. Every receipt and log stays in
+-this checkout. A child that has not bound its own port is still owned.
++All process signals target this supervisor's saved child sessions and UID.
++No existing process is searched by name or claimed through its signaling port.
+ """
+ import argparse
+ import ctypes
++import json
++import math
+ import os
+ from pathlib import Path
+ import signal
+@@ -14,6 +15,8 @@ import socket
+ import subprocess
+ import time
+ 
++from resolve_vulkan_gpu import resolve_gpu
++
+ 
+ def _parent_death_signal(expected_parent, death_signal=signal.SIGTERM):
+     libc = ctypes.CDLL(None, use_errno=True)
+@@ -29,30 +32,269 @@ def _write(runtime, name, value):
+     temporary.replace(runtime / name)
+ 
+ 
+-def _display_alive(display):
++def _process_identity(pid):
++    """Read kernel identity, not process names; sessions remain private."""
++    try:
++        directory = Path(f"/proc/{pid}")
++        data = (directory / "stat").read_text().rsplit(")", 1)[1].split()
++        return directory.stat().st_uid, int(data[3]), int(data[19]), data[0]
++    except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
++        return None
++
++
++def _session_members(session):
++    result = {}
++    for entry in Path("/proc").iterdir():
++        if entry.name.isdigit():
++            pid = int(entry.name)
++            identity = _process_identity(pid)
++            if identity and identity[0] == os.getuid() and identity[1] == session:
++                result[pid] = identity
++    return result
++
++
++def _pidfd_open(pid):
++    if hasattr(os, "pidfd_open"):
++        return os.pidfd_open(pid)
++    # Some older Python builds omit the API although the Linux kernel provides
++    # it. These x86-64 numbers are from asm/unistd_64.h; never fall back to an
++    # unprotected PID signal on another platform.
++    if os.uname().machine != "x86_64":
++        raise RuntimeError("safe pidfd signaling is unavailable on this platform")
++    libc = ctypes.CDLL(None, use_errno=True)
++    result = libc.syscall(434, int(pid), 0)
++    if result < 0:
++        error = ctypes.get_errno()
++        raise OSError(error, os.strerror(error))
++    return result
++
++
++def _pidfd_send_signal(fd, sig):
++    if hasattr(signal, "pidfd_send_signal"):
++        signal.pidfd_send_signal(fd, sig)
++        return
++    if os.uname().machine != "x86_64":
++        raise RuntimeError("safe pidfd signaling is unavailable on this platform")
++    libc = ctypes.CDLL(None, use_errno=True)
++    if libc.syscall(424, int(fd), int(sig), 0, 0) < 0:
++        error = ctypes.get_errno()
++        raise OSError(error, os.strerror(error))
++
++
++def _signal_member(pid, identity, sig):
++    # Hold kernel process identity, then verify UID/session/start-time. Ignore
++    # transient R/S/Z state when matching the same process.
+     try:
+-        return subprocess.run(["xdpyinfo"], env={**os.environ, "DISPLAY": display},
+-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2).returncode == 0
+-    except (OSError, subprocess.TimeoutExpired):
++        fd = _pidfd_open(pid)
++        try:
++            if (_process_identity(pid) or ())[:3] == identity[:3]:
++                _pidfd_send_signal(fd, sig)
++        finally:
++            os.close(fd)
++    except ProcessLookupError:
++        pass
++
++
++class Cancelled(RuntimeError):
++    pass
++
++
++class Owner:
++    def __init__(self, grace):
++        self.stop = False
++        self.grace = grace
++        self.sessions = []
++        self.session_starts = {}
++
++    def request_stop(self, signum, frame):
++        self.stop = True
++
++    def check(self):
++        if self.stop:
++            raise Cancelled("startup cancelled by launcher or parent death")
++
++    def spawn(self, command, **kwargs):
++        self.check()
++        owner = os.getpid()
++        child = subprocess.Popen(command, start_new_session=True,
++            preexec_fn=lambda: _parent_death_signal(owner, signal.SIGKILL), **kwargs)
++        self.sessions.append(child)
++        self.session_starts[child.pid] = _process_identity(child.pid)
++        if self.stop:
++            self.close(child)
++            self.check()
++        return child
++
++    def members(self, child):
++        current = _process_identity(child.pid)
++        original = self.session_starts.get(child.pid)
++        # A fully exited/reaped session ID can eventually be reused. Never
++        # claim a later same-UID session leader with the same numeric PID.
++        if current and original and current[:3] != original[:3]:
++            return {}
++        return _session_members(child.pid)
++
++    def close(self, child):
++        # Only this Popen-created session and our UID. Descendants with separate
++        # process groups (e.g. sh/zenity) stay in the same private session.
++        deadline = time.monotonic() + self.grace
++        for pid, identity in self.members(child).items():
++            _signal_member(pid, identity, signal.SIGTERM)
++        while time.monotonic() < deadline:
++            child.poll()
++            if not any(i[3] != "Z" for i in self.members(child).values()):
++                break
++            time.sleep(.02)
++        for pid, identity in self.members(child).items():
++            _signal_member(pid, identity, signal.SIGKILL)
++        try:
++            child.wait(timeout=2)
++        except subprocess.TimeoutExpired:
++            raise RuntimeError("owned child did not exit after session cleanup")
++        # Wait for killed descendants before the control socket closes. This
++        # also allows subreaper adoption and exact-PID reaping of grandchildren.
++        until = time.monotonic() + 2
++        while True:
++            members = self.members(child)
++            for pid, identity in members.items():
++                if pid != child.pid and identity[3] == "Z":
++                    try:
++                        os.waitpid(pid, os.WNOHANG)
++                    except ChildProcessError:
++                        pass
++            if not any(i[3] != "Z" for i in members.values()):
++                break
++            if time.monotonic() >= until:
++                raise RuntimeError("owned session descendants did not exit after cleanup")
++            time.sleep(.02)
++        if child in self.sessions:
++            self.sessions.remove(child)
++        self.session_starts.pop(child.pid, None)
++
++    def cleanup(self):
++        errors = []
++        for child in list(reversed(self.sessions)):
++            try:
++                self.close(child)
++            except Exception as error:
++                # One unreadable/failed session must not prevent attempts on
++                # the remaining owned sessions. Keep the failure explicit.
++                errors.append(f"session {child.pid}: {type(error).__name__}: {error}")
++        return errors
++
++    def probe(self, command, *, env, timeout, deadline):
++        self.check()
++        budget = min(timeout, max(0, deadline - time.monotonic()))
++        if budget <= 0:
++            raise RuntimeError("startup deadline expired before preflight")
++        child = self.spawn(command, env=env, text=True,
++                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++        until = time.monotonic() + budget
++        try:
++            while True:
++                self.check()
++                remaining = until - time.monotonic()
++                if remaining <= 0:
++                    raise RuntimeError(f"{Path(command[0]).name} deadline exceeded")
++                try:
++                    stdout, stderr = child.communicate(timeout=min(.1, remaining))
++                    break
++                except subprocess.TimeoutExpired:
++                    pass
++            if child.returncode:
++                # Never echo environment, auth keys, or arbitrary probe output.
++                raise RuntimeError(f"{Path(command[0]).name} preflight exited {child.returncode}")
++            return subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
++        finally:
++            self.close(child)
++
++
++def _listener_inodes(port):
++    found = set()
++    for name in ("tcp", "tcp6"):
++        for line in Path(f"/proc/self/net/{name}").read_text().splitlines()[1:]:
++            fields = line.split()
++            if fields[3] == "0A" and int(fields[1].rsplit(":", 1)[1], 16) == port:
++                found.add(fields[9])
++    return found
++
++
++def _owned_listener(pid, port):
++    listeners = _listener_inodes(port)
++    if not listeners:
++        return False
++    owned = set()
++    try:
++        for fd in Path(f"/proc/{pid}/fd").iterdir():
++            try:
++                target = os.readlink(fd)
++                if target.startswith("socket:["):
++                    owned.add(target[8:-1])
++            except FileNotFoundError:
++                pass
++    except FileNotFoundError:
+         return False
++    if listeners - owned:
++        raise RuntimeError("expected signaling port belongs to another process")
++    return bool(listeners & owned)
++
++
++def _fatal_log(runtime, offsets):
++    fatal = "[omni.gpu_foundation_factory.plugin] Failed to create any GPU devices"
++    for name in ("kit.log", "kit-internal.log"):
++        path = runtime / name
++        if not path.is_file():
++            continue
++        with path.open("r", errors="replace") as source:
++            source.seek(offsets.get(name, 0))
++            text = source.read()
++            offsets[name] = source.tell()
++        # Keep a short overlap in case a log writer splits the fatal line.
++        combined = offsets.get(name + ".tail", "") + text
++        offsets[name + ".tail"] = combined[-len(fatal):]
++        if fatal in combined:
++            raise RuntimeError("Kit GPU initialization failed; see kit.log")
++
++
++def _positive(value):
++    result = float(value)
++    if not math.isfinite(result) or not 0 < result <= 1800:
++        raise argparse.ArgumentTypeError("timeout must be finite and in (0, 1800]")
++    return result
+ 
+ 
+ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("--runtime", required=True)
+     parser.add_argument("--managed", action="store_true")
++    parser.add_argument("--parent-pid", type=int)
+     parser.add_argument("--display", default="")
++    parser.add_argument("--signal-port", type=int, default=0)
++    parser.add_argument("--gpu", type=int)
++    parser.add_argument("--required-executable")
++    parser.add_argument("--startup-timeout", type=_positive, default=300)
++    parser.add_argument("--preflight-timeout", type=_positive, default=20)
++    parser.add_argument("--cleanup-grace", type=_positive, default=1)
++    parser.add_argument("--poll-interval", type=_positive, default=.1)
+     parser.add_argument("command", nargs=argparse.REMAINDER)
+     args = parser.parse_args()
+     runtime = Path(args.runtime).resolve()
+     root = Path(__file__).resolve().parents[5]
+-    if os.path.commonpath([str(runtime), str(root)]) != str(root):
++    if not runtime.is_relative_to(root):
+         parser.error("runtime directory must stay inside this checkout")
+     command = args.command[1:] if args.command[:1] == ["--"] else args.command
+-    if not command:
+-        parser.error("Kit command is required")
++    if not command or not 0 <= args.signal_port <= 65535:
++        parser.error("Kit command and a valid signaling port are required")
++    if args.gpu is not None and args.gpu < 0:
++        parser.error("GPU must be a physical index")
++    owner = Owner(args.cleanup_grace)
++    signal.signal(signal.SIGTERM, owner.request_stop)
++    signal.signal(signal.SIGINT, owner.request_stop)
+     if args.managed:
+-        _parent_death_signal(os.getppid())
++        _parent_death_signal(args.parent_pid or os.getppid())
++    # Reap only our adopted descendants during owned session cleanup.
++    if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
++        raise OSError(ctypes.get_errno(), "PR_SET_CHILD_SUBREAPER failed")
+     runtime.mkdir(parents=True, exist_ok=True)
+     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as control:
+         control.bind(("127.0.0.1", 0))
+@@ -60,34 +302,124 @@ def main():
+         _write(runtime, "supervisor.pid", os.getpid())
+         _write(runtime, "supervisor.uid", os.getuid())
+         _write(runtime, "supervisor.port", control.getsockname()[1])
+-        owner = os.getpid()
+-        environment = dict(os.environ)
+-        if args.display:
+-            environment["DISPLAY"] = args.display
+-            if not _display_alive(args.display):
+-                with (runtime / "xvfb.log").open("wb") as xvfb_log:
+-                    display = subprocess.Popen(["Xvfb", args.display, "-screen", "0", "1920x1080x24"],
+-                        stdout=xvfb_log, stderr=subprocess.STDOUT,
+-                        preexec_fn=lambda: _parent_death_signal(owner))
+-                _write(runtime, "xvfb.pid", display.pid)
+-                for _ in range(20):
+-                    if _display_alive(args.display):
++        _write(runtime, "startup.timeout", args.startup_timeout)
++        deadline = time.monotonic() + args.startup_timeout
++        code = 1
++        try:
++            owner.check()
++            descriptor = _pidfd_open(os.getpid())
++            os.close(descriptor)
++            if args.required_executable and not os.access(args.required_executable, os.X_OK):
++                raise RuntimeError("kit-cae wrapper is missing or not executable")
++            if args.signal_port and _listener_inodes(args.signal_port):
++                raise RuntimeError("expected signaling port belongs to another process")
++            environment = dict(os.environ)
++            environment.pop("EXEC", None)
++            temporary = runtime / "tmp"
++            temporary.mkdir(exist_ok=True)
++            environment["TMPDIR"] = str(temporary)
++            if args.gpu is not None:
++                def run_probe(command, *, env, timeout):
++                    return owner.probe(command, env=env,
++                        timeout=min(timeout, args.preflight_timeout), deadline=deadline)
++                index, physical_uuid, pci, active, icd = resolve_gpu(args.gpu, environment, run_probe)
++                environment.update(CUDA_VISIBLE_DEVICES=physical_uuid,
++                    VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd,
++                    DC_CFD_RESOLVED_GPU=index, DC_CFD_RESOLVED_UUID=physical_uuid,
++                    DC_CFD_RESOLVED_PCI=pci, DC_CFD_RESOLVED_ACTIVE_GPU=str(active),
++                    DC_CFD_RESOLVED_ICD=icd)
++                _write(runtime, "gpu.txt",
++                    f"index={index}\nuuid={physical_uuid}\npci_bus_id={pci}\n"
++                    f"active_gpu={active}\nvulkan_icd={icd}")
++            environment["DC_CFD_SUPERVISOR_PID"] = str(os.getpid())
++            if args.display:
++                environment["DISPLAY"] = args.display
++                def display_alive():
++                    try:
++                        owner.probe(["xdpyinfo"], env=environment, timeout=2, deadline=deadline)
++                        return True
++                    except Cancelled:
++                        raise
++                    except RuntimeError:
++                        if owner.stop or time.monotonic() >= deadline:
++                            raise
++                        return False
++                if not display_alive():
++                    owner.check()
++                    if time.monotonic() >= deadline:
++                        raise RuntimeError("startup deadline expired before Xvfb launch")
++                    with (runtime / "xvfb.log").open("wb") as xvfb_log:
++                        display = owner.spawn(["Xvfb", args.display, "-screen", "0", "1920x1080x24"],
++                            env=environment, stdout=xvfb_log, stderr=subprocess.STDOUT)
++                    _write(runtime, "xvfb.pid", display.pid)
++                    for _ in range(20):
++                        if display_alive():
++                            break
++                        if display.poll() is not None:
++                            raise RuntimeError("Xvfb exited before the display became available")
++                        owner.check()
++                        time.sleep(.1)
++                    else:
++                        raise RuntimeError("Xvfb display did not become available")
++            owner.check()
++            if time.monotonic() >= deadline:
++                raise RuntimeError("startup deadline expired before Kit launch")
++            with (runtime / "kit.log").open("wb") as log:
++                child = owner.spawn(command, env=environment, stdout=log, stderr=subprocess.STDOUT)
++                _write(runtime, "kit.pid", child.pid)
++                ready = not args.signal_port
++                offsets = {}
++                while True:
++                    owner.check()
++                    _fatal_log(runtime, offsets)
++                    polled = child.poll()
++                    if polled is not None:
++                        code = polled
++                        if not ready:
++                            raise RuntimeError(f"Kit exited {code} before its signaling listener")
+                         break
+-                    if display.poll() is not None:
+-                        raise RuntimeError("Xvfb exited before the display became available")
+-                    time.sleep(0.1)
+-                else:
+-                    raise RuntimeError("Xvfb display did not become available")
+-        with (runtime / "kit.log").open("wb") as log:
+-            # Kit may block SIGTERM while its GPU initialization error dialog
+-            # is open, before binding any streamer port. If its own supervisor
+-            # is removed through fuser, release this exact child unconditionally.
+-            child = subprocess.Popen(command, env=environment, stdout=log, stderr=subprocess.STDOUT,
+-                preexec_fn=lambda: _parent_death_signal(owner, signal.SIGKILL))
+-            _write(runtime, "kit.pid", child.pid)
+-            code = child.wait()
+-            _write(runtime, "kit.exit", code)
+-            return code if code >= 0 else 128 - code
++                    if not ready:
++                        if _owned_listener(child.pid, args.signal_port):
++                            _write(runtime, "kit.ready", json.dumps({
++                                "pid": child.pid, "port": args.signal_port, "uid": os.getuid()}))
++                            ready = True
++                        elif time.monotonic() >= deadline:
++                            raise RuntimeError("Kit signaling listener deadline exceeded")
++                    time.sleep(args.poll_interval)
++        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
++            code = 1
++            message = str(error)
++            _write(runtime, "kit.failure", message)
++            print(f"[supervise_kit] ERROR: {message}; logs {runtime}/kit.log", flush=True)
++        finally:
++            try:
++                cleanup_errors = owner.cleanup()
++            except Exception as error:
++                # Defensive finalization if cleanup itself fails outside an
++                # individual close attempt. Never turn this into success.
++                cleanup_errors = [f"{type(error).__name__}: {error}"]
++            if cleanup_errors:
++                original_code = code
++                code = 1
++                message = "\n".join(cleanup_errors)
++                print(f"[supervise_kit] ERROR: owned session cleanup failed: {message}", flush=True)
++                receipts = [("cleanup.failure",
++                             f"original return code: {original_code}\n{message}")]
++                if not (runtime / "kit.failure").is_file():
++                    receipts.append(("kit.failure", "Owned session cleanup failed; see cleanup.failure"))
++                for name, value in receipts:
++                    try:
++                        _write(runtime, name, value)
++                    except OSError as error:
++                        # Still attempt the other failure/exit receipts when a
++                        # single receipt cannot be written.
++                        print(f"[supervise_kit] ERROR: cannot write {name}: {error}", flush=True)
++            try:
++                _write(runtime, "kit.exit", code)
++            except OSError as error:
++                code = 1
++                print(f"[supervise_kit] ERROR: cannot write kit.exit: {error}", flush=True)
++        return code if code >= 0 else 128 - code
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py b/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py
+index c453e38a..9da60799 100644
+--- a/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py
+@@ -33,7 +33,10 @@ def _stopped(pid, timeout=5):
+     deadline = time.monotonic() + timeout
+     while time.monotonic() < deadline:
+         status = Path(f"/proc/{pid}/status")
+-        if not status.exists() or "\nState:\tZ" in status.read_text():
++        try:
++            if "\nState:\tZ" in status.read_text():
++                return True
++        except FileNotFoundError:
+             return True
+         time.sleep(.02)
+     return False
+@@ -44,7 +47,7 @@ def _fuser(runtime):
+     pid = (runtime / "supervisor.pid").read_text().strip()
+     owners = subprocess.run(["fuser", port + "/tcp"], capture_output=True, text=True)
+     assert owners.stdout.strip() == pid
+-    subprocess.run(["fuser", "-k", port + "/tcp"], capture_output=True, check=True)
++    subprocess.run(["fuser", "-k", "-TERM", port + "/tcp"], capture_output=True, check=True)
+ 
+ 
+ @pytest.fixture
+@@ -147,8 +150,12 @@ def test_build_failure_cleans_unbound_kit(fake_kit, tmp_path):
+     assert len(created) == 1
+     runtime = created.pop()
+     assert "React 构建失败" in result.stderr
+-    assert _stopped(int((runtime / "kit.pid").read_text()))
++    # Ownership is established before GPU preflight. A failed frontend build
++    # may cancel before Kit is spawned; a child, if published, must be gone.
++    if (runtime / "kit.pid").exists():
++        assert _stopped(int((runtime / "kit.pid").read_text()))
+     assert _stopped(int((runtime / "supervisor.pid").read_text()))
++    assert (runtime / "kit.exit").is_file()
+ 
+ 
+ def test_supervisor_death_releases_child_that_ignores_sigterm(tmp_path):
+diff --git a/src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py b/src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py
+index 2e31a38d..afd774bc 100644
+--- a/src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py
++++ b/src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py
+@@ -30,3 +30,42 @@ def test_one_process_local_manifest_is_required(tmp_path):
+     manifest.write_text(json.dumps({"ICD":{"library_path":"libmesa.so"}}))
+     with pytest.raises(ValueError):
+         selection.select_icd({"DC_CFD_VULKAN_ICD":str(manifest)})
++
++
++def test_physical_selection_propagates_one_uuid_and_driver_to_bounded_runner(tmp_path):
++    manifest=tmp_path/"nvidia.json"
++    manifest.write_text(json.dumps({"ICD":{"library_path":"libGLX_nvidia.so.0"}}))
++    environment={"DC_CFD_VULKAN_ICD":str(manifest)}
++    calls=[]
++    def run(command, *, env, timeout):
++        from subprocess import CompletedProcess
++        calls.append((command,dict(env),timeout))
++        if command[0]=="nvidia-smi":
++            return CompletedProcess(command,0,f"0, GPU-{UUID}, 00000000:01:00.0\n","")
++        return CompletedProcess(command,0,block(3),"")
++    assert selection.resolve_gpu(0,environment,run)==("0","GPU-"+UUID,"00000000:01:00.0",3,str(manifest))
++    assert len(calls)==2 and all(call[2]==20 for call in calls)
++    assert calls[1][1]["VK_DRIVER_FILES"]==calls[1][1]["VK_ICD_FILENAMES"]==str(manifest)
++
++
++@pytest.mark.parametrize("response", [
++    f"1, GPU-{UUID}, 00000000:01:00.0\n",
++    f"0, GPU-{UUID}, 00000000:01:00.0\n0, GPU-{UUID}, 00000000:01:00.0\n"])
++def test_wrong_physical_index_or_multiple_cards_fail_before_vulkan(response):
++    from subprocess import CompletedProcess
++    def run(command, *, env, timeout):
++        assert command[0]=="nvidia-smi"
++        return CompletedProcess(command,0,response,"")
++    with pytest.raises(ValueError):
++        selection.resolve_gpu(0,{},run)
++
++
++def test_active_gpu_override_must_match_uuid_not_physical_ordinal(tmp_path):
++    from subprocess import CompletedProcess
++    manifest=tmp_path/"nvidia.json"
++    manifest.write_text(json.dumps({"ICD":{"library_path":"libGLX_nvidia.so.0"}}))
++    def run(command, *, env, timeout):
++        return CompletedProcess(command,0,
++            f"0, GPU-{UUID}, 00000000:01:00.0\n" if command[0]=="nvidia-smi" else block(3),"")
++    with pytest.raises(ValueError,match="override"):
++        selection.resolve_gpu(0,{"DC_CFD_VULKAN_ICD":str(manifest),"DC_CFD_ACTIVE_GPU":"0"},run)
+diff --git a/src/start_server.sh b/src/start_server.sh
+index 8e2242cf..6e1454c4 100755
+--- a/src/start_server.sh
++++ b/src/start_server.sh
+@@ -249,14 +249,26 @@ sanitize_foam_env() {
+ CLEANUP_PORTS=()
+ OV_RUNTIME_DIRS=()
+ cleanup_ov_runtime() {
+-    local runtime="$1" control_port supervisor_pid pids
++    local runtime="$1" control_port supervisor_pid pids i
+     [[ -f "$runtime/supervisor.port" && -f "$runtime/supervisor.pid" ]] || return 0
+     read -r control_port < "$runtime/supervisor.port"
+     read -r supervisor_pid < "$runtime/supervisor.pid"
+     [[ "$control_port" =~ ^[0-9]+$ && "$supervisor_pid" =~ ^[0-9]+$ ]] || return 0
+     pids="$(port_own_pids "$control_port")"
+     # A stale receipt must never terminate a reused port or another launcher.
+-    [[ "$pids" == "$supervisor_pid" ]] && fuser -k "${control_port}/tcp" 2>/dev/null || true
++    if [[ "$pids" == "$supervisor_pid" ]]; then
++        # Normal supervisor termination closes its private Kit/probe sessions.
++        fuser -k -TERM "${control_port}/tcp" 2>/dev/null || true
++        # A probe cleanup retry plus two owned sessions can require ~15s
++        # in the exceptional path. Healthy cleanup returns immediately.
++        for i in $(seq 1 200); do
++            [[ "$(port_own_pids "$control_port")" == "$supervisor_pid" ]] || return 0
++            sleep 0.1
++        done
++        # Preserve the existing exact-port/UID fallback for a stuck supervisor.
++        [[ "$(port_own_pids "$control_port")" == "$supervisor_pid" ]] &&
++            fuser -k "${control_port}/tcp" 2>/dev/null || true
++    fi
+ }
+ cleanup() {
+     local p runtime
+@@ -271,27 +283,33 @@ trap cleanup EXIT INT TERM
+ 
+ start_ov_bridge() {
+     # The supervisor owns a private control socket before Kit starts. Cleanup
+-    # can reach it before the slow Kit binds its signalling port; PDEATHSIG
+-    # then stops only its direct Kit child, including failed/cancelled startup.
++    # can reach it before GPU preflight or the slow Kit binds its signaling
++    # port; normal cleanup closes its own child sessions and descendants.
+     free_port_or_die "$OV_PORT" "Omniverse Kit 信令"
+     mkdir -p "$REPO_ROOT/.codex-tmp/ov-runtime"
+     local runtime i
++    OV_STARTUP_TIMEOUT="${DC_CFD_STARTUP_TIMEOUT:-300}"
++    [[ "$OV_STARTUP_TIMEOUT" =~ ^[0-9]+$ ]] &&
++        (( OV_STARTUP_TIMEOUT >= 1 && OV_STARTUP_TIMEOUT <= 1800 )) ||
++        { echo "错误：DC_CFD_STARTUP_TIMEOUT 必须为 1..1800 秒" >&2; exit 2; }
+     runtime="$(mktemp -d "$REPO_ROOT/.codex-tmp/ov-runtime/${OV_PORT}.XXXXXX")"
+     OV_RUNTIME_DIRS+=("$runtime")
++    OV_CURRENT_RUNTIME="$runtime"
+     export DCDTUNI_OV_SIGNALING_PORT="$OV_PORT"
+     echo "启动 Omniverse Kit 显示桥（GPU #$OV_GPU · 信令 :$OV_PORT · 日志 $runtime/kit.log）..."
+     DC_CFD_GPU="$OV_GPU" DC_CFD_AI=0 DC_CFD_SIGNAL_PORT="$OV_PORT" \
+-        DC_CFD_RUNTIME_DIR="$runtime" DC_CFD_MANAGED=1 \
++        DC_CFD_RUNTIME_DIR="$runtime" DC_CFD_MANAGED=1 DC_CFD_PARENT_PID="$$" \
+         bash "$REPO_ROOT/src/frontend/omniverse/cfd_demo/scripts/start_demo.sh" \
+         > "$runtime/launcher.log" 2>&1 &
+     OV_LAUNCHER_PID=$!
+     for i in $(seq 1 100); do
+-        if [[ -f "$runtime/kit.exit" ]]; then
++        if [[ -f "$runtime/kit.failure" || -f "$runtime/kit.exit" ]]; then
++            [[ -f "$runtime/kit.failure" ]] && cat "$runtime/kit.failure" >&2
+             echo "错误：Omniverse Kit 在启动时退出，日志 $runtime/kit.log" >&2
+             exit 1
+         fi
+-        if [[ -f "$runtime/supervisor.port" && -f "$runtime/kit.pid" ]]; then
+-            echo "  Kit 启动已托管；日志 $runtime/kit.log（首帧约 2 分钟）。"
++        if [[ -f "$runtime/supervisor.port" && -f "$runtime/supervisor.pid" ]]; then
++            echo "  GPU 预检与 Kit 启动已托管；日志 $runtime/kit.log。"
+             return 0
+         fi
+         if [[ ! -d "/proc/$OV_LAUNCHER_PID" ]]; then
+@@ -305,6 +323,31 @@ start_ov_bridge() {
+     exit 1
+ }
+ 
++
++await_ov_ready() {
++    local runtime="$OV_CURRENT_RUNTIME" i
++    # Backend starts in parallel. No browser/decoded-frame ACK is needed here:
++    # kit.ready certifies that this exact Kit owns its signaling listener.
++    for i in $(seq 1 $(( (OV_STARTUP_TIMEOUT + 5) * 10 ))); do
++        if [[ -f "$runtime/kit.failure" || -f "$runtime/kit.exit" ]]; then
++            [[ -f "$runtime/kit.failure" ]] && cat "$runtime/kit.failure" >&2
++            echo "错误：Omniverse Kit 启动未就绪，日志 $runtime/kit.log" >&2
++            exit 1
++        fi
++        if [[ -f "$runtime/kit.ready" ]]; then
++            echo "  Kit 信令已就绪：:$OV_PORT（视频与 scene ACK 由浏览器验证）。"
++            return 0
++        fi
++        if [[ ! -d "/proc/$OV_LAUNCHER_PID" ]]; then
++            echo "错误：Omniverse 启动监督器已退出，日志 $runtime/launcher.log" >&2
++            exit 1
++        fi
++        sleep 0.1
++    done
++    echo "错误：Omniverse 启动超过 $OV_STARTUP_TIMEOUT 秒，日志 $runtime/kit.log" >&2
++    exit 1
++}
++
+ start_backend() {
+     free_port_or_die "$BACKEND_PORT" "后端 HTTP"
+     [[ "$BACKEND_WS_PORT" != "$BACKEND_PORT" ]] && free_port_or_die "$BACKEND_WS_PORT" "后端 WS"
+@@ -373,6 +416,7 @@ case "$APP" in
+         if (( DEV )); then
+             # 开发版：Vite 提供界面并热更新，Python 只提供 /api，两个端口。
+             (( NO_BACKEND )) || start_backend
++            (( OV )) && await_ov_ready
+             free_port_or_die "$PORT" "React UI"
+             CLEANUP_PORTS+=("$PORT")
+             banner "/"
+@@ -399,6 +443,7 @@ case "$APP" in
+                 step_time "npm run build"
+             fi
+             start_backend
++            (( OV )) && await_ov_ready
+             banner "/"
+             wait "$BACKEND_PID"
+         fi
+@@ -426,6 +471,7 @@ case "$APP" in
+         [[ -d "$DEMO_DIR/web/node_modules" ]] \
+             || { echo "错误：请先在 ${DEMO_DIR}/web 下执行 npm install" >&2; exit 1; }
+         start_ov_bridge
++        await_ov_ready
+         free_port_or_die "$PORT" "Omniverse Web UI"
+         CLEANUP_PORTS+=("$PORT")
+         banner "/"
+diff --git a/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py b/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py
+new file mode 100644
+index 00000000..6dbc22cd
+--- /dev/null
++++ b/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py
+@@ -0,0 +1,537 @@
++"""Owned OV startup with CPU-only fake processes and local listeners."""
++import json
++import os
++from pathlib import Path
++import socket
++import subprocess
++import sys
++import time
++import pytest
++
++ROOT = Path(__file__).resolve().parents[5]
++SUPERVISOR = ROOT / "src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py"
++UUID = "11111111-1111-1111-1111-111111111111"
++
++def wait_file(path, process=None, timeout=5):
++    end=time.monotonic()+timeout
++    while time.monotonic()<end:
++        if path.is_file(): return path.read_text().strip()
++        if process is not None and process.poll() is not None:
++            raise AssertionError(f"exited before {path.name}: {process.returncode}")
++        time.sleep(.02)
++    raise AssertionError(f"missing receipt {path.name}")
++
++def stopped(pid, timeout=4):
++    end=time.monotonic()+timeout
++    while time.monotonic()<end:
++        path=Path(f"/proc/{pid}/status")
++        try:
++            if "\nState:\tZ" in path.read_text(): return True
++        except FileNotFoundError:
++            return True
++        time.sleep(.02)
++    return False
++
++def free_port():
++    with socket.socket() as listener:
++        listener.bind(("127.0.0.1",0))
++        return listener.getsockname()[1]
++
++def launch(tmp_path, code, *, port=None, timeout=.5, env=None, extra=()):
++    assert tmp_path.is_relative_to(ROOT)
++    runtime=tmp_path/"runtime"
++    script=tmp_path/"fake_kit.py"
++    script.write_text(code)
++    command=[sys.executable,str(SUPERVISOR),"--runtime",str(runtime),"--signal-port",
++        str(port or free_port()),"--startup-timeout",str(timeout),"--poll-interval",".02",
++        "--cleanup-grace",".1",*extra,"--",sys.executable,str(script)]
++    output=(tmp_path/"supervisor.log").open("wb")
++    process=subprocess.Popen(command,env=env,stdout=output,stderr=subprocess.STDOUT)
++    return runtime,process,output
++
++def descendants_code(tmp_path, fatal=False, pid_name="descendant.pid"):
++    pid_file=tmp_path/pid_name
++    code=("import os, pathlib, subprocess, sys, time\n"
++          "child=subprocess.Popen([sys.executable,'-c',"
++          "'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'],preexec_fn=os.setpgrp)\n"
++          f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n")
++    if fatal:
++        code+=("print('[omni.gpu_foundation_factory.plugin] Failed to create any GPU devices, "
++               "including an attempt with compatibility mode.',flush=True)\n")
++    return code+"time.sleep(60)\n",pid_file
++
++@pytest.mark.parametrize("fatal",[False,True])
++def test_deadline_or_known_fatal_cleans_owned_descendants(tmp_path,fatal):
++    code,pid_file=descendants_code(tmp_path,fatal)
++    runtime,process,output=launch(tmp_path,code,timeout=.4)
++    descendant=int(wait_file(pid_file,process))
++    kit=int(wait_file(runtime/"kit.pid",process))
++    try:
++        assert process.wait(timeout=5)!=0
++        failure=wait_file(runtime/"kit.failure")
++        assert ("GPU initialization failed" if fatal else "signaling listener deadline") in failure
++        assert not (runtime/"kit.ready").exists()
++        assert stopped(kit) and stopped(descendant)
++        assert (runtime/"kit.exit").is_file()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++def test_only_owned_kit_listener_is_ready_and_stop_closes_its_session(tmp_path):
++    port=free_port()
++    code,pid_file=descendants_code(tmp_path)
++    code=code.rsplit("time.sleep(60)\n",1)[0]+(
++        f"import socket\ns=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
++    runtime,process,output=launch(tmp_path,code,port=port,timeout=2)
++    descendant=int(wait_file(pid_file,process));kit=int(wait_file(runtime/"kit.pid",process))
++    try:
++        ready=json.loads(wait_file(runtime/"kit.ready",process))
++        assert ready["pid"]==kit and ready["port"]==port
++        assert process.poll() is None
++        process.terminate();process.wait(timeout=5)
++        assert stopped(kit) and stopped(descendant)
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++def test_foreign_listener_never_counts_as_ready_or_gets_signalled(tmp_path):
++    with socket.socket() as foreign:
++        foreign.bind(("127.0.0.1",0));foreign.listen()
++        port=foreign.getsockname()[1]
++        runtime,process,output=launch(tmp_path,"import time;time.sleep(60)",port=port)
++        try:
++            assert process.wait(timeout=5)!=0
++            assert "belongs to another process" in wait_file(runtime/"kit.failure")
++            assert not (runtime/"kit.ready").exists()
++            with socket.create_connection(("127.0.0.1",port),timeout=.2): pass
++        finally:
++            if process.poll() is None:
++                process.terminate();process.wait(timeout=5)
++            output.close()
++
++def fake_gpu(tmp_path,hang_probe=False):
++    binaries=tmp_path/"bin";binaries.mkdir()
++    manifest=tmp_path/"nvidia.json"
++    manifest.write_text(json.dumps({"ICD":{"library_path":"libGLX_nvidia.so.0"}}))
++    nvidia=binaries/"nvidia-smi"
++    if hang_probe:
++        probe=tmp_path/"probe.py"
++        probe.write_text(descendants_code(tmp_path,pid_name="probe-descendant.pid")[0])
++        nvidia.write_text(f"#!/bin/sh\nexec {sys.executable} {probe}\n")
++    else:
++        nvidia.write_text(f"#!/bin/sh\nprintf '0, GPU-{UUID}, 00000000:01:00.0\\n'\n")
++    nvidia.chmod(0o755)
++    vulkan=binaries/"vulkaninfo"
++    vulkan.write_text(f"#!/bin/sh\nprintf 'GPU3:\\n vendorID = 0x10de\\n deviceUUID = {UUID}\\n'\n")
++    vulkan.chmod(0o755)
++    return dict(os.environ,PATH=str(binaries)+":"+os.environ["PATH"],
++                DC_CFD_VULKAN_ICD=str(manifest))
++
++def test_preflight_is_bounded_and_owned_before_probe_runs(tmp_path):
++    env=fake_gpu(tmp_path,hang_probe=True)
++    runtime,process,output=launch(tmp_path,"raise AssertionError('must not launch Kit')",env=env,
++        extra=("--gpu","0","--preflight-timeout",".2"))
++    descendant=int(wait_file(tmp_path/"probe-descendant.pid",process))
++    try:
++        assert (runtime/"supervisor.port").exists()
++        assert process.wait(timeout=5)!=0
++        assert "nvidia-smi deadline" in wait_file(runtime/"kit.failure")
++        assert not (runtime/"kit.pid").exists()
++        assert stopped(descendant)
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++def test_parent_death_during_preflight_cleans_probe_descendant(tmp_path):
++    env=fake_gpu(tmp_path,hang_probe=True);runtime=tmp_path/"runtime"
++    parent_script=tmp_path/"parent.py"
++    command=[sys.executable,str(SUPERVISOR),"--runtime",str(runtime),"--managed",
++        "--signal-port",str(free_port()),"--startup-timeout","5","--preflight-timeout","5",
++        "--cleanup-grace",".1","--gpu","0"]
++    parent_script.write_text("import os,subprocess,sys,time\n"
++        f"cmd={command!r}\n"
++        "cmd+=['--parent-pid',str(os.getpid()),'--',sys.executable,'-c','import time;time.sleep(60)']\n"
++        "subprocess.Popen(cmd)\ntime.sleep(60)\n")
++    with (tmp_path/"parent.log").open("wb") as output:
++        parent=subprocess.Popen([sys.executable,str(parent_script)],env=env,
++            stdout=output,stderr=subprocess.STDOUT)
++        try:
++            descendant=int(wait_file(tmp_path/"probe-descendant.pid",parent))
++            supervisor=int(wait_file(runtime/"supervisor.pid",parent))
++            parent.terminate();parent.wait(timeout=5)
++            assert stopped(supervisor) and stopped(descendant)
++            assert "startup cancelled" in wait_file(runtime/"kit.failure")
++            assert not (runtime/"kit.pid").exists()
++        finally:
++            if parent.poll() is None:
++                parent.terminate();parent.wait(timeout=5)
++
++def test_successful_fake_preflight_preserves_single_uuid_and_one_icd(tmp_path):
++    env=fake_gpu(tmp_path);env["EXEC"]="invalid-bypass"
++    port=free_port();observed=tmp_path/"observed.json"
++    code=("import json,os,pathlib,socket,time\n"
++        f"pathlib.Path({str(observed)!r}).write_text(json.dumps({{k:os.environ[k] for k in ['CUDA_VISIBLE_DEVICES','VK_DRIVER_FILES','VK_ICD_FILENAMES','DC_CFD_RESOLVED_ACTIVE_GPU','EXEC'] if k in os.environ}}))\n"
++        f"s=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
++    runtime,process,output=launch(tmp_path,code,port=port,timeout=2,env=env,
++        extra=("--gpu","0","--preflight-timeout",".5"))
++    try:
++        wait_file(runtime/"kit.ready",process);data=json.loads(observed.read_text())
++        assert data["CUDA_VISIBLE_DEVICES"]=="GPU-"+UUID
++        assert data["VK_DRIVER_FILES"]==data["VK_ICD_FILENAMES"]==env["DC_CFD_VULKAN_ICD"]
++        assert data["DC_CFD_RESOLVED_ACTIVE_GPU"]=="3"
++        assert "EXEC" not in data
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_vulkan_probe_timeout_also_cleans_its_descendant(tmp_path):
++    env=fake_gpu(tmp_path)
++    probe=tmp_path/"vulkan-probe.py"
++    probe.write_text(descendants_code(tmp_path,pid_name="vulkan-descendant.pid")[0])
++    executable=tmp_path/"bin/vulkaninfo"
++    executable.write_text(f"#!/bin/sh\nexec {sys.executable} {probe}\n")
++    executable.chmod(0o755)
++    runtime,process,output=launch(tmp_path,"raise AssertionError('must not launch Kit')",
++        env=env,extra=("--gpu","0","--preflight-timeout",".2"),timeout=2)
++    descendant=int(wait_file(tmp_path/"vulkan-descendant.pid",process))
++    try:
++        assert process.wait(timeout=5)!=0
++        assert "vulkaninfo deadline" in wait_file(runtime/"kit.failure")
++        assert not (runtime/"kit.pid").exists()
++        assert stopped(descendant)
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_missing_wrapper_fails_inside_owner_before_any_probe(tmp_path):
++    env=fake_gpu(tmp_path,hang_probe=True)
++    runtime,process,output=launch(tmp_path,"raise AssertionError('must not launch Kit')",
++        env=env,extra=("--gpu","0","--required-executable",str(tmp_path/"missing")))
++    try:
++        assert process.wait(timeout=5)!=0
++        assert (runtime/"supervisor.port").exists()
++        assert "wrapper is missing" in wait_file(runtime/"kit.failure")
++        assert not (tmp_path/"probe-descendant.pid").exists()
++        assert not (runtime/"kit.pid").exists()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_unrelated_process_is_not_part_of_cleanup(tmp_path):
++    unrelated=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"],
++                               start_new_session=True)
++    runtime,process,output=launch(tmp_path,"import time;time.sleep(60)",timeout=.15)
++    try:
++        assert process.wait(timeout=5)!=0
++        assert unrelated.poll() is None
++        assert (runtime/"kit.failure").exists()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        unrelated.terminate();unrelated.wait(timeout=5)
++        output.close()
++
++
++@pytest.mark.parametrize("ready", [False,True])
++def test_launcher_wait_reports_failure_or_owned_readiness(tmp_path,ready):
++    start=ROOT/"src/start_server.sh"
++    source=start.read_text()
++    function=source.split("await_ov_ready() {",1)[1].split("\nstart_backend() {",1)[0]
++    runtime=tmp_path/"wait-runtime";runtime.mkdir()
++    (runtime/("kit.ready" if ready else "kit.failure")).write_text(
++        "owned listener" if ready else "Kit signaling listener deadline exceeded")
++    harness=tmp_path/"wait.sh"
++    harness.write_text('set -euo pipefail\nawait_ov_ready() {'+function+
++        f'\nOV_CURRENT_RUNTIME={str(runtime)!r}\nOV_LAUNCHER_PID=$$\nOV_PORT=18301\n'
++        'OV_STARTUP_TIMEOUT=1\nawait_ov_ready\n')
++    result=subprocess.run(["bash",str(harness)],capture_output=True,text=True,timeout=3)
++    if ready:
++        assert result.returncode==0 and "Kit 信令已就绪" in result.stdout
++    else:
++        assert result.returncode!=0 and "signaling listener deadline" in result.stderr
++
++
++def test_signal_identity_ignores_transient_process_state(monkeypatch):
++    import importlib.util
++    sys.path.insert(0,str(SUPERVISOR.parent))
++    try:
++        spec=importlib.util.spec_from_file_location("owned_ov_supervisor",SUPERVISOR)
++        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++    finally:
++        sys.path.remove(str(SUPERVISOR.parent))
++    seen=[]
++    identity=(os.getuid(),123,456,"R")
++    monkeypatch.setattr(module,"_process_identity",lambda pid:(os.getuid(),123,456,"S"))
++    monkeypatch.setattr(module,"_pidfd_open",lambda pid:77)
++    monkeypatch.setattr(module.os,"close",lambda fd:None)
++    monkeypatch.setattr(module,"_pidfd_send_signal",lambda fd,sig:seen.append((fd,sig)))
++    module._signal_member(123,identity,module.signal.SIGTERM)
++    assert seen==[(77,module.signal.SIGTERM)]
++
++
++def test_retry_warning_is_not_the_final_gpu_factory_fatal(tmp_path):
++    port=free_port()
++    code=("import socket,time\n"
++        "print('[Error] [omni.gpu_foundation_factory.plugin] No device could be created. Retrying.',flush=True)\n"
++        f"s=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
++    runtime,process,output=launch(tmp_path,code,port=port,timeout=1)
++    try:
++        wait_file(runtime/"kit.ready",process)
++        assert not (runtime/"kit.failure").exists()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_kernel_pidfd_path_works_when_python_build_omits_the_wrappers(monkeypatch):
++    import importlib.util
++    sys.path.insert(0,str(SUPERVISOR.parent))
++    try:
++        spec=importlib.util.spec_from_file_location("owned_ov_pidfd",SUPERVISOR)
++        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++    finally:
++        sys.path.remove(str(SUPERVISOR.parent))
++    child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"],
++                           start_new_session=True)
++    try:
++        monkeypatch.delattr(module.os,"pidfd_open",raising=False)
++        monkeypatch.delattr(module.signal,"pidfd_send_signal",raising=False)
++        identity=module._process_identity(child.pid)
++        module._signal_member(child.pid,identity,module.signal.SIGTERM)
++        assert child.wait(timeout=3)==-module.signal.SIGTERM
++    finally:
++        if child.poll() is None:
++            child.terminate();child.wait(timeout=3)
++
++
++def load_supervisor(name):
++    import importlib.util
++    sys.path.insert(0,str(SUPERVISOR.parent))
++    try:
++        spec=importlib.util.spec_from_file_location(name,SUPERVISOR)
++        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++        return module
++    finally:
++        sys.path.remove(str(SUPERVISOR.parent))
++
++
++def test_cleanup_attempts_all_sessions_and_collects_each_failure(monkeypatch):
++    from types import SimpleNamespace
++    module=load_supervisor("ov_cleanup_all_sessions")
++    owner=module.Owner(.1)
++    owner.sessions=[SimpleNamespace(pid=101),SimpleNamespace(pid=102)]
++    attempts=[]
++    def close(child):
++        attempts.append(child.pid)
++        if child.pid==102:
++            raise OSError(5,"injected process metadata I/O failure")
++        owner.sessions.remove(child)
++    monkeypatch.setattr(owner,"close",close)
++    errors=owner.cleanup()
++    assert attempts==[102,101]
++    assert len(errors)==1 and "102" in errors[0] and "OSError" in errors[0]
++
++
++@pytest.mark.parametrize("startup_failure",[False,True])
++def test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit(tmp_path,monkeypatch,startup_failure):
++    from types import SimpleNamespace
++    import signal
++    module=load_supervisor("ov_cleanup_visible")
++    runtime=tmp_path/"cleanup-failure-runtime"
++    fake=SimpleNamespace(pid=99999999,poll=lambda:0)
++    def spawn(owner,command,**kwargs):
++        owner.sessions.append(fake)
++        return fake
++    def close(owner,child):
++        raise OSError(5,"injected owned-session cleanup failure")
++    monkeypatch.setattr(module.Owner,"spawn",spawn)
++    monkeypatch.setattr(module.Owner,"close",close)
++    args=["supervise_kit","--runtime",str(runtime),"--","fake-kit"]
++    if startup_failure:
++        args[3:3]=["--signal-port",str(free_port())]
++    monkeypatch.setattr(sys,"argv",args)
++    original_handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
++    try:
++        code=module.main()
++    finally:
++        for sig,handler in original_handlers.items():
++            signal.signal(sig,handler)
++    assert code!=0 and (runtime/"kit.exit").read_text().strip()!="0"
++    assert "owned-session cleanup failure" in (runtime/"cleanup.failure").read_text()
++    failure=(runtime/"kit.failure").read_text()
++    if startup_failure:
++        assert failure.strip()=="Kit exited 0 before its signaling listener"
++    else:
++        assert "cleanup failed" in failure
++
++
++def test_proc_disappearance_is_expected_but_unexpected_io_is_not_hidden(monkeypatch):
++    module=load_supervisor("ov_proc_errors")
++    original=Path.read_text
++    def missing(path,*args,**kwargs):
++        if str(path)=="/proc/99999999/stat":
++            raise ProcessLookupError(3,"process disappeared")
++        return original(path,*args,**kwargs)
++    monkeypatch.setattr(Path,"read_text",missing)
++    assert module._process_identity(99999999) is None
++    def io_error(path,*args,**kwargs):
++        if str(path)=="/proc/99999999/stat":
++            raise OSError(5,"unexpected process metadata I/O failure")
++        return original(path,*args,**kwargs)
++    monkeypatch.setattr(Path,"read_text",io_error)
++    with pytest.raises(OSError,match="I/O failure"):
++        module._process_identity(99999999)
++
++
++def test_expired_total_deadline_never_starts_the_next_display_child(tmp_path):
++    binaries=tmp_path/"display-bin";binaries.mkdir()
++    wait=tmp_path/"display-probe.py"
++    wait.write_text("import time;time.sleep(60)\n")
++    xdpy=binaries/"xdpyinfo"
++    xdpy.write_text(f"#!/bin/sh\nexec {sys.executable} {wait}\n");xdpy.chmod(0o755)
++    marker=tmp_path/"xvfb-was-started"
++    xvfb_script=tmp_path/"fake-xvfb.py"
++    xvfb_script.write_text(f"import pathlib,time;pathlib.Path({str(marker)!r}).write_text('started');time.sleep(60)\n")
++    xvfb=binaries/"Xvfb"
++    xvfb.write_text(f"#!/bin/sh\nexec {sys.executable} {xvfb_script}\n");xvfb.chmod(0o755)
++    env=dict(os.environ,PATH=str(binaries)+":"+os.environ["PATH"])
++    runtime,process,output=launch(tmp_path,"raise AssertionError('no Kit after expiry')",
++        env=env,timeout=.15,extra=("--display",":fake"))
++    try:
++        assert process.wait(timeout=5)!=0
++        assert "deadline" in (runtime/"kit.failure").read_text()
++        assert not marker.exists()
++        assert not (runtime/"kit.pid").exists()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_failure_receipt_write_error_still_attempts_exit_receipt(tmp_path,monkeypatch):
++    from types import SimpleNamespace
++    import signal
++    module=load_supervisor("ov_cleanup_receipt_write")
++    runtime=tmp_path/"receipt-failure-runtime"
++    fake=SimpleNamespace(pid=99999999,poll=lambda:0)
++    def spawn(owner,command,**kwargs):
++        owner.sessions.append(fake);return fake
++    def close(owner,child):
++        raise RuntimeError("injected owned close failure")
++    actual_write=module._write;seen=[]
++    def write(runtime,name,value):
++        seen.append(name)
++        if name=="cleanup.failure":
++            raise PermissionError(13,"injected one receipt write refusal")
++        actual_write(runtime,name,value)
++    monkeypatch.setattr(module.Owner,"spawn",spawn)
++    monkeypatch.setattr(module.Owner,"close",close)
++    monkeypatch.setattr(module,"_write",write)
++    monkeypatch.setattr(sys,"argv",["supervise_kit","--runtime",str(runtime),"--","fake-kit"])
++    handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
++    try:
++        assert module.main()!=0
++    finally:
++        for sig,handler in handlers.items():signal.signal(sig,handler)
++    assert "cleanup.failure" in seen and "kit.failure" in seen and seen[-1]=="kit.exit"
++    assert (runtime/"kit.exit").read_text().strip()!="0"
++    assert "cleanup failed" in (runtime/"kit.failure").read_text()
++
++
++def test_cancelled_display_probe_is_never_treated_as_an_unavailable_display(tmp_path,monkeypatch):
++    import signal
++    module=load_supervisor("ov_display_cancelled")
++    runtime=tmp_path/"cancelled-display-runtime"
++    calls=[]
++    def probe(owner,*args,**kwargs):
++        # Explicit cancellation is terminal independently of the stop flag.
++        raise module.Cancelled("explicit display cancellation")
++    def spawn(owner,command,**kwargs):
++        calls.append(command)
++        raise RuntimeError("unwanted display child after cancellation")
++    monkeypatch.setattr(module.Owner,"probe",probe)
++    monkeypatch.setattr(module.Owner,"spawn",spawn)
++    monkeypatch.setattr(sys,"argv",["supervise_kit","--runtime",str(runtime),
++        "--display",":fake","--","fake-kit"])
++    handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
++    try:
++        assert module.main()!=0
++    finally:
++        for sig,handler in handlers.items():signal.signal(sig,handler)
++    assert not calls
++    assert (runtime/"kit.failure").read_text().strip()=="explicit display cancellation"
++
++
++def test_term_control_cleanup_closes_kit_descendants_and_owned_display_session(tmp_path):
++    binaries=tmp_path/"two-session-bin";binaries.mkdir()
++    display_ready=tmp_path/"fake-display-ready"
++    display_pid=tmp_path/"fake-display.pid"
++    display_script=tmp_path/"fake-display.py"
++    display_script.write_text("import os,pathlib,signal,time\n"
++        "signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
++        f"pathlib.Path({str(display_pid)!r}).write_text(str(os.getpid()))\n"
++        f"pathlib.Path({str(display_ready)!r}).write_text('ready')\ntime.sleep(60)\n")
++    xvfb=binaries/"Xvfb"
++    xvfb.write_text(f"#!/bin/sh\nexec {sys.executable} {display_script}\n");xvfb.chmod(0o755)
++    xdpy=binaries/"xdpyinfo"
++    xdpy.write_text(f"#!/bin/sh\ntest -f {str(display_ready)!r}\n");xdpy.chmod(0o755)
++    env=dict(os.environ,PATH=str(binaries)+":"+os.environ["PATH"])
++    port=free_port();code,descendant_file=descendants_code(tmp_path)
++    code=code.rsplit("time.sleep(60)\n",1)[0]+(
++        f"import socket\ns=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
++    runtime,process,output=launch(tmp_path,code,port=port,timeout=3,env=env,
++        extra=("--display",":fake"))
++    try:
++        wait_file(runtime/"kit.ready",process)
++        display=int(wait_file(display_pid,process))
++        descendant=int(wait_file(descendant_file,process))
++        kit=int((runtime/"kit.pid").read_text())
++        control=(runtime/"supervisor.port").read_text().strip()
++        owner=subprocess.run(["fuser",control+"/tcp"],capture_output=True,text=True)
++        assert owner.stdout.strip()==str(process.pid)
++        start=time.monotonic()
++        subprocess.run(["fuser","-k","-TERM",control+"/tcp"],capture_output=True,check=True)
++        assert process.wait(timeout=5)!=0
++        assert time.monotonic()-start<5
++        assert stopped(kit) and stopped(descendant) and stopped(display)
++        assert not (runtime/"cleanup.failure").exists()
++        assert "startup cancelled" in (runtime/"kit.failure").read_text()
++    finally:
++        if process.poll() is None:
++            process.terminate();process.wait(timeout=5)
++        output.close()
++
++
++def test_display_becoming_false_cannot_launch_after_deadline_crossing(tmp_path,monkeypatch):
++    import signal
++    module=load_supervisor("ov_display_boundary")
++    runtime=tmp_path/"display-boundary-runtime"
++    # The display probe returns unavailable just before the deadline; the
++    # decision to spawn happens after it. No process or display is launched.
++    ticks=iter([0,.1,1.1]);calls=[]
++    monkeypatch.setattr(module.time,"monotonic",lambda:next(ticks))
++    def probe(owner,*args,**kwargs):
++        raise RuntimeError("display unavailable before deadline")
++    def spawn(owner,command,**kwargs):
++        calls.append(command);raise RuntimeError("late display spawn")
++    monkeypatch.setattr(module.Owner,"probe",probe)
++    monkeypatch.setattr(module.Owner,"spawn",spawn)
++    monkeypatch.setattr(sys,"argv",["supervise_kit","--runtime",str(runtime),
++        "--startup-timeout","1","--display",":fake","--","fake-kit"])
++    handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
++    try:
++        assert module.main()!=0
++    finally:
++        for sig,handler in handlers.items():signal.signal(sig,handler)
++    assert not calls
++    assert (runtime/"kit.failure").read_text().strip()=="startup deadline expired before Xvfb launch"

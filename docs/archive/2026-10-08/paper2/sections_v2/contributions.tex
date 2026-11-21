@@ -1,0 +1,78 @@
+% ===========================================================================
+% sections_v2/contributions.tex -- round-8 rewrite: a qualitative list only.
+% Every number in this paper lives in Sec. VII and in the % source: comments
+% there.  This file states what the paper contributes and what it does not
+% claim, with section pointers and no quantitative claim of its own, so that
+% the introduction can never drift from the results again.
+% Cross-file labels: sec:rw-concurrent is defined in sections_v2/related_work.tex.
+% ===========================================================================
+\subsection{Contributions}
+\label{sec:contributions}
+
+\begin{enumerate}
+
+\item \textbf{A physically closed relaxation for discrete structural decisions
+  inside a production water-network solver, with an adjoint that matches central
+  differences to the finite-difference floor ($3\times10^{-10}$ at interior points,
+  $1.4\times10^{-3}$ at one-hot closed-branch coordinates)}
+  (\cref{sec:method,sec:e0lc}).  The relaxation lives inside the solver's own
+  friction law, so every probability vector over design tokens is a network the
+  unmodified solver can simulate.  Closure is a measured neighbourhood property:
+  the floor below which unchosen branches vanish is swept, and its price
+  reported at every value.
+
+\item \textbf{The bias of a first-order pathwise gradient depends on the
+  \emph{type} of decision it is asked about} (\cref{sec:e0lc,sec:e1lc}).  On
+  the production solver the same adjoint ranks catalogue edits faithfully and
+  structural re-assignments poorly, and no estimator in the compared family
+  repairs the asymmetry.
+
+\item \textbf{A measurement protocol for post-training design agents, and the
+  accounting it produces} (\cref{sec:e2,sec:e2B} and Supplementary Sec.~S-VII).  Paired per-task
+  tests at the stated seed count, an endpoint-versus-best-checkpoint census over
+  every archived run, and a decomposition of each objective reduction into
+  design and penalty parts.  Applied here it shows post-training buying
+  constraint satisfaction by spending design quality on one benchmark, and
+  regressing against its own warm start on the other.  The protocol's one
+  unqualified positive is at matched budget on a 6{,}599-parameter factorised
+  policy, where pathwise halves scalar-reward regret (\cref{sec:baselines}).
+  % source: ddl/case/analysis/v2A_table/loggers/20260915T175120Z_gpuserver/
+  %         results_v2A_table.json -> table, paired_wilcoxon; break-even from
+  %         ddl/case/analysis/consistency_inputs/loggers/20260915T154717Z_gpuserver/
+  %         results_consistency.json -> c_breakeven.
+  The break-even arithmetic of \cref{sec:discussion} states the amortisation
+  threshold as a falsifiable prediction for the minutes-per-solve regime.
+
+\item \textbf{A protocol for scoring gradient estimators when the artefact
+  that ships is a hard design} (\cref{sec:e1lc,sec:discussion}).  The
+  conventional metric, cosine against a high-sample unbiased reference, is only
+  a description of a nine-arm table here (\cref{sec:e1lc}), so we do not use it.
+  The substitute is discrete edit selection, validated by a deterministic probe:
+  paired over ten confident policy points the exact adjoint beats the
+  scalar-reward arm (\cref{sec:e1lc}, one-sided $p=0.0020$).
+  % source: ddl/case/analysis/round10_reanalysis/loggers/20260915T201839Z_gpuserver/
+  %         results_round10.json (rho, permutation p); edit-selection paired test from
+  %         ddl/case/benchB/E1d_edit_ranking/loggers/20260915T150207Z_edit5seed.
+
+\item \textbf{Benchmark validity as a result} (\cref{sec:setup} and
+  Supplementary Sec.~S-X).  The first benchmark of this line of work failed a
+  physicality audit that its own labels made computable.  The repair is verified
+  against enumeration wherever enumeration is possible, and every result carries
+  the physics configuration it was run under.
+
+\end{enumerate}
+
+\subsection{What we do not claim}
+\label{sec:notclaim}
+
+Four negative statements bound the five positive ones.  We do not claim that
+pathwise estimators beat score-function estimators in general; our evidence is
+about decision types, not estimators.  We do not claim that post-training
+improves design quality: on both benchmarks it either buys feasibility at a
+design cost or regresses against its warm start.  We do not claim a scale
+result, since no 27B run is reported here
+(\cref{sec:e27b}), nor that a language model beats constrained search where
+search is cheap (\cref{sec:baselines}).  A concurrent paper made the Global
+Gradient Method differentiable before this draft froze \cite{mu2026gga}; our
+relaxation and the weight-level use of its adjoint are independent of that work
+(\cref{sec:rw-concurrent}).

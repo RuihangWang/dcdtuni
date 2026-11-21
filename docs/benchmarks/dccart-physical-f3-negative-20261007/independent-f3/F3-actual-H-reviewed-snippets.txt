@@ -1,0 +1,58 @@
+27:inline bool pointHard(const O::Values& old,const O::Values& next,Statistics& s)
+28:{
+29:    s=Statistics();
+30:    if(old.refusal!=O::Refusal::none||next.refusal!=O::Refusal::none
+31:      ||old.cells.size()!=next.cells.size()||old.metrics.size()!=next.metrics.size()
+32:      ||old.determinant.size()!=next.determinant.size())return false;
+33:    for(const auto& row:old.determinant)
+34:    {
+35:        auto p=next.determinant.find(row.first);
+36:        if(p==next.determinant.end()||!O::finite(row.second)||row.second<0
+37:          ||!O::finite(p->second)||p->second<0)return false;
+38:        if(row.second>=.001&&p->second<.001)return false;
+39:        if(row.second<.001){++s.oldD;s.oldDWorst=max(s.oldDWorst,W::severity(row.second,0));}
+40:        if(p->second<.001){++s.newD;s.newDWorst=max(s.newDWorst,W::severity(p->second,0));}
+41:    }
+42:    if(s.newD>=s.oldD||s.newDWorst>s.oldDWorst)return false;
+43:    for(const auto& row:old.metrics)
+44:    {
+45:        auto p=next.metrics.find(row.first);if(p==next.metrics.end())return false;
+46:        for(unsigned k=0;k<4;++k)
+47:        {
+48:            const scalar a=row.second[k],b=p->second[k];
+49:            if(!O::finite(a)||a<0||!O::finite(b)||b<0)return false;
+50:            if(k<3&&W::pass(a,k+1)&&!W::pass(b,k+1))return false;
+51:            if(!W::pass(a,k+1)){++s.oldBad[k];s.oldWorst[k]=max(s.oldWorst[k],W::severity(a,k+1));}
+52:            if(!W::pass(b,k+1)){++s.newBad[k];s.newWorst[k]=max(s.newWorst[k],W::severity(b,k+1));}
+53:        }
+54:    }
+55:    for(unsigned k=0;k<4;++k)
+56:        if(s.newBad[k]>s.oldBad[k]||s.newWorst[k]>s.oldWorst[k])return false;
+57:    return true;
+58:}
+381:    bool fail(Refusal why){ready_=false;prepared_.reset();refusal_=why;return false;}
+465:    const O::Values& oldValues()const{return old_;}
+466:    const O::Values& newValues()const{return next_;}
+618:    bool local(const point& q,Statistics& statistics)
+619:    {
+620:        if(!owner_||!installed_||!awake())return fail(Refusal::clock);
+621:        E::Context ec([&](){return awake();});
+622:        if(!O::finite(q)||O::bits(q,owner_->points[rep_])||!footprint(*owner_,q,ec)||!exactCore(q,ec))
+623:            return fail(Refusal::coverage);
+624:        const std::map<label,point> move{{rep_,q}};
+625:        if(!O::evaluate(before_,move,[&](){return awake();},next_,
+626:            [&](const O::GeometryMesh& m,const std::map<label,label>& c,const std::map<label,label>& f)
+627:            {return P::installedGeometry(m,c,f,before_,[&](){return awake();});},&grant_))
+628:            return fail(Refusal::geometry);
+629:        if(!pointHard(old_,next_,statistics))return fail(Refusal::quality);
+630:        const std::set<label> core(before_.core.begin(),before_.core.end());
+631:        for(const auto& c:before_.cells)if(!core.count(c.native))
+632:        {
+633:            const auto a=old_.cells.at(c.native),b=next_.cells.at(c.native);
+634:            if(!O::bits(a.first,b.first)||!O::bits(a.second,b.second))return fail(Refusal::installed);
+635:        }
+636:        for(std::size_t p=0;p<oldGlobalPoints_.size();++p)
+637:        {
+638:            if((p&255)==0&&!awake())return fail(Refusal::clock);
+639:            if(label(p)!=rep_&&mag(q-oldGlobalPoints_[p])<=3e-6)return fail(Refusal::alias);
+640:        }

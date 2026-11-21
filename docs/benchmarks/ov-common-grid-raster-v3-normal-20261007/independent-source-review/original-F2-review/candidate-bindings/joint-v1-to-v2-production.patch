@@ -1,0 +1,17 @@
+--- joint-v1/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
++++ joint-v2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
+@@ -384,8 +384,12 @@
+         self._serial += 1
+         self._request = None
+         self._contract = None
+-        # Retain owner and monotone histories: withdrawal must not permit a
+-        # previous owner/revision to be replayed as a new observation.
++        # Withdrawal retires this newer view even though its measurement is
++        # unusable. Keep only proven primitive floors, never the invalid data.
++        self._last_view = revision
++        if output_revision > self._output_revision or output != self._output_observation:
++            self._output_revision = output_revision
++            self._output_observation = None
+         self.receipt = {'phase':'rejected','reason':'grid-lowering-rejected','viewRevision':revision}
+ 
+     def validate_binding(self, stage, view):

@@ -1,0 +1,60 @@
+63:inline bool between(const point& a,const point& b,const point& p,bool strict)
+64:{
+65:    bool unequal=false;
+66:    for(direction k=0;k<3;++k)
+67:    {
+68:        if(p[k]<min(a[k],b[k])||p[k]>max(a[k],b[k]))return false;
+69:        if(a[k]!=b[k]){unequal=true;if(strict&&(p[k]==a[k]||p[k]==b[k]))return false;}
+70:    }
+71:    return unequal;
+72:}
+73:inline bool collinear(const point& a,const point& b,const point& p,E::Context& ec)
+74:{
+75:    const auto o=E::vector(ep(a),ec);
+76:    return zero(E::cross(E::difference(E::vector(ep(b),ec),o,ec),
+77:                         E::difference(E::vector(ep(p),ec),o,ec),ec))&&ec.good();
+380:    bool awake()const{return deadline_.available()&&O::available(bounded_);}
+381:    bool fail(Refusal why){ready_=false;prepared_.reset();refusal_=why;return false;}
+599:    bool midpoint(point& target)
+600:    {
+601:        if(rep_<0||groups_.size()!=2||!awake())return false;
+602:        E::Context ec([&](){return awake();});std::vector<std::pair<point,point>> edges;
+603:        for(std::size_t i=0;i<groups_[0].outline.size();++i)
+604:        {
+605:            const point a=groups_[0].outline[i],b=groups_[0].outline[(i+1)%groups_[0].outline.size()];
+606:            if(!collinear(a,b,owner_->points[rep_],ec)||!between(a,b,owner_->points[rep_],true))continue;
+607:            for(std::size_t j=0;j<groups_[1].outline.size();++j)
+608:            {
+609:                const point c=groups_[1].outline[j],d=groups_[1].outline[(j+1)%groups_[1].outline.size()];
+610:                if(!((a==c&&b==d)||(a==d&&b==c)))continue;
+611:                unsigned varying=0;for(direction k=0;k<3;++k)if(a[k]!=b[k])++varying;
+612:                if(varying!=1)return false;edges.emplace_back(a,b);
+613:            }
+614:        }
+615:        if(edges.size()!=1||!ec.good())return false;
+616:        target=(edges[0].first+edges[0].second)*.5;return O::finite(target);
+617:    }
+618:    bool local(const point& q,Statistics& statistics)
+619:    {
+620:        if(!owner_||!installed_||!awake())return fail(Refusal::clock);
+621:        E::Context ec([&](){return awake();});
+622:        if(!O::finite(q)||O::bits(q,owner_->points[rep_])||!footprint(*owner_,q,ec)||!exactCore(q,ec))
+623:            return fail(Refusal::coverage);
+624:        const std::map<label,point> move{{rep_,q}};
+625:        if(!O::evaluate(before_,move,[&](){return awake();},next_,
+626:            [&](const O::GeometryMesh& m,const std::map<label,label>& c,const std::map<label,label>& f)
+627:            {return P::installedGeometry(m,c,f,before_,[&](){return awake();});},&grant_))
+628:            return fail(Refusal::geometry);
+629:        if(!pointHard(old_,next_,statistics))return fail(Refusal::quality);
+630:        const std::set<label> core(before_.core.begin(),before_.core.end());
+631:        for(const auto& c:before_.cells)if(!core.count(c.native))
+632:        {
+633:            const auto a=old_.cells.at(c.native),b=next_.cells.at(c.native);
+634:            if(!O::bits(a.first,b.first)||!O::bits(a.second,b.second))return fail(Refusal::installed);
+635:        }
+636:        for(std::size_t p=0;p<oldGlobalPoints_.size();++p)
+637:        {
+638:            if((p&255)==0&&!awake())return fail(Refusal::clock);
+639:            if(label(p)!=rep_&&mag(q-oldGlobalPoints_[p])<=3e-6)return fail(Refusal::alias);
+640:        }
+641:        proposed_=q;refusal_=Refusal::none;return true;

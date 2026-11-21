@@ -1,0 +1,123 @@
+{
+ "V0_pass": true,
+ "arms": {
+  "ddl/case/benchC/E12_geom_posttrain/loggers/20260917T1355Z_gpuserver/ste_s0/log.jsonl": {
+   "arm": "ste",
+   "records": 200,
+   "expected_steps": 200,
+   "steps_done": 200,
+   "oom_events": 0,
+   "run_invalid": false,
+   "frac_steps_completed": 1.0,
+   "physics": {
+    "forward": 6400,
+    "adjoint": 6400
+   },
+   "adapter_dir": "final",
+   "frac_rescale_saturated": 0.0,
+   "frac_loss_over_1e3": 0.005,
+   "frac_task_grad_degenerate": 0.0,
+   "frac_sf_zero": null,
+   "frac_sf_zero_with_signal": null,
+   "sf_zero_steps_with_signal": [],
+   "sf_zero_steps_guarded": [],
+   "n_sf_zero_guarded": 0,
+   "rescale_large_finite_steps": [
+    {
+     "step": 1,
+     "task_grad_rescale": 1731167.3585138696
+    }
+   ],
+   "n_rescale_large_finite": 1,
+   "loss_large_steps": [
+    {
+     "step": 1,
+     "abs_loss": 949334.8774441535
+    }
+   ],
+   "n_loss_large": 1,
+   "amendment": 29,
+   "sf_present": 0,
+   "a11_6_literal": {
+    "criterion": "grad_norms.sf == 0 on 0% of logged epochs (zero tolerance)",
+    "frac_sf_zero": null,
+    "n_sf_zero": 0,
+    "sf_present": 0,
+    "pass": null
+   },
+   "steps_with_nonzero_gradient": null,
+   "guard_branch_has_no_upper_bound": true,
+   "warnings": [],
+   "pass_with_warnings": false,
+   "key_presence": {
+    "task_grad_rescale": "200/200",
+    "loss": "200/200"
+   },
+   "pass": true,
+   "reasons": []
+  },
+  "ddl/case/benchC/E12_geom_posttrain/loggers/20260917T1355Z_gpuserver/grpo_s0/log.jsonl": {
+   "arm": "grpo",
+   "records": 200,
+   "expected_steps": 200,
+   "steps_done": 200,
+   "oom_events": 0,
+   "run_invalid": false,
+   "frac_steps_completed": 1.0,
+   "physics": {
+    "forward": 3200,
+    "adjoint": 0
+   },
+   "adapter_dir": "final",
+   "frac_rescale_saturated": 0.0,
+   "frac_loss_over_1e3": 0.0,
+   "frac_task_grad_degenerate": 0.325,
+   "frac_sf_zero": 0.075,
+   "frac_sf_zero_with_signal": 0.0,
+   "sf_zero_steps_with_signal": [],
+   "sf_zero_steps_guarded": [
+    1,
+    78,
+    79,
+    100,
+    101,
+    105,
+    114,
+    117,
+    119,
+    121,
+    128,
+    133,
+    137,
+    171,
+    197
+   ],
+   "n_sf_zero_guarded": 15,
+   "rescale_large_finite_steps": [],
+   "n_rescale_large_finite": 0,
+   "loss_large_steps": [],
+   "n_loss_large": 0,
+   "amendment": 29,
+   "sf_present": 200,
+   "a11_6_literal": {
+    "criterion": "grad_norms.sf == 0 on 0% of logged epochs (zero tolerance)",
+    "frac_sf_zero": 0.075,
+    "n_sf_zero": 15,
+    "sf_present": 200,
+    "pass": false
+   },
+   "steps_with_nonzero_gradient": 185,
+   "guard_branch_has_no_upper_bound": true,
+   "warnings": [
+    "grad_norms.sf == 0 on 15 of 200 steps (7.5%), every one with a zeroed rescale and a degenerate task gradient, i.e. the Amendment-19 guard rather than the float32 bug. A11.6 pre-registered 0% at zero tolerance, so this arm does NOT meet the criterion as literally written; it passes under Amendment 29's mechanistic split. The guard branch has no upper bound, so an arm with sf == 0 on every step but the last would also pass clause 3 while failing clause 5."
+   ],
+   "pass_with_warnings": true,
+   "key_presence": {
+    "task_grad_rescale": "200/200",
+    "loss": "200/200"
+   },
+   "pass": true,
+   "reasons": []
+  }
+ }
+}

@@ -1,0 +1,149 @@
+[tool.poetry]
+name = "dcdtuni"
+version = "4.0.1"
+
+description = "Building Multiphysics Digital Twin for Data Centers."
+authors = ["Li Tianyu", "Nyguang Houanghuy", "Wang Ruihang", "Cao Zhiwei", "Lin Feng", "Yang Miao"]
+packages = [
+    {include = "backend", from = "src"},
+    # The slim agent layer on agent.scripted_api (the pre-2026-10-22 tree is kept at the tag
+    # agent-pre-slim-2026-10-22, not in the repository).
+    {include = "agent", from = "src"},
+]
+
+[[tool.poetry.source]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+jinja2 = "3.1.2"
+markupsafe = "2.0.1"
+loguru = "*"
+pydantic = ">=2.0"
+numpy = "<2.0.0"
+vtk = "9.5.1"
+pyvista = "^0.47.1"
+websockets = ">=12.0"
+# torch + networkx are used ONLY by liquid cooling (src/backend/liquidcooling/*)
+# and the AI-postprocess worker — NOT by the default air-cooling CFD pipeline.
+# Keep them optional so a core install is never aborted by a torch/CUDA failure.
+# Enabled via the `liquid` extra (see setup_env.sh / `pip install -e ".[liquid]"`).
+torch = {version = "2.7.1", source = "pytorch-cu128", optional = true}
+networkx = {version = ">=3.0", optional = true}
+# Independent manufactured verification needs LP and sparse thermal recurrences.
+scipy = {version = ">=1.10,<2.0", optional = true}
+# SCANO AI inference (src/backend/aircooling/scano + the vendored src/backend/aircooling/scano/vendored): graph layers and
+# scatter reductions. torch-scatter has no PyPI wheels: setup_env.sh installs it from data.pyg.org for the
+# installed torch / CUDA.
+torch-geometric = {version = "2.8.0", optional = true}
+torch-scatter = {version = "2.1.2", optional = true}
+# GPU air solver (src/backend/aircooling/gpu_solver, the `gpuNewton` solver engine): Warp kernels, algebraic
+# multigrid set-up and the HDF5 mesh hand-over, next to torch, scipy and torch-geometric. warp-lang is pinned to
+# the version the solver was validated with.
+warp-lang = {version = "1.18.0", optional = true}
+pyamg = {version = ">=5.0,<6", optional = true}
+h5py = {version = ">=3.9", optional = true}
+tomli = {version = ">=2.0", optional = true, python = "<3.11"}
+# The agent layer's language policy (agent.policies.language): the `agent-llm` extra.
+transformers = {version = ">=4.40", optional = true}
+peft = {version = ">=0.10", optional = true}
+safetensors = {version = ">=0.4", optional = true}
+pytest = {version = ">=8.0", optional = true}
+pytest-timeout = {version = ">=2.3", optional = true}
+matplotlib = ">=3.7.0"
+playwright = "^1.60.0"
+openpyxl = "^3.1.5"
+
+[tool.poetry.extras]
+# Liquid cooling solver + AI postprocess. The default air-cooling CFD pipeline
+# does not need these, so they stay opt-in:  pip install -e ".[liquid]"
+liquid = ["torch", "networkx"]
+# SCANO AI inference and real-time tuning (setup_env.sh installs these, torch-scatter from data.pyg.org).
+ai = ["torch", "scipy", "torch-geometric", "torch-scatter"]
+# GPU air solver, offered by `start_server.sh --gpu` (setup_env.sh installs these).
+gpu-solver = ["torch", "scipy", "torch-geometric", "warp-lang", "pyamg", "h5py", "tomli"]
+# CPU manufactured verification; use together with the liquid extra.
+verification = ["scipy"]
+# Agent layer (src/agent): estimators, policies and the CMA-ES/MFBO optimizers need torch and scipy;
+# the LoRA language policy also needs the LLM stack. The rest of agent runs on the core install.
+agent = ["torch", "scipy"]
+agent-llm = ["torch", "transformers", "peft", "safetensors"]
+# Development / testing tools: pip install -e ".[dev]"
+dev = ["pytest", "pytest-timeout"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/backend/tests"]
+python_files = ["test_*.py"]
+markers = [
+    "slow: tests that require solver-scale or mesh-scale execution",
+]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+# Moved from pyrightconfig.json (2026-09-21): one config file. Pyright/Pylance
+# read this table when no pyrightconfig.json exists.
+exclude = [
+    # Skip generated data at directory boundaries to keep Pylance enumeration fast.
+    "**/.*",
+    "**/build",
+    "**/dist",
+    "**/*.egg-info",
+    "**/venv",
+    "**/env",
+    "Ref_paper",
+    "src/backend/kit-cae",
+    # vendored GPU air solver: checked in its own repository (tools/vendor_gpu_solver.py)
+    "src/backend/aircooling/gpu_solver",
+    "case/Slab_dataset",
+    "case/**/Liquid",
+    "case/**/model",
+    "**/Mesh",
+    "**/polyMesh",
+    "**/processor[0-9]*",
+    "**/postProcessing",
+    "**/log",
+    "**/logs",
+    "**/local_logs",
+    "**/Ref_data",
+    "**/ref_STL",
+    "**/viz_out",
+    "**/paper_experiment/**/workdir",
+    "src/frontend/omniverse/cfd_demo/USDresource",
+    "src/frontend/omniverse/cfd_demo/data",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/*.pyc",
+    "Logger",
+    "logger",
+    "dataset",
+    "**/Logger/**",
+    "**/logger/**",
+    "**/dataset/**",
+    "**/labels/**",
+    "**/rollout_results/**",
+    "**/snapshots/**",
+    "**/mmap_state/**",
+    "**/states/**",
+    "**/traing_results/**",
+    "**/training_results/**",
+    "**/diag_scratch/**",
+    "**/h5*/**",
+    "**/stdout_*/**",
+    "**/stderr_*/**",
+    "**/mesh_example/**/constant/**",
+    "**/mesh_example/**/[0-9]*/**",
+    "**/mesh_example/**/system/**",
+    "**/mesh_example/**/processor*/**",
+    "**/mesh_example/**/postProcessing/**",
+    "Ref_code",
+    "**/Ref_code/**",
+]
+reportMissingImports = "none"
+reportMissingTypeStubs = false
+typeCheckingMode = "off"

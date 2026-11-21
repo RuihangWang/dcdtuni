@@ -1,0 +1,48 @@
+{
+  "format": "auth-cookie-logout-mixed-state-followup/v1",
+  "utc": "2026-10-05T18:55:12.974919+00:00",
+  "previousFreeze": {
+    "directory": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/auth-cookie-port-isolation-20261006",
+    "manifestSha256": "e144c5c9169a1685f1f3f688a7e14ee0ccf65cc6bac34badad80ada041b558e7",
+    "all13PayloadsShaAndSizeReverified": true,
+    "unchanged": true
+  },
+  "sources": [
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py",
+      "bytes": 243609,
+      "sha256": "407d686f728094d90a421978f77bd0208a6fcf98fe560f6ee114912db81ce1dc"
+    },
+    {
+      "path": "/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/tests/test_auth_cookie_port_isolation.py",
+      "bytes": 12087,
+      "sha256": "bd6a8ab46ae976c696973ffae9780427f0da2ac6e245f19d6b38f7f5da6dba61"
+    }
+  ],
+  "serverBeforeSha256": "d231986ac188b8b4174080057c7143acde53f472675f627ba21b9145c59fdfda",
+  "changedProductionFunctions": [
+    "handle_auth_logout"
+  ],
+  "tests": {
+    "baseline": "2 failed, 36 passed in 0.28s",
+    "final": "38 passed in 0.21s",
+    "newFollowupCases": 2,
+    "sameFilesOnly": [
+      "src/server/tests/test_auth_cookie_port_isolation.py",
+      "src/server/tests/test_browser_lifecycle.py"
+    ],
+    "caseMeaning": {
+      "distinctTokens": "Logout must leave no authenticated legacy fallback after revoking scoped.",
+      "sameToken": "Validate legacy before deleting chosen token; expire both names and revoke the shared token exactly once."
+    },
+    "network": "Fake in-memory handler/AuthStore and CookieJar only; no HTTP, real login, or browser."
+  },
+  "behavior": {
+    "order": "Read chosen own session; validate and save incoming legacy token against own AUTH_MGR before any deletion.",
+    "revocation": "Ordered dedup of chosen and validated own legacy token; no copied/shared stores or foreign deletion.",
+    "expiration": "Always expire actual HTTP-port scoped cookie; expire legacy only when validated in own store.",
+    "preserved": "Login migration, scoped priority, no legacy downgrade, cookie flags, internal worker HTTP namespace, WS auth and startup routes remain unchanged."
+  },
+  "scope": "IT-only existing two source paths, new followup sibling proof. No service/process/browser/Git/index/build operation. Live UI acceptance remains ROOT-owned.",
+  "supersedes": "Prior proof logout rule legacy-only-if-chosen was insufficient for pre-existing mixed states; prior bytes are retained as the truthful earlier stage."
+}

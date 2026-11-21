@@ -1,0 +1,37 @@
+\documentclass[journal,10pt]{IEEEtran}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs,array,graphicx}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\HF}{\mathrm{H}}
+\newcommand{\LF}{\mathrm{L}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\pending}[1]{\par\noindent\textit{Pending: #1}\par}
+\newtheorem{proposition}{Proposition}
+\newtheorem{assumption}{Assumption}
+\title{Supplementary Material: Information-Stratified Policy Optimization}
+\author{Research working draft}
+\markboth{ISPO Supplementary Working Draft, October 11, 2026}{ISPO Supplementary Material}
+\begin{document}
+\maketitle
+\noindent This supplement preserves detailed evaluator, gradient and recording evidence accompanying the research working draft. Each result has a source-bound repository receipt; incomplete study questions remain labeled in the main paper.
+\section{Original-Task Multifidelity Baseline}
+The complete original Hopper-v3 study uses twenty registered training seeds per method with the source-explicit state and evaluation corrections described in the repository. Low- and high-fidelity coupling and the native guarded optimizer semantics are retained. Every run reaches its full registered HF horizon. Terminal-only import verifies state/API traces, actual sample counts, checkpoints, initial-policy identities and full process costs before the aggregate is computed. Separate final evaluation is kept distinct from the last periodic evaluation.
+
+Figure~\ref{fig:original-mfpg} compares the full curves with the published reference~\cite{liu2025mfpg}. The reproduction supports the original MFPG improvement over its HF-only counterpart. Published and reproduced means are descriptive comparisons; the plotted intervals are pointwise mean confidence bands. This experiment validates the baseline implementation on its original task. The shared-design comparison with ISPO remains part of the main experimental program.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/mfpg_original_cohort.pdf}
+\caption{Full original-task Hopper-v3 curves with LF gravity factor 0.8. Each method retains all twenty seeds. Solid curves show source-explicit reproduction B; dashed curves show published means. Shading denotes pointwise 95\% seed-bootstrap mean intervals. Native state restoration and evaluation isolation are recorded as implementation corrections, with their original failures and costs retained.}
+\label{fig:original-mfpg}
+\end{figure*}
+\input{sections/supplementary_interfaces}
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

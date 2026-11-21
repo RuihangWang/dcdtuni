@@ -1,0 +1,68 @@
+FFFF.                                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_full_flags_use_actual_partition_count_and_bind_receipt __________
+
+route = <module 'quality_check_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_full_flags_use_actual_par0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f24bd789090>
+
+    def test_full_flags_use_actual_partition_count_and_bind_receipt(route,tmp_path,monkeypatch):
+        mesh(tmp_path)
+        commands,(code,body)=invoke(route,monkeypatch)
+        assert code==200
+>       assert commands==[["mpirun","-np","2","checkMesh","-case",str(tmp_path/"Mesh"),"-constant","-allTopology","-allGeometry","-parallel"]]
+E       AssertionError: assert [['mpirun', '...0/Mesh', ...]] == [['mpirun', '...0/Mesh', ...]]
+E         
+E         At index 0 diff: ['mpirun', '-np', '2', 'checkMesh', '-case', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_full_flags_use_actual_par0/Mesh', '-parallel'] != ['mpirun', '-np', '2', 'checkMesh', '-case', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_full_flags_use_actual_par0/Mesh', '-constant', '-allTopology', '-allGeometry', '-parallel']
+E         Use -v to get more diff
+
+src/server/tests/test_check_mesh_quality.py:53: AssertionError
+_______________ test_exit_zero_failed_mesh_verdict_is_job_error ________________
+
+route = <module 'quality_check_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_exit_zero_failed_mesh_ver0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f24bd92c850>
+
+    def test_exit_zero_failed_mesh_verdict_is_job_error(route,tmp_path,monkeypatch):
+        mesh(tmp_path)
+        _,(code,body)=invoke(route,monkeypatch,"Failed 3 mesh checks.\n")
+        assert code==200
+        job=route.JOBS[body["jobId"]]
+>       assert job["done"] and job["returncode"]!=0 and not job["checkMeshOk"]
+E       assert (True and 0 != 0)
+
+src/server/tests/test_check_mesh_quality.py:66: AssertionError
+_______________ test_empty_mesh_rejects_without_starting_checker _______________
+
+route = <module 'quality_check_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_empty_mesh_rejects_withou0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f24bd78b580>
+
+    def test_empty_mesh_rejects_without_starting_checker(route,tmp_path,monkeypatch):
+        mesh(tmp_path,cells=0)
+        commands,(code,body)=invoke(route,monkeypatch)
+>       assert code==400 and "empty" in body["error"]
+E       assert (200 == 400)
+
+src/server/tests/test_check_mesh_quality.py:73: AssertionError
+___________ test_input_mutation_during_checker_cannot_authorize_mesh ___________
+
+route = <module 'quality_check_server' from '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/src/server/server.py'>
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/check-mesh-api-before/test_input_mutation_during_che0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f24bd92c910>
+
+    def test_input_mutation_during_checker_cannot_authorize_mesh(route,tmp_path,monkeypatch):
+        mesh(tmp_path)
+        _,(code,body)=invoke(route,monkeypatch,mutate=lambda:(tmp_path/"model/test.cfdrun").write_text("{}"))
+        assert code==200
+        job=route.JOBS[body["jobId"]]
+>       assert job["returncode"]!=0 and not job["checkMeshOk"]
+E       assert (0 != 0)
+
+src/server/tests/test_check_mesh_quality.py:81: AssertionError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_check_mesh_quality.py::test_full_flags_use_actual_partition_count_and_bind_receipt
+FAILED src/server/tests/test_check_mesh_quality.py::test_exit_zero_failed_mesh_verdict_is_job_error
+FAILED src/server/tests/test_check_mesh_quality.py::test_empty_mesh_rejects_without_starting_checker
+FAILED src/server/tests/test_check_mesh_quality.py::test_input_mutation_during_checker_cannot_authorize_mesh
+4 failed, 1 passed in 0.23s

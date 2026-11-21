@@ -1,0 +1,641 @@
+13590:                 partitionAudit<<",\"geometricReference\":";outPoint(geometricCentre);
+13591:                 partitionAudit<<",\"pieceCentre\":";outPoint(areaMoment/max(totalArea,VSMALL));
+13592:                 partitionAudit<<",\"signedCentre\":";outPoint(signedMoment/max(signedArea,VSMALL));
+13593:                 partitionAudit<<",\"area\":";outPoint(av);
+13594:                 partitionAudit<<",\"ownerApex\":";outPoint(apex[o]);
+13595:                 partitionAudit<<",\"neighbourApex\":";outPoint(n>=0 ? apex[n] : point::zero);
+13596:                 partitionAudit<<",\"points\":[";
+13597:                 for (size_t j=0;j<poly.size();++j) { if (j) { partitionAudit<<","; }outPoint(m.points[poly[j]]); }
+13598:                 partitionAudit<<"],\"pieces\":[";
+13599:                 for (size_t j=0;j<pieces.size();++j)
+13600:                 {
+13601:                     if (j) { partitionAudit<<","; }partitionAudit<<"[";
+13602:                     for (size_t k=0;k<pieces[j].size();++k)
+13603:                     { if (k) { partitionAudit<<","; }outPoint(m.points[pieces[j][k]]); }
+13604:                     partitionAudit<<"]";
+13605:                 }
+13606:                 partitionAudit<<"]}";
+13607:             }
+13608:             if (conservationFailure) { continue; }
+13609:         }
+13610:         const bool reverse=(av&areas[f])<0;
+13611:         for (size_t j=0;j<pieces.size();++j)
+13612:         {
+13613:             // Keep the shared canonical vertex zero when flipping outward
+13614:             // orientation; cyclic addressing reverses the remaining cycle.
+13615:             if (reverse) { std::reverse(pieces[j].begin()+1,pieces[j].end()); }
+13616:             label id=f;
+13617:             if (j)
+13618:             {
+13619:                 id=m.faces.size();m.faces.push_back(pieces[j]);m.owner.push_back(o);m.neighbour.push_back(n);
+13620:                 m.patch.push_back(m.patch[f]);m.zone.push_back(m.zone[f]);m.faceAlive.push_back(true);
+13621:                 if (traceCones) { m.coneEvidenceBase.push_back(f); }
+13622:                 if (samePhysicalRole) { unionBase.push_back(f); }
+13623:             }
+13624:             else { m.faces[f]=pieces[j]; }
+13625:             piecesOf[f].push_back(id);
+13626:         }
+13627:         ++partitioned;
+13628:     }
+13629:     if (partitionAudit.is_open()) { partitionAudit<<"]\n";partitionAudit.flush(); }
+13630:     if (getenv("DCCART_CONES_REFAN_QUALITY"))
+13631:     {
+13632:         qualityFanTriggered=returnReduce(qualityFanTriggered,sumOp<label>());
+13633:         qualityFanChanged=returnReduce(qualityFanChanged,sumOp<label>());
+13634:         qualityFanUnsupported=returnReduce(qualityFanUnsupported,sumOp<label>());
+13635:         Info<<"Conforming canonical quality re-fan experiment: triggered "<<qualityFanTriggered
+13636:             <<", changed "<<qualityFanChanged<<", unsupported "<<qualityFanUnsupported
+13637:             <<"; all outline nodes retained, shared partition geometry-only; full stock checker required"<<endl;
+13638:     }
+13639:     partitionFailures=returnReduce(partitionFailures,sumOp<label>());closePoints=returnReduce(closePoints,sumOp<label>());
+13640:     momentCorrections=returnReduce(momentCorrections,sumOp<label>());
+13641:     Info<<"Conforming planar signed-moment references "<<momentCorrections<<" (all original coordinates retained)"<<endl;
+13642:     if (partitionFailures || closePoints)
+13643:     { FatalErrorInFunction<<"conforming base partition refused: invalid fans "<<partitionFailures<<", near-coincident new points "<<closePoints<<exit(FatalError); }
+13644:     std::vector<std::vector<label>> bases(oldCells);
+13645:     for (label c=0;c<oldCells;++c) if (marked[c]) for (label f:cf[c])
+13646:     { bases[c].insert(bases[c].end(),piecesOf[f].begin(),piecesOf[f].end()); }
+13647:     if (getenv("DCCART_CONE_AXIS_KERNEL_CENTRE"))
+13648:     {
+13649:         // Optional exploration only: evaluate the actual planned cones after
+13650:         // shared face partitioning, before changing any owner/neighbour IDs.
+13651:         // The final unmodified full stock checker remains the authorization.
+13652:         const bool pareto=getenv("DCCART_CONE_AXIS_KERNEL_PARETO")!=nullptr;
+13653:         const bool axisCandidates=getenv("DCCART_CONE_KERNEL_AXIS_CANDIDATES")!=nullptr && pareto;
+13654:         struct coneProfile
+13655:         {
+13656:             bool valid=true;
+13657:             std::array<std::vector<scalar>,5> metrics;
+13658:             scalar volume=0;point moment=point::zero;
+13659:         };
+13660:         struct childGeometry
+13661:         {
+13662:             label base;point centre;scalar volume;
+13663:             std::vector<vector> areas;std::vector<point> centres;
+13664:             std::vector<std::vector<point>> polygons;
+13665:         };
+13666:         struct profileEdge { size_t child;label a,b; };
+13667:         auto finitePoint=[](const point& p)
+13668:         { return std::isfinite(p.x()) && std::isfinite(p.y()) && std::isfinite(p.z()); };
+13669:         const bool qualityKernelCandidates=getenv("DCCART_CONE_QUALITY_KERNEL_CANDIDATES")!=nullptr && pareto;
+13670:         const bool nonOrthogonalKernelCandidates=getenv("DCCART_CONE_NONORTH_KERNEL_CANDIDATES")!=nullptr && qualityKernelCandidates;
+13671:         // Proposal construction only. Planar cone moments give affine signed
+13672:         // face distances and volumes. Near-planar floating input is sampled
+13673:         // numerically; no feasibility certificate or quality authorization is
+13674:         // inferred from this fit. Every proposal still passes the original
+13675:         // geometry, actual-neighbour profile, Pareto and final stock checker.
+13676:         auto qualityValues=[&](label parent,const point& proposed,bool includeNonOrthogonal)
+13677:         {
+13678:             struct qualityChild { point centre;scalar volume; };
+13679:             std::vector<qualityChild> children;std::vector<scalar> out;
+13680:             std::map<std::pair<label,label>,std::vector<profileEdge>> edges;
+13681:             auto interface=[&](const vector& a,const point& fc,const qualityChild& own,const qualityChild& nei,
+13682:                                bool sharedApex,const vector& fixedEdge)
+13683:             {
+13684:                 const scalar dOwn=a&(fc-own.centre),dNei=a&(nei.centre-fc);
+13685:                 out.insert(out.end(),{dOwn,dNei,own.volume,nei.volume,
+13686:                     19*dOwn-dNei,19*dNei-dOwn,100*own.volume-nei.volume,100*nei.volume-own.volume});
+13687:                 if (!includeNonOrthogonal) { return; }
+13688:                 const vector d=nei.centre-own.centre;
+13689:                 const scalar theta=70*constant::mathematical::pi/180;
+13690:                 if (!finitePoint(d) || !finitePoint(a)) { out.push_back(-1);return; }
+13691:                 if (sharedApex)
+13692:                 {
+13693:                     // Sf is orthogonal to this fixed original edge. The
+13694:                     // common AP cancels from the two pyramid centres, so
+13695:                     // d is fixed and Sf(AP) is affine. In the edge-normal
+13696:                     // plane, the circular N cone is exactly a two-row wedge.
+13697:                     const scalar edgeLength=mag(fixedEdge),distance=mag(d);
+13698:                     if (!std::isfinite(edgeLength) || !std::isfinite(distance)
+13699:                      || edgeLength<=VSMALL || distance<=VSMALL) { out.push_back(-1);return; }
+13700:                     const vector e=fixedEdge/edgeLength;
+13701:                     vector u=d-e*(e&d);const scalar transverse=mag(u);
+13702:                     if (!std::isfinite(transverse) || transverse<=VSMALL) { out.push_back(-1);return; }
+13703:                     u/=transverse;const vector v=e^u;
+13704:                     const scalar alpha=std::cos(theta)*distance/transverse;
+13705:                     if (!std::isfinite(alpha) || alpha<=0 || alpha>=1) { out.push_back(-1);return; }
+13706:                     const scalar beta=std::sqrt(1-alpha*alpha)/alpha;
+13707:                     const scalar s=a&u,t=a&v;
+13708:                     out.insert(out.end(),{s,beta*s-t,beta*s+t});
+13709:                 }
+13710:                 else
+13711:                 {
+13712:                     // Here Sf is fixed and d(AP) is affine. A regular
+13713:                     // inscribed 16-gon is a sufficient inner approximation
+13714:                     // to the circular N cone, never a relaxed acceptance.
+13715:                     const scalar amount=mag(a);
+13716:                     if (!std::isfinite(amount) || amount<=VSMALL) { out.push_back(-1);return; }
+13717:                     const vector n=a/amount;label axis=0;
+13718:                     for (label j=1;j<3;++j) if (mag(n[j])<mag(n[axis])) { axis=j; }
+13719:                     vector reference(vector::zero);reference[axis]=1;
+13720:                     vector u=n^reference;const scalar length=mag(u);
+13721:                     if (!std::isfinite(length) || length<=VSMALL) { out.push_back(-1);return; }
+13722:                     u/=length;const vector v=n^u;const scalar s=n&d;
+13723:                     const scalar coefficient=std::cos(constant::mathematical::pi/16)*std::tan(theta);
+13724:                     out.push_back(s);
+13725:                     for (label j=0;j<16;++j)
+13726:                     {
+13727:                         const scalar angle=2*constant::mathematical::pi*j/16;
+13728:                         const vector direction=std::cos(angle)*u+std::sin(angle)*v;
+13729:                         out.push_back(coefficient*s-(direction&d));
+13730:                     }
+13731:                 }
+13732:             };
+13733:             for (label f:bases[parent])
+13734:             {
+13735:                 const bool own=m.owner[f]==parent;vector area;point centre;
+13736:                 faceAreaCentreOF(m.points,m.faces[f],area,centre);if (!own) { area=-area; }
+13737:                 const qualityChild child{.75*centre+.25*proposed,(area&(centre-proposed))/3};
+13738:                 const label other=own ? m.neighbour[f] : m.owner[f];
+13739:                 if (other>=0)
+13740:                 {
+13741:                     const qualityChild nei{marked[other] ? .75*centre+.25*apex[other] : apex[other],
+13742:                         marked[other] ? ((-area)&(centre-apex[other]))/3 : parentVolume[other]};
+13743:                     interface(area,centre,child,nei,false,vector::zero);
+13744:                 }
+13745:                 std::vector<label> poly=m.faces[f];if (!own) { std::reverse(poly.begin()+1,poly.end()); }
+13746:                 for (size_t j=0;j<poly.size();++j)
+13747:                 { const label a=poly[j],b=poly[(j+1)%poly.size()];edges[std::minmax(a,b)].push_back(profileEdge{children.size(),a,b}); }
+13748:                 children.push_back(child);
+13749:             }
+13750:             for (const auto& row:edges)
+13751:             {
+13752:                 const auto& use=row.second;
+13753:                 if (use.size()!=2 || use[0].a!=use[1].b || use[0].b!=use[1].a || use[0].child==use[1].child)
+13754:                 { return std::vector<scalar>{std::numeric_limits<scalar>::quiet_NaN()}; }
+13755:                 const point& a=m.points[use[0].a];const point& b=m.points[use[0].b];
+13756:                 interface(.5*((a-b)^(proposed-b)),(a+b+proposed)/3,children[use[0].child],children[use[1].child],true,a-b);
+13757:             }
+13758:             return out;
+13759:         };
+13760:         auto qualityProposals=[&](label parent,const point& lo,const point& hi,bool includeNonOrthogonal)
+13761:         {
+13762:             struct halfplane { vector a;scalar b; };
+13763:             std::vector<point> proposals;std::vector<halfplane> planes;
+13764:             const vector size=hi-lo;const point mid=.5*(lo+hi);
+13765:             const auto centreValues=qualityValues(parent,mid,includeNonOrthogonal);std::array<std::vector<scalar>,3> samples;
+13766:             for (label axis=0;axis<3;++axis)
+13767:             { point q=mid;q[axis]+=.25*size[axis];samples[axis]=qualityValues(parent,q,includeNonOrthogonal); }
+13768:             for (const auto& row:samples) if (row.size()!=centreValues.size()) { return proposals; }
+13769:             for (size_t i=0;i<centreValues.size();++i)
+13770:             {
+13771:                 vector a;scalar scale=mag(centreValues[i]);
+13772:                 if (!std::isfinite(centreValues[i])) { return proposals; }
+13773:                 for (label axis=0;axis<3;++axis)
+13774:                 {
+13775:                     if (!std::isfinite(samples[axis][i])) { return proposals; }
+13776:                     a[axis]=4*(samples[axis][i]-centreValues[i]);scale=max(scale,mag(samples[axis][i]));
+13777:                 }
+13778:                 const scalar norm=mag(a),b=centreValues[i]-.5*(a.x()+a.y()+a.z());
+13779:                 if (!std::isfinite(norm) || !std::isfinite(b)) { return proposals; }
+13780:                 if (norm<=1e-12*max(scale,VSMALL))
+13781:                 { if (centreValues[i]<-1e-12*max(scale,VSMALL)) { return proposals; }continue; }
+13782:                 planes.push_back(halfplane{a/norm,b/norm});
+13783:             }
+13784:             point l,h;
+13785:             for (label axis=0;axis<3;++axis)
+13786:             { l[axis]=3.00001e-6/size[axis];h[axis]=1-l[axis];if (!std::isfinite(l[axis]) || l[axis]>=h[axis]) { return proposals; } }
+13787:             for (label axis=0;axis<3;++axis)
+13788:             {
+13789:                 vector a(vector::zero);a[axis]=1;planes.push_back(halfplane{a,-l[axis]});
+13790:                 a[axis]=-1;planes.push_back(halfplane{a,h[axis]});
+13791:             }
+13792:             const point p000(l.x(),l.y(),l.z()),p100(h.x(),l.y(),l.z()),p110(h.x(),h.y(),l.z()),p010(l.x(),h.y(),l.z());
+13793:             const point p001(l.x(),l.y(),h.z()),p101(h.x(),l.y(),h.z()),p111(h.x(),h.y(),h.z()),p011(l.x(),h.y(),h.z());
+13794:             std::vector<std::vector<point>> faces{{p000,p010,p110,p100},{p001,p101,p111,p011},
+13795:                 {p000,p100,p101,p001},{p010,p011,p111,p110},{p000,p001,p011,p010},{p100,p110,p111,p101}};
+13796:             auto uniquePoint=[](std::vector<point>& out,const point& q)
+13797:             { for (const point& p:out) if (magSqr(p-q)<=1e-24) { return; }out.push_back(q); };
+13798:             for (const halfplane& plane:planes)
+13799:             {
+13800:                 std::vector<std::vector<point>> next;std::vector<point> cap;
+13801:                 for (const auto& face:faces)
+13802:                 {
+13803:                     std::vector<point> cut;
+13804:                     for (size_t i=0;i<face.size();++i)
+13805:                     {
+13806:                         const point& a=face[i];const point& b=face[(i+1)%face.size()];
+13807:                         const scalar da=(plane.a&a)+plane.b,db=(plane.a&b)+plane.b;
+13808:                         if (!std::isfinite(da) || !std::isfinite(db)) { return proposals; }
+13809:                         const bool inA=da>=0,inB=db>=0;
+13810:                         if (inA!=inB)
+13811:                         {
+13812:                             const scalar t=da/(da-db);const point q=a+t*(b-a);
+13813:                             if (!finitePoint(q)) { return proposals; }uniquePoint(cut,q);uniquePoint(cap,q);
+13814:                         }
+13815:                         if (inB) { uniquePoint(cut,b); }
+13816:                     }
+13817:                     if (cut.size()>=3) { next.push_back(std::move(cut)); }
+13818:                 }
+13819:                 if (cap.size()>=3)
+13820:                 {
+13821:                     point centre(point::zero);for (const point& q:cap) { centre+=q; }centre/=cap.size();
+13822:                     label axis=0;for (label i=1;i<3;++i) if (mag(plane.a[i])<mag(plane.a[axis])) { axis=i; }
+13823:                     vector reference(vector::zero);reference[axis]=1;
+13824:                     vector u=plane.a^reference;u/=max(mag(u),VSMALL);const vector v=plane.a^u;
+13825:                     std::sort(cap.begin(),cap.end(),[&](const point& a,const point& b)
+13826:                     {
+13827:                         const vector da=a-centre,db=b-centre;
+13828:                         const scalar aa=std::atan2(da&v,da&u),bb=std::atan2(db&v,db&u);
+13829:                         if (aa!=bb) { return aa<bb; }
+13830:                         return std::make_tuple(a.x(),a.y(),a.z())<std::make_tuple(b.x(),b.y(),b.z());
+13831:                     });next.push_back(std::move(cap));
+13832:                 }
+13833:                 faces=std::move(next);if (faces.empty()) { return proposals; }
+13834:             }
+13835:             std::vector<point> vertices;for (const auto& face:faces) for (const point& q:face) { uniquePoint(vertices,q); }
+13836:             if (vertices.size()<4) { return proposals; }
+13837:             point mean(point::zero),boxLo(GREAT,GREAT,GREAT),boxHi(-GREAT,-GREAT,-GREAT);
+13838:             for (const point& q:vertices) { mean+=q;boxLo=min(boxLo,q);boxHi=max(boxHi,q); }mean/=vertices.size();
+13839:             point near;
+13840:             for (label axis=0;axis<3;++axis) { near[axis]=(apex[parent][axis]-lo[axis])/size[axis]; }
+13841:             // Bounded cyclic projection proposes a point near the current AP.
+13842:             // Its convergence is not an acceptance test; the full profile is.
+13843:             for (label sweep=0;sweep<256;++sweep)
+13844:             {
+13845:                 scalar worst=0;
+13846:                 for (const halfplane& plane:planes)
+13847:                 {
+13848:                     const scalar distance=(plane.a&near)+plane.b;
+13849:                     if (distance<0) { near-=distance*plane.a;worst=max(worst,-distance); }
+13850:                 }
+13851:                 if (!finitePoint(near)) { return proposals; }if (worst<1e-12) { break; }
+13852:             }
+13853:             std::vector<point> normalized{mean,.5*(boxLo+boxHi),near,.75*near+.25*mean,.5*(near+mean),.25*near+.75*mean};
+13854:             for (const point& q:normalized)
+13855:             {
+13856:                 point actual;for (label axis=0;axis<3;++axis) { actual[axis]=lo[axis]+q[axis]*size[axis]; }
+13857:                 if (finitePoint(actual)) { uniquePoint(proposals,actual); }
+13858:             }
+13859:             return proposals;
+13860:         };
+13861:         auto profile=[&](label parent,const point& proposed)
+13862:         {
+13863:             coneProfile out;std::vector<childGeometry> children;
+13864:             std::map<std::pair<label,label>,std::vector<profileEdge>> edges;
+13865:             auto addInterface=[&](const vector& area,const point& centre,const std::vector<point>& polygon,
+13866:                                   const point& own,scalar ownV,const point& nei,scalar neiV,bool internal)
+13867:             {
+13868:                 const scalar amount=mag(area);vector d;
+13869:                 if (internal)
+13870:                 {
+13871:                     const scalar a=mag(area&(centre-own)),b=mag(area&(nei-centre));
+13872:                     out.metrics[1].push_back(min(a,b)/max(a+b,VSMALL));
+13873:                     out.metrics[2].push_back(min(ownV,neiV)/max(ownV,neiV));d=nei-own;
+13874:                     const scalar cosine=(area&d)/max(amount*mag(d),VSMALL);
+13875:                     out.metrics[4].push_back(std::acos(max(scalar(-1),min(scalar(1),cosine)))*180/constant::mathematical::pi);
+13876:                 }
+13877:                 else { const vector n=area/max(amount,VSMALL);d=n*(n&(centre-own)); }
+13878:                 const vector cpf=centre-own;
+13879:                 const vector skew=cpf-((area&cpf)/((area&d)+ROOTVSMALL))*d;
+13880:                 const vector direction=skew/(mag(skew)+ROOTVSMALL);
+13881:                 scalar reach=(internal ? .2 : .4)*mag(d)+ROOTVSMALL;
+13882:                 for (const point& p:polygon) { reach=max(reach,mag(direction&(p-centre))); }
+13883:                 out.metrics[3].push_back(mag(skew)/reach);
+13884:                 // Both real adjacent centres must pass the same face-tet fans.
+13885:                 bool anchorFound=false;
+13886:                 for (size_t k=0;k<polygon.size();++k)
+13887:                 {
+13888:                     const scalar oq=tetPointRef(polygon[k],polygon[(k+1)%polygon.size()],centre,own).quality();
+13889:                     const scalar nq=internal ? tetPointRef(polygon[k],polygon[(k+1)%polygon.size()],centre,nei).quality() : 1;
+13890:                     if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { out.valid=false; }
+13891:                 }
+13892:                 for (size_t anchor=0;anchor<polygon.size() && !anchorFound;++anchor)
+13893:                 {
+13894:                     bool good=true;
+13895:                     for (size_t j=1;j+1<polygon.size();++j)
+13896:                     {
+13897:                         const point& a=polygon[anchor];const point& b=polygon[(anchor+j)%polygon.size()];
+13898:                         const point& c=polygon[(anchor+j+1)%polygon.size()];
+13899:                         const scalar oq=tetPointRef(a,b,c,own).quality();
+13900:                         const scalar nq=internal ? tetPointRef(a,b,c,nei).quality() : 1;
+13901:                         if (!std::isfinite(oq) || !std::isfinite(nq) || oq>=-1e-15 || nq<=1e-15) { good=false;break; }
+13902:                     }
+13903:                     anchorFound=good;
+13904:                 }
+13905:                 if (!anchorFound) { out.valid=false; }
+13906:             };
+13907:             for (label f:bases[parent])
+13908:             {
+13909:                 const bool own=m.owner[f]==parent;vector area;point centre;
+13910:                 faceAreaCentreOF(m.points,m.faces[f],area,centre);if (!own) { area=-area; }
+13911:                 childGeometry child;child.base=f;child.centre=.75*centre+.25*proposed;
+13912:                 child.volume=(area&(centre-proposed))/3;
+13913:                 if (!finitePoint(child.centre) || !std::isfinite(child.volume) || child.volume<=VSMALL) { out.valid=false; }
+13914:                 child.areas.push_back(area);child.centres.push_back(centre);
+13915:                 std::vector<label> poly=m.faces[f];if (!own) { std::reverse(poly.begin()+1,poly.end()); }
+13916:                 std::vector<point> base;for (label q:poly) { base.push_back(m.points[q]); }
+13917:                 child.polygons.push_back(base);
+13918:                 for (size_t j=0;j<poly.size();++j)
+13919:                 {
+13920:                     const label a=poly[j],b=poly[(j+1)%poly.size()];
+13921:                     const point& pa=m.points[a];const point& pb=m.points[b];
+13922:                     const vector sf=.5*((pa-pb)^(proposed-pb));
+13923:                     child.areas.push_back(sf);child.centres.push_back((pa+pb+proposed)/3);
+13924:                     child.polygons.push_back({pb,pa,proposed});
+13925:                     edges[std::minmax(a,b)].push_back(profileEdge{children.size(),a,b});
+13926:                 }
+13927:                 scalar internalArea=0,allArea=0;label nInternal=0;vector closure(vector::zero);
+13928:                 scalar span=0;for (const point& q:base) { span=max(span,mag(q-proposed)); }
+13929:                 const label other=own ? m.neighbour[f] : m.owner[f];
+13930:                 for (size_t j=0;j<child.areas.size();++j)
+13931:                 {
+13932:                     const vector& a=child.areas[j];const scalar ar=mag(a);const point& fc=child.centres[j];
+13933:                     if (!finitePoint(a) || !finitePoint(fc) || ar<=1e-12) { out.valid=false; }
+13934:                     const scalar pyramid=(a&(fc-child.centre))/3;
+13935:                     if (!std::isfinite(pyramid) || pyramid<=1e-15*child.volume) { out.valid=false; }
+13936:                     closure+=a;allArea+=ar;
+13937:                     if (j || other>=0) { internalArea+=ar;++nInternal; }
+13938:                     const vector normal=a/max(ar,VSMALL);
+13939:                     for (const auto& face:child.polygons) for (const point& q:face)
+13940:                     { if (((q-fc)&normal)>1e-10*max(span,scalar(1e-6))) { out.valid=false; } }
+13941:                     for (size_t k=0;k<child.centres.size();++k) if (k!=j)
+13942:                     {
+13943:                         const vector delta=child.centres[k]-fc;
+13944:                         const scalar cosine=(normal&delta)/max(mag(delta),VSMALL);
+13945:                         if (!std::isfinite(cosine) || cosine>=-1.0001e-6) { out.valid=false; }
+13946:                     }
+13947:                 }
+13948:                 if (mag(closure)/max(allArea,VSMALL)>1e-12 || !nInternal || internalArea<=VSMALL) { out.valid=false; }
+13949:                 const scalar mean=internalArea/max(nInternal,label(1));symmTensor tensor(Zero);
+13950:                 for (size_t j=0;j<child.areas.size();++j) if (j || other>=0) { tensor+=sqr(child.areas[j]/max(mean,VSMALL)); }
+13951:                 out.metrics[0].push_back(mag(det(tensor))/8);
+13952:                 out.volume+=child.volume;out.moment+=child.volume*child.centre;
+13953:                 point neighbour=child.centre;scalar neighbourV=child.volume;
+13954:                 if (other>=0)
+13955:                 {
+13956:                     neighbour=marked[other] ? .75*centre+.25*apex[other] : apex[other];
+13957:                     neighbourV=marked[other] ? ((-area)&(centre-apex[other]))/3 : parentVolume[other];
+13958:                     if (!finitePoint(neighbour) || !std::isfinite(neighbourV) || neighbourV<=VSMALL) { out.valid=false; }
+13959:                 }
+13960:                 addInterface(area,centre,base,child.centre,child.volume,neighbour,neighbourV,other>=0);
+13961:                 children.push_back(std::move(child));
+13962:             }
+13963:             for (const auto& row:edges)
+13964:             {
+13965:                 const auto& use=row.second;
+13966:                 if (use.size()!=2 || use[0].a!=use[1].b || use[0].b!=use[1].a || use[0].child==use[1].child)
+13967:                 { out.valid=false;continue; }
+13968:                 const point& a=m.points[use[0].a];const point& b=m.points[use[0].b];
+13969:                 const vector sf=.5*((a-b)^(proposed-b));const point fc=(a+b+proposed)/3;
+13970:                 const auto& own=children[use[0].child];const auto& nei=children[use[1].child];
+13971:                 addInterface(sf,fc,{b,a,proposed},own.centre,own.volume,nei.centre,nei.volume,true);
+13972:             }
+13973:             if (!std::isfinite(out.volume) || out.volume<=VSMALL || !finitePoint(out.moment)) { out.valid=false; }
+13974:             for (const auto& metric:out.metrics) for (scalar value:metric) if (!std::isfinite(value)) { out.valid=false; }
+13975:             return out;
+13976:         };
+13977:         auto improvesWithoutRegression=[](const coneProfile& old,const coneProfile& next)
+13978:         {
+13979:             const std::array<scalar,5> threshold{{.001,.05,.01,4-1e-8,70}};bool improved=false;
+13980:             if (!old.valid || !next.valid) { return false; }
+13981:             for (size_t k=0;k<threshold.size();++k)
+13982:             {
+13983:                 if (old.metrics[k].size()!=next.metrics[k].size()) { return false; }
+13984:                 label oldBad=0,newBad=0;scalar oldWorst=k<3 ? GREAT : 0,newWorst=oldWorst;
+13985:                 for (size_t j=0;j<old.metrics[k].size();++j)
+13986:                 {
+13987:                     const scalar a=old.metrics[k][j],b=next.metrics[k][j];
+13988:                     const bool badA=k<3 ? a<threshold[k] : a>threshold[k];
+13989:                     const bool badB=k<3 ? b<threshold[k] : b>threshold[k];
+13990:                     if (!badA && badB) { return false; }oldBad+=badA;newBad+=badB;
+13991:                     if (k<3) { oldWorst=min(oldWorst,a);newWorst=min(newWorst,b); }
+13992:                     else { oldWorst=max(oldWorst,a);newWorst=max(newWorst,b); }
+13993:                 }
+13994:                 if (newBad>oldBad) { return false; }
+13995:                 if (oldBad && (k<3 ? newWorst<oldWorst*(1-1e-10) : newWorst>oldWorst*(1+1e-10))) { return false; }
+13996:                 improved=improved || newBad<oldBad || (oldBad && (k<3 ? newWorst>oldWorst*(1+1e-10) : newWorst<oldWorst*(1-1e-10)));
+13997:             }
+13998:             return improved;
+13999:         };
+14000:         std::ofstream kernelAudit;
+14001:         if (traceCones && pareto)
+14002:         { kernelAudit.open("conforming-kernel-candidates-rank"+std::to_string(myRank)+".jsonl");kernelAudit<<std::setprecision(17); }
+14003:         label kernelProposalPass=0;
+14004:         auto auditCandidate=[&](label c,const point& candidate,const char* decision,const coneProfile& old,const coneProfile& next)
+14005:         {
+14006:             if (!kernelAudit.is_open()) { return; }
+14007:             auto xyz=[&](const point& p) { kernelAudit<<'['<<p.x()<<','<<p.y()<<','<<p.z()<<']'; };
+14008:             auto scalarOut=[&](scalar v) { if (std::isfinite(v)) { kernelAudit<<v; }else { kernelAudit<<"null"; } };
+14009:             auto metricOut=[&](const coneProfile& p)
+14010:             {
+14011:                 kernelAudit<<"{\"valid\":"<<(p.valid ? "true" : "false")<<",\"volume\":";scalarOut(p.volume);
+14012:                 kernelAudit<<",\"moment\":";xyz(p.moment);kernelAudit<<",\"metrics\":[";
+14013:                 for (size_t k=0;k<p.metrics.size();++k)
+14014:                 {
+14015:                     if (k) { kernelAudit<<','; }kernelAudit<<'[';
+14016:                     for (size_t j=0;j<p.metrics[k].size();++j) { if (j) { kernelAudit<<','; }scalarOut(p.metrics[k][j]); }
+14017:                     kernelAudit<<']';
+14018:                 }
+14019:                 kernelAudit<<"]}";
+14020:             };
+14021:             kernelAudit<<"{\"rank\":"<<myRank<<",\"parent\":"<<c<<",\"proposalPass\":"<<kernelProposalPass<<",\"decision\":\""<<decision
+14022:                 <<"\",\"metricOrder\":[\"determinant\",\"weight\",\"volumeRatio\",\"skew\",\"nonOrthDegrees\"]"
+14023:                 <<",\"original\":";xyz(apex[c]);kernelAudit<<",\"candidate\":";xyz(candidate);
+14024:             kernelAudit<<",\"baseOrder\":[";
+14025:             for (size_t j=0;j<bases[c].size();++j) { if (j) { kernelAudit<<','; }kernelAudit<<bases[c][j]; }
+14026:             kernelAudit<<"],\"old\":";metricOut(old);kernelAudit<<",\"next\":";metricOut(next);kernelAudit<<"}\n";
+14027:         };
+14028:         // Cheap determinant screen only. Full geometry profiles are never
+14029:         // swept over every marked parent. This permits testing unchanged
+14030:         // kernel centres only when an actual planned child needs repair.
+14031:         auto hasBadPlannedDeterminant=[&](label c)
+14032:         {
+14033:             for (label f:bases[c])
+14034:             {
+14035:                 vector a;point centre;faceAreaCentreOF(m.points,m.faces[f],a,centre);
+14036:                 const bool own=m.owner[f]==c;const label other=own ? m.neighbour[f] : m.owner[f];
+14037:                 std::vector<vector> selected;
+14038:                 if (other>=0) { selected.push_back(a); }
+14039:                 scalar total=other>=0 ? mag(a) : 0;
+14040:                 const auto& poly=m.faces[f];
+14041:                 for (size_t j=0;j<poly.size();++j)
+14042:                 {
+14043:                     const vector sf=.5*((m.points[poly[j]]-m.points[poly[(j+1)%poly.size()]])
+14044:                         ^(apex[c]-m.points[poly[(j+1)%poly.size()]]));
+14045:                     selected.push_back(sf);total+=mag(sf);
+14046:                 }
+14047:                 const scalar mean=total/max(label(selected.size()),label(1));symmTensor tensor(Zero);
+14048:                 for (const vector& sf:selected) { tensor+=sqr(sf/max(mean,VSMALL)); }
+14049:                 const scalar d=mag(det(tensor))/8;
+14050:                 if (!std::isfinite(d) || d<.001) { return true; }
+14051:             }
+14052:             return false;
+14053:         };
+14054:         auto profileKey=[](const coneProfile& p)
+14055:         {
+14056:             const std::array<scalar,5> threshold{{.001,.05,.01,4-1e-8,70}};
+14057:             std::array<label,5> bad{{0,0,0,0,0}};
+14058:             std::array<scalar,5> worst{{GREAT,GREAT,GREAT,0,0}};label total=0;
+14059:             for (size_t k=0;k<5;++k)
+14060:             {
+14061:                 for (scalar v:p.metrics[k])
+14062:                 {
+14063:                     bad[k]+=(k<3 ? v<threshold[k] : v>threshold[k]);
+14064:                     worst[k]=k<3 ? min(worst[k],v) : max(worst[k],v);
+14065:                 }
+14066:                 total+=bad[k];if (!bad[k]) { worst[k]=threshold[k]; }
+14067:             }
+14068:             return std::array<scalar,7>{{-scalar(total),-scalar(bad[0]),worst[0],worst[1],worst[2],-worst[3],-worst[4]}};
+14069:         };
+14070:         label moved=0,nonAxis=0,unsupported=0,nearExisting=0,unchanged=0,coupledSkip=0,geometryVeto=0,qualityVeto=0;
+14071:         label screenedBadParents=0,evaluatedCandidates=0,screenedQualityParents=0,qualityProposalCount=0;
+14072:         scalar maxMove=0;
+14073:         // Complete the previously tested axis/W/R pass first. Optional N
+14074:         // proposals are a later monotonic pass whose "old" geometry is the
+14075:         // actual already-selected baseline, never the initial source AP.
+14076:         for (kernelProposalPass=0;kernelProposalPass<(nonOrthogonalKernelCandidates ? 2 : 1);++kernelProposalPass)
+14077:         for (label c=0;c<oldCells;++c)
+14078:         {
+14079:             if (!marked[c]) { continue; }
+14080:             point lo(-GREAT,-GREAT,-GREAT),hi(GREAT,GREAT,GREAT);bool axisOnly=true,hasCoupled=false;
+14081:             for (label f:cf[c])
+14082:             {
+14083:                 hasCoupled=hasCoupled || coupled[f];
+14084:                 const vector a=m.owner[f]==c ? areas[f] : -areas[f];const scalar amount=mag(a);
+14085:                 label d=0;if (mag(a.y())>mag(a[d])) { d=1; }if (mag(a.z())>mag(a[d])) { d=2; }
+14086:                 for (label j=0;j<3;++j) if (j!=d && mag(a[j])>1e-12*amount) { axisOnly=false; }
+14087:                 if (!std::isfinite(amount) || amount<=VSMALL || !std::isfinite(centres[f][d])) { axisOnly=false; }
+14088:                 const scalar plane=centres[f][d];scalar scale=0;
+14089:                 for (label q:m.faces[f]) { scale=max(scale,mag(m.points[q]-centres[f])); }
+14090:                 for (label q:m.faces[f]) if (mag(m.points[q][d]-plane)>1e-10*max(scale,scalar(1e-6))) { axisOnly=false; }
+14091:                 if (a[d]>0) { hi[d]=min(hi[d],plane); }else { lo[d]=max(lo[d],plane); }
+14092:             }
+14093:             if (!axisOnly) { ++nonAxis;continue; }
+14094:             const point candidate=.5*(lo+hi);bool valid=true;
+14095:             for (label d=0;d<3;++d)
+14096:             { if (!std::isfinite(lo[d]) || !std::isfinite(hi[d]) || mag(lo[d])>=GREAT/2 || mag(hi[d])>=GREAT/2 || lo[d]>=hi[d]) { valid=false; } }
+14097:             for (label f:cf[c])
+14098:             {
+14099:                 const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+14100:                 const scalar value=(a&(centres[f]-candidate))/max(mag(a),VSMALL);
+14101:                 if (!std::isfinite(value) || value<=3e-6) { valid=false; }
+14102:             }
+14103:             if (!valid) { ++unsupported;continue; }
+14104:             const bool needsRepair=axisCandidates && !hasCoupled && hasBadPlannedDeterminant(c);
+14105:             bool needsQualityRepair=false;
+14106:             if (qualityKernelCandidates && !hasCoupled)
+14107:             {
+14108:                 const auto values=qualityValues(c,apex[c],false);
+14109:                 for (scalar v:values) if (std::isfinite(v) && v<0) { needsQualityRepair=true;break; }
+14110:                 if (needsQualityRepair) { ++screenedQualityParents; }
+14111:             }
+14112:             if (needsRepair) { ++screenedBadParents; }
+14113:             if (kernelProposalPass && !needsRepair && !needsQualityRepair) { ++unchanged;continue; }
+14114:             const scalar displacement=mag(candidate-apex[c]);
+14115:             if (displacement<=1e-12*max(mag(hi-lo),scalar(1e-6)) && !needsRepair && !needsQualityRepair) { ++unchanged;continue; }
+14116:             if (pareto && hasCoupled) { ++coupledSkip;continue; }
+14117:             auto tooNear=[&](const point& trial)
+14118:             {
+14119:                 const gridKey q=gridOf(trial);
+14120:                 for (label x=-1;x<=1;++x) for (label y=-1;y<=1;++y) for (label z=-1;z<=1;++z)
+14121:                 {
+14122:                     auto bucket=pointGrid.find(gridKey{q.x+x,q.y+y,q.z+z});if (bucket==pointGrid.end()) { continue; }
+14123:                     for (label old:bucket->second) if (magSqr(trial-m.points[old])<=9e-12) { return true; }
+14124:                 }
+14125:                 return false;
+14126:             };
+14127:             if (!pareto)
+14128:             {
+14129:                 if (tooNear(candidate)) { ++nearExisting;continue; }
+14130:                 apex[c]=candidate;++moved;maxMove=max(maxMove,displacement);continue;
+14131:             }
+14132:             const coneProfile old=profile(c,apex[c]);
+14133:             if (!old.valid) { auditCandidate(c,candidate,"geometry-refused",old,old);++geometryVeto;continue; }
+14134:             std::vector<point> proposals;
+14135:             if (!kernelProposalPass) { proposals.push_back(candidate); }
+14136:             if (needsRepair && !kernelProposalPass)
+14137:             {
+14138:                 // Fixed, bounded, geometry-normalized exploration. No mesh
+14139:                 // IDs or case coordinates; at most thirteen candidates for
+14140:                 // parents selected by the cheap actual child determinant.
+14141:                 for (label axis=0;axis<3;++axis) for (scalar fraction:{scalar(.125),scalar(.25),scalar(.75),scalar(.875)})
+14142:                 {
+14143:                     point q=candidate;q[axis]=lo[axis]+fraction*(hi[axis]-lo[axis]);proposals.push_back(q);
+14144:                 }
+14145:             }
+14146:             if (qualityKernelCandidates && (needsRepair || needsQualityRepair))
+14147:             {
+14148:                 // Pass zero is the unchanged tested W/R proposal set;
+14149:                 // pass one adds N candidates to that selected actual mesh.
+14150:                 const auto derived=qualityProposals(c,lo,hi,kernelProposalPass!=0);qualityProposalCount+=derived.size();
+14151:                 proposals.insert(proposals.end(),derived.begin(),derived.end());
+14152:             }
+14153:             point best=apex[c];coneProfile bestProfile=old,last=old;point lastPoint=candidate;
+14154:             auto bestKey=profileKey(old);bool accepted=false,anyGeometry=false;
+14155:             for (const point& trial:proposals)
+14156:             {
+14157:                 if (mag(trial-apex[c])<=1e-12*max(mag(hi-lo),scalar(1e-6)) || tooNear(trial)) { continue; }
+14158:                 bool inKernel=true;
+14159:                 for (label f:cf[c])
+14160:                 {
+14161:                     const vector a=m.owner[f]==c ? areas[f] : -areas[f];
+14162:                     const scalar margin=(a&(centres[f]-trial))/max(mag(a),VSMALL);
+14163:                     if (!std::isfinite(margin) || margin<=3e-6) { inKernel=false;break; }
+14164:                 }
+14165:                 if (!inKernel) { continue; }++evaluatedCandidates;
+14166:                 const coneProfile next=profile(c,trial);last=next;lastPoint=trial;
+14167:                 if (!next.valid || mag(next.volume-old.volume)/max(old.volume,VSMALL)>1e-10
+14168:                  || mag(next.moment-old.moment)/(max(old.volume,VSMALL)*max(mag(hi-lo),scalar(1e-6)))>1e-10) { continue; }
+14169:                 anyGeometry=true;if (!improvesWithoutRegression(old,next)) { continue; }
+14170:                 const auto key=profileKey(next);
+14171:                 if (!accepted || key>bestKey) { best=trial;bestProfile=next;bestKey=key;accepted=true; }
+14172:             }
+14173:             if (!accepted)
+14174:             {
+14175:                 if (!anyGeometry) { auditCandidate(c,lastPoint,"geometry-refused",old,last);++geometryVeto; }
+14176:                 else { auditCandidate(c,lastPoint,"quality-refused",old,last);++qualityVeto; }continue;
+14177:             }
+14178:             auditCandidate(c,best,"selected-off-experiment",old,bestProfile);
+14179:             maxMove=max(maxMove,mag(best-apex[c]));apex[c]=best;++moved;
+14180:         }
+14181:         moved=returnReduce(moved,sumOp<label>());nonAxis=returnReduce(nonAxis,sumOp<label>());
+14182:         unsupported=returnReduce(unsupported,sumOp<label>());nearExisting=returnReduce(nearExisting,sumOp<label>());
+14183:         unchanged=returnReduce(unchanged,sumOp<label>());coupledSkip=returnReduce(coupledSkip,sumOp<label>());
+14184:         geometryVeto=returnReduce(geometryVeto,sumOp<label>());qualityVeto=returnReduce(qualityVeto,sumOp<label>());
+14185:         maxMove=returnReduce(maxMove,maxOp<scalar>());
+14186:         screenedBadParents=returnReduce(screenedBadParents,sumOp<label>());
+14187:         evaluatedCandidates=returnReduce(evaluatedCandidates,sumOp<label>());
+14188:         screenedQualityParents=returnReduce(screenedQualityParents,sumOp<label>());
+14189:         qualityProposalCount=returnReduce(qualityProposalCount,sumOp<label>());
+14190:         Info<<"Conforming axis-plane kernel centre experiment: moved "<<moved<<", non-axis "<<nonAxis
+14191:             <<", unsupported "<<unsupported<<", near old points "<<nearExisting<<", unchanged "<<unchanged
+14192:             <<", coupled skipped "<<coupledSkip<<", geometry veto "<<geometryVeto<<", Pareto veto "<<qualityVeto
+14193:             <<", screened bad parents "<<screenedBadParents<<", evaluated candidates "<<evaluatedCandidates
+14194:             <<", screened quality parents "<<screenedQualityParents<<", approximate quality-kernel proposals "<<qualityProposalCount
+14195:             <<", nonorthogonal inner-cone proposal factor "<<nonOrthogonalKernelCandidates
+14196:             <<", sequential proposal passes "<<(nonOrthogonalKernelCandidates ? 2 : 1)
+14197:             <<", max displacement "<<maxMove<<"; original bases retained; full checkMesh required"<<endl;
+14198:     }
+14199:     label added=0,decomposed=0,volumeFailures=0,edgeFailures=0;
+14200:     for (label c=0;c<oldCells;++c)
+14201:     {
+14202:         if (!marked[c]) { continue; }
+14203:         const label ap=insertPoint(apex[c],false);if (ap<0) { ++closePoints;continue; }
+14204:         struct edgeUse { label child,a,b; };
+14205:         std::map<std::pair<label,label>,std::vector<edgeUse>> edges;
+14206:         const bool orig=m.cellOrigAlive[c];const scalar refV=m.cellRefVol[c];const point refC=m.cellRefCentre[c];
+14207:         const label level=m.cellLevel[c],rank=m.cellRank[c];const uint64_t leaf=m.cellLeaf[c],piece=m.cellPiece[c];
+14208:         scalar childVolume=0;bool first=true;
+14209:         for (label f:bases[c])
+14210:         {
+14211:             const bool own=m.owner[f]==c;
+14212:             if (!own && m.neighbour[f]!=c) { FatalErrorInFunction<<"conforming base lost parent incidence"<<exit(FatalError); }
+14213:             vector area;point centre;faceAreaCentreOF(m.points,m.faces[f],area,centre);
+14214:             const scalar v=((own ? area : -area)&(centre-apex[c]))/3;
+14215:             if (!std::isfinite(v) || v<=VSMALL || !writablePolygon(m.faces[f])) { ++volumeFailures; }childVolume+=v;
+14216:             const label child=first ? c : m.nCells++;
+14217:             if (!first)
+14218:             {
+14219:                 m.cellAlive.push_back(true);m.cellOrigAlive.push_back(orig);m.cellRefVol.push_back(refV);m.cellRefCentre.push_back(refC);
+14220:                 m.cellLevel.push_back(level);m.cellRank.push_back(rank);m.cellLeaf.push_back(leaf);m.cellPiece.push_back(piece);++added;
+14221:                 if (traceCones) { m.coneEvidenceParent.push_back(c); }
+14222:                 if (literalUnions) { unionParent.push_back(c); }
+14223:                 m.completeCavityLineage.inherit(child,c,cavityAvailable);
+14224:             }
+14225:             first=false;
+14226:             const auto& poly=m.faces[f];
+14227:             for (size_t j=0;j<poly.size();++j)
+14228:             {
+14229:                 label a=poly[j],b=poly[(j+1)%poly.size()];if (!own) { std::swap(a,b); }
+14230:                 edges[std::minmax(a,b)].push_back(edgeUse{child,a,b});

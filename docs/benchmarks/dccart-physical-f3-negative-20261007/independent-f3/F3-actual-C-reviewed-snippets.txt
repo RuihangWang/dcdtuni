@@ -1,0 +1,97 @@
+12668:                  "PRIVATE combined decision/determinant stack cap");
+12669:    const auto capturePhysicalDeterminants=
+12670:        [&](const dcCartPhysicalPointLifecycle::Transaction& transaction,
+12671:            label rowOrdinal,const PhysicalDecisionRow& row,unsigned fractionIndex)
+12672:    {
+12673:        // First observed actual local quality refusal only. No decision,
+12674:        // callback, oracle, geometry or time query; fixed storage only.
+12675:        if(physicalDeterminants.attempted)return;
+12676:        auto& out=physicalDeterminants;out.attempted=true;
+12677:        out.rowOrdinal=rowOrdinal;out.compact=row.compact;
+12678:        out.representative=row.representative;out.fractionIndex=fractionIndex;
+12679:        const auto& old=transaction.oldValues();
+12680:        const auto& next=transaction.newValues();
+12681:        out.oldRefusal=label(old.refusal);out.nextRefusal=label(next.refusal);
+12682:        out.oldCells=old.cells.size();out.nextCells=next.cells.size();
+12683:        out.oldMetrics=old.metrics.size();out.nextMetrics=next.metrics.size();
+12684:        out.oldDeterminants=old.determinant.size();
+12685:        out.nextDeterminants=next.determinant.size();
+12686:        if(out.oldDeterminants>out.pairs.size()){out.unavailableReason=1;return;}
+12687:        if(out.nextDeterminants>out.pairs.size()){out.unavailableReason=2;return;}
+12688:        const auto rawBits=[](scalar value)
+12689:        {std::uint64_t bits=0;std::memcpy(&bits,&value,sizeof(scalar));return bits;};
+12690:        static_assert(sizeof(scalar)==sizeof(std::uint64_t),"PRIVATE binary64 map observation");
+12691:        // Preserve exactly the old determinant map iteration order used by
+12692:        // pointHard. New-only keys follow in their own original map order.
+12693:        for(const auto& item:old.determinant)
+12694:        {
+12695:            auto& pair=out.pairs[out.pairCount++];pair.native=item.first;
+12696:            pair.oldPresent=true;pair.oldBits=rawBits(item.second);
+12697:            const auto found=next.determinant.find(item.first);
+12698:            pair.nextPresent=found!=next.determinant.end();
+12699:            if(pair.nextPresent)pair.nextBits=rawBits(found->second);
+12700:        }
+12701:        for(const auto& item:next.determinant)
+12702:        {
+12703:            if(old.determinant.find(item.first)!=old.determinant.end())continue;
+12704:            if(out.pairCount==out.pairs.size())
+12705:            {out.pairCount=0;out.unavailableReason=3;return;}
+12706:            auto& pair=out.pairs[out.pairCount++];pair.native=item.first;
+12707:            pair.nextPresent=true;pair.nextBits=rawBits(item.second);
+12708:        }
+12709:        out.complete=true;
+12710:    };
+12711:    label physicalDecisionCount=0;bool physicalDecisionCapped=false;
+12712:    const auto physicalDecisionBits=[](const Foam::point& value)
+12713:    {
+12714:        std::array<std::uint64_t,3> bits{};
+12715:        for(direction k=0;k<3;++k){const scalar v=value[k];std::memcpy(&bits[k],&v,sizeof(scalar));}
+12716:        return bits;
+12717:    };
+12718:    const label oldCells=m.nCells,oldFaces=label(m.faces.size());
+12719:    // Source-only state. No cavity is replaced/enabled by this setup.
+12720:    // Origins are fixed before any cone appends or accepted union changes.
+12721:    auto cavityAvailable=[&]()
+12722:    {
+12723:        if (!cavityAuthority.ready()) return false;
+12724:        const scalar seconds=cavityAuthority.remainingSeconds();
+14471:                        const Foam::point old=m.points[physicalStage->representative()];
+14472:                        if(observed){observed->oldKnown=true;observed->oldBits=physicalDecisionBits(old);}
+14473:                        bool qualified=false;unsigned fractionIndex=0;
+14474:                        for(scalar fraction:{scalar(.25),scalar(.5),scalar(.75),scalar(1)})
+14475:                        {
+14476:                            if(!physicalStage->available())break;
+14477:                            // Observe the very same temporary proposal by const reference:
+14478:                            // no second coordinate expression or oracle evaluation.
+14479:                            const bool localReady=[&](const Foam::point& proposal)
+14480:                            {
+14481:                                const bool result=physicalStage->local(proposal,pointStats);
+14482:                                if(observed)
+14483:                                {auto& call=observed->local[fractionIndex];call.evaluated=true;call.ok=result;
+14484:                                 call.refusal=label(physicalStage->refusal());call.proposalKnown=true;
+14485:                                 call.proposalBits=physicalDecisionBits(proposal);call.statistics=pointStats;call.statisticsObserved=true;
+14486:                                 if(!result&&call.refusal==label(dcCartPhysicalPointLifecycle::Refusal::quality))
+14487:                                     capturePhysicalDeterminants(*physicalStage,physicalDecisionCount-1,*observed,fractionIndex);}
+14488:                                return result;
+14489:                            }(old+fraction*(midpoint-old));
+14490:                            ++fractionIndex;
+14491:                            if(localReady){qualified=true;break;}
+14492:                        }
+14493:                        if(!qualified)continue;
+14494:                        const bool staged=physicalStage->stage(runTime,patchNames,patchTypes,faceZoneNames,
+14495:                            *m.weightUnionState,oracleBindings,physicalPatchMap,unionBase,unionParent,pointStats);
+14496:                        if(observed)
+14497:                        {observed->stage.evaluated=true;observed->stage.ok=staged;
+14498:                         observed->stage.refusal=label(physicalStage->refusal());observed->stage.statistics=pointStats;observed->stage.statisticsObserved=true;}
+14499:                        if(!staged)break;
+14500:                        ++stagedPhysical;
+14501:                        // All dependent wrappers are allocated BEFORE the first
+14502:                        // live point write. Publication itself is no-throw swaps.
+14503:                        // Transaction privately owns prepared wrappers; no
+14504:                        // mutable staged frame is exposed to caller callbacks.
+14505:                        const bool committed=physicalStage->commit(m,physicalFrame);
+14506:                        if(observed)
+14507:                        {observed->commit.evaluated=true;observed->commit.ok=committed;
+14508:                         observed->commit.refusal=label(physicalStage->refusal());observed->commit.statistics=pointStats;observed->commit.statisticsObserved=true;}
+14509:                        if(!committed)break;
+14510:                        physicalPointCommitted=1;break;

@@ -1,0 +1,130 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+_________ test_cleanup_attempts_all_sessions_and_collects_each_failure _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9c2aba36a0>
+
+    def test_cleanup_attempts_all_sessions_and_collects_each_failure(monkeypatch):
+        from types import SimpleNamespace
+        module=load_supervisor("ov_cleanup_all_sessions")
+        owner=module.Owner(.1)
+        owner.sessions=[SimpleNamespace(pid=101),SimpleNamespace(pid=102)]
+        attempts=[]
+        def close(child):
+            attempts.append(child.pid)
+            if child.pid==102:
+                raise OSError(5,"injected process metadata I/O failure")
+            owner.sessions.remove(child)
+        monkeypatch.setattr(owner,"close",close)
+>       errors=owner.cleanup()
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:337: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py:176: in cleanup
+    self.close(child)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+child = namespace(pid=102)
+
+    def close(child):
+        attempts.append(child.pid)
+        if child.pid==102:
+>           raise OSError(5,"injected process metadata I/O failure")
+E           OSError: [Errno 5] injected process metadata I/O failure
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:334: OSError
+_ test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit[False] _
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-cleanup-before/test_cleanup_failure_keeps_ori0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9c2c024070>
+startup_failure = False
+
+    @pytest.mark.parametrize("startup_failure",[False,True])
+    def test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit(tmp_path,monkeypatch,startup_failure):
+        from types import SimpleNamespace
+        import signal
+        module=load_supervisor("ov_cleanup_visible")
+        runtime=tmp_path/"cleanup-failure-runtime"
+        fake=SimpleNamespace(pid=99999999,poll=lambda:0)
+        def spawn(owner,command,**kwargs):
+            owner.sessions.append(fake)
+            return fake
+        def close(owner,child):
+            raise OSError(5,"injected owned-session cleanup failure")
+        monkeypatch.setattr(module.Owner,"spawn",spawn)
+        monkeypatch.setattr(module.Owner,"close",close)
+        args=["supervise_kit","--runtime",str(runtime),"--","fake-kit"]
+        if startup_failure:
+            args[3:3]=["--signal-port",str(free_port())]
+        monkeypatch.setattr(sys,"argv",args)
+        original_handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
+        try:
+>           code=module.main()
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:362: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py:383: in main
+    owner.cleanup()
+src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py:176: in cleanup
+    self.close(child)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+owner = <ov_cleanup_visible.Owner object at 0x7f9c2abd8880>
+child = namespace(pid=99999999, poll=<function test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit.<locals>.<lambda> at 0x7f9c2abab640>)
+
+    def close(owner,child):
+>       raise OSError(5,"injected owned-session cleanup failure")
+E       OSError: [Errno 5] injected owned-session cleanup failure
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:353: OSError
+_ test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit[True] __
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-cleanup-before/test_cleanup_failure_keeps_ori1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9c2bfee8c0>
+startup_failure = True
+
+    @pytest.mark.parametrize("startup_failure",[False,True])
+    def test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit(tmp_path,monkeypatch,startup_failure):
+        from types import SimpleNamespace
+        import signal
+        module=load_supervisor("ov_cleanup_visible")
+        runtime=tmp_path/"cleanup-failure-runtime"
+        fake=SimpleNamespace(pid=99999999,poll=lambda:0)
+        def spawn(owner,command,**kwargs):
+            owner.sessions.append(fake)
+            return fake
+        def close(owner,child):
+            raise OSError(5,"injected owned-session cleanup failure")
+        monkeypatch.setattr(module.Owner,"spawn",spawn)
+        monkeypatch.setattr(module.Owner,"close",close)
+        args=["supervise_kit","--runtime",str(runtime),"--","fake-kit"]
+        if startup_failure:
+            args[3:3]=["--signal-port",str(free_port())]
+        monkeypatch.setattr(sys,"argv",args)
+        original_handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
+        try:
+>           code=module.main()
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:362: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py:383: in main
+    owner.cleanup()
+src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py:176: in cleanup
+    self.close(child)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+owner = <ov_cleanup_visible.Owner object at 0x7f9c2aa5b0d0>
+child = namespace(pid=99999999, poll=<function test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit.<locals>.<lambda> at 0x7f9c2aa70700>)
+
+    def close(owner,child):
+>       raise OSError(5,"injected owned-session cleanup failure")
+E       OSError: [Errno 5] injected owned-session cleanup failure
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:353: OSError
+----------------------------- Captured stdout call -----------------------------
+[supervise_kit] ERROR: Kit exited 0 before its signaling listener; logs /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-cleanup-before/test_cleanup_failure_keeps_ori1/cleanup-failure-runtime/kit.log
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_cleanup_attempts_all_sessions_and_collects_each_failure
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit[False]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_cleanup_failure_keeps_original_reason_and_publishes_nonzero_exit[True]
+3 failed, 1 passed, 15 deselected in 0.57s

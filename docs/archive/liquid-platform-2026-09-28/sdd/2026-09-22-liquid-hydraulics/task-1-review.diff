@@ -1,0 +1,748 @@
+# Review package: fa5e83ce..6964e3fe
+
+## Commits
+6964e3fe feat(liquid): solve control schedules with physical valve hydraulics
+
+## Files changed
+ src/backend/liquidcooling/handlers/valve.py        |  34 ++-
+ .../liquidcooling/solver/newton_hydraulic.py       | 259 +++++++++++++++------
+ .../tests/test_liquid/test_dynamic_hydraulic.py    | 166 +++++++++++++
+ 3 files changed, 376 insertions(+), 83 deletions(-)
+
+## Diff
+diff --git a/src/backend/liquidcooling/handlers/valve.py b/src/backend/liquidcooling/handlers/valve.py
+index d0afa9ea..fbbb6adc 100644
+--- a/src/backend/liquidcooling/handlers/valve.py
++++ b/src/backend/liquidcooling/handlers/valve.py
+@@ -2,20 +2,32 @@
+ 
+ from __future__ import annotations
+ 
+ import torch
+ from torch import Tensor
+ 
+ from backend.liquidcooling.handlers.base import BaseHandler
+ from backend.liquidcooling.graphcompiling.compiled_graph import ValveIndices, ValveBatchParams
+ 
+ 
++def effective_valve_kv(Kv_max: Tensor, opening: Tensor, characteristic: Tensor) -> Tensor:
++    """ISA Kv in m3/h/sqrt(bar); tensors must have broadcast-compatible shapes.
++
++    Positive openings use the existing characteristic (rangeability 50 for equal
++    percentage). Zero/negative opening is ideal shutoff, with no assumed leakage.
++    """
++    alpha = opening.clamp(min=0.0)
++    kv = torch.where(characteristic == 1, Kv_max * 50.0 ** (alpha - 1.0),
++                     torch.where(characteristic == 2, Kv_max * alpha.sqrt(), Kv_max * alpha))
++    return torch.where(opening <= 0.0, torch.zeros_like(kv), kv)
++
++
+ class ValveBatchHandler(BaseHandler):
+     """
+     Batch handler for control valves using the ISA valve equation.
+ 
+     Flow model (ISA):
+         Q[m³/h] = Kv * sqrt(dP[bar] / (rho / 1000))
+         m[kg/s] = sign(dP) * Q * rho / 3600
+ 
+     where Kv is the effective flow coefficient [m^3/h / sqrt(bar)] computed
+     from Kv_max and opening according to the selected characteristic curve:
+@@ -23,21 +35,21 @@ class ValveBatchHandler(BaseHandler):
+         0 = linear:           Kv = Kv_max * alpha
+         1 = equal_percentage: Kv = Kv_max * 50^(alpha - 1)
+         2 = quick_opening:    Kv = Kv_max * sqrt(alpha)
+ 
+     Residual (zero when satisfied):
+         r_momentum = m - m_model
+ 
+     Parameters (registered as buffers so they move with .to(device)):
+         D             [N_valves]         nominal diameter (informational)
+         Kv_max        [N_valves]         maximum flow coefficient
+-        opening       [N_valves, N_t]    normalised opening in (0, 1]
++        opening       [N_valves, N_t]    normalised opening in [0, 1]; zero is ideal shutoff
+         characteristic [N_valves] int    curve type (0/1/2)
+ 
+     Fluid properties stored as plain float attribute:
+         rho  [kg/m^3]
+     """
+ 
+     def __init__(
+         self,
+         params: ValveBatchParams,
+         rho: float,
+@@ -70,37 +82,23 @@ class ValveBatchHandler(BaseHandler):
+             dt:        Time step (unused — purely algebraic).
+             bdf_order: BDF order (unused — purely algebraic).
+ 
+         Returns:
+             {'momentum': r_momentum}  shape [N_valves, N_t]
+         """
+         P_from = state["P"][indices.node_from]   # [N_valves, N_t]
+         P_to   = state["P"][indices.node_to]     # [N_valves, N_t]
+         m      = state["m"][indices.edge_ids]    # [N_valves, N_t]
+ 
+-        # Minimum leakage opening prevents graph disconnection (FromGPT.md pitfall #6).
+-        # A fully-closed valve would create an isolated sub-graph with singular Jacobian.
+-        alpha = torch.clamp(self.opening, min=1e-3)   # [N_valves, N_t]
+-
+-        # --- Compute Kv for each characteristic type (fully vectorised) ---
+-        # Expand Kv_max to [N_valves, 1] for broadcasting
+-        Kv_max = self.Kv_max.unsqueeze(1)            # [N_valves, 1]
+-
+-        Kv_lin = Kv_max * alpha                       # linear
+-        Kv_eq  = Kv_max * (50.0 ** (alpha - 1.0))    # equal percentage
+-        Kv_qo  = Kv_max * alpha.sqrt()               # quick opening
+-
+-        # Select by characteristic type (vectorised, no Python if)
+-        is_eq = (self.characteristic == 1).unsqueeze(1)   # [N_valves, 1]
+-        is_qo = (self.characteristic == 2).unsqueeze(1)   # [N_valves, 1]
+-
+-        Kv = torch.where(is_eq, Kv_eq, torch.where(is_qo, Kv_qo, Kv_lin))
++        opening = self.opening if self.opening.ndim == 2 else self.opening[:, None]
++        Kv = effective_valve_kv(self.Kv_max[:, None], opening,
++                                self.characteristic[:, None])
+ 
+         # --- ISA valve equation ---
+         # Q[m³/h] = Kv * sqrt(dP[bar] / (rho/1000))
+         # m[kg/s] = sign(dP) * Q * rho / 3600
+         dP      = P_from - P_to
+         dP_bar  = dP.abs() / 1e5                          # Pa → bar
+         rho_rel = self.rho / 1000.0                        # relative to water
+         Q_m3h   = Kv * (dP_bar / rho_rel + 1e-10).sqrt()  # m³/h
+         m_model = torch.sign(dP) * Q_m3h * self.rho / 3600.0  # kg/s
+ 
+diff --git a/src/backend/liquidcooling/solver/newton_hydraulic.py b/src/backend/liquidcooling/solver/newton_hydraulic.py
+index 1fbc7195..2d0f2e6a 100644
+--- a/src/backend/liquidcooling/solver/newton_hydraulic.py
++++ b/src/backend/liquidcooling/solver/newton_hydraulic.py
+@@ -1,26 +1,29 @@
+ """GGA Newton-Raphson hydraulic solver for liquid cooling networks.
+ 
+ Implements the Global Gradient Algorithm (Todini & Pilati 1988):
+ - Schur complement: S = A · diag(1/g) · Aᵀ
+ - Dense solve via torch.linalg.solve
+ - Quadratic convergence in 5-15 iterations
+ 
+-Differentiable via torch.autograd.Function with implicit differentiation.
++Quasi-steady per-time-step hydraulics; no trajectory autograd contract.
+ """
+ from __future__ import annotations
+ 
++import math
+ from typing import TYPE_CHECKING, Callable
+ 
+ import torch
+ from torch import Tensor
+ 
++from backend.liquidcooling.handlers.valve import effective_valve_kv
++
+ if TYPE_CHECKING:
+     from backend.liquidcooling.graphcompiling.compiled_graph import CompiledGraph
+ 
+ 
+ def _pipe_dp_friction(
+     m: Tensor,
+     D: float, L: float, A: float,
+     K_minor: float, roughness: float,
+     rho: float, mu: float,
+     eps: float = 1e-8,
+@@ -93,27 +96,70 @@ def pump_headloss(
+ ) -> tuple[Tensor, Tensor]:
+     """Pump: dp = -rho*g*(H0 - a*Q^2)*N^2  (negative = adds pressure)."""
+     Q = m / rho
+     N2 = rpm_ratio * rpm_ratio
+     H = N2 * (H0 - a_coef * Q * Q)
+     dp = -rho * g_acc * H
+     g = 2.0 * g_acc * a_coef * m * N2 / rho
+     return dp, g
+ 
+ 
++def _at_time(values: Tensor, time_index: int) -> Tensor:
++    """Read static [component], broadcast [component,1], or scheduled controls."""
++    return values if values.ndim == 1 else values[:, 0 if values.shape[1] == 1 else time_index]
++
++
++def _has_pressure_reference(graph: CompiledGraph, closed: Tensor) -> bool:
++    """Every open-edge connected component needs a prescribed pressure.
++
++    Include zero-flow dead ends: their pressure is recoverable through an open
++    edge, but closure removes that datum. This also detects floating components
++    before numerical roundoff can make a singular Laplacian appear solvable.
++    """
++    adjacency = [[] for _ in range(graph.N_nodes)]
++    for start, end, shut in zip(graph.edge_from.tolist(), graph.edge_to.tolist(), closed.tolist()):
++        if not shut:
++            adjacency[start].append(end)
++            adjacency[end].append(start)
++    reached = set(torch.where(graph.bc_mask)[0].tolist())
++    pending = list(reached)
++    while pending:
++        for node in adjacency[pending.pop()]:
++            if node not in reached:
++                reached.add(node)
++                pending.append(node)
++    return len(reached) == graph.N_nodes
++
++
++def valve_headloss(m: Tensor, Kv: Tensor, rho: float, eps: float = 1e-8) -> tuple[Tensor, Tensor]:
++    """Inverse ISA law: dp[Pa] = R m|m| with Kv[m3/h/sqrt(bar)].
++
++    R = 1e5 * (rho/1000) * (3600/(rho*Kv))**2. Closed valves have no
++    pressure-drop law: the solver enforces m=0 and removes their conductance.
++    """
++    safe_kv = torch.where(Kv == 0, torch.ones_like(Kv), Kv)
++    resistance = 1e5 * (rho / 1000.) * (3600. / (rho * safe_kv)).square()
++    m_abs = torch.sqrt(m.square() + eps**2)
++    dp = resistance * m * m_abs
++    derivative = resistance * (m_abs + m.square() / m_abs)
++    return (torch.where(Kv == 0, torch.zeros_like(dp), dp),
++            torch.where(Kv == 0, torch.zeros_like(derivative), derivative))
++
++
+ # ---------------------------------------------------------------------------
+ # Batch headloss computation over all edges
+ # ---------------------------------------------------------------------------
+ 
+ def _compute_all_headlosses(
+     m: Tensor,
+     graph: CompiledGraph,
++    time_index: int = 0,
+ ) -> tuple[Tensor, Tensor]:
+     """Compute per-edge headloss dp and derivative g for every edge.
+ 
+     Parameters
+     ----------
+     m : Tensor [N_edges]
+         Current mass flow rates.
+     graph : CompiledGraph
+         Compiled network graph with all component parameters.
+ 
+@@ -156,85 +202,61 @@ def _compute_all_headlosses(
+         eids = graph.cp_indices.edge_ids.to(_dev)
+         cp = graph.cp_params
+         dp_e, g_e = quadratic_headloss(m[eids], dp_a=cp.dp_a, dp_b=cp.dp_b)
+         dp[eids] = dp_e
+         g[eids] = g_e
+ 
+     # --- pumps ---
+     if graph.pump_indices is not None:
+         eids = graph.pump_indices.edge_ids.to(_dev)
+         pp = graph.pump_params
+-        rpm = pp.rpm_ratio
+-        rpm_b = rpm if rpm.dim() == 1 else rpm[:, 0]
++        rpm_b = _at_time(pp.rpm_ratio, time_index)
+         dp_e, g_e = pump_headloss(
+             m[eids], H0=pp.H0, a_coef=pp.a_coef, rpm_ratio=rpm_b,
+             rho=rho, g_acc=g_acc,
+         )
+         dp[eids] = dp_e
+         g[eids] = g_e
+ 
++    # --- valves (ISA pressure loss, not a pipe surrogate) ---
++    if graph.valve_indices is not None:
++        eids = graph.valve_indices.edge_ids.to(_dev)
++        vp = graph.valve_params
++        kv = effective_valve_kv(vp.Kv_max, _at_time(vp.opening, time_index), vp.characteristic)
++        dp[eids], g[eids] = valve_headloss(m[eids], kv, rho)
++
+     # --- heat exchangers (quadratic) ---
+     if graph.hx_indices is not None:
+         eids = graph.hx_indices.edge_ids.to(_dev)
+         hp = graph.hx_params
+         dp_e, g_e = quadratic_headloss(m[eids], dp_a=hp.dp_a, dp_b=hp.dp_b)
+         dp[eids] = dp_e
+         g[eids] = g_e
+ 
+     return dp, g
+ 
+ 
+ # ---------------------------------------------------------------------------
+ # GGA Newton-Raphson solver
+ # ---------------------------------------------------------------------------
+ 
+-def gga_solve(
++def _gga_solve_step(
+     graph: CompiledGraph,
+     tol: float = 1e-6,
+     max_iter: int = 50,
+     m_init: Tensor | None = None,
+     iteration_callback: Callable | None = None,
++    time_index: int = 0,
+ ) -> tuple[Tensor, Tensor, dict]:
+-    """Solve for nodal pressures and edge mass flows via GGA.
+-
+-    The Global Gradient Algorithm (Todini & Pilati 1988) solves the coupled
+-    momentum + mass conservation system:
+-
+-        dp_e(m_e) = P_from - P_to   (momentum, per edge)
+-        B @ m = 0                    (mass conservation, per junction)
+-
+-    using a Newton iteration with Schur complement elimination.
+-
+-    Parameters
+-    ----------
+-    graph : CompiledGraph
+-        Compiled network with topology, BC, and component parameters.
+-    tol : float
+-        Convergence tolerance on max |m_new - m_old|.
+-    max_iter : int
+-        Maximum Newton iterations.
+-    m_init : Tensor | None
+-        Optional initial guess for edge flows [N_edges].  Defaults to a
+-        small positive value (0.01 kg/s).
+-
+-    Returns
+-    -------
+-    P : Tensor [N_nodes, N_t]
+-        Nodal pressures (Pa).
+-    m : Tensor [N_edges, N_t]
+-        Edge mass flow rates (kg/s).
+-    info : dict
+-        ``converged`` (bool), ``iterations`` (int), ``max_dm`` (float).
+-    """
++    """Solve one quasi-steady hydraulic slice, with scalar diagnostics."""
+     N_nodes = graph.N_nodes
+     N_edges = graph.N_edges
+-    N_t = graph.N_t
+ 
+     # Detect device from graph tensors so Newton works on CPU or CUDA
+     _dev = graph.bc_P.device
+ 
+     # The incidence matrix B[node, edge] has exactly two nonzeros per column:
+     # B[from, e] = +1, B[to, e] = -1. Every product involving it is therefore an
+     # O(E) gather/scatter over (edge_from, edge_to), not an O(N*E) dense matmul, and
+     # the Schur complement it induces is a weighted graph Laplacian assembled in O(E).
+     # Densifying B threw all of that away.
+     ef = graph.edge_from.to(dtype=torch.long, device=_dev)
+@@ -250,20 +272,27 @@ def gga_solve(
+ 
+     # Identify dead-end edges and nodes as masks rather than Python sets.
+     # Dead-end: junction node with exactly 1 connected edge. Node degree is a bincount
+     # over the edge endpoints, so this is O(E) instead of a Python walk over N_nodes
+     # that indexed a tensor once per node.
+     deg = (torch.bincount(ef, minlength=N_nodes)
+            + torch.bincount(et, minlength=N_nodes))
+     dead_node_mask = junc_mask & (deg == 1)
+     dead_edge_mask = dead_node_mask[ef] | dead_node_mask[et]
+ 
++    closed_edge_mask = torch.zeros(N_edges, dtype=torch.bool, device=_dev)
++    if graph.valve_indices is not None:
++        vp = graph.valve_params
++        kv = effective_valve_kv(vp.Kv_max, _at_time(vp.opening, time_index), vp.characteristic)
++        closed_edge_mask[graph.valve_indices.edge_ids] = kv == 0
++    inactive_edge_mask = dead_edge_mask | closed_edge_mask
++
+     # Free (active) junction nodes exclude dead-ends
+     free_idx = torch.where(junc_mask & ~dead_node_mask)[0].to(_dev)
+     N_free = free_idx.shape[0]
+ 
+     # node -> row of the free (junction) block, -1 for nodes that are not free.
+     # This replaces the dense row-slices A_free = B[free_idx, :] and B_bc = B[bc_idx, :].
+     row_of = torch.full((N_nodes,), -1, dtype=torch.long, device=_dev)
+     row_of[free_idx] = torch.arange(N_free, dtype=torch.long, device=_dev)
+     rf = row_of[ef]           # [N_edges] free-row of each edge's from-node, or -1
+     rt = row_of[et]           # [N_edges] free-row of each edge's to-node, or -1
+@@ -280,44 +309,80 @@ def gga_solve(
+         out.index_add_(0, rf[mf], x[mf])
+         out.index_add_(0, rt[mt], -x[mt])
+         return out
+ 
+     # Initial guess for mass flows
+     if m_init is not None:
+         m = m_init.clone().to(dtype=torch.float64, device=_dev)
+     else:
+         m = torch.full((N_edges,), 0.01, dtype=torch.float64, device=_dev)
+ 
+-    # Zero out dead-end edges
+-    m = m.masked_fill(dead_edge_mask, 0.0)
++    # Ideal shutoff and terminal continuity both require zero flow.
++    m = m.masked_fill(inactive_edge_mask, 0.0)
++
++    if not _has_pressure_reference(graph, closed_edge_mask):
++        return P_bc.clone(), m, {
++            "converged": False, "iterations": 0, "max_dm": float("inf"),
++            "mass_residual": float("inf"), "momentum_residual": float("inf"),
++            "reason": "singular_pressure_system",
++        }
+ 
+     # Newton iteration
+     converged = False
+     iterations = 0
+     max_dm = float("inf")
+     g_min = 1e-4  # minimum Jacobian clamp to prevent singularity
+     H_full = P_bc.clone()  # will be updated each iteration
++    reason = "max_iterations"
++    mass_residual = momentum_residual = float("inf")
++    # Bound residual acceptance independently of user-supplied update tolerance.
++    mass_tol = max(1e-10, min(tol, 1e-8))
++
++    def recover_terminal_pressure(pressure, loss):
++        # Terminal continuity fixes m=0, but gravity and pump shutoff head can
++        # still give a nonzero pressure difference on the terminal edge.
++        pressure = pressure.clone()
++        if bool(dead_node_mask.any()):
++            de = torch.where(dead_edge_mask)[0]
++            dead_is_from = dead_node_mask[ef[de]]
++            node = torch.where(dead_is_from, ef[de], et[de])
++            neighbour = torch.where(dead_is_from, et[de], ef[de])
++            pressure[node] = pressure[neighbour] + torch.where(dead_is_from, loss[de], -loss[de])
++        return pressure
++
++    def residuals(flow, pressure):
++        loss, _ = _compute_all_headlosses(flow, graph, time_index)
++        pressure = recover_terminal_pressure(pressure, loss)
++        mismatch = (loss - pressure[ef] + pressure[et]).masked_fill(closed_edge_mask, 0.)
++        mass = _A_free_matvec(flow)
++        max_mass = mass.abs().max().item() if mass.numel() else 0.
++        max_momentum = mismatch.abs().max().item() if mismatch.numel() else 0.
++        scale = loss.masked_fill(closed_edge_mask, 0.).abs().max().item()
++        return max_mass, max_momentum, 1e-5 + 1e-10 * scale
+ 
+     for it in range(max_iter):
+         # 1. Compute headloss and derivative for all edges
+-        dp, g_vec = _compute_all_headlosses(m, graph)
++        dp, g_vec = _compute_all_headlosses(m, graph, time_index)
++        if not bool(torch.isfinite(dp).all() & torch.isfinite(g_vec).all()):
++            reason = "nonfinite_headloss"
++            break
+ 
+         # Clamp g to prevent singular Jacobian
+         g_vec = torch.clamp(g_vec, min=g_min)
+ 
+-        # Zero out dead-end contributions so they add nothing to the Schur system
++        # Remove closed-valve/dead-end contributions from the Schur system
+         # or the flow update. g_vec is set to 1 only to keep the reciprocal finite;
+         # inv_g is masked to 0 straight after.
+-        dp = dp.masked_fill(dead_edge_mask, 0.0)
+-        g_vec = g_vec.masked_fill(dead_edge_mask, 1.0)
++        dp = dp.masked_fill(inactive_edge_mask, 0.0)
++        g_vec = g_vec.masked_fill(inactive_edge_mask, 1.0)
+ 
+-        inv_g = (1.0 / g_vec).masked_fill(dead_edge_mask, 0.0)  # [N_edges]
++        inv_g = (1.0 / g_vec).masked_fill(inactive_edge_mask, 0.0)  # [N_edges]
+ 
+         # 2. Build Schur complement and solve for junction pressures
+         if N_free == 0:
+             # All nodes are BCs — pressures are fully known
+             H_full = P_bc
+         else:
+             # S = A_free @ diag(1/g) @ A_free^T is a weighted graph Laplacian over the
+             # free nodes: each edge contributes +w to both diagonals and -w to the two
+             # off-diagonals. Assembling it that way is O(E); forming it as a dense
+             # product is O(N_free^2 * E) — 404 ms per iteration at 500 free nodes
+@@ -336,57 +401,121 @@ def gga_solve(
+             # From mass conservation A_free @ m_{k+1} = 0 with flow update
+             # m_{k+1} = m_k + inv_g * (B^T H - dp):
+             # S H_free = A_free (dp/g - m) - A_inv_g B_bc^T P_bc
+             dp_over_g_minus_m = dp * inv_g - m     # [N_edges]
+             rhs = _A_free_matvec(dp_over_g_minus_m)  # [N_free]
+ 
+             bc_contrib = Pb[ef] - Pb[et]           # [N_edges] = B_bc.T @ P_bc[bc_idx]
+             rhs = rhs - _A_free_matvec(inv_g * bc_contrib)  # [N_free]
+ 
+             # 4. Solve for junction pressures
+-            H_free = torch.linalg.solve(S, rhs)    # [N_free]
++            try:
++                H_free = torch.linalg.solve(S, rhs)    # [N_free]
++            except torch.linalg.LinAlgError:
++                reason = "singular_pressure_system"
++                break
+ 
+             # 5. Assemble full pressure vector
+             H_full = P_bc.clone()
+             H_full[free_idx] = H_free
+ 
+         # 6. Update flows: m_new = m - (1/g) * (dp - B^T @ H_full)
+         BtH = H_full[ef] - H_full[et]   # [N_edges] = B.T @ H_full, O(E) not O(N*E)
+         m_new = m - inv_g * (dp - BtH)
+ 
+-        # 7. Enforce dead-end edges to 0
+-        m_new = m_new.masked_fill(dead_edge_mask, 0.0)
++        # 7. Enforce closed-valve and dead-end edges to 0
++        m_new = m_new.masked_fill(inactive_edge_mask, 0.0)
++
++        if not bool(torch.isfinite(m_new).all() & torch.isfinite(H_full).all()):
++            reason = "nonfinite_state"
++            break
+ 
+         # 8. Check convergence
+         max_dm = (m_new - m).abs().max().item()
+         m = m_new
+         iterations = it + 1
+ 
+         if iteration_callback is not None:
+             iteration_callback(it + 1, max_dm)
+ 
+         if max_dm < tol:
+-            converged = True
+-            break
+-
+-    # Recover dead-end node pressures from their neighbour. m = 0 on a dead-end edge,
+-    # so dp = 0 and the two ends share a pressure. Each dead-end node has exactly one
+-    # incident edge by construction, so the scatter cannot collide.
+-    P_full = H_full.clone()
+-    if bool(dead_node_mask.any()):
+-        de = torch.where(dead_edge_mask)[0]
+-        dead_is_from = dead_node_mask[ef[de]]
+-        node_i = torch.where(dead_is_from, ef[de], et[de])
+-        neighbour = torch.where(dead_is_from, et[de], ef[de])
+-        P_full[node_i] = P_full[neighbour]
+-
+-    # Expand to [N_nodes/N_edges, N_t] — all timesteps share same steady state
+-    P_out = P_full.unsqueeze(1).expand(-1, N_t).clone()
+-    m_out = m.unsqueeze(1).expand(-1, N_t).clone()
+-
++            mass_residual, momentum_residual, momentum_tol = residuals(m, H_full)
++            if not all(math.isfinite(value) for value in (mass_residual, momentum_residual, momentum_tol)):
++                reason = "nonfinite_residual"
++                break
++            if mass_residual <= mass_tol and momentum_residual <= momentum_tol:
++                converged = True
++                reason = "converged"
++                break
++
++    final_loss, _ = _compute_all_headlosses(m, graph, time_index)
++    P_full = recover_terminal_pressure(H_full, final_loss)
++
++    if not converged and reason == "max_iterations":
++        mass_residual, momentum_residual, _ = residuals(m, P_full)
+     info = {
+         "converged": converged,
+         "iterations": iterations,
+         "max_dm": max_dm,
++        "mass_residual": mass_residual,
++        "momentum_residual": momentum_residual,
++        "reason": reason,
+     }
++    return P_full, m, info
+ 
+-    return P_out, m_out, info
++
++def gga_solve(
++    graph: CompiledGraph,
++    tol: float = 1e-6,
++    max_iter: int = 50,
++    m_init: Tensor | None = None,
++    iteration_callback: Callable | None = None,
++) -> tuple[Tensor, Tensor, dict]:
++    """Return P[N_nodes,N_t], m[N_edges,N_t] for each hydraulic control slice.
++
++    Each slice solves momentum plus junction mass balance. The last converged
++    flow warm-starts the next changed control. Identical adjacent controls reuse
++    a converged solution (thermal loads do not enter these equations).
++
++    tol bounds max|delta m| in kg/s; m_init is an optional [N_edges] flow
++    guess. Mass residual acceptance is max(1e-10,min(tol,1e-8)) kg/s; momentum
++    acceptance is 1e-5 Pa plus 1e-10 times the largest active edge pressure drop.
++
++    Legacy scalar diagnostics are retained: iterations is the maximum iterations
++    of a computed slice, max_dm the maximum final update, and converged requires
++    all slices. per_step contains time_index, converged, iterations (zero for
++    reuse), max_dm, mass_residual[kg/s], momentum_residual[Pa], reason and reused.
++    iteration_callback retains (iteration, max_dm), called for computed slices.
++    No thermal integration or end-to-end differentiability is provided here.
++    """
++    pressures, flows, per_step = [], [], []
++    warm_start = m_init
++    previous_controls = None
++    for time_index in range(graph.N_t):
++        controls = []
++        if graph.pump_indices is not None:
++            controls.append(_at_time(graph.pump_params.rpm_ratio, time_index))
++        if graph.valve_indices is not None:
++            controls.append(_at_time(graph.valve_params.opening, time_index))
++        reusable = (previous_controls is not None and per_step[-1]["converged"]
++                    and all(torch.equal(a, b) for a, b in zip(controls, previous_controls)))
++        if reusable:
++            P, m = pressures[-1], flows[-1]
++            step = dict(per_step[-1], iterations=0, max_dm=0., reused=True)
++        else:
++            P, m, step = _gga_solve_step(graph, tol, max_iter, warm_start,
++                                        iteration_callback, time_index)
++            step["reused"] = False
++            if step["converged"]:
++                warm_start = m
++        step["time_index"] = time_index
++        pressures.append(P)
++        flows.append(m)
++        per_step.append(step)
++        previous_controls = [value.clone() for value in controls]
++    info = {
++        "converged": all(step["converged"] for step in per_step),
++        "iterations": max(step["iterations"] for step in per_step),
++        "max_dm": max(step["max_dm"] for step in per_step),
++        "per_step": per_step,
++    }
++    return torch.stack(pressures, dim=1), torch.stack(flows, dim=1), info
+diff --git a/src/backend/tests/test_liquid/test_dynamic_hydraulic.py b/src/backend/tests/test_liquid/test_dynamic_hydraulic.py
+new file mode 100644
+index 00000000..b3a74101
+--- /dev/null
++++ b/src/backend/tests/test_liquid/test_dynamic_hydraulic.py
+@@ -0,0 +1,166 @@
++"""Behavioral contracts for valve physics and quasi-steady control schedules."""
++import json
++import math
++from pathlib import Path
++
++import pytest
++import torch
++
++from backend.liquidcooling.graphcompiling.compiler import compile_graph
++from backend.liquidcooling.schema import LiquidrunConfig
++from backend.liquidcooling.solver import newton_hydraulic as nh
++
++
++def _graph(opening=(1.0, 0.5, 0.5, 1.0), characteristic="linear", loop=False,
++           rpm=(1.0, 1.0, 0.6, 0.6), reverse=False):
++    raw = json.loads((Path(__file__).parent / "minimal.liquidrun").read_text())
++    raw["time"]["N_t"] = len(opening)
++    raw["nodes"][0]["bc"]["P_Pa"] = 100000.0 if reverse else 200000.0
++    raw["nodes"][1]["bc"]["P_Pa"] = 200000.0 if reverse else 100000.0
++    raw["edges"] = [{"id": "valve", "type": "valve", "from": "supply", "to": "return",
++                      "params": {"Kv_max": 2.5, "opening": list(opening),
++                                 "characteristic": characteristic}}]
++    if loop:
++        raw["nodes"][1] = {"id": "return", "type": "junction", "position_m": [0, 0, 1]}
++        raw["edges"].append({"id": "pump", "type": "pump", "from": "return", "to": "supply",
++                              "params": {"H0_m": 20.0, "a_coef": 5e5, "rpm_ratio": list(rpm)}})
++    return compile_graph(LiquidrunConfig.model_validate(raw))
++
++
++@pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
++@pytest.mark.parametrize("reverse", [False, True])
++def test_valve_schedule_matches_isa_flow_and_direction(characteristic, reverse):
++    graph = _graph(characteristic=characteristic, reverse=reverse)
++    _, m, info = nh.gga_solve(graph)
++    alpha = torch.tensor([1., .5, .5, 1.], dtype=torch.float64)
++    factor = {"linear": alpha, "equal_percentage": 50. ** (alpha - 1.),
++              "quick_opening": alpha.sqrt()}[characteristic]
++    # Exactly 1 bar: independent ISA oracle in m3/h, converted once to kg/s.
++    expected = 2.5 * factor * math.sqrt(1. / (graph.fluid_rho / 1000.)) * graph.fluid_rho / 3600.
++    if reverse:
++        expected = -expected
++    assert info["converged"]
++    torch.testing.assert_close(m[0], expected, rtol=1e-8, atol=1e-10)
++    assert abs(m[0, 1]) < abs(m[0, 0])
++
++
++def test_pump_schedule_changes_single_reference_loop_flow():
++    graph = _graph(opening=(1., 1., 1., 1.), loop=True)
++    P, m, info = nh.gga_solve(graph)
++    rho = graph.fluid_rho
++    resistance = 1e5 * (rho / 1000.) * (3600. / (rho * 2.5)) ** 2
++    rpm = torch.tensor([1., 1., .6, .6], dtype=torch.float64)
++    expected = (rho * graph.g_mag * 20. * rpm**2 /
++                (resistance + graph.g_mag * 5e5 * rpm**2 / rho)).sqrt()
++    assert info["converged"]
++    torch.testing.assert_close(m[0], expected, rtol=1e-8, atol=1e-10)
++    torch.testing.assert_close(m[0], m[1], rtol=0, atol=1e-10)
++    assert (graph.incidence @ m)[graph.junction_mask].abs().max() < 1e-10
++    torch.testing.assert_close(P[graph.bc_mask], graph.bc_P[graph.bc_mask, None].expand(-1, graph.N_t))
++
++
++def test_constant_static_and_broadcast_controls_retain_solution():
++    graph = _graph(opening=(.7,) * 4, loop=True, rpm=(.8,) * 4)
++    P, m, info = nh.gga_solve(graph)
++    graph.valve_params.opening = graph.valve_params.opening[:, 0]
++    graph.pump_params.rpm_ratio = graph.pump_params.rpm_ratio[:, :1]
++    P_static, m_static, static_info = nh.gga_solve(graph)
++    assert info["converged"] and static_info["converged"]
++    torch.testing.assert_close(P_static, P, rtol=0, atol=0)
++    torch.testing.assert_close(m_static, m, rtol=0, atol=0)
++    torch.testing.assert_close(m, m[:, :1].expand_as(m), rtol=0, atol=0)
++    assert len(info["per_step"]) == graph.N_t
++    assert all(isinstance(step["iterations"], int) for step in info["per_step"])
++
++
++@pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
++def test_fully_closed_valve_has_exactly_zero_flow_and_handler_agrees(characteristic):
++    from backend.liquidcooling.handlers.valve import ValveBatchHandler
++    graph = _graph(opening=(1., 0., 0., 1.), characteristic=characteristic)
++    P, m, info = nh.gga_solve(graph)
++    assert info["converged"]
++    assert torch.equal(m[:, 1:3], torch.zeros_like(m[:, 1:3]))
++    assert m[0, 0] > 0 and m[0, 3] > 0
++    residual = ValveBatchHandler(graph.valve_params, graph.fluid_rho).compute_residuals(
++        {"P": P, "m": m}, graph.valve_indices, 1., 1)["momentum"]
++    assert residual.abs().max() < 1e-8
++
++
++def test_nonfinite_later_control_does_not_hide_behind_first_step_success():
++    graph = _graph(opening=(1., 1., 1., 1.), loop=True)
++    graph.pump_params.rpm_ratio[0, 2] = float("nan")
++    _, _, info = nh.gga_solve(graph)
++    assert not info["converged"]
++    assert info["per_step"][0]["converged"]
++    assert not info["per_step"][2]["converged"]
++    assert info["per_step"][3]["converged"]
++    assert info["per_step"][2]["reason"] == "nonfinite_headloss"
++
++
++def test_large_tolerance_cannot_accept_gross_momentum_residual():
++    graph = _graph(opening=(1.,))
++    _, _, info = nh.gga_solve(graph, tol=1e20, max_iter=1)
++    assert not info["converged"]
++
++
++def test_closed_valve_isolation_reports_unsolvable_pressure_reference():
++    graph = _graph(opening=(1., 0.), loop=True, rpm=(1., 1.))
++    # Two valves in series connect a pressure reference to a free node. Closing
++    # both isolates the node: zero leakage must not manufacture a pressure datum.
++    from backend.liquidcooling.graphcompiling.compiled_graph import ValveIndices
++    graph.valve_indices = ValveIndices(torch.tensor([0, 1]), graph.edge_from, graph.edge_to)
++    graph.valve_params.D = graph.valve_params.D.repeat(2)
++    graph.valve_params.Kv_max = graph.valve_params.Kv_max.repeat(2)
++    graph.valve_params.characteristic = graph.valve_params.characteristic.repeat(2)
++    graph.valve_params.opening = graph.valve_params.opening.repeat(2, 1)
++    graph.pump_indices = graph.pump_params = None
++    _, m, info = nh.gga_solve(graph)
++    assert not info["converged"]
++    assert info["per_step"][0]["converged"]
++    assert not info["per_step"][1]["converged"]
++    assert info["per_step"][1]["reason"] == "singular_pressure_system"
++    assert torch.equal(m[:, 1], torch.zeros(2, dtype=torch.float64))
++
++@pytest.mark.parametrize("sign", [-1., 1.])
++def test_valve_headloss_derivative_matches_isa_pressure_drop(sign):
++    graph = _graph(opening=(.5,))
++    m = torch.tensor([sign * .2], dtype=torch.float64)
++    dp, derivative = nh._compute_all_headlosses(m, graph)
++    rho = graph.fluid_rho
++    R = 1e5 * (rho / 1000.) * (3600. / (rho * 1.25)) ** 2
++    torch.testing.assert_close(dp, R * m * m.abs(), rtol=1e-12, atol=1e-10)
++    torch.testing.assert_close(derivative, 2. * R * m.abs(), rtol=1e-12, atol=1e-10)
++
++
++def test_closing_only_edge_to_dead_end_does_not_invent_pressure():
++    graph = _graph(opening=(1., 0.), loop=True, rpm=(1., 1.))
++    # The same one-valve two-node topology, with only its inlet pressure fixed.
++    graph.N_edges = 1
++    graph.edge_from = graph.edge_from[:1]
++    graph.edge_to = graph.edge_to[:1]
++    graph.pump_indices = graph.pump_params = None
++    _, m, info = nh.gga_solve(graph)
++    assert info["per_step"][0]["converged"]
++    assert not info["per_step"][1]["converged"]
++    assert info["per_step"][1]["reason"] == "singular_pressure_system"
++    assert m[0, 1] == 0.
++
++
++def test_dead_end_pressure_retains_static_head_in_residual_check():
++    raw = json.loads((Path(__file__).parent / "minimal.liquidrun").read_text())
++    raw["nodes"][1] = {"id": "return", "type": "junction", "position_m": [0., 1., 0.]}
++    raw["edges"][0]["params"]["waypoints_m"] = [[0., 0., 0.], [0., 1., 0.]]
++    graph = compile_graph(LiquidrunConfig.model_validate(raw))
++    P, m, info = nh.gga_solve(graph)
++    assert info["converged"]
++    assert torch.equal(m, torch.zeros_like(m))
++    expected_drop = graph.fluid_rho * graph.g_mag * graph.pipe_params.dh[0]
++    assert abs(expected_drop) > 1000.
++    torch.testing.assert_close(P[0] - P[1], expected_drop.expand(graph.N_t), rtol=0, atol=1e-8)
++
++
++def test_nonfinite_trial_residual_cannot_pass_relative_tolerance():
++    graph = _graph(opening=(1.,))
++    graph.bc_P[0] = 1e200  # finite input, but its first Newton trial overflows m²
++    _, _, info = nh.gga_solve(graph, tol=1e250, max_iter=1)
++    assert not info["converged"]

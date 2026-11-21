@@ -1,0 +1,39 @@
+\documentclass[journal,10pt]{IEEEtran}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs,array,graphicx}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\HF}{\mathrm{H}}
+\newcommand{\LF}{\mathrm{L}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\pending}[1]{\par\noindent\textit{Pending: #1}\par}
+\newtheorem{proposition}{Proposition}
+\newtheorem{assumption}{Assumption}
+\title{Information-Stratified Policy Optimization for Physics-Based Design Automation with Multi-Fidelity Evaluators}
+\author{Research working draft}
+\markboth{ISPO Research Working Draft, October 12, 2026}{ISPO: Information-Stratified Policy Optimization}
+\begin{document}
+\maketitle
+\begin{abstract}
+Physics-based design automation combines natural-language requirements, discrete configuration decisions, and continuous physical parameters. Evaluators can supply objective values, constraint losses, governing-equation residuals, and sensitivities at substantially different costs. We formulate information-stratified policy optimization as the problem of using these signals to post-train a design policy for a specified high-fidelity objective under an evaluation budget. ISPO combines a structured language policy and stochastic numerical head with leave-one-out baselines, component control variates, and corrected multi-fidelity updates. Cheap physics signals form an auxiliary update, while randomized high-fidelity evaluations correct its discrepancy using recorded inclusion probabilities. Residual and adjoint information support objective-aware error estimation and the allocation of additional evaluations. Conditional estimator identities distinguish target consistency from the empirical value of each information type. The experimental protocol isolates estimator accuracy, learning efficiency, and generalization across controlled thermal design, data-center layouts, and aerodynamic design. A seeded controlled study supports residual-informed path updates; full-budget, cross-domain, and generalization experiments remain in progress.
+\end{abstract}
+\noindent\textbf{Note to Practitioners---}
+Engineers often screen many candidate designs with a fast approximation before checking a small number with a detailed simulator. A design generator trained entirely on the fast approximation can learn to favor configurations that appear attractive there but perform poorly under the detailed model. The proposed workflow uses inexpensive evaluations for broad exploration and reserves detailed evaluations for calibration and selected uncertain designs. When a predicted physical field is available, a governing-equation check can help decide which candidates deserve additional evaluation; an objective-specific sensitivity calculation can further improve the screening score. The intended application is repeated design work across changing requirements, rather than replacing engineering sign-off for one installation. Adoption requires a reproducible design compiler, a calibrated detailed evaluator, and an explicit account of all simulation and training costs. Data-center layouts provide the motivating application, with controlled thermal and aerodynamic problems used to study the method. The present draft specifies the workflow and evaluation protocol; evidence of operational savings and design quality will be added after experiments. Every released design must still pass the application-specific physical and geometric checks.
+\par
+\begin{IEEEkeywords}
+Design automation, language-model post-training, multi-fidelity evaluation, physics-based optimization, control variates.
+\end{IEEEkeywords}
+\input{sections/introduction}
+\input{sections/related_work}
+\input{sections/problem}
+\input{sections/method}
+\input{sections/experiments}
+\input{sections/results}
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

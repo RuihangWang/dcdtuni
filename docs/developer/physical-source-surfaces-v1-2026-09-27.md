@@ -1,0 +1,13 @@
+# 风侧源面身份 V1（2026-09-27）
+
+`.cfdproj` 仍是唯一可编辑工程真源。风侧 `.cfdrun.geometryExport.sourceSurfaces` 是从同次三维导出与 grouped STL 派生的可选运行元数据，键为 `<stlFileId>:<solidName>`。每项保存 `stlFileId`、`solidName`、`sourceObjectUid`、`sourceFaceUid` 和 `representation`；后者目前只允许 `zeroThicknessSheet` 或 `surfaceFace`。文件 ID 指向同一 `.cfdrun.stlFiles` 的导出时 SHA-256；后端 schema 验证文件引用，所有声明源面 UID 的网格运行在准备前还核对 STL 字节及相应 solid 确实存在。旧 `.cfdrun` 没有此字段仍可读取，但不能声称具有逐源面身份。
+
+Shinaide 的首版派生 mock 导出记录 284 个源面，其中 `con_f/con_b/con_b_copy` 分别绑定工程 UID `m_22/m_23/m_24`，`Raised_Floor` 绑定 `m_52`，四者是 `zeroThicknessSheet`。`sourceFaceUid` 的 `/source-sheet` 是零厚度构件整体源片的固定导出面 ID；机柜服务器的面则保留 `rackUid/serverUid` 与现有 `surfaceUid`。后续补入 70 个机柜空槽挡板源片，现为 354 行：直接从同一 `.cfdproj` 的机柜 UID、正反侧和 U 区间，经与 STL 导出相同的几何及命名函数取得精确 solid 和文件；`sourceFaceUid` 形如 `proj_Shinaide/m_16/blanking/front/u1-u3/source-sheet`。B06 `m_16` 与 B07 `m_19` 即使共用一个 3U 或 5U STL 桶，也有不同源面 ID；同名机柜造成 solid 冲突时拒绝导出，不以近邻坐标推断归属。源面记录不替换旧 `porousBindings`：`merged_wall_baffle` 仍是风冷边界/faceZone 的聚合名称，不能作为物理壁面 UID。
+
+一个 `zeroThicknessSheet` 只应计一次源面积；OpenFOAM `createBaffles` 派生的 `_master/_slave` 是这一个源片的两侧，不是两份相近源面的配对证据。**V1 不支持有限厚壁的双源面 `pairUid`，也不在 dcCart 中执行配对或覆盖计算。** 对不同 `sourceFaceUid`，即使同 zone、同平面或同外接框，也不能推断为同一物理壁。若派生混合工程里有一块已建模的 baffle/wallBaffle floor 找不到对应 STL solid，React 导出即拒绝；不得以显示名称缺失时猜测另一源面。
+
+网格预检还要求每个已声明源面含非退化三角形、面积有限且为正。混合风冷的既有网格来源回执记录 `sourceSurfaces` 规范 SHA-256；普通风冷只要声明源面 UID，也生成独立 `source-surface-mesh-source.json`，绑定工程哈希、导出 STL 路径/哈希、源面 UID 和五份 `polyMesh` 文件身份。solve-only 复用时核对回执，拒绝换 UID、文件映射或网格后继续求解；旧的无源面 UID 工程不要求这份新回执。补入机柜挡板后的 Shinaide 派生清单有 354 项源面、12 份有哈希的 STL；40901 后端逐文件及逐 solid 正面积验证通过。这个数量是**已覆盖的来源行数**，不表示房间里所有可裁切源面均已按物理壁 UID 完整建模。
+
+网格准备会重组 grouped STL：例如 `con_f` 从导出时的 `merged_baffle.stl` 进入实际 mesher 使用的 `merged_wall_baffle.stl`。凡声明 `sourceSurfaces` 的输入均先核对导出时全部 STL 的字节哈希及源 solid 的有效面积，包括非 hybrid 运行；未完成该预检时 dcCart 字典生成拒绝继续。字典输出用同一次准备后的 solid 清单逐项查找**唯一**实际文件，缺失、重名或两个来源挤占同一目标 `(STL, region)` 时拒绝；不会在 C++ 侧按名称猜测迁移。补齐机柜挡板后的 354 行已在 mesh-stage STL 中全部唯一落位，包含 `Raised_Floor → wallBaffle_floor_Raised_Floor.stl`。带顶层 `dcdtuniSourceSurfaces` 的完整 `snappyHexMeshDict` 已由 OpenFOAM `foamDictionary` 解析出 354 行；旧 snappy 路线不写这个附加块。
+
+本次完成 `.cfdproj → React 导出 → 严格 v2 .cfdrun → 后端 STL 身份预检 → dcCart 字典生成 → 原生读取` 的来源保留。原生探针在完整 Shinaide 准备数据上返回 **354 identities / GEOMETRY_UNCHANGED**，并拒绝未知或歧义文件、未知 region 与重复 `sourceFaceUid`；旧输入缺省仍兼容。**当前原生身份只是元数据，尚未据此改变近邻平面去重、裁切或覆盖计算**；Shinaide 网格仍不通过质量验收。下一步需逐源 region/connected component 验证独立源片面积与裁切，不能用近邻推断双面配对。显式有限厚壁配对另需工程/schema 中的 pair UID、两侧引用、厚度与真实投影覆盖验证。[反例与配对契约](../archive/dccart-source-validation-2026-09-27/dccart-pairing-contract-counterexamples-2026-09-27.md)列明仍需的测试。

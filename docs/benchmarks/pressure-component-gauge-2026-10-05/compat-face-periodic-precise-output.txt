@@ -1,0 +1,18 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_periodic_sheared_mesh_includes_actual_nonorth_correction _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/pytest-periodic-precise/test_periodic_sheared_mesh_inc0')
+
+    def test_periodic_sheared_mesh_includes_actual_nonorth_correction(tmp_path):
+        case=periodic_flow_case(tmp_path,shear=.2,nonconstant=True)
+        reply=invoke(case)
+        assert reply.returncode==0,reply.stdout
+        scales=[float(x) for x in re.findall(r"NONORTH_CORRECTION_SCALE ([-+\\deE.]+)",reply.stdout)]
+>       assert max(scales)>1e-3
+E       ValueError: max() arg is an empty sequence
+
+src/backend/tests/test_pressure_component_compatibility.py:131: ValueError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_compatibility.py::test_periodic_sheared_mesh_includes_actual_nonorth_correction
+1 failed, 2 passed, 7 deselected in 5.30s

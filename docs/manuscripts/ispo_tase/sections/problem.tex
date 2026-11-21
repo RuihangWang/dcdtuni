@@ -1,0 +1,35 @@
+\section{Problem Formulation}
+\subsection{Tasks, Policies, and Compilable Designs}
+A task $p$ specifies requirements, geometry, component inventories, and operating conditions. Inventories are fixed per task so that capacity changes cannot improve the cooling score by changing its denominator. A policy generates a design $d=(s,x)$, where $s$ is a discrete structured configuration and $x\in\R^{m(s)}$ contains continuous parameters. We use the factorization
+\begin{equation}
+\pi_\theta(d\mid p)=\pi_\theta^{s}(s\mid p)\pi_\theta^{x}(x\mid s,p).
+\label{eq:policy}
+\end{equation}
+The first factor is a grammar-constrained language policy. The second is a bounded stochastic numerical head with an evaluable density and a reparameterization $x=h_\theta(s,p,\epsilon)$. A deterministic compiler maps $d$ into a simulation input. Compiler acceptance establishes schema validity; geometric, boundary-condition, and physical validity are checked separately.
+
+For the data-center application, a hard candidate is a genuine schema-compatible \texttt{.cfdproj} copy. It is evaluated through the engineering compiler and physical simulation chain. A soft vector, relaxed graph, or empty project is not an interchangeable hard candidate. Differentiation acts on numerical parameters of the compiled model or an explicitly defined smooth surrogate. Neither JSON parsing nor the production compiler is assumed differentiable.
+
+\subsection{Target and Evaluation Interfaces}
+The reference objective is
+\begin{equation}
+J_\HF(\theta)=\E_{p\sim\mathcal P}\E_{d\sim\pi_\theta(\cdot\mid p)}[R_\HF(d;p)].
+\label{eq:target}
+\end{equation}
+The reward aggregates declared physical objectives and constraints with fixed scales. In the current data-center specification, total design-condition PUE is the primary objective; lower server exhaust temperature or greater thermal margin is a secondary objective, with inlet and exhaust upper bounds treated as hard constraints. For mixed-cooling tasks, the specification separately defines air, solid and coolant limits using the quantities represented by the solver. Annual PUE and the design-condition cooling contribution are distinguished. The evaluation protocol also reports these quantities separately, including performance among feasible designs. Invalid proposals and solver failures have explicit statuses and a predeclared finite training reward; numerical failure is not silently converted into a successful cheap evaluation.
+
+An evaluator $f$ returns any supported subset of the following signals: $I_0$, a scalar objective or reward; $I_1$, component-wise objective and constraint losses; $I_2$, a governing-equation residual evaluated on a supplied state; and $I_3$, objective sensitivities with respect to declared continuous parameters. An interface record identifies fidelity, state variables, mesh, boundary conditions, closure model, units, supported derivatives, validity status, and measured cost. Availability of $I_3$ does not imply availability of a full state or $I_2$.
+
+For a high-fidelity discrete operator $F_\HF(u;d)=0$ and a lifted cheap state $\tilde u$, the residual signal is
+\begin{equation}
+r_\HF(d)=F_\HF(\tilde u;d).
+\label{eq:residual}
+\end{equation}
+The operator includes the specified boundaries, source terms, and closures. State lifting, geometry preparation, and operator evaluation are part of the residual cost. A zonal model that supplies only averages does not automatically satisfy this field-level contract.
+
+\subsection{Budgets and Evaluation Distribution}
+Total cost includes proposal generation, simulation preparation, forward solves, residual evaluations, adjoints, surrogate training, and policy optimization. We report wall time together with CPU/GPU time and an equivalent target-evaluation budget calibrated from measured calls. Final designs from every method are scored with the same held-out high-fidelity protocol.
+
+The primary setting is a contextual design decision: one complete design is sent to all relevant evaluators. Sequential refinement is an additional deployment protocol. A training batch is sampled from a frozen policy version. The earliest implementation waits for its selected target evaluations before updating; asynchronous execution must retain policy identity and apply a declared staleness or importance-weighting rule.
+
+\subsection{Hypotheses}
+The protocol tests three linked hypotheses: objective-aware residual information predicts target discrepancies on the evolving policy distribution; including sensitivities in a corrected auxiliary update improves useful gradient information per unit cost; and post-training amortizes design work across held-out requirements and geometries. No hypothesis is treated as an established result in this draft.

@@ -1,0 +1,4933 @@
+{
+  "architectures": {
+    "RF_PERIM_CAC": {
+      "LF": null,
+      "acu_form": "perimeter",
+      "compiler": null,
+      "containment": "cold",
+      "floor": "raised-supply-plenum",
+      "pending": [
+        "task-owned perimeter catalog/inventory binding",
+        "perimeter/tile/leaky containment compiler",
+        "plenum and closed-zone LF"
+      ]
+    },
+    "RF_PERIM_HAC": {
+      "LF": null,
+      "acu_form": "perimeter",
+      "compiler": null,
+      "containment": "hot",
+      "floor": "raised-supply-and-ceiling-return",
+      "pending": [
+        "task-owned perimeter catalog/inventory binding",
+        "ceiling-return path/compiler",
+        "supply-return-plenum LF"
+      ]
+    },
+    "RF_PERIM_OPEN": {
+      "LF": null,
+      "acu_form": "perimeter",
+      "compiler": null,
+      "containment": "none",
+      "floor": "raised-supply-plenum",
+      "pending": [
+        "task-owned perimeter catalog/inventory binding",
+        "perimeter/downflow/tile compiler",
+        "supply-plenum LF"
+      ]
+    },
+    "SLAB_INROW_CAC": {
+      "LF": null,
+      "acu_form": "inrow",
+      "compiler": null,
+      "containment": "cold",
+      "floor": "sealed-support",
+      "pending": [
+        "explicit leaky cold containment compiler",
+        "variable-inventory closed-zone LF",
+        "zone allocation and fault validation"
+      ]
+    },
+    "SLAB_INROW_HAC": {
+      "LF": null,
+      "acu_form": "inrow",
+      "compiler": null,
+      "containment": "hot",
+      "floor": "sealed-support",
+      "pending": [
+        "hot containment return-path compiler",
+        "hot-containment LF",
+        "zone allocation and fault validation"
+      ]
+    },
+    "SLAB_INROW_OPEN": {
+      "LF": "OPEN-zonal/v2",
+      "acu_form": "inrow",
+      "compiler": "two-row-frame-and-controls/v2",
+      "containment": "none",
+      "floor": "sealed-support",
+      "pending": [
+        "general UID-slot rerouting",
+        "other row axes/counts",
+        "layout-parameter I3 tensorization"
+      ]
+    }
+  },
+  "bounds": {
+    "flow_fraction": [
+      0.22,
+      1.0
+    ],
+    "pump_N": [
+      0.8,
+      1.2
+    ],
+    "supply_C": [
+      16.0,
+      30.0
+    ]
+  },
+  "case_id": "shinaide-design-compile-20261011",
+  "equipment_catalog": {
+    "inrow_six": {
+      "capacity_kw": 50.0,
+      "count": 6,
+      "fan_exponent": 2.8,
+      "fan_kw_at_rated": 2.4,
+      "min_fraction": 0.22,
+      "rated_flow_m3s": 2.8,
+      "uids": [
+        "m_1001",
+        "m_1002",
+        "m_14",
+        "m_18",
+        "m_2",
+        "m_6"
+      ]
+    },
+    "perimeter": {
+      "count": null,
+      "status": "external sizing/catalog binding pending; policy never chooses inventory count",
+      "uid_inventory": null
+    }
+  },
+  "fault_policy": {
+    "contexts": [
+      "normal",
+      "single-off/m_1001",
+      "single-off/m_1002",
+      "single-off/m_14",
+      "single-off/m_18",
+      "single-off/m_2",
+      "single-off/m_6"
+    ],
+    "geometry_held": "same normal design geometry in every fault context",
+    "recourse": "on one ACU failure close its two ports/fan/coil; surviving flow set to catalog maximum; retain candidate supply temperatures and pump speed",
+    "source": "external task context, excluded from action grammar"
+  },
+  "format": "ispo-shinaide-training-task/v2",
+  "full_variables": {
+    "continuous": [
+      "ACU_supply_C",
+      "ACU_flow_fraction",
+      "row_center_m",
+      "row_start_m",
+      "liquid_pump_N"
+    ],
+    "discrete": [
+      "architecture",
+      "row_axis",
+      "row_count",
+      "row_slots",
+      "row_front",
+      "contained_aisles",
+      "acu_form_and_placement",
+      "perimeter_wall_assignment",
+      "tile_aisle_and_count"
+    ]
+  },
+  "geometry": {
+    "cold_aisle_min_m": 1.22,
+    "coordinate_convention": "design floor x/y maps to project world x/z; project world y is vertical",
+    "existing_CDU_pipe_contacts": [
+      [
+        "m_30",
+        "m_31_seg14"
+      ],
+      [
+        "m_30",
+        "m_32_seg0"
+      ]
+    ],
+    "nominal_body_depth_m": 1.2,
+    "nominal_body_width_m": 0.6,
+    "other_aisle_min_m": 0.91,
+    "reference_rows": [
+      {
+        "center_m": 4.62787240969197,
+        "front": "-",
+        "id": "A",
+        "slots": [
+          "m_1",
+          "m_2",
+          "m_3",
+          "m_4",
+          "m_5",
+          "m_6",
+          "m_7",
+          "m_17",
+          "m_30",
+          "m_9",
+          "m_1001"
+        ],
+        "start_m": 1.1514
+      },
+      {
+        "center_m": 2.20787240969197,
+        "front": "+",
+        "id": "B",
+        "slots": [
+          "m_10",
+          "m_11",
+          "m_12",
+          "m_14",
+          "m_13",
+          "m_15",
+          "m_16",
+          "m_18",
+          "m_19",
+          "m_20",
+          "m_1002"
+        ],
+        "start_m": 1.1513999999999998
+      }
+    ],
+    "room_plane": [
+      [
+        -0.0486,
+        -0.6223
+      ],
+      [
+        8.9514,
+        -0.6223
+      ],
+      [
+        8.9514,
+        7.2777
+      ],
+      [
+        -0.0486,
+        7.2777
+      ]
+    ],
+    "support_y_m": 0.8,
+    "utilities": "CDU/UPS move coherently with their reference row; not new free equipment-count variables",
+    "wall_clearance_m": 1.2
+  },
+  "gradient_semantics": {
+    "JSON_compiler_differentiable": false,
+    "continuous_field_bridge": "named numeric head, no STE through discrete architecture or JSON",
+    "layout_I3": "pending geometry-to-operator tensorization; retains score-function path and full layout design variable",
+    "state_control_I3": "current Ts/flow and native-pump through-solve interfaces; obtain/validate at each requested point"
+  },
+  "inventory": {
+    "IT_W": 84000.0,
+    "inrow_acu_uids": [
+      "m_1001",
+      "m_1002",
+      "m_14",
+      "m_18",
+      "m_2",
+      "m_6"
+    ],
+    "rack_uids": [
+      "m_1",
+      "m_10",
+      "m_11",
+      "m_12",
+      "m_13",
+      "m_15",
+      "m_16",
+      "m_17",
+      "m_19",
+      "m_20",
+      "m_3",
+      "m_4",
+      "m_5",
+      "m_7"
+    ],
+    "server_count": 56,
+    "server_flow_m3s": 12.656,
+    "server_records": {
+      "m_1/e_1": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 100,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_9",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 100,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_01-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_1"
+      },
+      "m_1/e_2": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 110,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_10",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 110,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_01-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_2"
+      },
+      "m_1/e_3": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 120,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_11",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 120,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_01-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_3"
+      },
+      "m_1/e_4": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 130,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_12",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 130,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_01-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_4"
+      },
+      "m_10/e_21": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 340,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_33",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 340,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_01-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_21"
+      },
+      "m_10/e_22": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 350,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_34",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 350,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_01-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_22"
+      },
+      "m_10/e_23": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 360,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_35",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 360,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_01-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_23"
+      },
+      "m_10/e_24": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 370,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_36",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 370,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_01-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_24"
+      },
+      "m_11/e_25": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 380,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_37",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 380,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_02-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_25"
+      },
+      "m_11/e_26": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 390,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_38",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 390,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_02-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_26"
+      },
+      "m_11/e_27": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 400,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_39",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 400,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_02-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_27"
+      },
+      "m_11/e_28": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 410,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_40",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 410,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_02-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_28"
+      },
+      "m_12/e_29": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 420,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_41",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 420,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_03-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_29"
+      },
+      "m_12/e_30": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 430,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_42",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 430,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_03-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_30"
+      },
+      "m_12/e_31": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 440,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_43",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 440,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_03-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_31"
+      },
+      "m_12/e_32": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 450,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_44",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 450,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_03-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_32"
+      },
+      "m_13/e_33": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 460,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_45",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 460,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_04-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_33"
+      },
+      "m_13/e_34": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 470,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_46",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 470,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_04-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_34"
+      },
+      "m_13/e_35": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 480,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_47",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 480,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_04-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_35"
+      },
+      "m_13/e_36": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 490,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_48",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 490,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_04-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_36"
+      },
+      "m_15/e_37": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 500,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_49",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 500,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_05-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_37"
+      },
+      "m_15/e_38": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 510,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_50",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 510,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_05-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_38"
+      },
+      "m_15/e_39": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 520,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_51",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 520,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_05-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_39"
+      },
+      "m_15/e_40": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 530,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_52",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 530,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_05-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_40"
+      },
+      "m_16/e_41": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 540,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_53",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 540,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_06-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_41"
+      },
+      "m_16/e_42": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 550,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_54",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 550,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_06-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_42"
+      },
+      "m_16/e_43": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 560,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_55",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 560,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_06-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_43"
+      },
+      "m_16/e_44": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 570,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_56",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 570,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_06-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_44"
+      },
+      "m_17/e_45": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 300,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_29",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 300,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_06-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_45"
+      },
+      "m_17/e_46": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 310,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_30",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 310,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_06-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_46"
+      },
+      "m_17/e_47": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 320,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_31",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 320,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_06-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_47"
+      },
+      "m_17/e_48": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 330,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_32",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 330,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_06-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_48"
+      },
+      "m_19/e_49": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 580,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_57",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 580,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_07-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_49"
+      },
+      "m_19/e_50": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 590,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_58",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 590,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_07-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_50"
+      },
+      "m_19/e_51": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 600,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_59",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 600,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_07-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_51"
+      },
+      "m_19/e_52": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 610,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_60",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 610,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_07-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_52"
+      },
+      "m_20/e_53": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 620,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_61",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 620,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_08-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_53"
+      },
+      "m_20/e_54": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 630,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_62",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 630,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_08-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_54"
+      },
+      "m_20/e_55": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 640,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_63",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 640,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_08-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_55"
+      },
+      "m_20/e_56": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 650,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_64",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 650,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_B_08-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_56"
+      },
+      "m_3/e_5": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 140,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_13",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 140,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_02-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_5"
+      },
+      "m_3/e_6": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 150,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_14",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 150,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_02-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_6"
+      },
+      "m_3/e_7": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 160,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_15",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 160,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_02-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_7"
+      },
+      "m_3/e_8": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 170,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_16",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 170,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_02-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_8"
+      },
+      "m_4/e_10": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 190,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_18",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 190,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_03-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_10"
+      },
+      "m_4/e_11": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 200,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_19",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 200,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_03-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_11"
+      },
+      "m_4/e_12": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 210,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_20",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 210,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_03-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_12"
+      },
+      "m_4/e_9": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 180,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_17",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 180,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_03-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_9"
+      },
+      "m_5/e_13": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 220,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_21",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 220,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_04-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_13"
+      },
+      "m_5/e_14": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 230,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_22",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 230,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_04-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_14"
+      },
+      "m_5/e_15": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 240,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_23",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 240,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_04-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_15"
+      },
+      "m_5/e_16": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 250,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_24",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 250,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_04-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_16"
+      },
+      "m_7/e_17": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 260,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_25",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 3
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 260,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_05-server_1"
+        },
+        "type": "liquidServer",
+        "uid": "e_17"
+      },
+      "m_7/e_18": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 270,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_26",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 12
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 270,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_05-server_2"
+        },
+        "type": "liquidServer",
+        "uid": "e_18"
+      },
+      "m_7/e_19": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 280,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 1000,
+          "volumeFlowRate": 0.151
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_27",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 4,
+          "slotPosition": 24
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 280,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_05-server_3"
+        },
+        "type": "liquidServer",
+        "uid": "e_19"
+      },
+      "m_7/e_20": {
+        "constructions": {
+          "chips": {},
+          "coldPlates": {
+            "CP-CU_1": {
+              "C_solid": 100,
+              "Q_W": 290,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu",
+              "uid": "CP-CU_1"
+            }
+          }
+        },
+        "cooling": {
+          "fixedTemperature": null,
+          "power": 2000,
+          "volumeFlowRate": 0.301
+        },
+        "extraInletOffset": 0,
+        "extraOutletOffset": 0,
+        "faces": {
+          "bottom": {
+            "patches": []
+          },
+          "inlet": {
+            "color": "#d14b4b",
+            "patches": []
+          },
+          "left": {
+            "patches": []
+          },
+          "outlet": {
+            "color": "#9f3636",
+            "patches": [
+              {
+                "applied": true,
+                "color": "#00cc66",
+                "h": 1,
+                "id": "p_28",
+                "type": "rect",
+                "w": 0.25,
+                "x": 0.75,
+                "y": 0
+              }
+            ]
+          },
+          "right": {
+            "patches": []
+          },
+          "top": {
+            "patches": []
+          }
+        },
+        "geometry": {
+          "slotOccupation": 8,
+          "slotPosition": 32
+        },
+        "liquidCooling": {
+          "cpCuPairs": [
+            {
+              "C_solid": 100,
+              "Q_W": 290,
+              "Q_rated_LPM": 1,
+              "R_th": 0.03,
+              "V_fluid_mL": 5,
+              "dp_rated_kPa": 10,
+              "name": "CP-CU_1",
+              "preset": "cpu"
+            }
+          ]
+        },
+        "meta": {
+          "enabled": true,
+          "name": "Rack_A_05-server_4"
+        },
+        "type": "liquidServer",
+        "uid": "e_20"
+      }
+    },
+    "utility_uids": [
+      "m_30",
+      "m_9"
+    ]
+  },
+  "reference_scope": "seven accepted joint-LF references do not replace the continuous action space or six-family research program",
+  "scope": "all six registered architecture families and all registered layout/containment/equipment/continuous controls; pending capability entries are implementation dependencies, not removed research scope",
+  "source_reference": {
+    "project": "case/agent/shinaide-six-acu-open-lf-20261008/evidence/seven-accepted-LF-readback-v1/normal/project.cfdproj",
+    "sha256": "f30c2af770e5e956d2d15e4d6dfb92dcf759b236ea7ef1001b334bccecf3dc46",
+    "successful_reference_summary": "case/agent/shinaide-six-acu-open-lf-20261008/evidence/seven-accepted-LF-readback-v1/SUMMARY.json",
+    "summary_sha256": "25449f7e1e704ac2dcedd074c2b58bb1ace1da1ba5d76243bbf32ef38378794f"
+  },
+  "task_id": "shinaide-six-family-training-interface-v1",
+  "thresholds": {
+    "OPEN_has_no_enclosed_zone_FR": true,
+    "active_ACU_capacity_kw": 50.0,
+    "active_ACU_return_max_C": 45.0,
+    "active_flow_fraction_bounds": [
+      0.22,
+      1.0
+    ],
+    "air_full_residual_inf_limit": 1e-10,
+    "air_heat_closure_kw_limit": 1e-08,
+    "capacity_tolerance_fraction": 0.0,
+    "chip_limit_status": "root approved synthetic task threshold before seven-point execution",
+    "chip_max_C": 85.0,
+    "closed_zone_FR_minimum": 1.0,
+    "coil_approach_K": 4.0,
+    "coil_pinch_K": 2.0,
+    "future_calibration_metadata": {
+      "NPSH": null,
+      "OEM_fan_pressure_curve": null,
+      "OEM_pressure_rating": null,
+      "scope": "unavailable equipment calibration data, not extra certification gates on this explicitly synthetic simulation task"
+    },
+    "inactive_ACU_capacity_kw": 0.0,
+    "liquid_scaled_residual_limit": 1e-10,
+    "per_UID_heat_closure_W_limit": 1e-06,
+    "provenance": "explicit researchmock and task thresholds; no OEM or operational certification",
+    "pump_N_bounds": [
+      0.8,
+      1.2
+    ],
+    "pump_curve_pressure_mismatch_Pa_limit": 1e-05,
+    "pump_domain": {
+      "coefficient_source": "actual packed native theta, mock parameter pack",
+      "flow": "Q >= 0",
+      "head": "H > 0",
+      "law": "N^2 H0 - a Q^2",
+      "not_an_OEM_rating": true
+    },
+    "pump_sampling_domain_provenance": "root-approved new synthetic research domain 2026-10-09; retains native curve/positive-head/forward-flow constraints, actual LF domain coverage scheduled separately",
+    "rated_flow_m3s": 2.8,
+    "reference_architecture": "SLAB_INROW_OPEN",
+    "required_hydraulic_observations": [
+      "native full mass residual",
+      "native full momentum residual",
+      "actual pump flow/head and pressure mismatch"
+    ],
+    "room_flow_margin": 1.1,
+    "room_flow_required_m3s": 13.9216,
+    "server_exhaust_max_C": 45.0,
+    "server_inlet_C": [
+      18.0,
+      27.0
+    ],
+    "steady_storage_W_limit": 1e-06,
+    "supply_temperature_bounds_C": [
+      16.0,
+      30.0
+    ],
+    "temperature_tolerance_K": 0.2,
+    "temperature_tolerance_provenance": "existing TaskSpec/handoff proposal; G3 HF noise study remains a separate planned experiment",
+    "version": "shinaide-six-ACU-mock-task-constraints/v1",
+    "whole_design_energy_closure_fraction_limit": 0.01
+  },
+  "training_status": "executable real candidate compiler and same-source LF input preparation; flagship training pending"
+}

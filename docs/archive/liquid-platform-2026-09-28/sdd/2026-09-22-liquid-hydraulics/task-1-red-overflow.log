@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_nonfinite_trial_residual_cannot_pass_relative_tolerance _________
+
+    def test_nonfinite_trial_residual_cannot_pass_relative_tolerance():
+        graph = _graph(opening=(1.,))
+        graph.bc_P[0] = 1e200  # finite input, but its first Newton trial overflows m²
+        _, _, info = nh.gga_solve(graph, tol=1e250, max_iter=1)
+>       assert not info["converged"]
+E       assert not True
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:166: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_nonfinite_trial_residual_cannot_pass_relative_tolerance
+1 failed, 18 deselected in 10.28s

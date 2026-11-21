@@ -1,0 +1,22 @@
+--- a/setup_env.sh
++++ b/setup_env.sh
+@@ -35,11 +35,17 @@
+ fi
+ 
+ echo ""
+-echo ">>> Installing OpenFOAM 2412 + MPICH from conda-forge..."
++echo ">>> Installing OpenFOAM 2412 + MPICH + GMP 6.3 from conda-forge..."
+ # Keep CPython's ABI explicit during both solves: an unconstrained OpenFOAM
+ # solve can replace Python with GraalPy and break pip's TLS/build isolation.
+ conda install -p "$ENV_PREFIX" --override-channels -c conda-forge \
+-    python=3.10 "python_abi=3.10=*_cp310" openfoam=2412 mpich -y
++    python=3.10 "python_abi=3.10=*_cp310" openfoam=2412 mpich gmp=6.3.0 -y
++
++# Exact native geometry uses GMP directly; require its public build files.
++[[ -r "$ENV_PREFIX/include/gmp.h" && -r "$ENV_PREFIX/lib/libgmp.so" ]] || {
++    echo "Error: GMP development header/library missing from $ENV_PREFIX." >&2
++    exit 1
++}
+ 
+ # Fail before any pip operation if Conda selected another implementation or
+ # activation points to a different prefix. HTTPS uses CPython's OpenSSL backend.

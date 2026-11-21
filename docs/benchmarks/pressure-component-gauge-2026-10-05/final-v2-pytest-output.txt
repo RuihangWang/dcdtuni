@@ -1,0 +1,239 @@
+.............FF                                                          [100%]
+=================================== FAILURES ===================================
+_____________ test_actual_new_solver_uses_component_gauges[False] ______________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-final-v2/test_actual_new_solver_uses_co0')
+cyclic = False
+
+    @pytest.mark.parametrize("cyclic", [False, True])
+    def test_actual_new_solver_uses_component_gauges(tmp_path, cyclic):
+        """A tiny unit/regression case, not a production air workflow invocation."""
+        solver = os.environ.get("DCDTUNI_PRESSURE_SOLVER")
+        if not solver:
+            pytest.skip("isolated _new executable not configured")
+        case = _case(tmp_path/"case", cyclic=cyclic, gravity=-9.81, initial=0)
+        initial_prgh = (case/"0/p_rgh").read_text()
+        names = re.findall(r"(\w+)\s*\{\s*type", initial_prgh)
+        for name, kind, dimensions, value in [
+            ("U","volVectorField","[0 1 -1 0 0 0 0]","(0 0 0)"),
+            ("T","volScalarField","[0 0 0 1 0 0 0]","293.15"),
+            ("alphat","volScalarField","[0 2 -1 0 0 0 0]","0")]:
+            bcs=[]
+            for patch in names:
+                bc = "type cyclic;" if patch.startswith("cyc") else (
+                    "type noSlip;" if name == "U" else "type fixedValue; value uniform 293.15;" if name=="T"
+                    else "type calculated; value uniform 0;")
+                bcs.append(f"{patch} {{ {bc} }}")
+            (case/"0"/name).write_text(_header(name,kind)
+                + f"dimensions {dimensions}; internalField uniform {value}; boundaryField {{ "
+                + " ".join(bcs) + "}")
+        (case/"constant/turbulenceProperties").write_text(_header("turbulenceProperties")
+            + "simulationType laminar;")
+        (case/"constant/transportProperties").write_text(_header("transportProperties")
+            + "transportModel Newtonian; nu [0 2 -1 0 0 0 0] 1e-5;"
+            + "beta [0 0 0 -1 0 0 0] 0.003; TRef [0 0 0 1 0 0 0] 293.15;"
+            + "Pr [0 0 0 0 0 0 0] 0.71; Prt [0 0 0 0 0 0 0] 0.85;")
+        (case/"constant/g").write_text(_header("g","uniformDimensionedVectorField")
+            + "dimensions [0 1 -2 0 0 0 0]; value (0 -9.81 0);")
+        (case/"constant/radiationProperties").write_text(_header("radiationProperties")
+            + "radiationModel none;")
+        (case/"system/controlDict").write_text(_header("controlDict")
+            + "application buoyantBoussinesqSimpleFoam_new; startFrom startTime; startTime 0;"
+            + "stopAt endTime; endTime 4; deltaT 1; writeControl timeStep; writeInterval 1;"
+            + "writePrecision 15; runTimeModifiable false;"
+            + "explicitBoundaryValues { mode preserveType; }")
+        (case/"system/fvSchemes").write_text(_header("fvSchemes")
+            + "ddtSchemes { default steadyState; } gradSchemes { default Gauss linear; }"
+            + "divSchemes { default none; div(phi,U) Gauss upwind; div(phi,T) Gauss upwind;"
+            + "div((nuEff*dev2(T(grad(U))))) Gauss linear; }"
+            + "laplacianSchemes { default Gauss linear corrected; }"
+            + "interpolationSchemes { default linear; } snGradSchemes { default corrected; }")
+        (case/"system/fvSolution").write_text(_header("fvSolution")
+            + 'solvers { p_rgh { solver PCG; preconditioner DIC; tolerance 1e-12; relTol 0; }'
+            + ' "(U|T)" { solver smoothSolver; smoother symGaussSeidel; tolerance 1e-12; relTol 0; } }'
+            + "SIMPLE { nNonOrthogonalCorrectors 0; pRefCell 0; pRefValue 5;"
+            + "residualControl { p_rgh 1e-9; U 1e-9; T 1e-9; } }")
+        # Re-decompose after all physical fields/settings are written.
+        _run(case, ["decomposePar","-force"])
+>       stdout = _run(case, ["mpirun","-np","2",solver,"-parallel"])
+
+src/backend/tests/test_pressure_component_references.py:263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-final-v2/test_actual_new_solver_uses_co0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqSimpleFoam_new', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/platforms/linux64GccDPInt32Opt/bin/buoyantBoussinesqSimpleFoam_new -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:25:21
+E         Host   : 40901
+E         PID    : 1675747
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-final-v2/test_actual_new_solver_uses_co0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         
+E         SIMPLE: convergence criteria
+E             field p_rgh	 tolerance 1e-09
+E             field U	 tolerance 1e-09
+E             field T	 tolerance 1e-09
+E         
+E         Reading thermophysical properties
+E         
+E         Reading field T
+E         
+E         Reading field p_rgh
+E         
+E         Reading field U
+E         
+E         Reading/calculating face flux field phi
+E         
+E         Selecting incompressible transport model Newtonian
+E         Creating turbulence model
+E         
+E         Selecting turbulence model type laminar
+E         Selecting laminar stress model Stokes
+E         Reading field alphat
+E         
+E         
+E         Reading g
+E         
+E         Reading hRef
+E         Calculating field g.h
+E         
+E         No MRF models present
+E         
+E         Selecting radiationModel none
+E         No finite volume options present
+E         
+E         Starting time loop
+E         
+E         Time = 1
+E         
+E         smoothSolver:  Solving for Ux, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for Uy, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for Uz, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for T, Initial residual = 0.999639841790481, Final residual = 0, No Iterations 1
+E         Pressure components: 2, boundary-anchored: 1, gauge-referenced: 1
+E         [1] 
+E         [1] 
+E         [1] --> FOAM FATAL ERROR: (openfoam-2412)
+E         [1] Unbalanced source in isolated zero-operator pressure component 1
+E         [1] 
+E         [1]     From void Foam::pressureComponentReferences::constrain(Foam::fvScalarMatrix&, const volScalarField&, const volScalarField&, const volScalarField&, const volScalarField&)
+E         [1]     in file pressureComponentReferences.H at line 161.
+E         [1] 
+E         FOAM parallel run exiting
+E         [1] 
+E         Abort(1) on node 1 (rank 1 in comm 0): application called MPI_Abort(MPI_COMM_WORLD, 1) - process 1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...n exiting\n[1] \nAbort(1) on node 1 (rank 1 in comm 0): application called MPI_Abort(MPI_COMM_WORLD, 1) - process 1\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+______________ test_actual_new_solver_uses_component_gauges[True] ______________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-final-v2/test_actual_new_solver_uses_co1')
+cyclic = True
+
+    @pytest.mark.parametrize("cyclic", [False, True])
+    def test_actual_new_solver_uses_component_gauges(tmp_path, cyclic):
+        """A tiny unit/regression case, not a production air workflow invocation."""
+        solver = os.environ.get("DCDTUNI_PRESSURE_SOLVER")
+        if not solver:
+            pytest.skip("isolated _new executable not configured")
+        case = _case(tmp_path/"case", cyclic=cyclic, gravity=-9.81, initial=0)
+        initial_prgh = (case/"0/p_rgh").read_text()
+        names = re.findall(r"(\w+)\s*\{\s*type", initial_prgh)
+        for name, kind, dimensions, value in [
+            ("U","volVectorField","[0 1 -1 0 0 0 0]","(0 0 0)"),
+            ("T","volScalarField","[0 0 0 1 0 0 0]","293.15"),
+            ("alphat","volScalarField","[0 2 -1 0 0 0 0]","0")]:
+            bcs=[]
+            for patch in names:
+                bc = "type cyclic;" if patch.startswith("cyc") else (
+                    "type noSlip;" if name == "U" else "type fixedValue; value uniform 293.15;" if name=="T"
+                    else "type calculated; value uniform 0;")
+                bcs.append(f"{patch} {{ {bc} }}")
+            (case/"0"/name).write_text(_header(name,kind)
+                + f"dimensions {dimensions}; internalField uniform {value}; boundaryField {{ "
+                + " ".join(bcs) + "}")
+        (case/"constant/turbulenceProperties").write_text(_header("turbulenceProperties")
+            + "simulationType laminar;")
+        (case/"constant/transportProperties").write_text(_header("transportProperties")
+            + "transportModel Newtonian; nu [0 2 -1 0 0 0 0] 1e-5;"
+            + "beta [0 0 0 -1 0 0 0] 0.003; TRef [0 0 0 1 0 0 0] 293.15;"
+            + "Pr [0 0 0 0 0 0 0] 0.71; Prt [0 0 0 0 0 0 0] 0.85;")
+        (case/"constant/g").write_text(_header("g","uniformDimensionedVectorField")
+            + "dimensions [0 1 -2 0 0 0 0]; value (0 -9.81 0);")
+        (case/"constant/radiationProperties").write_text(_header("radiationProperties")
+            + "radiationModel none;")
+        (case/"system/controlDict").write_text(_header("controlDict")
+            + "application buoyantBoussinesqSimpleFoam_new; startFrom startTime; startTime 0;"
+            + "stopAt endTime; endTime 4; deltaT 1; writeControl timeStep; writeInterval 1;"
+            + "writePrecision 15; runTimeModifiable false;"
+            + "explicitBoundaryValues { mode preserveType; }")
+        (case/"system/fvSchemes").write_text(_header("fvSchemes")
+            + "ddtSchemes { default steadyState; } gradSchemes { default Gauss linear; }"
+            + "divSchemes { default none; div(phi,U) Gauss upwind; div(phi,T) Gauss upwind;"
+            + "div((nuEff*dev2(T(grad(U))))) Gauss linear; }"
+            + "laplacianSchemes { default Gauss linear corrected; }"
+            + "interpolationSchemes { default linear; } snGradSchemes { default corrected; }")
+        (case/"system/fvSolution").write_text(_header("fvSolution")
+            + 'solvers { p_rgh { solver PCG; preconditioner DIC; tolerance 1e-12; relTol 0; }'
+            + ' "(U|T)" { solver smoothSolver; smoother symGaussSeidel; tolerance 1e-12; relTol 0; } }'
+            + "SIMPLE { nNonOrthogonalCorrectors 0; pRefCell 0; pRefValue 5;"
+            + "residualControl { p_rgh 1e-9; U 1e-9; T 1e-9; } }")
+        # Re-decompose after all physical fields/settings are written.
+        _run(case, ["decomposePar","-force"])
+        stdout = _run(case, ["mpirun","-np","2",solver,"-parallel"])
+>       assert "SIMPLE solution converged" in stdout
+E       AssertionError: assert 'SIMPLE solution converged' in '/*---------------------------------------------------------------------------*\\\n| =========                 |      ...T    alphat    p    p_rgh    U  (5 fields)\nExecutionTime = 0.1 s  ClockTime = 0 s\n\nEnd\n\nFinalising parallel run\n'
+
+src/backend/tests/test_pressure_component_references.py:264: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_references.py::test_actual_new_solver_uses_component_gauges[False]
+FAILED src/backend/tests/test_pressure_component_references.py::test_actual_new_solver_uses_component_gauges[True]
+2 failed, 13 passed in 41.29s

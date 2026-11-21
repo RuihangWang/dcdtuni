@@ -1,0 +1,214 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_actual_new_solver_uses_component_gauges[transient-False] _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-pimple-stock-valid/test_actual_new_solver_uses_co0')
+cyclic = False, mode = 'transient'
+
+    @pytest.mark.parametrize("cyclic", [False, True])
+    @pytest.mark.parametrize("mode", ["steady", "transient"])
+    def test_actual_new_solver_uses_component_gauges(tmp_path, cyclic, mode):
+        """A tiny unit/regression case, not a production air workflow invocation."""
+        solver = os.environ.get("DCDTUNI_PIMPLE_SOLVER" if mode=="transient" else "DCDTUNI_PRESSURE_SOLVER")
+        if not solver:
+            pytest.skip("isolated _new executable not configured")
+        case = _case(tmp_path/"case", cyclic=cyclic, gravity=-9.81, initial=0)
+        initial_prgh = (case/"0/p_rgh").read_text().replace("type zeroGradient;", "type fixedFluxPressure;")
+        (case/"0/p_rgh").write_text(initial_prgh)
+        names = re.findall(r"(\w+)\s*\{\s*type", initial_prgh)
+        for name, kind, dimensions, value in [
+            ("U","volVectorField","[0 1 -1 0 0 0 0]","(0 0 0)"),
+            ("T","volScalarField","[0 0 0 1 0 0 0]","293.15"),
+            ("alphat","volScalarField","[0 2 -1 0 0 0 0]","0")]:
+            bcs=[]
+            for patch in names:
+                bc = "type cyclic;" if patch.startswith("cyc") else (
+                    "type noSlip;" if name == "U" else "type fixedValue; value uniform 293.15;" if name=="T"
+                    else "type calculated; value uniform 0;")
+                bcs.append(f"{patch} {{ {bc} }}")
+            (case/"0"/name).write_text(_header(name,kind)
+                + f"dimensions {dimensions}; internalField uniform {value}; boundaryField {{ "
+                + " ".join(bcs) + "}")
+        (case/"constant/turbulenceProperties").write_text(_header("turbulenceProperties")
+            + "simulationType laminar;")
+        (case/"constant/transportProperties").write_text(_header("transportProperties")
+            + "transportModel Newtonian; nu [0 2 -1 0 0 0 0] 1e-5;"
+            + "beta [0 0 0 -1 0 0 0] 0.003; TRef [0 0 0 1 0 0 0] 293.15;"
+            + "Pr [0 0 0 0 0 0 0] 0.71; Prt [0 0 0 0 0 0 0] 0.85;")
+        (case/"constant/g").write_text(_header("g","uniformDimensionedVectorField")
+            + "dimensions [0 1 -2 0 0 0 0]; value (0 -9.81 0);")
+        (case/"constant/radiationProperties").write_text(_header("radiationProperties")
+            + "radiationModel none;")
+        (case/"system/controlDict").write_text(_header("controlDict")
+            + "application buoyantBoussinesqSimpleFoam_new; startFrom startTime; startTime 0;"
+            + "stopAt endTime; endTime 4; deltaT 1; writeControl timeStep; writeInterval 1;"
+            + "writePrecision 15; runTimeModifiable false;"
+            + "explicitBoundaryValues { mode preserveType; }")
+        (case/"system/fvSchemes").write_text(_header("fvSchemes")
+            + "ddtSchemes { default steadyState; } gradSchemes { default Gauss linear; }"
+            + "divSchemes { default none; div(phi,U) Gauss upwind; div(phi,T) Gauss upwind;"
+            + "div((nuEff*dev2(T(grad(U))))) Gauss linear; }"
+            + "laplacianSchemes { default Gauss linear corrected; }"
+            + "interpolationSchemes { default linear; } snGradSchemes { default corrected; }")
+        (case/"system/fvSolution").write_text(_header("fvSolution")
+            + 'solvers { p_rgh { solver PCG; preconditioner DIC; tolerance 1e-12; relTol 0; }'
+            + ' "(U|T)" { solver smoothSolver; smoother symGaussSeidel; tolerance 1e-12; relTol 0; } }'
+            + "SIMPLE { nNonOrthogonalCorrectors 0; pRefCell 0; pRefValue 5;"
+            + "residualControl { p_rgh 1e-9; U 1e-9; T 1e-9; } }")
+        if mode == "transient":
+            control=(case/"system/controlDict").read_text()
+            control=control.replace("buoyantBoussinesqSimpleFoam_new","buoyantBoussinesqPimpleFoam_new")
+            control=control.replace("endTime 4;", "endTime 0.02;").replace("deltaT 1;", "deltaT 0.01;")
+            (case/"system/controlDict").write_text(control)
+            (case/"system/fvSchemes").write_text((case/"system/fvSchemes").read_text()
+                                                .replace("steadyState","Euler"))
+            solution=(case/"system/fvSolution").read_text().replace(
+                "SIMPLE { nNonOrthogonalCorrectors 0;",
+                "PIMPLE { nOuterCorrectors 1; nCorrectors 2; nNonOrthogonalCorrectors 0;")
+            solution=solution.replace(
+                ' "(U|T)" {', ' p_rghFinal { $p_rgh; relTol 0; } "(U|T|UFinal|TFinal)" {')
+            solution=solution.replace(
+                "residualControl { p_rgh 1e-9; U 1e-9; T 1e-9; }",
+                "residualControl { p_rgh { tolerance 1e-9; relTol 0; } "
+                "U { tolerance 1e-9; relTol 0; } T { tolerance 1e-9; relTol 0; } }")
+            (case/"system/fvSolution").write_text(solution)
+        # Re-decompose after all physical fields/settings are written.
+        _run(case, ["decomposePar","-force"])
+>       stdout = _run(case, ["mpirun","-np","2",solver,"-parallel"])
+
+src/backend/tests/test_pressure_component_references.py:282: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-pimple-stock-valid/test_actual_new_solver_uses_co0/case')
+args = ['mpirun', '-np', '2', '/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/buoyantBoussinesqPimpleFoam', '-parallel']
+
+    def _run(case, args):
+        completed = subprocess.run(args, cwd=case, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, timeout=90)
+        (case / ("log." + Path(args[0]).name)).write_text(completed.stdout)
+>       assert completed.returncode == 0, completed.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/buoyantBoussinesqPimpleFoam -parallel
+E         Date   : Oct 04 2026
+E         Time   : 19:37:51
+E         Host   : 40901
+E         PID    : 1703442
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-gauge-build/pytest-pimple-stock-valid/test_actual_new_solver_uses_co0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         
+E         PIMPLE: Operating solver in PISO mode
+E         
+E         Reading thermophysical properties
+E         
+E         Reading field T
+E         
+E         Reading field p_rgh
+E         
+E         Reading field U
+E         
+E         Reading/calculating face flux field phi
+E         
+E         Selecting incompressible transport model Newtonian
+E         Creating turbulence model
+E         
+E         Selecting turbulence model type laminar
+E         Selecting laminar stress model Stokes
+E         Reading field alphat
+E         
+E         
+E         Reading g
+E         
+E         Reading hRef
+E         Calculating field g.h
+E         
+E         No MRF models present
+E         
+E         Selecting radiationModel none
+E         No finite volume options present
+E         Courant Number mean: 0 max: 0
+E         
+E         Starting time loop
+E         
+E         Courant Number mean: 0 max: 0
+E         Time = 0.01
+E         
+E         PIMPLE: iteration 1
+E         smoothSolver:  Solving for Ux, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for Uy, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for Uz, Initial residual = 0, Final residual = 0, No Iterations 0
+E         smoothSolver:  Solving for T, Initial residual = 0.99999999954187, Final residual = 0.333333333180623, No Iterations 1000
+E         [1] [stack trace]
+E         [1] =============
+E         [1] #1  Foam::sigFpe::sigHandler(int) in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #2  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #3  Foam::DICPreconditioner::calcReciprocalD(Foam::Field<double>&, Foam::lduMatrix const&) in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #4  Foam::DICPreconditioner::DICPreconditioner(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #5  ? at :?
+E         [1] #6  Foam::lduMatrix::preconditioner::New(Foam::lduMatrix::solver const&, Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #7  Foam::PCG::scalarSolve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #8  Foam::PCG::solve(Foam::Field<double>&, Foam::Field<double> const&, unsigned char) const in ~/miniconda3/envs/dcdtuni/bin/../lib/libOpenFOAM.so
+E         [1] #9  Foam::fvMatrix<double>::solveSegregated(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/bin/../lib/libfiniteVolume.so
+E         [1] #10  Foam::fvMatrix<double>::solveSegregatedOrCoupled(Foam::dictionary const&) in ~/miniconda3/envs/dcdtuni/bin/../lib/libfiniteVolume.so
+E         [1] #11  Foam::fvMesh::solve(Foam::fvMatrix<double>&, Foam::dictionary const&) const in ~/miniconda3/envs/dcdtuni/bin/../lib/libfiniteVolume.so
+E         [1] #12  ? in ~/miniconda3/envs/dcdtuni/bin/buoyantBoussinesqPimpleFoam
+E         [1] #13  ? in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #14  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+E         [1] #15  ? in ~/miniconda3/envs/dcdtuni/bin/buoyantBoussinesqPimpleFoam
+E         [1] =============
+E         
+E         ===================================================================================
+E         =   BAD TERMINATION OF ONE OF YOUR APPLICATION PROCESSES
+E         =   PID 1703443 RUNNING AT 40901
+E         =   EXIT CODE: 136
+E         =   CLEANING UP REMAINING PROCESSES
+E         =   YOU CAN IGNORE THE BELOW CLEANUP MESSAGES
+E         ===================================================================================
+E         YOUR APPLICATION TERMINATED WITH THE EXIT STRING: Floating point exception (signal 8)
+E         This typically refers to a problem with your application.
+E         Please see the FAQ page for debugging suggestions
+E         
+E       assert 136 == 0
+E        +  where 136 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/buoyantBoussinesqPimpl...al 8)\nThis typically refers to a problem with your application.\nPlease see the FAQ page for debugging suggestions\n').returncode
+
+src/backend/tests/test_pressure_component_references.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_references.py::test_actual_new_solver_uses_component_gauges[transient-False]
+1 failed, 1 passed, 15 deselected in 6.62s

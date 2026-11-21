@@ -1,0 +1,136 @@
+site_name: DCTwin Engine
+repo_name: dcdtuni
+repo_url: https://github.com/Litianyu141/dcdtuni
+edit_uri: ""
+
+theme:
+  name: material
+  palette:
+    primary: deep purple
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.annotate
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.instant
+    - navigation.expand
+    - navigation.indexes
+    - navigation.prune
+    - toc.follow
+    - toc.integrate
+
+# The site covers the current user, developer and reference documentation.
+# Dated receipts, archived handoffs, research material and manuscripts stay in
+# the repository but out of the site; links to them (and to source files) are
+# sent to the repository on GitHub by hooks/repo_links.py.
+exclude_docs: |
+  /superpowers/
+  /archive/
+  /manuscript/
+  /manuscripts/
+  /research/
+  /scientificWriting/
+  /dctwinOpensource(PublishedatCAP-Wechat)/
+  /dctwinWechatPaper(Unpublished)/
+  /drag-and-sim/
+  /AI_DESIGN_EVALUATOR.md
+  /benchmarks/*
+  !/benchmarks/README.md
+  /hooks/
+  /gen_ref_pages.py
+  /requirements.txt
+
+hooks:
+  - docs/hooks/repo_links.py
+
+plugins:
+  - search
+  - section-index
+
+nav:
+  - Home: index.md
+  - User Guide:
+      - user-guide/index.md
+      - Installation: user-guide/installation.md
+      - Quick Start: user-guide/quick-start.md
+      - STL Modeling: user-guide/modeling.md
+      - ".cfdproj Format": user-guide/cfdproj-format.md
+      - ".cfdrun Format": user-guide/cfdrun-format.md
+      - Post-Processing: user-guide/post-processing.md
+  - Developer:
+      - developer/index.md
+      - "Project state (中文)": developer/PROJECT_STATE.md
+      - Fresh Clone Deployment: developer/fresh_clone_deploy.md
+      - Contributing: developer/contributing.md
+      - Architecture: developer/architecture.md
+      - REST API Reference: developer/api-reference.md
+      - WebSocket Terminal: developer/websocket.md
+      - Runner Internals: developer/runner-internals.md
+      - Boundary Conditions: developer/bridge-bc.md
+      - Render-Scene Contract: developer/render-scene-contract.md
+      - Liquid Cooling:
+          - Newton DAE Solver: developer/liquid-dae-solver-first.md
+          - DAE Workbench: developer/liquid-dae-workbench.md
+          - Liquid Runtime API: developer/liquid-runtime-api.md
+          - MMS Product Derivation: developer/liquid_dae_mms_product_derivation.md
+          - Parameter Packs: developer/liquid-parameter-packs.md
+          - Equipment Visuals: developer/liquid-equipment-visuals.md
+          - Project Contract: developer/liquid-project-contract.md
+          - Dynamic Editor Graph: developer/liquid-dynamic-editor-graph.md
+          - "v2 Runtime Workbench": developer/react-liquid-runtime-workbench.md
+          - "PID Control (v2)": developer/liquid-control.md
+          - "Differentiable Rollout (v2)": developer/liquid-differentiable-rollout.md
+      - Design Records:
+          - "ADR: Geometry Topology V1": developer/adr-geometry-topology-v1-2026-09-27.md
+          - Physical Source Surfaces V1: developer/physical-source-surfaces-v1-2026-09-27.md
+          - Air Run Result Receipt V1: developer/air-run-result-receipt-v1-2026-09-27.md
+          - Transient Keyframes Design: developer/transient_keyframes_design_2026-09-30.md
+          - dcCart Memory Profile: developer/dccart-memory-profile-2026-09-21.md
+          - snappy Castellation Findings: developer/mesh-castellation-performance-findings.md
+      - macOS Build Notes: developer/macos_build_notes.md
+  - Reference:
+      - reference/index.md
+      - ".cfdproj V5": reference/cfdproj-v5-schema.md
+      - ".cfdproj V4": reference/cfdproj-v4-schema.md
+      - ".cfdrun V2–V4": reference/cfdrun-v2-schema.md
+      - ".liquidrun v2": reference/liquidrun-v2-schema.md
+      - ".liquidrun v3 DAE": reference/liquidrun-v3-dae-schema.md
+      - "Scripted API": reference/scripted-api.md
+      - "Mesh Engines": reference/mesh-engines.md
+      - "6Sigma Cell-Size Rule": reference/sixsigma-cell-size-rule.md
+      - "Post-Processing Field Payload": reference/pp-field-binary-format.md
+      - "STL Export Baseline": reference/stl-baseline/README.md
+      - "Legacy / .cfdrun (v1)": reference/legacy/cfdrun-schema.md
+      - "Legacy / .cfdproj (v3)": reference/legacy/cfdproj-schema.md
+  - "Receipts (回执库)": benchmarks/README.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.keys
+  - pymdownx.superfences
+  - pymdownx.magiclink
+  - pymdownx.pathconverter
+  - pymdownx.snippets:
+      check_paths: true
+  - toc:
+      permalink: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      use_pygments: true
+      pygments_lang_class: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js

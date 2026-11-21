@@ -1,0 +1,1 @@
+Fresh exact Frozen-joint-v3 native-only portable run,16 steps rc0. Source/normal watched targets/SDK/sampler held. No frontend/types/build executed; raw RECEIPT bundle field is an inherited historical artifact, not a fresh build. F2 full331/types/build evidence is expressly pre-correction and held separately in source frozen packet. No normal apply or live Kit/pixels.

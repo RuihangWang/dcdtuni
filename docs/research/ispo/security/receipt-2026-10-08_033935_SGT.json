@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "created_sgt": "2026-10-08_033935_SGT",
+  "scope": "W-SEC Python HTTP, internal-browser session and terminal entrypoints; isolated CPU integration tests only",
+  "branch": "research/ispo-v2-20261008",
+  "head_before_parent_commit": "797ebfb7e23a354853e7afe6188b93f3bfc3c15a",
+  "source_sha256": {
+    "src/server/security.py": "39b76635bda094f3e5b275e2f65014c6becbbbe74e51f73b24c594a2df618add",
+    "src/server/server.py": "78e7942c2674df98af0e2d35b5da9dee27cb01e80b92f827a176dae678fc0e78",
+    "src/server/auth_manager.py": "638481887442cba54632b2a1aad32435c979e1d5b1ead6dd59a9f75a31ce62a4",
+    "src/server/tests/test_security_hardening.py": "3b1b89c8be0a1079719b9b15a5b7bf13339cd7c8af9583761a895ffa2336d7bf",
+    "src/server/tests/test_auth_cookie_port_isolation.py": "c8fc47f2c8d337ccca7c5b2daea83e7825b4a47a81b6e88b99decff174efb063"
+  },
+  "source_locations": {
+    "_get_client_ip": {
+      "start": 123,
+      "end": 125
+    },
+    "_require_auth": {
+      "start": 178,
+      "end": 191
+    },
+    "handle_auth_login": {
+      "start": 346,
+      "end": 406
+    },
+    "handle_auth_check": {
+      "start": 409,
+      "end": 419
+    },
+    "_run_browser_worker": {
+      "start": 1704,
+      "end": 1947
+    },
+    "start_websocket_terminal_server": {
+      "start": 5797,
+      "end": 5908
+    },
+    "_terminal_session": {
+      "start": 5921,
+      "end": 5934
+    },
+    "build_argument_parser": {
+      "start": 5948,
+      "end": 5963
+    },
+    "_initialize_auth": {
+      "start": 5966,
+      "end": 5979
+    }
+  },
+  "full_regression": {
+    "counts": {
+      "tests": 245,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "existing_tests": 186,
+    "new_security_tests": 59,
+    "pytest_log": "_tmp/security-final3/pytest.log",
+    "pytest_log_sha256": "46d6e7d03608048b32780460941fd386b3a9f69bafec19e0ffb36e6fdc514255",
+    "junit": "_tmp/security-final3/junit.xml",
+    "junit_sha256": "04cd98d635da05c3c61ecdcdfd76e95975463f0a93cac858b833ce80c43b8640",
+    "import_mode": "importlib",
+    "assertion_mode": "plain",
+    "cpu_only": true,
+    "node_path": "/home/litianyu/.local/bin/node",
+    "python": "/home/litianyu/miniconda3/envs/dcdtuni/bin/python"
+  },
+  "independent_acceptance": {
+    "reported_by": "root",
+    "full_server_tests_passed": 245,
+    "note": "Root independently repeated the suite with explicit Node22 PATH; see root WORK_LOG/run receipt for its own immutable identity."
+  },
+  "gates": {
+    "S1": "VERIFIED bounded: real HTTP authentication and ephemeral WebSocket handshakes; unauthenticated loopback cannot reach PTY; administrator session reaches only a test sentinel. Internal worker random ordinary session is issued at authenticated bootstrap.",
+    "S2": "VERIFIED bounded: explicit HTTP --trust-loopback default off, actual peer only, forwarded-header spoof denied, startup warning, no terminal exemption.",
+    "S3": "VERIFIED Python default/entrypoint wiring: actual __main__ uses 127.0.0.1 with no terminal thread under listener/thread sentinels; credentials required before binding. Real product listener not launched.",
+    "S4": "VERIFIED bounded: explicit environment pair or owned exact0600 regular file; partial env/symlink/FIFO/malformed/foreign-owner refused; missing actual CLI credentials exit before store/bind; no baked bootstrap hash input; synthetic secret absence in worker logs and child environment.",
+    "S5": "VERIFIED bounded: terminal default off; token/role/expiry required if explicitly enabled; unconfigured auth fails closed.",
+    "S6": "OPEN in this receipt: headless CFD pipeline and M1 longitudinal slice belong to the separate air-pipeline owner."
+  },
+  "boundaries": {
+    "existing_auth_store_accessed": false,
+    "real_platform_service_started": false,
+    "browser_launched": false,
+    "pty_allocated": false,
+    "shell_spawned": false,
+    "actual_test_http_ws_ephemeral_listeners": true,
+    "listeners_loopback_only": true,
+    "synthetic_auth_stores": "repository _tmp/security-*/pytest only",
+    "global_credentials_or_sessions_printed": false,
+    "gpu_used": false,
+    "40901_changed": false,
+    "stage_commit_push_performed": false,
+    "wrapper_vite_or_OV_coverage": "Not covered by these source/test hashes; root owns any wrapper changes."
+  },
+  "preserved_attempts": [
+    {
+      "path": "_tmp/security-focused/pytest.log",
+      "state": "failed",
+      "reason": "pytest resolved server package rather than server.py; harness import ordering"
+    },
+    {
+      "path": "_tmp/security-focused2/pytest.log",
+      "state": "failed",
+      "reason": "preloaded server.py prevented package-style conftest import; importlib mode fixed harness"
+    },
+    {
+      "path": "_tmp/security-focused3/pytest.log",
+      "state": "failed",
+      "reason": "global auth logger prevented second store trace; logger identity corrected"
+    },
+    {
+      "path": "_tmp/security-regression/pytest.log",
+      "state": "failed",
+      "reason": "old worker fixture had no pre-issued startup session; authorized fixture correction retained cookie port assertions"
+    },
+    {
+      "path": "_tmp/security-final/pytest.log",
+      "state": "passed_238",
+      "reason": "before extra real WebSocket, redaction and actual-entrypoint tests"
+    },
+    {
+      "path": "_tmp/security-final2/pytest.log",
+      "state": "passed_243",
+      "reason": "before ownership and default main wiring tests"
+    }
+  ]
+}

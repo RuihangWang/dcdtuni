@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v1912                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvOptions;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+
+
+// ======================= Turbulence Stabilization =======================
+// Cap turbulent viscosity to prevent k-epsilon positive feedback loop
+// (G = nut * |S|^2 → high k → high nut → higher G). Critical for large
+// data center cases with many high-strain rack inlet/outlet jets.
+limitNut
+{
+    type            limitTurbulenceViscosity;
+    active          yes;
+    selectionMode   all;
+    c               1e5;
+}
+
+// ************************************************************************* //

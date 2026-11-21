@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_closing_only_edge_to_dead_end_does_not_invent_pressure __________
+
+    def test_closing_only_edge_to_dead_end_does_not_invent_pressure():
+        graph = _graph(opening=(1., 0.), loop=True, rpm=(1., 1.))
+        # The same one-valve two-node topology, with only its inlet pressure fixed.
+        graph.N_edges = 1
+        graph.edge_from = graph.edge_from[:1]
+        graph.edge_to = graph.edge_to[:1]
+        graph.pump_indices = graph.pump_params = None
+        _, m, info = nh.gga_solve(graph)
+        assert info["per_step"][0]["converged"]
+>       assert not info["per_step"][1]["converged"]
+E       assert not True
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:144: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_closing_only_edge_to_dead_end_does_not_invent_pressure
+1 failed, 16 deselected in 3.51s

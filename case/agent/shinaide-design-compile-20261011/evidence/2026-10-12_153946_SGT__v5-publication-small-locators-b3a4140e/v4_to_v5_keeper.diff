@@ -1,0 +1,23 @@
+--- src/agent/training/shinaide_language_validation_keeper_v4.py
++++ src/agent/training/shinaide_language_validation_keeper_v5.py
+@@ -23,9 +23,9 @@
+  checked_E4_terminal(approval["E4_terminal_receipt"],approval["E4_terminal_receipt_sha256"],plan)
+  fresh_idle_GPU(plan["GPU_UUID"])
+  stamp=dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%d_%H%M%S_SGT")
+- rid=f"{stamp}__actual4B-language-validation-v4-{uuid.uuid4().hex[:8]}"
++ rid=f"{stamp}__actual4B-language-validation-v5-{uuid.uuid4().hex[:8]}"
+  run=REPO_ROOT/plan["case"]/"logger"/rid
+- claim=REPO_ROOT/"_tmp"/("shinaide-actual4B-validation-v4-"+args.plan_sha256+".claim.json")
++ claim=REPO_ROOT/"_tmp"/("shinaide-actual4B-validation-v5-"+args.plan_sha256+".claim.json")
+  with claim.open("x") as f:json.dump({"outer_owner":owner,"proposal_sha256":args.plan_sha256,"approval_sha256":args.root_approval_sha256,"run":str(run.relative_to(REPO_ROOT)),"first_attempt_only":True},f)
+  run.mkdir();write(run/"outer_handle.json",owner)
+  print(json.dumps({"handle":str(run.relative_to(REPO_ROOT)),"pid":owner["pid"],"starttick":owner["starttick"],"claim":str(claim.relative_to(REPO_ROOT))}),flush=True)
+@@ -46,7 +46,7 @@
+   write(run/"startup_costs.json",{"birth_CPU_s":usedcpu,"wall_s":usedwall,"includes_source_snapshots_E4_exact40_and_idle_checks":True})
+   limits=plan["resources"]
+   if usedwall>=limits["wall_s"] or usedcpu>=limits["CPU_s"]:raise RuntimeError("startup consumed whole runtime budget")
+-  command=[plan["runtime"],"-u","-B","-m","agent.training.shinaide_language_validation_worker_v4","--execute","--plan",str(repository_write_path(args.plan)),"--plan-sha256",args.plan_sha256,
++  command=[plan["runtime"],"-u","-B","-m","agent.training.shinaide_language_validation_worker_v5","--execute","--plan",str(repository_write_path(args.plan)),"--plan-sha256",args.plan_sha256,
+     "--root-approval",str(repository_write_path(args.root_approval)),"--root-approval-sha256",args.root_approval_sha256,"--run",str(run)]
+   result=supervise(command,run,wall_s=limits["wall_s"]-usedwall,CPU_s=limits["CPU_s"]-usedcpu,RSS_bytes=limits["host_RSS_GiB"]*2**30,
+    disk_paths=[run,REPO_ROOT/plan["case"]/"agent_outputs"],disk_cap_bytes=limits["additional_generated_disk_GiB"]*2**30,poll_s=.1,grace_s=5)

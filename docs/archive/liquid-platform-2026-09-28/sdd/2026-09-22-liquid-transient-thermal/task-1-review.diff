@@ -1,0 +1,971 @@
+# Review package: b63b7f63..91adb3b1
+
+## Commits
+91adb3b1 feat(liquid): solve conservative closed-loop thermal trajectories
+
+## Files changed
+ src/backend/liquidcooling/runner.py                |  40 ++--
+ src/backend/liquidcooling/solver/hybrid.py         | 261 ++++-----------------
+ src/backend/liquidcooling/solver/thermal_step.py   | 191 +++++++++++++++
+ .../tests/test_liquid/test_dynamic_thermal.py      | 260 ++++++++++++++++++++
+ 4 files changed, 522 insertions(+), 230 deletions(-)
+
+## Diff
+diff --git a/src/backend/liquidcooling/runner.py b/src/backend/liquidcooling/runner.py
+index 00b8f978..ac0a49cc 100644
+--- a/src/backend/liquidcooling/runner.py
++++ b/src/backend/liquidcooling/runner.py
+@@ -19,40 +19,43 @@ from backend.liquidcooling.solver.hybrid import hybrid_solve
+ from backend.liquidcooling.postprocess.results import LiquidResult, RackSummary, ServerSummary, CpDetail
+ from backend.liquidcooling.solver.bc_ic import BoundaryConditionEnforcer, StateInitializer, BCICMonitor
+ 
+ 
+ def _extract_cp_monitor(model, graph, monitor_cp_ids):
+     """Extract T_chip, T_water_out, m for monitored cold plates (real-time)."""
+     result = {}
+     if not monitor_cp_ids or graph.cp_indices is None:
+         return result
+     with torch.no_grad():
+-        T_all = model._build_T_all_nodes(dict(model.state))
++        T_all = getattr(model, "thermal_node_history", None)
++        if T_all is None:
++            T_all = model._build_T_all_nodes(dict(model.state))
+         for cp_str_id in monitor_cp_ids:
+             if cp_str_id not in graph.edge_str_ids:
+                 continue
+             global_idx = graph.edge_str_ids.index(cp_str_id)
+             local_mask = (graph.cp_indices.edge_ids == global_idx)
+             if not local_mask.any():
+                 continue
+             local_idx = local_mask.nonzero(as_tuple=True)[0][0].item()
+ 
+             T_chip = model.state["T_s"][local_idx, -1].item()
+             m_val = model.state["m"][global_idx, -1].abs().item()
+ 
+             # NTU-effectiveness for T_water_out
+             UA = graph.cp_params.UA[local_idx].item()
+             m_abs_cp = m_val * graph.fluid_cp + 1e-10
+             NTU = UA / m_abs_cp
+-            eff = 1.0 - np.exp(-NTU)
++            eff = 1.0 - np.exp(-NTU) if m_val > 0 else 0.0
+             from_node = graph.edge_from[global_idx].item()
+-            T_in = T_all[from_node, -1].item()
++            inlet_node = from_node if model.state["m"][global_idx, -1] >= 0 else graph.edge_to[global_idx].item()
++            T_in = T_all[inlet_node, -1].item()
+             T_water_out = T_in + eff * (T_chip - T_in)
+ 
+             result[cp_str_id] = {
+                 "T_chip": round(T_chip, 2),
+                 "T_water_out": round(T_water_out, 2),
+                 "m": round(m_val, 4),
+             }
+     return result
+ 
+ 
+@@ -220,67 +223,70 @@ def _extract_results(model: LiquidODILModel, graph, logs, config=None) -> Liquid
+     graph = graph.to("cpu")
+     state = {k: v.detach().cpu().numpy() for k, v in model.state.items()}
+ 
+     # M3: Use real edge IDs from compiled graph
+     edge_id_names = list(graph.edge_str_ids)
+ 
+     # Chip temperature
+     chip_temp = state.get("T_s", np.array([]))
+ 
+     # Node temperatures (needed for rack supply temp lookups and CP inlet temps)
+-    T_all = np.full((graph.N_nodes, graph.N_t), graph.T_fluid_init)
++    with torch.no_grad():
++        T_history = getattr(model, "thermal_node_history", None)
++        if T_history is None:
++            T_history = model._build_T_all_nodes(dict(model.state))
++        T_all = T_history.detach().cpu().numpy()
+ 
+     # M2: Compute actual cold plate outlet water temperatures via NTU-effectiveness
+     water_outlet = np.zeros_like(chip_temp)
+     if graph.N_cp > 0 and graph.cp_indices is not None:
+         cp_edge_ids = graph.cp_indices.edge_ids.numpy()
+         m_abs = np.abs(state["m"][cp_edge_ids])  # [N_cp, N_t]
+         m_abs_cp = m_abs * graph.fluid_cp + 1e-10  # [N_cp, N_t]
+         UA = graph.cp_params.UA.numpy()[:, np.newaxis]  # [N_cp, 1]
+         NTU = UA / m_abs_cp  # [N_cp, N_t]
+-        eff = 1.0 - np.exp(-NTU)  # [N_cp, N_t]
+-        # Inlet temperature: use from-node temperature from T_all_nodes
+-        # Compute T_all_nodes from the model (forward pass already done)
+-        with torch.no_grad():
+-            T_all = model._build_T_all_nodes(dict(model.state)).detach().cpu().numpy()
+-        cp_from_nodes = graph.cp_indices.node_from.numpy()  # [N_cp]
+-        T_in = T_all[cp_from_nodes]  # [N_cp, N_t]
++        eff = np.where(m_abs > 0, 1.0 - np.exp(-NTU), 0.)  # [N_cp, N_t]
++        cp_from_nodes = graph.cp_indices.node_from.numpy()
++        cp_to_nodes = graph.cp_indices.node_to.numpy()
++        T_in = np.where(state["m"][cp_edge_ids] >= 0,
++                        T_all[cp_from_nodes], T_all[cp_to_nodes])
+         T_s = chip_temp  # [N_cp, N_t]
+         water_outlet = T_in + eff * (T_s - T_in)
+ 
+     cp_details = []
+     if graph.N_cp > 0 and graph.cp_indices is not None:
+         for local_i in range(graph.N_cp):
+             global_edge_i = graph.cp_indices.edge_ids[local_i].item()
+             edge_str = graph.edge_str_ids[global_edge_i]
+             from_node = graph.cp_indices.node_from[local_i].item()
+             to_node = graph.cp_indices.node_to[local_i].item()
+             cp_details.append({
+                 "edge_id": edge_str,
+                 "chip_temp_K": chip_temp[local_i],
+-                "water_inlet_temp_K": T_all[from_node],
++                "water_inlet_temp_K": T_in[local_i],
+                 "water_outlet_temp_K": water_outlet[local_i],
+-                "inlet_pressure_Pa": state["P"][from_node],
+-                "outlet_pressure_Pa": state["P"][to_node],
++                "inlet_pressure_Pa": np.where(state["m"][global_edge_i] >= 0, state["P"][from_node], state["P"][to_node]),
++                "outlet_pressure_Pa": np.where(state["m"][global_edge_i] >= 0, state["P"][to_node], state["P"][from_node]),
+             })
+ 
+     # Time axis
+     time_s = np.arange(graph.N_t) * graph.dt
+ 
+     final_log = logs[-1] if logs else None
+ 
+     # M5: Use convergence_tol from config (if available) instead of hardcoded 1.0
+     if config is not None:
+         conv_tol = config.solver.convergence_tol
+     else:
+         conv_tol = 1e-6
+-    converged = final_log.total < conv_tol if final_log else False
++    converged = (bool(model.hybrid_converged) if hasattr(model, "hybrid_converged")
++                 else final_log.total < conv_tol if final_log else False)
+ 
+     # M1: Populate rack summaries (pass T_all for actual per-node supply temps)
+     rack_summaries = _build_rack_summaries(graph, state, water_outlet, chip_temp, T_all)
+ 
+     return LiquidResult(
+         converged=converged,
+         final_loss=final_log.total if final_log else float("inf"),
+         epochs=final_log.epoch if final_log else 0,
+         node_pressure_Pa=state["P"],
+         node_ids=graph.node_ids,
+@@ -353,21 +359,23 @@ def _build_rack_summaries(graph, state, water_outlet, chip_temp, T_all):
+                 m_abs = np.abs(state["m"][global_idx])  # [N_t]
+                 srv_flow += m_abs
+ 
+                 cp_info = cp_global_to_local.get(global_idx)
+                 if cp_info is not None:
+                     local_cp, from_node_idx = cp_info
+                     T_chip = chip_temp[local_cp]  # [N_t]
+                     srv_max_chip = np.maximum(srv_max_chip, T_chip)
+ 
+                     T_out = water_outlet[local_cp]  # [N_t]
+-                    T_in_actual = T_all[from_node_idx]  # [N_t]
++                    T_in_actual = np.where(state["m"][global_idx] >= 0,
++                                           T_all[from_node_idx],
++                                           T_all[int(graph.edge_to[global_idx])])
+                     srv_heat += m_abs * graph.fluid_cp * (T_out - T_in_actual)
+                     rack_return_temps.append(T_out)
+                     rack_return_flows.append(m_abs)
+ 
+             rack_total_flow += srv_flow
+             server_summaries.append(ServerSummary(
+                 server_id=srv_id,
+                 flow_kg_s=srv_flow,
+                 max_chip_temp_K=srv_max_chip,
+                 heat_removed_W=srv_heat,
+diff --git a/src/backend/liquidcooling/solver/hybrid.py b/src/backend/liquidcooling/solver/hybrid.py
+index 2e488116..e39679f5 100644
+--- a/src/backend/liquidcooling/solver/hybrid.py
++++ b/src/backend/liquidcooling/solver/hybrid.py
+@@ -1,15 +1,13 @@
+ """Two-stage hybrid solver: Newton GGA hydraulics + direct thermal march."""
+ 
+-import math
+ import time
+-from collections import deque
+ from dataclasses import asdict
+ from pathlib import Path
+ from typing import Callable
+ 
+ import torch
+ 
+ from backend.liquidcooling.schema import SolverConfig
+ from backend.liquidcooling.solver.common import SolveLog, print_log, save_loss_csv
+ 
+ 
+@@ -38,26 +36,25 @@ def hybrid_solve(
+             wall_time_s=time.time() - t_start,
+         )
+         logs.append(log)
+         epoch_counter += 1
+         if callback:
+             callback(asdict(log))
+ 
+     P_newton, m_newton, info = gga_solve(
+         model.graph, iteration_callback=_newton_cb,
+     )
++    model.hydraulic_info = info
++    model.hybrid_converged = False
+     if not info["converged"]:
+-        import warnings
+-        warnings.warn(
+-            f"GGA Newton did not converge in {info['iterations']} iterations "
+-            f"(max_dm={info['max_dm']:.2e}). Using best estimate."
+-        )
++        failed = [step for step in info.get("per_step", []) if not step["converged"]]
++        raise RuntimeError(f"hydraulic solve failed; thermal trajectory not published: {failed or info}")
+ 
+     model.set_hydraulic_state(P_newton, m_newton)
+     if bc_enforcer is not None:
+         bc_enforcer.enforce(model.state)
+ 
+     # Phase 2: Direct thermal solve
+     def _thermal_cb(t_step, n_steps, max_chip_K):
+         nonlocal epoch_counter
+         log = SolveLog(
+             epoch=epoch_counter,
+@@ -70,22 +67,29 @@ def hybrid_solve(
+         if callback:
+             callback(asdict(log))
+ 
+     T_node = _solve_thermal_direct(model, model.graph, timestep_callback=_thermal_cb)
+ 
+     losses = model.thermal_forward(T_all_nodes_override=T_node)
+     loss_dict = {k: v.item() for k, v in losses.items() if k != "total"}
+     loss_dict["newton_iterations"] = float(info["iterations"])
+     loss_dict["newton_max_dm"] = info["max_dm"]
+ 
+-    cp_total = sum(v for k, v in loss_dict.items()
+-                   if k.startswith("cold_plate"))
++    diagnostics = model.thermal_diagnostics
++    linear_max = max((d["linear_residual_K"].abs().max().detach().item() for d in diagnostics), default=0.)
++    energy_max = max((d["energy_balance_W"].abs().detach().item() for d in diagnostics), default=0.)
++    loss_dict.update(thermal_linear_residual_K=linear_max, thermal_energy_balance_W=energy_max,
++                     hydraulic_converged=1.0)
++    # Legacy ODIL handler losses remain available but use smoothed advection and
++    # may use a different BDF order. They do not define this implicit-Euler solve.
++    cp_total = linear_max
++    model.hybrid_converged = True
+     final_log = SolveLog(
+         epoch=epoch_counter,
+         total=cp_total,
+         losses=loss_dict,
+         wall_time_s=time.time() - t_start,
+     )
+     logs.append(final_log)
+     if callback:
+         callback(asdict(final_log))
+     else:
+@@ -94,218 +98,47 @@ def hybrid_solve(
+     if log_dir is not None:
+         log_dir = Path(log_dir)
+         log_dir.mkdir(parents=True, exist_ok=True)
+         save_loss_csv(logs, log_dir / "loss_history.csv")
+         torch.save(model.state_dict(), log_dir / "model_state.pt")
+ 
+     return logs
+ 
+ 
+ def _solve_thermal_direct(model, graph, timestep_callback=None):
+-    """Direct thermal solve: BDF-1 march along flow direction.
+-
+-    With flows frozen from Newton, pipe and CP temperatures are computed
+-    analytically by marching through the network in topological order.
++    """March current signed flow samples through the conservative pure kernel.
+ 
+-    Uses Kahn's algorithm (in-degree tracking) so that multi-input junction
+-    nodes are only processed after ALL upstream edges deliver their outlet
+-    temperatures.
++    The tensor history is retained for gradients. Detached copies go only to
++    legacy display parameters, after each computed step. t=0 is initial data.
+     """
++    from backend.liquidcooling.solver.thermal_step import thermal_step
++
++    g = graph
++    m = model.state["m"]
++    node = m.new_full((g.N_nodes,), g.T_fluid_init)
++    boundary = g.bc_T if g.bc_T_series is None else g.bc_T_series[:, 0]
++    node = torch.where(g.bc_T_mask.to(m.device), boundary.to(m), node)
++    water = (m.new_full((g.N_cells,), g.T_fluid_init) if g.cell_T_init is None
++             else g.cell_T_init.to(m))
++    solid = m.new_full((g.N_cp,), g.T_solid_init)
++    nodes, waters, solids = [node], [water], [solid]
++    diagnostics = []
+     with torch.no_grad():
+-        m = model.state["m"].data
+-        T_w = model.state["T_w"].data
+-        T_s = model.state["T_s"].data
+-
+-        N_t = graph.N_t
+-        dt = graph.dt
+-        rho = graph.fluid_rho
+-        cp_fluid = graph.fluid_cp
+-
+-        T_w[:, :] = graph.T_fluid_init
+-        if graph.cell_T_init is not None:
+-            # x-dependent initial field (manufactured-solution runs)
+-            T_w[:, 0] = graph.cell_T_init.to(T_w.dtype).to(T_w.device)
+-        T_s[:, 0] = graph.T_solid_init
+-
+-        pipe_handler = model.handlers["pipe"] if "pipe" in model.handlers else None
+-        cell_heat_W = graph.cell_heat_W  # [N_cells, N_t] or None
+-        pipe_idx = graph.pipe_indices
+-        cp_idx = graph.cp_indices
+-
+-        remaining_in = [0] * graph.N_nodes
+-        for n in range(graph.N_nodes):
+-            for e in graph.node_in_edges[n]:
+-                if m[e, 0].item() >= 0:
+-                    remaining_in[n] += 1
+-            for e in graph.node_out_edges[n]:
+-                if m[e, 0].item() < 0:
+-                    remaining_in[n] += 1
+-
+-        ops = []
+-        visited_edges = set()
+-        visited_nodes = set()
+-        queue = deque()
+-
+-        for n in range(graph.N_nodes):
+-            if graph.bc_mask[n] or remaining_in[n] == 0:
+-                queue.append(n)
+-                visited_nodes.add(n)
+-
+-        def _release_node(n):
+-            if graph.junction_mask[n] and not graph.bc_T_mask[n]:
+-                ops.append(("mix", n))
+-            for e in graph.node_out_edges[n]:
+-                if e not in visited_edges and m[e, 0].item() >= 0:
+-                    visited_edges.add(e)
+-                    ops.append(("edge", e))
+-                    to_n = graph.edge_to[e].item()
+-                    remaining_in[to_n] -= 1
+-                    if remaining_in[to_n] <= 0 and to_n not in visited_nodes:
+-                        visited_nodes.add(to_n)
+-                        queue.append(to_n)
+-            for e in graph.node_in_edges[n]:
+-                if e not in visited_edges and m[e, 0].item() < 0:
+-                    visited_edges.add(e)
+-                    ops.append(("edge", e))
+-                    from_n = graph.edge_from[e].item()
+-                    remaining_in[from_n] -= 1
+-                    if remaining_in[from_n] <= 0 and from_n not in visited_nodes:
+-                        visited_nodes.add(from_n)
+-                        queue.append(from_n)
+-
+-        while queue:
+-            _release_node(queue.popleft())
+-
+-        for e in range(graph.N_edges):
+-            if e not in visited_edges:
+-                ops.append(("edge", e))
+-
+-        T_node = torch.full(
+-            (graph.N_nodes, N_t), graph.T_fluid_init,
+-            dtype=T_w.dtype, device=T_w.device,
+-        )
+-        for n in range(graph.N_nodes):
+-            if graph.bc_T_mask[n]:
+-                if graph.bc_T_series is not None:
+-                    T_node[n, :] = graph.bc_T_series[n, :].to(T_node.dtype)
+-                else:
+-                    T_node[n, :] = graph.bc_T[n]
+-
+-        pipe_edge_to_local = {}
+-        if pipe_idx is not None:
+-            for li in range(pipe_idx.edge_ids.shape[0]):
+-                pipe_edge_to_local[pipe_idx.edge_ids[li].item()] = li
+-
+-        cp_edge_to_local = {}
+-        if cp_idx is not None:
+-            for li in range(cp_idx.edge_ids.shape[0]):
+-                cp_edge_to_local[cp_idx.edge_ids[li].item()] = li
+-
+-        for t in range(1, N_t):
+-            for n in range(graph.N_nodes):
+-                if graph.junction_mask[n] and not graph.bc_T_mask[n]:
+-                    T_node[n, t] = graph.T_fluid_init
+-
+-            edge_outlet = {}
+-
+-            for op_type, op_id in ops:
+-                if op_type == "mix":
+-                    n = op_id
+-                    total_m_in = 0.0
+-                    sum_mT = 0.0
+-                    for e in graph.node_in_edges[n]:
+-                        me = m[e, 0].item()
+-                        if me > 0 and e in edge_outlet:
+-                            total_m_in += me
+-                            sum_mT += me * edge_outlet[e]
+-                    for e in graph.node_out_edges[n]:
+-                        me = m[e, 0].item()
+-                        if me < 0 and e in edge_outlet:
+-                            total_m_in += abs(me)
+-                            sum_mT += abs(me) * edge_outlet[e]
+-                    if total_m_in > 1e-20:
+-                        T_node[n, t] = sum_mT / total_m_in
+-                    continue
+-
+-                e = op_id
+-                m_e = m[e, 0].item()
+-                m_abs = abs(m_e)
+-
+-                fn = graph.edge_from[e].item()
+-                tn = graph.edge_to[e].item()
+-                if m_e >= 0:
+-                    inlet_node, outlet_node = fn, tn
+-                else:
+-                    inlet_node, outlet_node = tn, fn
+-
+-                T_inlet = T_node[inlet_node, t].item()
+-                etype = graph.edge_type[e].item()
+-
+-                if etype == 0 and e in pipe_edge_to_local:
+-                    li = pipe_edge_to_local[e]
+-                    c_start = pipe_idx.cell_start[li].item()
+-                    c_end = pipe_idx.cell_end[li].item()
+-                    n_cells = c_end - c_start
+-
+-                    if n_cells == 0:
+-                        T_node[outlet_node, t] = T_inlet
+-                        edge_outlet[e] = T_inlet
+-                        continue
+-
+-                    cells = range(c_start, c_end) if m_e >= 0 else range(c_end - 1, c_start - 1, -1)
+-                    T_up = T_inlet
+-
+-                    for c in cells:
+-                        vol = pipe_handler.cell_volume[c].item()
+-                        C_cell = rho * cp_fluid * vol
+-                        T_old = T_w[c, t - 1].item()
+-                        Q_cell = (
+-                            cell_heat_W[c, min(t, cell_heat_W.shape[1] - 1)].item()
+-                            if cell_heat_W is not None and cell_heat_W.numel() > 0
+-                            else 0.0
+-                        )
+-                        denom = C_cell / dt + m_abs * cp_fluid
+-                        T_new = (
+-                            C_cell / dt * T_old
+-                            + m_abs * cp_fluid * T_up
+-                            + Q_cell
+-                        ) / denom
+-                        T_w[c, t] = T_new
+-                        T_up = T_new
+-
+-                    T_node[outlet_node, t] = T_up
+-                    edge_outlet[e] = T_up
+-
+-                elif etype == 1 and e in cp_edge_to_local:
+-                    li = cp_edge_to_local[e]
+-                    UA = graph.cp_params.UA[li].item()
+-                    C_solid = graph.cp_params.C_solid[li].item()
+-                    Q = graph.cp_params.Q_W[li, min(t, graph.cp_params.Q_W.shape[1] - 1)].item()
+-
+-                    NTU = UA / (m_abs * cp_fluid + 1e-20)
+-                    eff = 1.0 - math.exp(-NTU)
+-
+-                    T_s_old = T_s[li, t - 1].item()
+-                    m_cp_eff = m_abs * cp_fluid * eff
+-                    coeff = C_solid / dt + m_cp_eff
+-                    T_s_new = (C_solid / dt * T_s_old + Q + m_cp_eff * T_inlet) / coeff
+-                    T_s[li, t] = T_s_new
+-
+-                    T_w_out = T_inlet + eff * (T_s_new - T_inlet)
+-                    T_node[outlet_node, t] = T_w_out
+-                    edge_outlet[e] = T_w_out
+-
+-                elif etype == 3:
+-                    T_node[outlet_node, t] = T_inlet
+-                    edge_outlet[e] = T_inlet
+-                elif etype == 4 and e in cp_edge_to_local:
+-                    T_node[outlet_node, t] = T_inlet
+-                    edge_outlet[e] = T_inlet
+-                else:
+-                    T_node[outlet_node, t] = T_inlet
+-                    edge_outlet[e] = T_inlet
+-
+-            if timestep_callback is not None:
+-                max_chip = T_s[:, t].max().item() if T_s.shape[0] > 0 else 0.0
+-                timestep_callback(t, N_t, max_chip)
+-
+-        return T_node
++        model.state["T_w"][:, 0].copy_(water)
++        model.state["T_s"][:, 0].copy_(solid)
++    for t in range(1, g.N_t):
++        result = thermal_step(g, m[:, t], node, water, solid, time_index=t)
++        node, water, solid = result.T_node, result.T_w, result.T_s
++        nodes.append(node)
++        waters.append(water)
++        solids.append(solid)
++        diagnostics.append(result.diagnostics)
++        with torch.no_grad():
++            model.state["T_w"][:, t].copy_(water)
++            model.state["T_s"][:, t].copy_(solid)
++        if timestep_callback is not None:
++            timestep_callback(t, g.N_t, solid.max().detach().item() if solid.numel() else 0.)
++    model.thermal_node_history = torch.stack(nodes, dim=1)
++    model.thermal_water_history = torch.stack(waters, dim=1)
++    model.thermal_solid_history = torch.stack(solids, dim=1)
++    model.thermal_diagnostics = diagnostics
++    return model.thermal_node_history
+diff --git a/src/backend/liquidcooling/solver/thermal_step.py b/src/backend/liquidcooling/solver/thermal_step.py
+new file mode 100644
+index 00000000..296fadc5
+--- /dev/null
++++ b/src/backend/liquidcooling/solver/thermal_step.py
+@@ -0,0 +1,191 @@
++"""Conservative implicit-Euler thermal step with simultaneous closed-loop mixing.
++
++Kelvin, kg/s, W and J/K throughout. Pipe fluid and CP solid store energy;
++CP coolant is quasi-steady NTU (V_fluid is not a resolved storage state).
++Facility temperature is a prescribed reservoir. Pumps/valves are adiabatic.
++Gradients apply within a fixed nonzero-flow orientation, not across switching.
++"""
++from dataclasses import dataclass
++
++import torch
++from torch import Tensor
++
++from backend.liquidcooling.graphcompiling.compiled_graph import CompiledGraph
++
++
++@dataclass
++class ThermalStepResult:
++    T_node: Tensor
++    T_w: Tensor
++    T_s: Tensor
++    edge_outlet: Tensor
++    diagnostics: dict[str, Tensor]
++
++
++def thermal_step(
++    graph: CompiledGraph,
++    m: Tensor,
++    T_node_prev: Tensor,
++    T_w_prev: Tensor,
++    T_s_prev: Tensor,
++    *,
++    dt: float | Tensor | None = None,
++    time_index: int = 1,
++) -> ThermalStepResult:
++    """Advance explicit previous states without mutation or detaching tensors.
++
++    Eliminating local storage equations gives each edge's affine outlet in its
++    current upstream node temperature. A dense N_nodes solve closes all loops.
++    Boundary exchange is positive INTO the network: enthalpy sent by reservoir
++    nodes minus enthalpy returned to them. Pressure BCs represent external flow
++    boundaries; zero-inflow source nodes retain their previous display T.
++    """
++    g = graph
++    if m.ndim != 1 or m.shape[0] != g.N_edges or not m.is_floating_point():
++        raise ValueError('m must be a floating [N_edges] tensor')
++    def value(x):
++        return torch.as_tensor(x, dtype=m.dtype, device=m.device)
++    def finite(name, x):
++        if not bool(torch.isfinite(x).all()):
++            raise ValueError(f'{name} must be finite')
++    delta = value(g.dt if dt is None else dt)
++    if delta.ndim != 0 or not bool(torch.isfinite(delta)) or not bool(delta > 0):
++        raise ValueError('dt must be a finite positive scalar')
++    if not isinstance(time_index, int) or not 0 <= time_index < g.N_t:
++        raise ValueError('time_index must be within graph time samples')
++    previous = []
++    for name, x, size in [('T_node_prev', T_node_prev, g.N_nodes),
++                          ('T_w_prev', T_w_prev, g.N_cells), ('T_s_prev', T_s_prev, g.N_cp)]:
++        x = value(x)
++        if x.shape != (size,):
++            raise ValueError(f'{name} must have shape [{size}]')
++        finite(name, x)
++        previous.append(x)
++    node_old, water_old, solid_old = previous
++    finite('m', m)
++    cp, rho = value(g.fluid_cp), value(g.fluid_rho)
++    for name, x in [('fluid_cp', cp), ('fluid_rho', rho)]:
++        finite(name, x)
++        if not bool(x > 0):
++            raise ValueError(f'{name} must be positive')
++    volume = value(g.cell_volume)
++    finite('cell_volume', volume)
++    if bool((volume <= 0).any()):
++        raise ValueError('cell_volume must be positive')
++    capacity = rho * cp * volume
++    zero, one = m.new_zeros(()), m.new_ones(())
++    def sample(x):
++        x = value(x)
++        finite('thermal parameter', x)
++        return x if x.ndim == 1 else x[:, min(time_index, x.shape[1] - 1)]
++    cell_heat = m.new_zeros(g.N_cells) if g.cell_heat_W is None else sample(g.cell_heat_W)
++    heat = m.new_zeros(g.N_cp) if g.cp_params is None else sample(g.cp_params.Q_W)
++    solid_capacity = m.new_zeros(g.N_cp) if g.cp_params is None else value(g.cp_params.C_solid)
++    finite('C_solid', solid_capacity)
++    if bool((solid_capacity <= 0).any()):
++        raise ValueError('C_solid must be positive')
++    def mapping(indices):
++        return {} if indices is None else {int(e): i for i, e in enumerate(indices.edge_ids)}
++    pipes, plates, exchangers = mapping(g.pipe_indices), mapping(g.cp_indices), mapping(g.hx_indices)
++    upstream, downstream, outlet_a, outlet_b = [], [], [], []
++    water_affine, solid_affine = [None] * g.N_cells, [None] * g.N_cp
++    weights = m.abs()
++    for e in range(g.N_edges):
++        forward = bool(m[e] >= 0)
++        u, v = int(g.edge_from[e]), int(g.edge_to[e])
++        if not forward:
++            u, v = v, u
++        upstream.append(u)
++        downstream.append(v)
++        a, b = one, zero
++        adv = weights[e] * cp
++        if e in pipes:
++            i = pipes[e]
++            start, end = int(g.pipe_indices.cell_start[i]), int(g.pipe_indices.cell_end[i])
++            cells = range(start, end) if forward else range(end - 1, start - 1, -1)
++            for c in cells:
++                storage = capacity[c] / delta
++                denom = storage + adv
++                a, b = adv * a / denom, (storage * water_old[c] + cell_heat[c] + adv * b) / denom
++                water_affine[c] = (u, a, b)
++        elif e in plates or e in exchangers:
++            i = plates[e] if e in plates else exchangers[e]
++            params = g.cp_params if e in plates else g.hx_params
++            ua = value(params.UA)[i]
++            finite('UA', ua)
++            if not bool(ua >= 0):
++                raise ValueError('UA must be nonnegative')
++            # Exact zero advection; a safe inactive denominator avoids NaN grads.
++            safe_adv = torch.where(adv > 0, adv, one)
++            eps = torch.where(adv > 0, -torch.expm1(-ua / safe_adv), zero)
++            if e in plates:
++                conductance = adv * eps
++                storage = solid_capacity[i] / delta
++                sa = conductance / (storage + conductance)
++                sb = (storage * solid_old[i] + heat[i]) / (storage + conductance)
++                solid_affine[i] = (u, sa, sb)
++                a, b = one - eps + eps * sa, eps * sb
++            else:
++                facility = sample(params.T_secondary)[i]
++                a, b = one - eps, eps * facility
++        outlet_a.append(a)
++        outlet_b.append(b)
++    if any(x is None for x in water_affine + solid_affine):
++        raise ValueError('thermal storage indices do not cover the graph states')
++    up = torch.tensor(upstream, dtype=torch.long, device=m.device)
++    down = torch.tensor(downstream, dtype=torch.long, device=m.device)
++    ea = torch.stack(outlet_a) if outlet_a else m.new_empty(0)
++    eb = torch.stack(outlet_b) if outlet_b else m.new_empty(0)
++    incoming = m.new_zeros(g.N_nodes).index_add(0, down, weights)
++    outgoing = m.new_zeros(g.N_nodes).index_add(0, up, weights)
++    identity = torch.eye(g.N_nodes, dtype=m.dtype, device=m.device)
++    rows, rhs, reservoir = [], [], []
++    bc = value(g.bc_T) if g.bc_T_series is None else sample(g.bc_T_series)
++    for n in range(g.N_nodes):
++        fixed = bool(g.bc_T_mask[n])
++        dry = bool(incoming[n] == 0)
++        reservoir.append(fixed or bool(g.bc_mask[n]) or dry)
++        if fixed or dry:
++            rows.append(identity[n])
++            rhs.append(bc[n] if fixed else node_old[n])
++        else:
++            mask = down == n
++            fractions = weights[mask] / incoming[n]
++            rows.append(identity[n].index_add(0, up[mask], -fractions * ea[mask]))
++            rhs.append((fractions * eb[mask]).sum())
++    matrix, target = torch.stack(rows), torch.stack(rhs)
++    finite('thermal matrix', matrix)
++    finite('thermal right hand side', target)
++    try:
++        node = torch.linalg.solve(matrix, target)
++    except RuntimeError as exc:
++        raise RuntimeError(f'thermal linear solve failed at time index {time_index}: {exc}') from exc
++    if not bool(torch.isfinite(node).all()):
++        raise RuntimeError(f'thermal linear solve produced nonfinite state at time index {time_index}')
++    linear_residual = matrix @ node - target
++    if bool(linear_residual.abs().max() > 1e-7 * (1 + target.abs().max())):
++        raise RuntimeError(f'thermal linear solve residual too large at time index {time_index}')
++    def restore(affine):
++        return torch.stack([a * node[u] + b for u, a, b in affine]) if affine else m.new_empty(0)
++    water, solid = restore(water_affine), restore(solid_affine)
++    outlet = ea * node[up] + eb
++    if not all(bool(torch.isfinite(x).all()) for x in (water, solid, outlet)):
++        raise RuntimeError(f'thermal solve produced nonfinite storage/outlet state at time index {time_index}')
++    storage_rate = ((water - water_old) * capacity).sum() / delta
++    storage_rate = storage_rate + ((solid - solid_old) * solid_capacity).sum() / delta
++    hx_ids = torch.tensor(list(exchangers), dtype=torch.long, device=m.device)
++    rejection = (weights[hx_ids] * cp * (node[up[hx_ids]] - outlet[hx_ids])).sum()
++    received = m.new_zeros(g.N_nodes).index_add(0, down, weights * cp * outlet)
++    sent = outgoing * cp * node
++    reservoirs = torch.tensor(reservoir, dtype=torch.bool, device=m.device)
++    boundary = (sent - received)[reservoirs].sum()
++    source = cell_heat.sum() + heat.sum()
++    return ThermalStepResult(node, water, solid, outlet, {
++        'linear_residual_K': linear_residual,
++        'mass_residual_kg_s': incoming - outgoing,
++        'heat_input_W': source,
++        'storage_rate_W': storage_rate,
++        'hx_rejection_W': rejection,
++        'boundary_exchange_W': boundary,
++        'energy_balance_W': source + boundary - storage_rate - rejection,
++    })
+diff --git a/src/backend/tests/test_liquid/test_dynamic_thermal.py b/src/backend/tests/test_liquid/test_dynamic_thermal.py
+new file mode 100644
+index 00000000..4c2ede3c
+--- /dev/null
++++ b/src/backend/tests/test_liquid/test_dynamic_thermal.py
+@@ -0,0 +1,260 @@
++"""Conservative thermal trajectories: independent energy and sensitivity oracles."""
++import json
++from pathlib import Path
++
++import pytest
++import torch
++
++from backend.liquidcooling.graphcompiling.compiler import compile_graph
++from backend.liquidcooling.schema import LiquidrunConfig
++from backend.liquidcooling.solver.model import LiquidODILModel
++from backend.liquidcooling.solver.hybrid import _solve_thermal_direct, hybrid_solve
++
++DTYPE = torch.float64
++
++
++def loop_graph(n=120, dt=2.):
++    raw = json.loads((Path(__file__).parent / "cdu_loop.liquidrun").read_text())
++    raw['time'].update(N_t=n, dt_s=dt)
++    raw['nodes'][0]['bc'].pop('T_K')
++    raw['nodes'][-1] = {'id': 'return', 'type': 'junction', 'position_m': [2, 0, 0]}
++    raw['edges'].append({'id': 'pump', 'type': 'pump', 'from': 'return', 'to': 'supply',
++                         'params': {'H0_m': 10., 'a_coef': 5e5, 'rpm_ratio': 1.}})
++    return compile_graph(LiquidrunConfig.model_validate(raw))
++
++
++def initial(g):
++    return (torch.full((g.N_nodes,), g.T_fluid_init, dtype=DTYPE),
++            torch.full((g.N_cells,), g.T_fluid_init, dtype=DTYPE),
++            torch.full((g.N_cp,), g.T_solid_init, dtype=DTYPE))
++
++
++def step(g, m, previous=None, **kw):
++    from backend.liquidcooling.solver.thermal_step import thermal_step
++    return thermal_step(g, m, *(initial(g) if previous is None else previous), **kw)
++
++
++def test_production_closed_loop_rejects_heat_without_supply_temperature():
++    g = loop_graph()
++    model = LiquidODILModel(g)
++    hybrid_solve(model, g.solver_config, callback=lambda _: None)
++    T = _solve_thermal_direct(model, g)
++    e = int(g.hx_indices.edge_ids[0])
++    rejected = model.state['m'][e, -1].abs() * g.fluid_cp * (T[g.edge_from[e], -1] - T[g.edge_to[e], -1])
++    assert rejected > 490.  # 500 W IT input, independently measured HX enthalpy drop
++    assert rejected < 510.
++
++
++def test_production_uses_each_flow_sample():
++    g = loop_graph(n=8)
++    fixed, changed = LiquidODILModel(g), LiquidODILModel(g)
++    with torch.no_grad():
++        fixed.state['m'].fill_(.4)
++        changed.state['m'].fill_(.4)
++        changed.state['m'][:, 2:] = .08
++    _solve_thermal_direct(fixed, g)
++    _solve_thermal_direct(changed, g)
++    assert abs(fixed.state['T_s'][0, -1] - changed.state['T_s'][0, -1]) > .01
++
++
++def test_loop_energy_and_mass_conservation_every_step():
++    g = loop_graph(n=8)
++    previous = initial(g)
++    for t in range(1, g.N_t):
++        r = step(g, torch.full((g.N_edges,), .3, dtype=DTYPE), previous, time_index=t)
++        storage = ((r.T_w - previous[1]) * g.cell_volume * g.fluid_rho * g.fluid_cp).sum() / g.dt
++        storage += ((r.T_s - previous[2]) * g.cp_params.C_solid).sum() / g.dt
++        e = int(g.hx_indices.edge_ids[0])
++        rejection = .3 * g.fluid_cp * (r.T_node[g.edge_from[e]] - r.edge_outlet[e])
++        torch.testing.assert_close(storage + rejection, g.cp_params.Q_W[:, t].sum(), atol=1e-7, rtol=1e-10)
++        assert r.diagnostics['energy_balance_W'].abs() < 1e-7
++        assert r.diagnostics['mass_residual_kg_s'].abs().max() < 1e-12
++        previous = (r.T_node, r.T_w, r.T_s)
++
++
++def pipe_graph():
++    raw = json.loads((Path(__file__).parent / 'minimal.liquidrun').read_text())
++    raw['edges'][0]['params']['n_cells'] = 1
++    return compile_graph(LiquidrunConfig.model_validate(raw))
++
++
++@pytest.mark.parametrize('reverse', [False, True])
++def test_pipe_implicit_step_actual_upstream_and_boundary_energy(reverse):
++    g = pipe_graph()
++    g.bc_T_mask[:] = True
++    g.bc_T[:] = torch.tensor([310., 330.], dtype=DTYPE)
++    m = torch.tensor([-.2 if reverse else .2], dtype=DTYPE)
++    prev = initial(g)
++    r = step(g, m, prev)
++    capacity = g.cell_volume[0] * g.fluid_rho * g.fluid_cp
++    expected = (capacity / g.dt * prev[1][0] + .2 * g.fluid_cp * (330. if reverse else 310.)) / (capacity / g.dt + .2 * g.fluid_cp)
++    torch.testing.assert_close(r.T_w[0], expected)
++    assert r.diagnostics['energy_balance_W'].abs() < 1e-7
++
++
++def test_zero_flow_stores_heat_without_advective_leakage():
++    g = loop_graph(n=2)
++    prev = initial(g)
++    r = step(g, torch.zeros(g.N_edges, dtype=DTYPE), prev)
++    torch.testing.assert_close(r.T_s, prev[2] + g.cp_params.Q_W[:, 1] * g.dt / g.cp_params.C_solid)
++    torch.testing.assert_close(r.T_w, prev[1], atol=0, rtol=0)
++    torch.testing.assert_close(r.T_node, prev[0], atol=0, rtol=0)
++    assert r.diagnostics['hx_rejection_W'] == 0
++    assert r.diagnostics['energy_balance_W'].abs() < 1e-8
++
++
++@pytest.mark.parametrize('parameter', ['flow', 'ua', 'heat'])
++def test_multistep_gradients_match_centered_difference(parameter):
++    def objective(x):
++        g = loop_graph(n=5)
++        m = torch.ones(g.N_edges, dtype=DTYPE) * (x if parameter == 'flow' else .3)
++        if parameter == 'ua':
++            g.cp_params.UA = x.reshape(1)
++        if parameter == 'heat':
++            g.cp_params.Q_W = x.expand(1, g.N_t)
++        prev = initial(g)
++        for t in range(1, g.N_t):
++            r = step(g, m, prev, time_index=t)
++            prev = r.T_node, r.T_w, r.T_s
++        return r.T_s.sum()
++    value, h = {'flow': (.3, 1e-5), 'ua': (150., 1e-2), 'heat': (500., 1e-2)}[parameter]
++    x = torch.tensor(value, dtype=DTYPE, requires_grad=True)
++    grad, = torch.autograd.grad(objective(x), x)
++    fd = (objective(x.detach() + h) - objective(x.detach() - h)) / (2*h)
++    assert grad.abs() > 1e-8
++    torch.testing.assert_close(grad, fd, rtol=1e-5, atol=1e-7)
++
++
++@pytest.mark.parametrize('dt', [0., -1., float('nan')])
++def test_reject_invalid_dt(dt):
++    g = loop_graph(n=2)
++    with pytest.raises(ValueError, match='dt'):
++        step(g, torch.ones(g.N_edges, dtype=DTYPE), dt=dt)
++
++
++def test_reject_nonfinite_state_and_singular_loop():
++    g = loop_graph(n=2)
++    prev = list(initial(g))
++    prev[1][0] = float('nan')
++    with pytest.raises(ValueError, match='finite'):
++        step(g, torch.ones(g.N_edges, dtype=DTYPE), prev)
++    # No thermal storage/anchors: a pure adiabatic circulation has no temperature datum.
++    g.pipe_indices = g.cp_indices = g.hx_indices = None
++    g.N_cells = g.N_cp = 0
++    g.cell_volume = torch.empty(0, dtype=DTYPE)
++    g.cell_heat_W = None
++    g.cp_params = None
++    with pytest.raises(RuntimeError, match='thermal'):
++        step(g, torch.ones(g.N_edges, dtype=DTYPE))
++
++
++def test_hydraulic_failure_stops_before_thermal_publication():
++    g = loop_graph(n=3)
++    g.pump_params.rpm_ratio[0, 1] = float('nan')
++    model = LiquidODILModel(g)
++    with pytest.raises(RuntimeError, match='hydraulic solve failed'):
++        hybrid_solve(model, g.solver_config, callback=lambda _: None)
++    assert not getattr(model, 'hybrid_converged', True)
++    assert not hasattr(model, 'thermal_node_history')
++
++
++def test_runner_reports_solved_reverse_inlet_and_actual_convergence():
++    from backend.liquidcooling.runner import _extract_results
++    from backend.liquidcooling.solver.common import SolveLog
++    g = loop_graph(n=3)
++    model = LiquidODILModel(g)
++    with torch.no_grad():
++        model.state['m'].fill_(-.2)
++    node = _solve_thermal_direct(model, g)
++    model.hybrid_converged = False
++    logs = [SolveLog(epoch=1, total=0., losses={}, wall_time_s=0.)]
++    result = _extract_results(model, g, logs)
++    assert not result.converged
++    e = int(g.cp_indices.edge_ids[0])
++    expected = node[g.edge_to[e]].detach().numpy()
++    import numpy as np
++    np.testing.assert_allclose(result.cp_details[0].water_inlet_temp_K, expected)
++
++
++def test_pipe_distributed_source_and_initial_field_preserved():
++    g = pipe_graph()
++    g.cell_T_init = torch.tensor([319.], dtype=DTYPE)
++    g.cell_heat_W = torch.full((g.N_cells, g.N_t), 27., dtype=DTYPE)
++    model = LiquidODILModel(g)
++    with torch.no_grad():
++        model.state['m'].zero_()
++    _solve_thermal_direct(model, g)
++    expected = 319. + torch.arange(g.N_t, dtype=DTYPE) * g.dt * 27. / (g.cell_volume[0] * g.fluid_rho * g.fluid_cp)
++    torch.testing.assert_close(model.state['T_w'][0], expected)
++
++
++def test_unequal_incoming_streams_mix_enthalpy_without_storage():
++    raw = json.loads((Path(__file__).parent / 'minimal.liquidrun').read_text())
++    raw['nodes'] = [
++        {'id':'a','type':'pressure_bc','position_m':[0,0,0],'bc':{'P_Pa':2e5,'T_K':300.}},
++        {'id':'b','type':'pressure_bc','position_m':[0,1,0],'bc':{'P_Pa':2e5,'T_K':340.}},
++        {'id':'mix','type':'junction','position_m':[1,0,0]},
++        {'id':'out','type':'pressure_bc','position_m':[2,0,0],'bc':{'P_Pa':1e5}},
++    ]
++    raw['edges'] = [{'id':name,'type':'valve','from':u,'to':v,'params':{'Kv_max':2.5,'opening':1.}}
++                    for name,u,v in [('a-m','a','mix'),('b-m','b','mix'),('m-o','mix','out')]]
++    g = compile_graph(LiquidrunConfig.model_validate(raw))
++    r = step(g, torch.tensor([.2,.6,.8],dtype=DTYPE))
++    assert abs(r.T_node[2] - 330.) < 1e-10
++    assert r.T_w.numel() == r.T_s.numel() == 0
++    assert r.diagnostics['energy_balance_W'].abs() < 1e-8
++
++
++def test_production_reverses_multicell_order_at_later_step():
++    raw = json.loads((Path(__file__).parent / 'minimal.liquidrun').read_text())
++    raw['time']['N_t'] = 4
++    raw['edges'][0]['params']['n_cells'] = 3
++    g = compile_graph(LiquidrunConfig.model_validate(raw))
++    g.bc_T_mask[:] = True
++    g.bc_T[:] = torch.tensor([310., 330.], dtype=DTYPE)
++    g.cell_T_init = torch.tensor([300., 305., 308.], dtype=DTYPE)
++    model = LiquidODILModel(g)
++    flow = torch.tensor([.2, .2, -.1, -.3], dtype=DTYPE)
++    with torch.no_grad():
++        model.state['m'][0].copy_(flow)
++    _solve_thermal_direct(model, g)
++    old = g.cell_T_init.clone()
++    capacity = g.cell_volume * g.fluid_rho * g.fluid_cp
++    for t in range(1, g.N_t):
++        expected = old.clone()
++        forward = flow[t] > 0
++        up = 310. if forward else 330.
++        for c in (range(3) if forward else range(2, -1, -1)):
++            expected[c] = (capacity[c] / g.dt * old[c] + abs(flow[t]) * g.fluid_cp * up) / (capacity[c] / g.dt + abs(flow[t]) * g.fluid_cp)
++            up = expected[c]
++        torch.testing.assert_close(model.state['T_w'][:, t], expected)
++        old = expected
++
++
++def test_heat_exchanger_ua_gradient_and_no_pipe_storage():
++    g = loop_graph(n=2)
++    # Replace pipe with an adiabatic link, leaving CP storage and HX boundary.
++    g.pipe_indices = g.pipe_params = None
++    g.N_cells = 0
++    g.cell_volume = torch.empty(0, dtype=DTYPE)
++    ua = torch.tensor([5000.], dtype=DTYPE, requires_grad=True)
++    g.hx_params.UA = ua
++    flow = torch.full((g.N_edges,), .3, dtype=DTYPE)
++    r = step(g, flow)
++    grad, = torch.autograd.grad(r.T_s.sum(), ua)
++    values = []
++    for offset in [-.1, .1]:
++        g.hx_params.UA = ua.detach() + offset
++        values.append(step(g, flow).T_s.sum())
++    fd = (values[1] - values[0]) / .2
++    torch.testing.assert_close(grad[0], fd, rtol=1e-5, atol=1e-9)
++    assert grad.abs().sum() > 1e-8
++    assert r.diagnostics['energy_balance_W'].abs() < 1e-7
++
++
++def test_finite_inputs_cannot_publish_overflowed_storage_state():
++    g = pipe_graph()
++    previous = list(initial(g))
++    previous[1].fill_(torch.finfo(DTYPE).max)
++    with pytest.raises(RuntimeError, match='nonfinite'):
++        step(g, torch.zeros(g.N_edges, dtype=DTYPE), previous, dt=1e-10)

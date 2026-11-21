@@ -1,0 +1,38 @@
+......F.....F..................                                          [100%]
+=================================== FAILURES ===================================
+_______ test_successful_fake_preflight_preserves_single_uuid_and_one_icd _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-final-31/test_successful_fake_preflight0')
+
+    def test_successful_fake_preflight_preserves_single_uuid_and_one_icd(tmp_path):
+        env=fake_gpu(tmp_path);env["EXEC"]="invalid-bypass"
+        port=free_port();observed=tmp_path/"observed.json"
+        code=("import json,os,pathlib,socket,time\n"
+>           f"pathlib.Path({str(observed)!r}).write_text(json.dumps({k:os.environ[k] for k in ['CUDA_VISIBLE_DEVICES','VK_DRIVER_FILES','VK_ICD_FILENAMES','DC_CFD_RESOLVED_ACTIVE_GPU','EXEC'] if k in os.environ}))\n"
+            f"s=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
+E       NameError: name 'k' is not defined
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:173: NameError
+_____________ test_signal_identity_ignores_transient_process_state _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb59980b2b0>
+
+    def test_signal_identity_ignores_transient_process_state(monkeypatch):
+        import importlib.util
+        sys.path.insert(0,str(SUPERVISOR.parent))
+        try:
+            spec=importlib.util.spec_from_file_location("owned_ov_supervisor",SUPERVISOR)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        finally:
+            sys.path.remove(str(SUPERVISOR.parent))
+        seen=[]
+        identity=(os.getuid(),123,456,"R")
+        monkeypatch.setattr(module,"_process_identity",lambda pid:(os.getuid(),123,456,"S"))
+>       monkeypatch.setattr(module.os,"pidfd_open",lambda pid:77)
+E       AttributeError: <module 'os' from '/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/lib/python3.10/os.py'> has no attribute 'pidfd_open'
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:271: AttributeError
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_successful_fake_preflight_preserves_single_uuid_and_one_icd
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_signal_identity_ignores_transient_process_state
+2 failed, 29 passed in 9.18s

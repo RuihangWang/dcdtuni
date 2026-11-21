@@ -1,0 +1,9 @@
+# Shinaide ordinary full-trajectory control AD verification — 2026-10-06
+
+The actual React ordinary 20 s run `e512006bbf0e4c6db16d918b35818867` (11 frames, dt 2 s) was reproduced from its original public input and accepted online controls. All eight physical output arrays at every frame, all complete parameter vectors and public checkpoint replay are bitexact. Pump and first-valve first-order trajectory AD pass the original centered-finite-difference gate. The full report, immutable manifest, input/result/checkpoint and numerical arrays are under [evidence](evidence/REPORT.md).
+
+The root reviewer rehashed all 91 payloads and independently reran the pure NumPy conservation equations. All 130 dynamic roots and 13 initializers reproduce the complete recorded balance JSON exactly; see [the independent rerun receipt](ROOT-independent-repro.json). Dynamic roots satisfy the original absolute energy gate. Initial steady-root energy uses its original scaled gate and is recorded separately; it does not satisfy that dynamic absolute gate.
+
+These are explicit synthetic equipment parameters, not measured hardware calibration. This evidence covers ordinary controls and first-order implicit gradients, not higher derivatives or a new MMS acceptance. The original full-ring sine MMS coarse final-HX-secondary order still fails its original band. A separate positive-curvature mathematical fixture remains under product-chain validation. Large Shinaide air mesh/steady/transient and OV numeric browser acceptance remain incomplete.
+
+The unchanged reproduction launcher references the audited original PRIVATE paths and source guards. Those paths are part of the recorded experiment identity, not a portable installation command; the public-input arrays and independent balance script can be copied to a separate audit directory. No production source or physical project was changed by this evidence checkpoint.

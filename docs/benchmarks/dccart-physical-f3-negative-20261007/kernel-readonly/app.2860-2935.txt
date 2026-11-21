@@ -1,0 +1,76 @@
+2860:                 const word& type=patchTypes[pi];
+2861:                 protectedPatch[pi]=type.find("cyclic")==0
+2862:                  || type.find("processor")==0 || type.find("mapped")==0
+2863:                  || type.find("AMI")!=std::string::npos;
+2864:             }
+2865:             dcCartCutCells::auditRegularTransitionRoofs(m,protectedPatch);
+2866:             budgetCheck("transition-roof-readonly-audit");
+2867:         }
+2868: 
+2869:         const char* requestedWValue=getenv("DCCART_CROSS_PARENT_WEIGHT_UNIONS");
+2870:         const label requestedW=requestedWValue && std::string(requestedWValue)=="1";
+2871:         const label minRequestedW=returnReduce(requestedW,minOp<label>());
+2872:         const label maxRequestedW=returnReduce(requestedW,maxOp<label>());
+2873:         if (minRequestedW!=maxRequestedW)
+2874:             FatalErrorInFunction << "cross-parent W enable differs across ranks; no mesh written"
+2875:                                  << exit(FatalError);
+2876:         dcCartCutCells::weightUnionAuthority weightAuthority;
+2877:         dcCartCutCells::completeCavityAuthority cavityAuthority;
+2878:         if (maxRequestedW)
+2879:         {
+2880:             // This remains the actual normal product clock during the
+2881:             // intervening old cone stage; it is never a fixed launcher grant.
+2882:             std::function<scalar()> remainingW=[&]() -> scalar
+2883:             {
+2884:                 return std::isfinite(timeLimit) && timeLimit>0
+2885:                     ? std::max(scalar(0),timeLimit-timer.elapsedTime()-scalar(60))
+2886:                     : scalar(0);
+2887:             };
+2888:             // Snapshot setup is separately bounded and charged to the same
+2889:             // whole clock. The existing helper's four-second local cap remains.
+2890:             auto snapshotClock=std::make_shared<clockTime>();
+2891:             std::function<scalar()> remainingSnapshot=[remainingW,snapshotClock]() -> scalar
+2892:             {
+2893:                 return std::max(scalar(0),std::min
+2894:                     (remainingW(),scalar(4)-snapshotClock->elapsedTime()));
+2895:             };
+2896:             // Unknown/skipped post-carve paths refuse, while every rank still
+2897:             // enters readAuthority's one fixed collective below.
+2898:             const char* skippedStages=getenv("DCCART_SKIP");
+2899:             const bool completedNormalFluidOnlyPath=normalSolidCarveCompleted
+2900:                 && (!skippedStages || !*skippedStages);
+2901:             auto snapshot=dcCartPostCarveFluidOwnershipPreview::capture
+2902:                 (m,meshDict,patchNames,patchTypes,surfaces.faceZoneNames(),
+2903:                  myProc,completedNormalFluidOnlyPath,remainingSnapshot);
+2904:             Pout<<"Normal W ownership snapshot: rank "<<myProc
+2905:                 <<", completed normal path "<<completedNormalFluidOnlyPath
+2906:                 <<", immutable snapshot complete "<<snapshot->complete
+2907:                 <<", pre-cone cells/faces/points "<<m.nCells<<'/'<<m.faces.size()<<'/'<<m.points.size()
+2908:                 <<", setup wall "<<snapshotClock->elapsedTime()<<" s; no quality acceptance implied"<<endl;
+2909:             auto ownership=dcCartPostCarveFluidOwnershipPreview::verifier(snapshot);
+2910:             std::function<dcCartCutCells::weightUnionOrigin(label)> sourceOrigin=
+2911:                 [snapshot](label parent)
+2912:                 { return dcCartPostCarveFluidOwnershipPreview::origin(snapshot,parent); };
+2913:             weightAuthority=dcCartWeightUnionSourceContract::readAuthority
+2914:                 (meshDict,ownership,remainingW,sourceOrigin);
+2915:             cavityAuthority=dcCartCompleteCavityAuthority::read
+2916:                 (meshDict,snapshot,weightAuthority,remainingW);
+2917:             Pout<<"Normal W material authority: rank "<<myProc
+2918:                 <<", material gate "<<weightAuthority.globallyNoMaterialNoBulk
+2919:                 <<"; individual complete origin and installed quality guards required"<<endl;
+2920:         }
+2921:         if (getenv("DCCART_CONFORMING_CONES") != nullptr)
+2922:         {
+2923:             dcCartCutCells::decomposeConformingCones
+2924:             (
+2925:                 m,patchNames,patchTypes,patchNeighbours,myProc,
+2926:                 runTime,surfaces.faceZoneNames(),patchGroups,weightAuthority,cavityAuthority,
+2927:                 earliestPhysicalPointRepair
+2928:             );
+2929:             budgetCheck("conforming-mixed-cone-experiment");
+2930:         }
+2931: 
+2932:         // The census: the three numbers that separate a mesh the steady RAS
+2933:         // solve converges on from one it does not, printed on every run so a
+2934:         // regression shows up at mesh time instead of three days later at
+2935:         // solve time. Measured on this project --

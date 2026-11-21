@@ -1,0 +1,154 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+________ test_valve_helper_closed_opening_gradients_are_finite[linear] _________
+
+characteristic = 'linear'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_helper_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import effective_valve_kv
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        params = graph.valve_params
+        params.opening.requires_grad_(True)
+        kv = effective_valve_kv(params.Kv_max[:, None], params.opening, params.characteristic[:, None])
+        gradient, = torch.autograd.grad(kv.sum(), params.opening)
+        expected, derivative = _valve_kv_oracle(openings, characteristic)
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d6d949d00>()
+E        +    where <built-in method all of Tensor object at 0x7f4d6d949d00> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[0.0000,    nan, 2.5000, 2.5000, 2.5000]], dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:197: AssertionError
+___ test_valve_helper_closed_opening_gradients_are_finite[equal_percentage] ____
+
+characteristic = 'equal_percentage'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_helper_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import effective_valve_kv
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        params = graph.valve_params
+        params.opening.requires_grad_(True)
+        kv = effective_valve_kv(params.Kv_max[:, None], params.opening, params.characteristic[:, None])
+        gradient, = torch.autograd.grad(kv.sum(), params.opening)
+        expected, derivative = _valve_kv_oracle(openings, characteristic)
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d6fcefb00>()
+E        +    where <built-in method all of Tensor object at 0x7f4d6fcefb00> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[0.0000,    nan, 0.1956, 1.3831, 9.7801]], dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:197: AssertionError
+_____ test_valve_helper_closed_opening_gradients_are_finite[quick_opening] _____
+
+characteristic = 'quick_opening'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_helper_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import effective_valve_kv
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        params = graph.valve_params
+        params.opening.requires_grad_(True)
+        kv = effective_valve_kv(params.Kv_max[:, None], params.opening, params.characteristic[:, None])
+        gradient, = torch.autograd.grad(kv.sum(), params.opening)
+        expected, derivative = _valve_kv_oracle(openings, characteristic)
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d64abc040>()
+E        +    where <built-in method all of Tensor object at 0x7f4d64abc040> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[0.0000e+00,        nan, 1.2500e+06, 1.7678e+00, 1.2500e+00]],\n       dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:197: AssertionError
+________ test_valve_handler_closed_opening_gradients_are_finite[linear] ________
+
+characteristic = 'linear'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_handler_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        graph.valve_params.opening.requires_grad_(True)
+        pressure = graph.bc_P[:, None].expand(-1, graph.N_t)
+        residual = ValveBatchHandler(graph.valve_params, graph.fluid_rho).compute_residuals(
+            {"P": pressure, "m": torch.zeros(1, graph.N_t, dtype=torch.float64)},
+            graph.valve_indices, 1., 1)["momentum"]
+        gradient, = torch.autograd.grad(residual.sum(), graph.valve_params.opening)
+        kv, derivative = _valve_kv_oracle(openings, characteristic)
+        # Handler's existing ISA smoothing, with exactly one bar driving pressure.
+        isa_scale = math.sqrt(1. / (graph.fluid_rho / 1000.) + 1e-10) * graph.fluid_rho / 3600.
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d6fceec00>()
+E        +    where <built-in method all of Tensor object at 0x7f4d6fceec00> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[ 0.0000,     nan, -0.6934, -0.6934, -0.6934]], dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:216: AssertionError
+___ test_valve_handler_closed_opening_gradients_are_finite[equal_percentage] ___
+
+characteristic = 'equal_percentage'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_handler_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        graph.valve_params.opening.requires_grad_(True)
+        pressure = graph.bc_P[:, None].expand(-1, graph.N_t)
+        residual = ValveBatchHandler(graph.valve_params, graph.fluid_rho).compute_residuals(
+            {"P": pressure, "m": torch.zeros(1, graph.N_t, dtype=torch.float64)},
+            graph.valve_indices, 1., 1)["momentum"]
+        gradient, = torch.autograd.grad(residual.sum(), graph.valve_params.opening)
+        kv, derivative = _valve_kv_oracle(openings, characteristic)
+        # Handler's existing ISA smoothing, with exactly one bar driving pressure.
+        isa_scale = math.sqrt(1. / (graph.fluid_rho / 1000.) + 1e-10) * graph.fluid_rho / 3600.
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d64abfb50>()
+E        +    where <built-in method all of Tensor object at 0x7f4d64abfb50> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[ 0.0000,     nan, -0.0543, -0.3836, -2.7126]], dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:216: AssertionError
+____ test_valve_handler_closed_opening_gradients_are_finite[quick_opening] _____
+
+characteristic = 'quick_opening'
+
+    @pytest.mark.parametrize("characteristic", ["linear", "equal_percentage", "quick_opening"])
+    def test_valve_handler_closed_opening_gradients_are_finite(characteristic):
+        from backend.liquidcooling.handlers.valve import ValveBatchHandler
+        openings = [-.1, 0., 1e-12, .5, 1.]
+        graph = _graph(opening=openings, characteristic=characteristic)
+        graph.valve_params.opening.requires_grad_(True)
+        pressure = graph.bc_P[:, None].expand(-1, graph.N_t)
+        residual = ValveBatchHandler(graph.valve_params, graph.fluid_rho).compute_residuals(
+            {"P": pressure, "m": torch.zeros(1, graph.N_t, dtype=torch.float64)},
+            graph.valve_indices, 1., 1)["momentum"]
+        gradient, = torch.autograd.grad(residual.sum(), graph.valve_params.opening)
+        kv, derivative = _valve_kv_oracle(openings, characteristic)
+        # Handler's existing ISA smoothing, with exactly one bar driving pressure.
+        isa_scale = math.sqrt(1. / (graph.fluid_rho / 1000.) + 1e-10) * graph.fluid_rho / 3600.
+>       assert torch.isfinite(gradient).all()
+E       assert tensor(False)
+E        +  where tensor(False) = <built-in method all of Tensor object at 0x7f4d6fcefc90>()
+E        +    where <built-in method all of Tensor object at 0x7f4d6fcefc90> = tensor([[ True, False,  True,  True,  True]]).all
+E        +      where tensor([[ True, False,  True,  True,  True]]) = <built-in method isfinite of type object at 0x7f4e2785f1c0>(tensor([[ 0.0000e+00,         nan, -3.4670e+05, -4.9031e-01, -3.4670e-01]],\n       dtype=torch.float64))
+E        +        where <built-in method isfinite of type object at 0x7f4e2785f1c0> = torch.isfinite
+
+src/backend/tests/test_liquid/test_dynamic_hydraulic.py:216: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_helper_closed_opening_gradients_are_finite[linear]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_helper_closed_opening_gradients_are_finite[equal_percentage]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_helper_closed_opening_gradients_are_finite[quick_opening]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_handler_closed_opening_gradients_are_finite[linear]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_handler_closed_opening_gradients_are_finite[equal_percentage]
+FAILED src/backend/tests/test_liquid/test_dynamic_hydraulic.py::test_valve_handler_closed_opening_gradients_are_finite[quick_opening]
+6 failed, 19 deselected in 3.68s

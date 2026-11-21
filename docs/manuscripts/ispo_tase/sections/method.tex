@@ -1,0 +1,183 @@
+\section{Information-Stratified Policy Optimization}
+\subsection{On-Policy Target and RLOO Baselines}
+The reference update estimates the gradient of~\eqref{eq:target}, with regularization handled separately. Write $S_\theta(d,p)=\nabla_\theta\log\pi_\theta(d\mid p)$ and
+\begin{equation}
+Y_\theta(d,p)=(R_\HF(d;p)-b(p))S_\theta(d,p).
+\label{eq:reference-gradient}
+\end{equation}
+The sequence score sums the actual constrained token log-probabilities and the numerical-head log-density, without action-dependent length normalization. Latent numerical draws, their density/Jacobian, and compiled values are preserved when serialization or quantization changes the physical input. A predictable baseline, fitted before the current batch, is independent of its sampled action conditional on the prompt. Under the usual dominated differentiation and finite-moment conditions, $\E[Y_\theta]=\nabla J_\HF$. All paired and cheap-only samples in an update use the same frozen behavior policy and evaluator definitions.
+
+The production backbone is REINFORCE leave-one-out (RLOO)~\cite{ahmadian2024rloo}. For $K\ge2$ independent designs for a prompt, the complete-feedback baseline is
+\begin{equation}
+b_{-i}=\frac{1}{K-1}\sum_{j\ne i}R_{\HF,j}.
+\label{eq:rloo-peer}
+\end{equation}
+Excluding the design's own reward makes the subtraction unbiased. With randomized target acquisitions $Z_j$ and recorded probabilities $q_j$, a candidate peer baseline is
+\begin{equation}
+\widehat b_{-i}^{\rm HT}=\frac{1}{K-1}\sum_{j\ne i}\frac{Z_j R_{\HF,j}}{q_j}.
+\label{eq:ht-peer}
+\end{equation}
+Acquisitions are independent conditional on the sampled designs and prior calibration state. Averaging first over their indicators and then over the other independent designs gives $\E[\widehat b_{-i}^{\rm HT}\mid d_i,p]=\E[R_\HF\mid p]$. This provides a first-moment justification for the peer subtraction. The fixed denominator $K-1$ remains defined when no peer is selected. A raw average over an adaptively selected high-fidelity subset does not have this identity.
+
+Current-group RLOO introduces dependence between sample updates. The independent-sample covariance formulas below therefore use predictable baselines, or independently sampled complete prompt-group aggregates as their statistical units. RLOO configurations are audited with repeated independent groups; their variance is not obtained by substituting dependent rollouts into an IID formula.
+
+One on-policy update is taken per collected batch. Group sample-standard-deviation normalization, clipping, and batch reuse are distinct comparison variants~\cite{schulman2017ppo,shao2024deepseekmath}; their update is not claimed to be the unbiased gradient in~\eqref{eq:target}. A common predictable scalar normalization can be absorbed into the learning rate. Prompt-specific scaling defines a reweighted task objective and is recorded explicitly. The numerical head has its own reference density for KL regularization; disabling an adapter does not by itself define that density.
+
+\subsection{Component and Residual Control Variates}
+For an independently sampled design, let $L_k(d,p)$ be a cheap vector-valued update. Scalar-reward and component-loss instances take the form $v_k S_\theta$ with fixed declared scales and predictable baselines. A residual-feature instance is $w(d,p)L_k(d,p)$, where the gate is calibrated before the batch and evaluated identically for paired and cheap-only samples. Obtaining $w$ on every required sample is charged to the budget. An averages-only L0 model has no field residual; field-level features require a field-producing L1 evaluator and the target operator.
+
+For $n$ target evaluations in an IID collection of $N\ge n$ designs, with cheap updates obtained on all $N$, the nested estimator is
+\begin{equation}
+\widehat g_\beta=\overline Y_H-\sum_{k=1}^{M}\beta_k(\overline L_{k,H}-\overline L_{k,N}).
+\label{eq:nested}
+\end{equation}
+The paired subset is uniform and independent of design values. Coefficients are fixed from prior or cross-fitted data. The subtraction is zero-mean, including when $L_k$ is an approximate pathwise or straight-through vector: correctness follows from matched distributions and the correction, not from the auxiliary vector's being a correct physical gradient. Uncorrected straight-through updates remain a separate biased variant.
+
+Define $v=\operatorname{tr}\Cov(Y)$, $A_{jk}=\operatorname{tr}\Cov(L_j,L_k)$, and $b_k=\operatorname{tr}\Cov(Y,L_k)$, conditional on the frozen calibration state. For $v>0$ and nonsingular $A$, let $\beta^*=A^{-1}b$ and $R^2=b^TA^{-1}b/v$; a pseudoinverse gives the corresponding projection for singular $A$. A zero-variance reference is handled separately without dividing by $v$.
+\begin{proposition}[Nested multi-component variance]
+With finite second moments, predictable coefficients, and the nesting in~\eqref{eq:nested},
+\begin{align}
+\operatorname{tr}\Cov(\widehat g_\beta)
+ &=\frac{v}{n}+\left(\frac1n-\frac1N\right)
+    (\beta^TA\beta-2\beta^Tb),\label{eq:variance-general}\\
+\operatorname{tr}\Cov(\widehat g_{\beta^*})
+ &=\frac{v}{n}\left[1-R^2\left(1-\frac nN\right)\right].
+\label{eq:variance}
+\end{align}
+\end{proposition}
+\begin{proof}
+The covariance of each nested difference is its population covariance multiplied by $1/n-1/N$. Its cross-covariance with $\overline Y_H$ has the same multiplier. Expanding the covariance trace gives~\eqref{eq:variance-general}; completing the quadratic gives~\eqref{eq:variance}.
+\end{proof}
+
+For shared scores, the exact cross term is
+\begin{equation}
+b_k=\E[u v_k\|S_\theta\|^2]-\langle\E[uS_\theta],\E[v_kS_\theta]\rangle.
+\end{equation}
+Thus, score-norm-weighted regression is a useful implementation route, but an uncentered moment is not generally the centered gradient covariance. Coefficients are fit with ridge regularization and independent calibration. Their estimation error adds the quadratic term $(1/n-1/N)(\beta-\beta^*)^TA(\beta-\beta^*)$. Predictability preserves the mean; it does not alone guarantee variance reduction. Population-optimal additional columns cannot worsen this fixed-sample variance because their coefficients may be zero. End-to-end efficiency also depends on their acquisition and fitting costs. No universal finite-sample regression inflation factor is assumed.
+
+I1 retains the full declared objective. Component losses may enter the controls, or a token baseline depending only on that token's prefix. Assigning a rack's local temperature loss to its own tokens would discard physical interactions and is not an unbiased credit rule. The prefix-baseline identity subtracts expected return without replacing the global return by a local component.
+
+\subsection{Continuous-Head LAX Route}
+Continuous values are sampled after the structural prefix is complete, without feeding them into later stochastic token decisions. Split the joint score into $S_s=\nabla_\theta\log\pi^s_\theta(s\mid p)$ and $S_x=\nabla_\theta\log\pi^x_\theta(x\mid s,p)$. For a fixed differentiable cheap reward $R_\LF$ and an exact conditional reparameterization, define
+\begin{equation}
+P_\LF=\left(\frac{\partial x}{\partial\theta}\right)^T\nabla_x R_\LF,
+\qquad C_\LF=R_\LF S_x.
+\label{eq:pathwise}
+\end{equation}
+Differentiation under the conditional expectation gives $\E[P_\LF-C_\LF\mid s,p]=0$.
+When only part of the numerical design has a verified derivative, write $x=(g,u)$, where $g$ contains conditioning geometry and $u$ contains differentiable controls. Apply the same identity conditional on $(s,g,p)$, using $P_\LF^u=(\partial u/\partial\theta)^T\nabla_u R_\LF$ and the conditional control score $S_u$. The conditioning sample $g$ is detached within this auxiliary path. Target score-function terms still cover all geometry and control decisions, while the LF score subtraction covers only $S_u$. Zero-filling an unavailable geometry derivative and subtracting the full numerical score would not implement this identity.
+ A LAX-style update~\cite{grathwohl2018relax} is
+\begin{equation}
+\widehat g_{\rm LAX}
+ =\overline{R_\HF S_s}_H
+  +\overline{(R_\HF-aR_\LF)S_x}_H+a\overline P_{\LF,N},
+\label{eq:lax}
+\end{equation}
+for a predictable coefficient $a$. It estimates the full gradient, including shared LoRA parameters, when all terms use the same current policy and the structural conditioning is handled as specified. If numerical outputs alter subsequent token probabilities, the additional computation-graph terms must be retained~\cite{alvo2026hpo}.
+
+LAX requires the path derivative and the subtracted score-function reward to be the same function. A consistent soft-geometry proxy or fixed-iteration differentiable solver can satisfy the identity even when it is physically approximate. Using a soft objective for the path term and a different hard objective for the score term cannot. An implicit derivative at an unconverged state also needs validation against the implemented forward function. Approximate sensitivities can always be used as matched auxiliary vectors in~\eqref{eq:nested} or~\eqref{eq:corrected}, without asserting the LAX identity. State-dependent coefficient gates require derivatives of the complete gated proxy in the LAX route.
+
+When target sensitivities are available, a conditional hybrid score/path reference is an additional high-fidelity configuration. A deterministic numerical head requires such a path reference and cannot use a black-box continuous score. Numerical noise scales, action densities, and reference KL are recorded. As Gaussian exploration contracts, score variance may grow; the useful cost reduction of LAX is measured rather than predetermined to concern only one fidelity.
+
+\subsection{Randomized Target Acquisition and AIPW}
+For an available cheap-information vector $\mathcal I_i$, predict a target update $\psi_i$, for example a calibrated combination of component and residual controls. Choose $q_i\in[q_{\min},1]$ before seeing the target output, draw independent $Z_i\sim\mathrm{Bernoulli}(q_i)$ conditional on the designs, and use
+\begin{equation}
+\widehat g=\frac1N\sum_i\left[\psi_i+\frac{Z_i}{q_i}(Y_i-\psi_i)\right].
+\label{eq:corrected}
+\end{equation}
+This augmented inverse-probability correction follows standard inclusion weighting and active inference~\cite{horvitz1952sampling,zrnic2024active}. A fixed-count acquisition scheme needs its actual inclusion probabilities, not a Poisson formula copied after top-$n$ selection.
+\begin{proposition}[Conditional correction]
+If the reference update has the target expectation, $\psi,q$ are fitted independently of current target outcomes, $\E[Z_i\mid d_i,\psi_i,q_i,Y_i]=q_i>0$, and the first moment is finite, then $\E[\widehat g]=\nabla J_\HF$.
+\end{proposition}
+\begin{proof}
+Conditional expectation of the bracket is $\psi_i+Y_i-\psi_i=Y_i$; taking the outer expectation yields the result. The reference baseline is predictable;~\eqref{eq:ht-peer} provides a separate peer-baseline first-moment extension under independent acquisitions.
+\end{proof}
+
+For predictable baselines and independently sampled designs, let $e=Y-\psi$. Conditional independence of the acquisition draws yields
+\begin{equation}
+\Cov(\widehat g)=\frac1N\Cov(Y)+\frac1N\E[(q^{-1}-1)ee^T].
+\label{eq:aipw-variance}
+\end{equation}
+The reference gradient's own variability and the selection penalty are distinct. A zero-mean LAX adjustment $D=a(P_\LF-C_\LF)$ may be added to the cheap part of~\eqref{eq:corrected}; its expectation is unchanged and the first covariance term becomes $\Cov(Y+D)/N$. The selection term remains determined by $Y-\psi$.
+
+The auxiliary \emph{value} for target acquisition need not be the function used for the path control. Let $H,L,A$ denote target, differentiable cheap and goal-corrected cheap rewards after subtracting the same known analytic component. For independently predictable $\beta,\alpha$, use
+\begin{equation}
+\widehat H_i=\beta A_i+\frac{Z_i}{q_i}(H_i-\beta A_i),
+\qquad D_i=\alpha(P_{L,i}-L_iS_{x,i}).
+\label{eq:value-path-separated}
+\end{equation}
+The augmented score estimates the target reward score, while $D_i$ is zero-mean under the conditional path identity. No derivative of $A$ is required: a residual-corrected value can guide acquisition even when only the original cheap derivative is verified. Known analytic reward terms retain their common score/path treatment outside acquisitions.
+
+For an IID RLOO group of size $K$, define $T_i=(S_i-\overline S)/(K-1)$ with the \emph{joint} structural/numerical score and let $G_H$ be its complete target update. Complete augmented peers give
+\begin{equation}
+G=G_H+\alpha C_L+\sum_i(Z_i/q_i-1)(H_i-\beta A_i)T_i,
+\label{eq:group-value-path}
+\end{equation}
+where $C_L=\overline P_L-\sum_i L_i(S_{x,i}-\overline S_x)/(K-1)$. Conditional on the realized group, the mean is $G_H+\alpha C_L$ and the acquisition-variance trace is $\sum_i(q_i^{-1}-1)(H_i-\beta A_i)^2\|T_i\|^2$. At fixed $\beta$, changing $\alpha$ changes the proposal-group control while leaving conditional purchase noise unchanged. The law of total covariance separates these sources across independent groups, without treating within-group updates as independent.
+
+Minimizing the trace of the selection term for a feasible expected acquisition budget gives the oracle rule
+\begin{equation}
+q^*(\mathcal I)=\operatorname{clip}_{[q_{\min},1]}
+\sqrt{\frac{\E[\|e\|^2\mid\mathcal I]}{\eta h(\mathcal I)}}.
+\label{eq:allocation}
+\end{equation}
+Here $h$ is incremental target cost and $\eta$ enforces the expected budget. The required quantity is conditional squared update error, not only residual size or mean absolute reward error. For score-only controls, the design's score norm enters this quantity. An uncertainty-only predictor is a matched baseline for residual-assisted acquisition.
+
+Defensive mixing with a uniform probability $q_0$ gives $q_D\ge\alpha q_0$ and hence $\E[\|e\|^2/q_D]\le\alpha^{-1}\E[\|e\|^2/q_0]$. This bounds a weighted second moment, not the total variance by the same factor in every distribution. Estimated uncertainty, gradient-norm approximations, and weighted calibration are audited. Hard resource limits and zero-target batches require an explicit stopping protocol; a retrospective selection change invalidates the recorded propensity.
+
+\subsection{Discrete Structures and Physical Residuals}
+Small structural decisions are conditionally enumerated in the cheap model using the current policy probabilities. Rao--Blackwellization integrates the declared random variable while retaining the correct conditional distribution of descendants, including the numerical head. It provides a cheap conditional expectation, not the high-fidelity gradient by itself. General discrete structures may use a RELAX estimator with its required conditional relaxed sample~\cite{grathwohl2018relax}. Exact enumeration, RELAX, ordinary score estimation, and an uncorrected straight-through diagnostic are individually identified and costed.
+
+For a smooth objective $Q$, a cheap state and an approximate adjoint define
+\begin{align}
+F_{\HF,u}(\tilde u;d)^T\hat\lambda&\approx Q_u(\tilde u,d)^T,\\
+\widetilde Q(d)&=Q(\tilde u,d)-\hat\lambda^TF_\HF(\tilde u;d).
+\label{eq:dwr}
+\end{align}
+This uses classical output-error correction~\cite{pierce2000adjoint,wang2024mechanism}. The target operator includes boundary conditions and closures. Energy-only residuals, mapped fields, and surrogate turbulence estimates are named interfaces with correspondingly restricted calibration. A single normalized solver residual is not a complete residual vector for an adjoint product.
+\begin{assumption}[Local residual-to-output model]
+The target solution is locally unique; $F_\HF,Q$ have bounded second derivatives; the inverse Jacobian is bounded near the selected branch; and the cheap state is sufficiently close to it. The residual uses the same complete target operator and boundaries. Let $\lambda$ be the exact adjoint at the cheap state and suppose its approximation error is bounded in the dual norm.
+\end{assumption}
+Taylor expansion gives
+\begin{equation}
+|Q(u_\HF,d)-\widetilde Q(d)|
+ \le C_1\|r_\HF\|^2+C_2\|\lambda-\hat\lambda\|\|r_\HF\|.
+\label{eq:local-bound}
+\end{equation}
+Indeed, the state error is $-F_u^{-1}r+O(\|r\|^2)$ locally; inserting it into the objective expansion cancels the linear error with the exact adjoint. The approximate adjoint leaves the stated dual-norm product. Geometry preparation, lifting, closure recovery, and adjoint cost are all charged. The value relation is not a derivative-error bound; differentiating a corrected objective needs its own directional checks.
+
+\subsection{Two Explicit Feedback Regimes}
+The \emph{target-corrected regime} retains every correction in~\eqref{eq:nested}, \eqref{eq:lax}, or~\eqref{eq:corrected}. Physical information changes variance and acquisition, while the defined mean target is unchanged. A very small positive target probability can still give an unbiased estimator; it may have impractically large uncertainty. There is no universal mathematical minimum target budget. A chosen propensity floor, calibration size, or variance tolerance defines an operational feasibility boundary.
+
+The \emph{trusted-proxy regime} explicitly substitutes a corrected cheap reward in a calibrated region. If $T(d)$ marks that region and the remaining region uses the target reward, define $R_T=T\widetilde R+(1-T)R_\HF$. Suppose $|\widetilde R-R_\HF|\le\epsilon(d)$ on that region. For score-function training,
+\begin{equation}
+\|\nabla J_T-\nabla J_\HF\|
+ \le\E[T\epsilon(d)\|S_\theta\|].
+\label{eq:trust-bias}
+\end{equation}
+This follows directly by subtracting the reward-score expectations. A Lipschitz reward map transfers~\eqref{eq:local-bound} to $\epsilon$; threshold feasibility rewards also require a verified margin from the constraint boundary. Partial residuals do not supply the complete-operator guarantee, and a value bound alone does not justify trusted path gradients. If the complement is rejected or abstained from instead of target-evaluated, the changed deployment/support objective is specified separately.
+
+Low/high score-discrepancy diagnostics are reported in both regimes. The test of proxy exploitation focuses on biased substitution, using discrepancies concentrated where the trained policy goes. Corrected estimators are not claimed to guarantee finite-sample learning quality or fidelity of the target simulator itself; E8 separately checks the latter.
+
+\subsection{Complete Cost and Safe Model Management}
+For a fixed information bundle, let $g$ be proposal and shared optimization cost, $\ell$ the cheap-specific evaluation and auxiliary cost, and $h$ the incremental target cost. After a separately recorded calibration/setup charge $C_0$, the remaining allocation budget is $C=C_{\rm total}-C_0=N(g+\ell)+nh$. Combining this with~\eqref{eq:variance} gives the interior allocation
+\begin{equation}
+r^*\equiv\frac Nn=\sqrt{\frac{hR^2}{(g+\ell)(1-R^2)}},\qquad r^*\ge1.
+\label{eq:cost-ratio}
+\end{equation}
+\begin{proposition}[Idealized equal-cost relation]
+For population-optimal controls, fixed per-call costs, $0<R^2<1$, feasible interior $r^*$, and negligible integer rounding,
+\begin{equation}
+V^*_{\rm CV}(C)=\frac vC
+\left(\sqrt{h(1-R^2)}+\sqrt{(g+\ell)R^2}\right)^2.
+\label{eq:cost-variance}
+\end{equation}
+An HF-only method with per-design cost $c_F$ has variance $vc_F/C$. Thus the remaining-budget ratio divides the squared bracket by $c_F$; when its shared costs match, $c_F=g+h$. For different setup costs $C_{0,\rm CV}$ and $C_{0,F}$, the full-budget ratio also multiplies by $(C_{\rm total}-C_{0,F})/(C_{\rm total}-C_{0,\rm CV})$.
+\end{proposition}
+\begin{proof}
+The variance is $v(1-R^2)/n+vR^2/N$. Substitute $N=rn$ and $n=C/[h+r(g+\ell)]$, differentiate in $r$, and insert the stationary point. Boundary allocations and the HF-only arm are compared separately.
+\end{proof}
+
+This is a specialization of multifidelity model management~\cite{peherstorfer2016optimal,liu2026mfpgppo}, now with declared shared generation and optimization cost. It does not double-count generation for paired designs. A zero coefficient preserves the target but does not recover wasted cheap-evaluation time. The HF-only arm must be available to skip unnecessary interfaces. Oracle selection may choose the better equal-cost arm; a finite estimated coefficient or cost model does not give an unconditional no-worse guarantee. Correlation monitoring and held-out calibration are empirical safeguards.
+
+Failures are terminal outcomes under a fixed retry policy, with their actual attempt costs recorded. Dividing target cost by success rate is appropriate only for a separately declared retry-until-success accounting model; it is not added again when failure outcomes already enter the training reward and call ledger. Three fidelity levels and adaptive information bundles use their actual covariance, nesting, and cost model rather than assuming a two-level ratio applies unchanged. All acquisition and training efficiencies remain experimental questions.

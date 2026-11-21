@@ -1,0 +1,17 @@
+--- joint-v2/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
++++ joint-v3/src/frontend/omniverse/cfd_demo/kit/extensions/dc.cfd_bridge/dc/cfd_bridge/grid_raster.py
+@@ -367,9 +367,11 @@
+         if type(binding) is not dict or type(output) is not dict:
+             return
+         revision, output_revision = binding.get('viewRevision'), output.get('revision')
+-        if (type(revision) is not int or revision <= self._last_view
+-            or type(output_revision) is not int or output_revision < self._output_revision
+-            or type(binding.get('sceneRevision')) is not int or output.get('owner') != self._owner):
++        scene_revision = binding.get('sceneRevision')
++        if (any(type(value) is not int or not 0 <= value <= 9007199254740991
++                for value in (revision, output_revision, scene_revision))
++            or revision <= self._last_view or output_revision < self._output_revision
++            or output.get('owner') != self._owner):
+             return
+         try:
+             context = self.current_context(stage)

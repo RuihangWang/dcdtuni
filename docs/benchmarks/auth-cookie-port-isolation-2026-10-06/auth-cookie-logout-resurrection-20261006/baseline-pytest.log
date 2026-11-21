@@ -1,0 +1,62 @@
+...........FF.........................                                   [100%]
+=================================== FAILURES ===================================
+_ test_mixed_own_cookie_logout_cannot_resurrect_legacy_session[distinct-tokens] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2dae06feb0>
+same_token = False
+
+    @pytest.mark.parametrize("same_token", [False, True], ids=["distinct-tokens", "same-token"])
+    def test_mixed_own_cookie_logout_cannot_resurrect_legacy_session(monkeypatch, same_token):
+        own = AuthStore("own")
+        scoped_token = own.seed("scoped-mixed-token")
+        legacy_token = scoped_token if same_token else own.seed("legacy-mixed-token")
+        jar = http.cookiejar.CookieJar()
+        initial = Handler(8396)
+        initial.send_header("Set-Cookie", f"stlgen_session_8396={scoped_token}; Path=/; HttpOnly; SameSite=Lax")
+        initial.send_header("Set-Cookie", f"stlgen_session={legacy_token}; Path=/; HttpOnly; SameSite=Lax")
+        absorb(jar, initial, 8396)
+        monkeypatch.setattr(server, "AUTH_MGR", own)
+        assert server._get_session(Handler(8396, cookie_header(jar, 8396)))["_token"] == scoped_token
+    
+        signed_out = Handler(8396, cookie_header(jar, 8396))
+        server.handle_auth_logout(signed_out)
+        absorb(jar, signed_out, 8396)
+    
+>       assert not list(jar), "both own browser cookies must expire"
+E       AssertionError: both own browser cookies must expire
+E       assert not [Cookie(version=0, name='stlgen_session', value='legacy-mixed-token', port=None, port_specified=False, domain='same-ho...expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)]
+E        +  where [Cookie(version=0, name='stlgen_session', value='legacy-mixed-token', port=None, port_specified=False, domain='same-ho...expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)] = list(<CookieJar[Cookie(version=0, name='stlgen_session', value='legacy-mixed-token', port=None, port_specified=False, domai...xpires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)]>)
+
+src/server/tests/test_auth_cookie_port_isolation.py:326: AssertionError
+___ test_mixed_own_cookie_logout_cannot_resurrect_legacy_session[same-token] ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2dadb6beb0>
+same_token = True
+
+    @pytest.mark.parametrize("same_token", [False, True], ids=["distinct-tokens", "same-token"])
+    def test_mixed_own_cookie_logout_cannot_resurrect_legacy_session(monkeypatch, same_token):
+        own = AuthStore("own")
+        scoped_token = own.seed("scoped-mixed-token")
+        legacy_token = scoped_token if same_token else own.seed("legacy-mixed-token")
+        jar = http.cookiejar.CookieJar()
+        initial = Handler(8396)
+        initial.send_header("Set-Cookie", f"stlgen_session_8396={scoped_token}; Path=/; HttpOnly; SameSite=Lax")
+        initial.send_header("Set-Cookie", f"stlgen_session={legacy_token}; Path=/; HttpOnly; SameSite=Lax")
+        absorb(jar, initial, 8396)
+        monkeypatch.setattr(server, "AUTH_MGR", own)
+        assert server._get_session(Handler(8396, cookie_header(jar, 8396)))["_token"] == scoped_token
+    
+        signed_out = Handler(8396, cookie_header(jar, 8396))
+        server.handle_auth_logout(signed_out)
+        absorb(jar, signed_out, 8396)
+    
+>       assert not list(jar), "both own browser cookies must expire"
+E       AssertionError: both own browser cookies must expire
+E       assert not [Cookie(version=0, name='stlgen_session', value='scoped-mixed-token', port=None, port_specified=False, domain='same-ho...expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)]
+E        +  where [Cookie(version=0, name='stlgen_session', value='scoped-mixed-token', port=None, port_specified=False, domain='same-ho...expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)] = list(<CookieJar[Cookie(version=0, name='stlgen_session', value='scoped-mixed-token', port=None, port_specified=False, domai...xpires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None, 'SameSite': 'Lax'}, rfc2109=False)]>)
+
+src/server/tests/test_auth_cookie_port_isolation.py:326: AssertionError
+=========================== short test summary info ============================
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_mixed_own_cookie_logout_cannot_resurrect_legacy_session[distinct-tokens]
+FAILED src/server/tests/test_auth_cookie_port_isolation.py::test_mixed_own_cookie_logout_cannot_resurrect_legacy_session[same-token]
+2 failed, 36 passed in 0.28s

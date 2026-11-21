@@ -1,0 +1,88 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+________ test_periodic_sheared_mesh_includes_actual_nonorth_correction _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/pytest-fixed-v2/test_periodic_sheared_mesh_inc0')
+
+    def test_periodic_sheared_mesh_includes_actual_nonorth_correction(tmp_path):
+        case=periodic_flow_case(tmp_path,shear=.2,nonconstant=True)
+        reply=invoke(case)
+>       assert reply.returncode==0,reply.stdout
+E       AssertionError: /*---------------------------------------------------------------------------*\
+E         | =========                 |                                                 |
+E         | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+E         |  \\    /   O peration     | Version:  2412                                  |
+E         |   \\  /    A nd           | Website:  www.openfoam.com                      |
+E         |    \\/     M anipulation  |                                                 |
+E         \*---------------------------------------------------------------------------*/
+E         Build  : v2412 OPENFOAM=2412 version=v2412
+E         Arch   : "LSB;label=32;scalar=64"
+E         Exec   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/platforms/linux64GccDPInt32Opt/bin/pressureComponentKernel -parallel
+E         Date   : Oct 04 2026
+E         Time   : 20:22:07
+E         Host   : 40901
+E         PID    : 1808629
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         I/O    : uncollated
+E         --> FOAM Warning : 
+E             From Foam::fileName Foam::cwd_L()
+E             in file POSIX.C at line 552
+E             PWD is not the cwd() - reverting to physical description
+E         Case   : /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.codex-tmp/pressure-compat-face-build/pytest-fixed-v2/test_periodic_sheared_mesh_inc0/case
+E         nProcs : 2
+E         Hosts  :
+E         (
+E             (40901 2)
+E         )
+E         Pstream initialized with:
+E             floatTransfer      : false
+E             maxCommsSize       : 0
+E             nProcsSimpleSum    : 0
+E             nonBlockingExchange: 0 (tuning: 0)
+E             exchange algorithm : 0
+E             commsType          : nonBlocking
+E             polling iterations : 0
+E         trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+E         fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+E         allowSystemOperations : Allowing user-supplied system call operations
+E         
+E         // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+E         Create time
+E         
+E         Create mesh for time = 0
+E         
+E         CONSERVATIVE_FLOW_RHS sum=-2.75568e-10, sumAbs=0.979796, internalFaceScale=7.53185
+E         NONORTH_CORRECTION_SCALE 0.465403
+E         [0] 
+E         [0] 
+E         [0] --> FOAM FATAL ERROR: (openfoam-2412)
+E         [0] Incompatible assembled RHS in free pressure component 0: sum=-2.75568e-10, sumAbs=0.979796, faceAssemblyScale=23.1053, roundoffTolerance=1.54144e-12. A pressure gauge cannot balance imposed sources/fluxes.
+E         [0] 
+E         [0]     From void Foam::pressureComponentReferences::constrain(Foam::fvScalarMatrix&, const volScalarField&, const volScalarField&, const volScalarField&, const volScalarField&, const surfaceScalarField*)
+E         [0]     in file /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/src/backend/aircooling/third_parties/foam/src/lib/pressureComponents/pressureComponentReferences.H at line 229.
+E         [0] 
+E         FOAM parallel run exiting
+E         [0] 
+E         Abort(1) on node 0 (rank 0 in comm 0): application called MPI_Abort(MPI_COMM_WORLD, 1) - process 0
+E         [1] 
+E         [1] 
+E         [1] --> FOAM FATAL ERROR: (openfoam-2412)
+E         [1] Incompatible assembled RHS in free pressure component 0: sum=-2.75568e-10, sumAbs=0.979796, faceAssemblyScale=23.1053, roundoffTolerance=1.54144e-12. A pressure gauge cannot balance imposed sources/fluxes.
+E         [1] 
+E         [1]     From void Foam::pressureComponentReferences::constrain(Foam::fvScalarMatrix&, const volScalarField&, const volScalarField&, const volScalarField&, const volScalarField&, const surfaceScalarField*)
+E         [1]     in file /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/src/backend/aircooling/third_parties/foam/src/lib/pressureComponents/pressureComponentReferences.H at line 229.
+E         [1] 
+E         FOAM parallel run exiting
+E         [1] 
+E         Abort(1) on node 1 (rank 1 in comm 0): application called MPI_Abort(MPI_COMM_WORLD, 1) - process 1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['mpirun', '-np', '2', '/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/liquid/.co...n exiting\n[1] \nAbort(1) on node 1 (rank 1 in comm 0): application called MPI_Abort(MPI_COMM_WORLD, 1) - process 1\n').returncode
+
+src/backend/tests/test_pressure_component_compatibility.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED src/backend/tests/test_pressure_component_compatibility.py::test_periodic_sheared_mesh_includes_actual_nonorth_correction
+1 failed, 9 passed in 17.61s

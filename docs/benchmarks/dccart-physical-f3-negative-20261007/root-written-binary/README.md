@@ -1,0 +1,7 @@
+# Root offline final-written-mesh binary diagnosis
+
+The retained replay parses the actual declared LSB label32 scalar64 binary fields, compact face offsets, owner/neighbour incidence and the ASCII cellSet content inside its binary header. All five source inputs exactly match frozen F3 payload hashes and are copied here for offline reproduction. Running REPLAY_WRITTEN_MESH.py --mesh ./mesh-inputs --out <repo-contained output JSON> reads only these files and performs CPU geometry analysis; it never invokes native/checkMesh or modifies mesh/source.
+
+Actual counts are 1704 points,7514 faces,6847 internal faces,3047 cells; stock underdetermined cellSet has13 IDs. There are no point pairs within1e-7m. Nine failed cells havefive faces/five points; eight share the near-corner thin-pyramid geometry, while2987 is a separate geometry. Four others are tetrahedra. Complete coordinates,bounds and true edge lengths are retained, rather than inferred from ID names. Internal apex placement is an investigation hypothesis, not proved causation or a repair. Written mesh IDs are not captured native/pre-decomposition IDs, and these coordinates/IDs must not enter case-specific repair selectors. Strict mesh acceptance remains Failed3 D13/W8/VR2.
+
+An earlier readonly UTF-8 probe of the binary points file failed decoding and was replaced by the declared binary parser; that tooling error did not alter inputs. This packet records the successful explicit parser and direct raw result.

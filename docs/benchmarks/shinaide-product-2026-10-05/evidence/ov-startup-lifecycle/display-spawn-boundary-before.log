@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_display_becoming_false_cannot_launch_after_deadline_crossing _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-display-boundary-before/test_display_becoming_false_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa8bf0ae710>
+
+    def test_display_becoming_false_cannot_launch_after_deadline_crossing(tmp_path,monkeypatch):
+        import signal
+        module=load_supervisor("ov_display_boundary")
+        runtime=tmp_path/"display-boundary-runtime"
+        # The display probe returns unavailable just before the deadline; the
+        # decision to spawn happens after it. No process or display is launched.
+        ticks=iter([0,.1,1.1]);calls=[]
+        monkeypatch.setattr(module.time,"monotonic",lambda:next(ticks))
+        def probe(owner,*args,**kwargs):
+            raise RuntimeError("display unavailable before deadline")
+        def spawn(owner,command,**kwargs):
+            calls.append(command);raise RuntimeError("late display spawn")
+        monkeypatch.setattr(module.Owner,"probe",probe)
+        monkeypatch.setattr(module.Owner,"spawn",spawn)
+        monkeypatch.setattr(sys,"argv",["supervise_kit","--runtime",str(runtime),
+            "--startup-timeout","1","--display",":fake","--","fake-kit"])
+        handlers={sig:signal.getsignal(sig) for sig in (signal.SIGTERM,signal.SIGINT)}
+        try:
+            assert module.main()!=0
+        finally:
+            for sig,handler in handlers.items():signal.signal(sig,handler)
+>       assert not calls
+E       AssertionError: assert not [['Xvfb', ':fake', '-screen', '0', '1920x1080x24']]
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:536: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[supervise_kit] ERROR: late display spawn; logs /mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-display-boundary-before/test_display_becoming_false_ca0/display-boundary-runtime/kit.log
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_display_becoming_false_cannot_launch_after_deadline_crossing
+1 failed, 23 deselected in 0.52s

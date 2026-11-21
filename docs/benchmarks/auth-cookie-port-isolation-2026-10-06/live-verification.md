@@ -1,0 +1,5 @@
+# Real React live verification
+
+ROOT used the normal login form and System logout. After the new IT instance logged in, MAIN Load continued listing the existing canonical project directory without an authentication overlay. After IT logout, MAIN Load still succeeded and its OV video remained decoded at 1600×900/readyState4/not paused. IT Load then required login; normal relogin restored it. No live cookie manipulation or token capture was used. The mixed own-cookie resurrection cases remain isolated CookieJar regressions, not manufactured browser state.
+
+Only the owned IT backend was stopped with user-authorized fuser TERM. ROOT verified uid/cwd, sole HTTP/WS listeners, no backend children/terminal/business job and free case lock. The old launcher/backend ended and both ports were empty before the normal src/start_server.sh invocation, with the same27 native flags, CPU16–23 and CUDA empty. New launcher140357/backend140390 owns8396/8397. MAIN launcher3598106/supervisor3598127/backend3598160/Kit3598531 identities were byte-identical before/after. MAIN server source is merged but its live legacy-cookie runtime has deliberately not been restarted.

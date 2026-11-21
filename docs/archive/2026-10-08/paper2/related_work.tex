@@ -1,0 +1,373 @@
+% ===========================================================================
+% sections_v2/related_work.tex
+% Drop-in replacement for \section{Related Work} (Sec. II) of
+%   ~/mycode/dcdtuni/docs/manuscripts/paper2/main.tex
+% Written 2026-09-15 against ddl/docs/FINDINGS_2026-09-15.md Sec. 5 and Sec. 7.
+% Every citation key below either already exists in references.bib or is added,
+% verified, in sections_v2/references_additions.bib.
+% Requires: amsmath, amssymb, booktabs, cleveref (all already loaded by main.tex).
+% Cross-file labels: this file defines sec:rw-concurrent (used by
+% sections_v2/contributions.tex) and uses sec:contributions (defined there).
+% If either file is dropped in alone, replace the missing \cref with the
+% plain citation named in the neighbouring comment.
+% NOTE: Table I is now a full-width float (table*) because it gained two columns.
+%       If a single-column float is required, delete the last column and the
+%       entries in it; the prose does not depend on it.
+% ===========================================================================
+\section{Related Work}
+\label{sec:related}
+
+The question ``do differentiable simulators give better policy gradients?'' has
+already been asked, and the answer is not the contribution of this paper.
+Suh et al.\ showed that stiffness and discontinuities in a physical system
+compromise the first-order (pathwise) estimator.  They analysed the failure through
+bias and variance.  They proposed an $\alpha$-order estimator, $\alpha\in[0,1]$,
+that blends exact first-order gradients with zeroth-order ones
+\cite{suh2022diffsim}.  Onoda et al.\ re-examined whether that bias is the
+primary obstacle and what minimal fix suffices.  DDCG is a lightweight test that
+switches estimators in nonsmooth regions under a single hyperparameter.  IVW-H is a
+per-step inverse-variance-weighted hybrid that stabilises the variance without
+explicit discontinuity detection.  Their conclusion is that careful
+variance control, not bias removal, dominates in practical deployments
+\cite{onoda2026ddcg}.  Scheffler et al.\ proved that first-order estimators of a
+randomized-smoothing surrogate are biased whenever the underlying function is
+discontinuous.  They traced the bias to neglected discontinuity contributions and
+derived the corrected first-order formula that eliminates it.  They obtained
+estimators that reduce variance by several orders of magnitude over zeroth-order
+baselines.  These remain unbiased exactly where standard first-order estimators fail
+\cite{scheffler2026cfobg,montaut2022collision}.  For hybrid
+discrete--continuous action spaces, Alvo et al.\ combine pathwise and
+score-function terms in a mixed estimator that \emph{preserves unbiasedness},
+and show that its cross term becomes negligible near a discrete best response
+\cite{hpo2026}.  On the language-model side, Hu et al.\ fine-tune an LLM by
+amortized Bayesian inference so that it samples an intractable posterior over
+discrete sequences rather than maximising a scalar reward.  They offer
+distribution matching as an alternative to reward-maximising policy optimisation
+\cite{hu2023abs}.
+
+This paper therefore contributes no estimator, no bound on the pathwise bias and
+no unbiasedness result; all three exist in the work just cited.  What is missing
+there, and what we supply, is the object the estimators act on.  In every one of
+them the non-smoothness is a property of the \emph{dynamics}.  The sources are
+contact, a status switch and stiffness.  The design or action space the model
+emits is already continuous, or already discrete with a relaxation whose physical
+meaning is not at issue.  Our setting inverts this: the non-smoothness is in the
+\emph{design} the language model emits, and the relaxed object must first be a
+system a production solver can simulate at all.  That requirement --- physical
+closure of the relaxation --- is a modelling object, not an estimator
+correction, and it is the whole of our first contribution
+(\cref{sec:contributions}).  Our estimator-side results are
+consequently empirical and domain-specific.  We measure that the pathwise bias is
+\emph{decision-type dependent}.  We report that a fixed-weight convex
+mixture of the two signals is dominated by both of its extremes, because the
+pathwise term's error is dominated by scale rather than offset.  That is why we
+calibrate it affinely instead.  The unbiased mixed estimator of \cite{hpo2026}
+and the inverse-variance weighting of \cite{onoda2026ddcg} are the right objects
+for the general problem; our measurement says why neither is what our data asks
+for.
+
+\subsection{Pathwise and score-function estimators}
+\label{sec:rw-estimators}
+When a model emits discrete symbols and the objective depends on them, the
+gradient of the expected objective is classically estimated with the
+score-function (REINFORCE) estimator \cite{williams1992reinforce}.  Its
+group-normalised form, GRPO \cite{shao2024grpo}, is now the default for
+post-training language models.  Such estimators are unbiased but their variance
+grows with the number of sampled symbols \cite{mohamed2020mcgrad}, and in our
+setting every sample costs one physics simulation.  The alternative is to relax
+the sampling step: the Gumbel-softmax / Concrete distribution
+\cite{jang2017gumbel,maddison2017concrete} combined with a straight-through
+estimator \cite{bengio2013ste} makes the sampled symbol a differentiable
+function of the logits, at the price of bias.
+
+That construction has recently reached LLM post-training.  GRADE replaces policy
+gradients with direct back-propagation through a Gumbel-softmax
+straight-through relaxation of token sampling.  It reports gradient variance more
+than $14\times$ lower than REINFORCE on sentiment-controlled generation
+\cite{grade2026}.  DiffRO uses Gumbel-softmax to make a reward computed directly
+on neural codec tokens differentiable, and reports word-error-rate results
+rather than a variance comparison \cite{diffro2025}.  Both require the reward to
+be a differentiable function of the emitted symbols, which for a text or codec
+reward means a learned reward model or a differentiable decoder.  Amortized
+inference goes further and makes the target a posterior rather than a reward
+\cite{hu2023abs}.  In the physical-simulation literature the same bias--variance
+account has been worked out in detail \cite{suh2022diffsim,onoda2026ddcg}.  That
+work includes an unbiased first-order estimator for the discontinuous case
+\cite{scheffler2026cfobg} and an unbiased pathwise/score-function mixture for
+hybrid action spaces \cite{hpo2026}.
+
+We keep the estimator machinery and replace the reward: our objective is a
+physics solver.  The relaxed tokens must therefore be mapped to a simulable
+physical system rather than to a soft embedding or a learned reward.  Two of our
+results sit inside this literature and are stated here so that their status is
+unambiguous.  First, the failure of a fixed $\tfrac12/\tfrac12$ mixture is not a
+new phenomenon and not a claim about mixtures in general.  It is the predictable
+consequence of a measured per-block relative bias greater than one, which makes
+the pathwise gradient mis-scaled.  No convex combination repairs a scale
+error.  Second, the affine calibration that does repair it is fitted from the
+same simulations every arm already pays for, and it is an empirical device, not
+an estimator with a guarantee.
+
+\subsection{Physics gradients into learned designers}
+\label{sec:rw-designers}
+A parallel line feeds gradients from a differentiable simulator into the weights
+of a neural designer.  GLOnet trains a generator of dielectric metasurfaces
+directly on the physics gradient \cite{jiang2019glonet}.  Differentiable
+programming systems make the same pattern available for mechanics and fluids
+\cite{hu2020difftaichi}.  Physical design has also been posed end-to-end on top of
+a \emph{learned} differentiable simulator \cite{allen2022physicaldesign}.  Learned,
+that is, rather than an adjoint of a classical solver.  That distinction matters
+when the guarantee one wants is fidelity to a reference engine.
+The alternative route is to learn the physics instead of differentiating the
+the solver, as physics-informed networks do \cite{raissi2019pinn}.  In flow control
+the gradient path is now exposed by shared infrastructure rather than built per
+project.  FluidGym is the first standalone, fully differentiable benchmark suite
+for active flow control, written in PyTorch on the GPU-accelerated PICT solver
+with PPO, SAC, DPC and TD-MPC baselines \cite{fluidgym2026}.  HydroGym is a
+solver-independent reinforcement-learning platform for fluid dynamics
+\cite{hydrogym2026}.  Both are platforms and benchmarks, not estimators, and
+neither addresses the case in which the policy emits discrete structural
+decisions.
+
+In topology optimisation the designer's output is itself continuous.  It is a
+density field, so the gradient path is closed by construction.  This holds whether
+the field is produced by SIMP \cite{bendsoe1989simp} or by a meta-learned
+neural-field parameterisation optimised bilevel \cite{metaneuralTO2025}.  The
+most instructive recent case is \cite{topotransformer2026}, which is not a
+transformer but a sensitivity-conditioned Bernoulli flow-matching generator.  It
+models the topology-optimisation pipeline as a causal Markov chain.  It then uses
+the data processing inequality to argue that the adjoint sensitivity
+(reduced-gradient) field is an information-theoretically optimal conditioning
+signal for topology prediction.  It also introduces ``pseudo-sensitivities'' for
+the cases where the exact adjoint is expensive or unavailable.  This is the closest
+existing instance of adjoint information reaching a learned designer, and the
+distinction is exact.  In \cite{topotransformer2026} the adjoint enters as an
+\emph{input field} to a trained generator.  In our setting it enters as a
+\emph{gradient with respect to the designer's weights}, at training time, from a
+single simulation of the design the model actually proposed.  Their result is
+nonetheless an independent argument for our premise.  If the adjoint sensitivity
+is the maximally informative signal about the optimal topology, then discarding it
+discards precisely the information a design agent most needs.  Scalar-reward
+post-training does exactly that.  Mechanically, our adjoint is an ordinary
+implicit-function-theorem derivative of a fixed-point solver
+\cite{giles2000adjoint,lorraine2020implicit,knoll2004jfnk}, and we claim no
+part of that construction as new.
+
+The gap we address is where this construction fails.  When the designer's output
+is a sequence of categorical structural decisions, there is no continuous field
+to differentiate, and the relaxation must be supplied by the design language.
+
+\subsection{Language-model agents for physical design}
+\label{sec:rw-llm}
+LLM agents have been used to propose structures, write simulation code and
+iterate on numerical feedback.  SGA alternates LLM-proposed discrete hypotheses
+with differentiable-simulation refinement of continuous parameters, posing the
+two as bilevel optimisers \cite{ma2024sga}.  Phythesis is our own prior work and
+shares two authors with this paper.  It is a bi-level framework for
+energy-efficient data-centre design in which an LLM level generates
+simulation-ready three-dimensional layouts while a physics-guided
+\emph{evolutionary} level selects assets and tunes their parameters.  It is
+gradient-free by construction \cite{phythesis2025}.  The Mechanical Designer
+couples a language-model agent to a numerical solver and iterates on that
+solver's output \cite{jadhav2026mechdesigner}.  TextGrad propagates
+natural-language feedback through a computation graph in place of numerical
+gradients \cite{yuksekgonul2024textgrad}.  ChatTwin generates a data-centre
+digital twin from language \cite{li2023chattwin}, and the conference version of
+the present work supplies the multi-agent CFD-modelling platform whose
+liquid-cooling backend we use as a production solver \cite{li2026dctwin}.
+
+A second, newer line post-trains language models on simulator feedback.
+SciDesignBench covers 520 simulator-grounded inverse-design tasks across 14
+scientific domains and four settings.  The settings are single-shot design,
+short-horizon feedback, long-horizon refinement and seed-design optimisation.  It
+reports that the best zero-shot model reaches only $29.0$\% success on its
+ten-domain shared core.  It introduces RLSF, a simulator-feedback recipe with
+which a tuned 8B model raises single-turn success by $8$--$17$ percentage points
+across three domains.  The authors position simulator-grounded inverse design
+explicitly as a substrate for ``amortizing expensive test-time compute into model
+weights'' \cite{scidesignbench2026}.  LEAPBench makes the trajectory, not the
+outcome, the measured quantity.  Over 55 tasks it pairs a best-so-far
+area-under-the-curve metric with a classical Bayesian-optimisation reference.  It
+finds that switching from final-outcome to trajectory scoring changes the
+best-model decision on $53$\% of tasks.  It also finds that LLMs do not outperform
+the classical Bayesian baseline \cite{zhang2026leap}.
+
+In all of these the simulator's influence on the model is mediated by a scalar
+or by text.  Either the numbers re-enter through the prompt, in which case
+nothing is amortised into the weights.  Or they enter as a reward, in which case
+credit assignment falls back on a score-function estimator.  We differ in the
+interface, not in the ambition: the simulator's Jacobian, not its output value,
+reaches the model's parameters.  We also take \cite{zhang2026leap} as the
+correct methodological warning and adopt both of its prescriptions.  We report
+design quality reached per physics evaluation.  We compare against
+gradient-free search rather than against another language model
+(contribution~4 in \cref{sec:contributions}).
+
+\subsection{Discrete structural design with continuous physics}
+\label{sec:rw-structural}
+The underlying engineering problem --- choosing a structure whose value is
+revealed only after continuous physics is re-optimised --- has a mature
+literature outside machine learning.  Topological derivatives quantify the
+first-order effect of an infinitesimal structural perturbation
+\cite{sokolowski1999topological}.  Adjoint methods have also been applied directly
+to the topological design of large-scale district-heating networks under
+nonlinear models \cite{blommaert2020adjoint}.  There the adjoint supplies
+gradients for the continuous sizing variables while the network topology itself
+is still resolved by an outer search.  That is exactly the step we make
+differentiable.  Decomposition methods such as Benders'
+\cite{geoffrion1972benders} and their recent learning-augmented variants
+\cite{agyeman2026benders} separate a discrete master problem from a continuous
+subproblem.  The hydraulic steady state we differentiate is the Global Gradient
+Method \cite{todini1988gga}, solved by a damped Newton iteration of
+the kind surveyed in \cite{knoll2004jfnk}.
+
+For liquid-cooled data centres specifically, the control side is well
+established: LC-Opt benchmarks reinforcement learning and agentic AI for
+end-to-end liquid-cooling optimisation of a plant whose cooling topology is
+given \cite{lcopt2025}.  On the design side, co-design work varies structure and
+control together \cite{jadhav2026codesign,jadhav2026lifecycle}, and
+system-level digital twins of liquid-cooled machines provide the surrounding
+facility model \cite{brewer2024exadigit}.  In the most directly comparable of
+these the structural decision is the integer partition of 25 coolant
+distribution units across subloops.  It is resolved by enumerating all 611
+feasible partitions against a reduced-order surrogate of a Frontier-calibrated
+Modelica model, over a full year of operation \cite{jadhav2026codesign}.  These methods solve
+one instance at a time, and they are the right answer when the structural space
+is enumerable.  Our aim is complementary: to make the structural decision itself
+differentiable.  The same physics gradients these methods already compute can then
+be amortised into a model, and we say precisely when that is worth doing
+(contribution~4 in \cref{sec:contributions}).
+
+\subsection{Concurrent work: an exactly differentiable water-network solver}
+\label{sec:rw-concurrent}
+One result overlaps part of our solver-side construction, and we state the
+overlap explicitly rather than let a reviewer find it.  Mu et al.\
+\cite{mu2026gga}, posted in September 2026, make
+the Global Gradient Method itself exactly differentiable.  Their forward pass
+reproduces the reference engine including discrete devices, status switching and
+low-flow linearisation.  Their backward pass solves the implicit adjoint by
+reusing the forward pass's terminal factorisation.  One extra sparse solve
+therefore returns every parameter's gradient at once, batched over scenarios on
+one graphics processor.  Across 52 public, synthetic and operational networks and
+8{,}140 simulation frames the largest head deviation from EPANET~2.2 is
+$1.137\times10^{-13}$\,ft, and 25 networks agree exactly.  On the 905-pipe L-TOWN
+benchmark one adjoint solve replaces the 906 simulations a finite-difference
+roughness Jacobian costs.  Gradient calibration reaches its endpoint within a
+median 595 model calls, where the strongest of five tuned metaheuristics needs
+8{,}060.  This is a stronger and more thoroughly validated version of the
+adjoint we attach in \cref{sec:benchB}.  We regard the construction as
+established rather than as a contribution of ours: a reader who needs a
+production-grade differentiable hydraulic solver should use theirs.
+
+The two works are complementary in a way that sharpens rather than weakens our
+claim.  Their decisions are roughness calibration, leak localisation and sensor
+placement.  These are decisions about \emph{continuous} parameters.  Their paper
+is explicit that the combinatorial part of the physics is frozen, not relaxed.
+It states: ``status switching is a genuine combinatorial event: a switch changes
+the effective topology or replaces an equation.  The backward pass freezes the
+configuration the forward pass converged to.''  Our problem is exactly the
+perturbation that would change that configuration.  The perturbations are a rack
+reassigned to another coolant distribution unit, a branch added or isolated, and a
+pipe class changed.
+Nothing in \cite{mu2026gga} relaxes a discrete decision.  The words
+\emph{language model}, \emph{Gumbel}, \emph{straight-through}, \emph{token} and
+\emph{relaxation} do not occur in it.  The adjoint we attach is therefore
+not a competing construction but the same construction evaluated at a point of a
+design space their solver never enters.  That a verified differentiable GGA now
+exists, and that it stops precisely at the combinatorial boundary, is the
+clearest statement we know of the gap this paper fills.
+
+Three further literatures bound this paper, and we name them because each owns an
+ingredient.  Ground-structure topology optimisation fixes a superset of candidate
+members together with a minimum size, so that every relaxed point is a physically
+valid structure by construction \cite{dorn1964automatic,zegard2014grand3d,guest2004minimum};
+our relaxation is that construction instantiated inside a production solver's
+friction law, and what we add is not closure itself but the fidelity curve of its
+floor and the invariance of node degrees, sparsity pattern and Newton path.  The
+shape-derivative versus topological-derivative dichotomy
+\cite{sokolowski1999topological} predicts our decision-type asymmetry: a first-order
+size derivative ranks parametric edits well, while structural edits are the domain of
+the topological derivative, which we do not implement.  Sec.~VII-B is therefore a
+measurement of a known dichotomy in a new engineering domain, not a new dichotomy.
+Neural combinatorial optimisation trains policies over discrete structures scored by a
+simulator \cite{vinyals2015pointer,bello2017neural,kwon2020pomo}, and
+grammar-constrained decoding enforces structured validity at generation time
+\cite{hokamp2017lexically,post2018fast,willard2023guided}; both supply components we
+reuse, and neither attaches a simulator adjoint to the policy's parameters.  The
+deep-RL evaluation literature sets the reporting standard we adopt: seeded interval
+estimates rather than single-run comparisons \cite{agarwal2021precipice,henderson2018matters},
+which is why every comparison here is paired, seeded and quoted with its exact-test
+floor.  The optimiser itself combines LoRA \cite{hu2021lora} with a clipped surrogate
+\cite{schulman2017ppo} and truncated Gumbel sampling \cite{kool2019stochastic}.
+
+\subsection{Positioning}
+\label{sec:rw-positioning}
+\Cref{tab:position} places the present work against the groups above.  Two
+columns are new relative to the usual positioning table and both reflect the
+corrected claims of this paper.  The column ``Relaxation is physical'' asks
+whether every point of the relaxed design space is a system the solver can
+simulate.  This is the property we certify, and it is not a property any estimator
+paper needs.  The column ``Pathwise bias'' asks what each line of work establishes
+about the bias of the pathwise estimator.  It records that the framework-level
+answers are owned by
+\cite{suh2022diffsim,onoda2026ddcg,scheffler2026cfobg,hpo2026} while ours is a
+measurement, resolved by decision type, in one engineering domain.  The
+distinguishing combination remains a \emph{discrete} structural design emitted by
+a \emph{language model} whose parameters receive a \emph{solver adjoint} through a
+relaxation that is itself a physical design.  Each ingredient exists; the object
+that connects them does not.
+
+% Full-width float: the table gained two columns relative to the draft's Table I.
+\begin{table*}[!t]\centering
+\caption{Positioning.  ``Adjoint to weights'' means the simulator's Jacobian
+reaches the designer's parameters, as opposed to its output value reaching them
+as a reward or as prompt text, or its sensitivity field reaching them as a
+conditioning input.  ``Relaxation is physical'' means every point of the relaxed
+design space is a system the solver can simulate.  ``Pathwise bias'' records what
+the work establishes about the bias of a first-order/pathwise gradient estimator;
+``measured by decision type'' is a measurement on one production solver, not a
+bound or a correction.}
+\label{tab:position}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lccccl@{}}\toprule
+ & discrete & LLM & adjoint & relaxation & \\
+ & structure & designer & to weights & is physical & pathwise bias\\
+\midrule
+Score-function post-training \cite{shao2024grpo,scidesignbench2026}
+  & \checkmark & \checkmark & -- & n/a & none used (unbiased)\\
+STE through tokens \cite{grade2026,diffro2025}
+  & \checkmark$^{\dagger}$ & \checkmark & -- & -- & variance reported only\\
+Amortized discrete inference \cite{hu2023abs}
+  & \checkmark & \checkmark & -- & n/a & n/a (no simulator)\\
+Differentiable-sim.\ policy gradients \cite{suh2022diffsim,onoda2026ddcg,scheffler2026cfobg}
+  & -- & -- & \checkmark & n/a & analysed, switched, corrected\\
+Unbiased mixed gradients \cite{hpo2026}
+  & \checkmark & -- & \checkmark & -- & unbiased pathwise/SF mixture\\
+Physics-driven designers \cite{jiang2019glonet,metaneuralTO2025}
+  & -- & -- & \checkmark & n/a & n/a (continuous output)\\
+Sensitivity-conditioned TO \cite{topotransformer2026}
+  & -- & -- & adjoint as \emph{input} & n/a & n/a (continuous output)\\
+LLM design agents \cite{ma2024sga,phythesis2025,jadhav2026mechdesigner}
+  & \checkmark & \checkmark & -- & -- & none (no gradient)\\
+Adjoint network design \cite{blommaert2020adjoint,mu2026gga}
+  & -- & -- & \checkmark & n/a & continuous parameters only\\
+Trajectory-scored design agents \cite{zhang2026leap}
+  & \checkmark & \checkmark & -- & n/a & none (Bayesian reference)\\
+\textbf{This work}
+  & \checkmark & \checkmark & \checkmark & \checkmark & measured by decision type\\
+Ground-structure TO \cite{dorn1964automatic,zegard2014grand3d,guest2004minimum}
+  & \checkmark & -- & -- & \checkmark & n/a (no learning)\\
+Topological derivative \cite{sokolowski1999topological}
+  & \checkmark & -- & -- & n/a & structural sensitivity theory\\
+Neural combinatorial optimisation \cite{vinyals2015pointer,bello2017neural,kwon2020pomo}
+  & \checkmark & -- & -- & n/a & none used\\
+Grammar-constrained decoding \cite{hokamp2017lexically,post2018fast,willard2023guided}
+  & \checkmark & partial & -- & n/a & n/a\\
+RL evaluation methodology \cite{agarwal2021precipice,henderson2018matters}
+  & -- & -- & -- & n/a & reporting standard adopted here\\
+\bottomrule
+\multicolumn{6}{@{}l@{}}{\footnotesize$^{\dagger}$discrete text or codec tokens,
+not structural design decisions.}
+\end{tabular}
+\end{table*}

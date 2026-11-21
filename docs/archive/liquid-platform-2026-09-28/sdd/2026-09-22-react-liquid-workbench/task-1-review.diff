@@ -1,0 +1,2382 @@
+commit f4c3f6aa8fd49997eaaeb8621eb3cc8117a395bc
+Author:     Litianyu141 <1040808318@qq.com>
+AuthorDate: Tue Sep 22 04:53:12 2026 +0000
+Commit:     Litianyu141 <1040808318@qq.com>
+CommitDate: Tue Sep 22 04:53:12 2026 +0000
+
+    feat(react): compile active CDU loops and physical control valves
+---
+ docs/developer/liquid-dynamic-editor-graph.md      |  11 ++
+ .../react/src/liquid/dynamicLiquidGraph.ts         | 141 +++++++++++++++++++++
+ src/frontend/react/test/dynamicLiquidGraph.test.ts |  75 +++++++++++
+ 3 files changed, 227 insertions(+)
+
+diff --git a/docs/developer/liquid-dynamic-editor-graph.md b/docs/developer/liquid-dynamic-editor-graph.md
+new file mode 100644
+index 00000000..32c28443
+--- /dev/null
++++ b/docs/developer/liquid-dynamic-editor-graph.md
+@@ -0,0 +1,11 @@
++# React dynamic liquid graph
++
++`compileDynamicLiquidGraph` reuses the established geometry compiler on a private project snapshot. Compiler-facing names use stable construction/server UIDs, so changing visible names does not rewire physical identity. Original user labels live in `object_bindings` for renderer and chart linkage. The original project and its undo history are not modified.
++
++Dynamic CDU mode replaces fixed supply pressure/temperature with one return-side pressure reference, a pump, and an NTU heat exchanger discharging to the supply node. Facility water is a prescribed reservoir, not a newly simulated full primary plant. Drawn `flow_control` fittings become physical valves in series with their spoke pipes; ordinary tees remain ideal mixing junctions.
++
++The compiler embeds the shared backend mock equipment pack and binds the new pump, HX and valves to its profiles. Existing pipe geometry, coolant values and cold-plate heat/performance settings are preserved. Explicit facility supply temperature and valve opening remain project settings. This means old cases can still have unrealistic thermal component values: new demonstration cases must configure a coherent mock operating range rather than assuming conversion alone calibrates them.
++
++Time is expressed as duration and dt; N_t is interval count plus the initial sample. Horizons and events must lie on the dt grid. Events target compiled node/edge IDs, and backend runtime performs field/type validation. Components use SI values in the graph; display lengths stay independent of stored metre coordinates.
++
++Current evidence: six new tests exercise actual LiquidSingle/Liquid projects, pressure-reference/HX/valve emission, source immutability, display-name independence, 13 cold plates / 4,550 W in the four-rack source, events and time validation. Together with existing monitor/compiler bridge tests, **29 tests passed**; `tsc --noEmit` passed after removing an unused import. UI wiring, realistic render details, model data migration and browser interaction tests remain subsequent work.
+diff --git a/src/frontend/react/src/liquid/dynamicLiquidGraph.ts b/src/frontend/react/src/liquid/dynamicLiquidGraph.ts
+new file mode 100644
+index 00000000..e6e1d8a2
+--- /dev/null
++++ b/src/frontend/react/src/liquid/dynamicLiquidGraph.ts
+@@ -0,0 +1,141 @@
++/** Compile the real editor topology into an actively cooled, controllable loop.
++ * Reuses the existing geometry compiler on a private UID-named snapshot. The
++ * legacy boundary-source compiler remains available to older saved workflows.
++ */
++import mockPack from '../../../../backend/liquidcooling/data/mock-demo-v1.json'
++import { allModels, type CfdProject } from '../schema/cfdproj'
++import { reviveKinds } from '../legacy/cfdprojModules'
++import { compileLiquidGraph } from './liquidRunGraph'
++import { readFluid, readLiquidConfig } from './liquidConfig'
++
++type Bag = Record<string, any>
++export interface LiquidNode { id: string; type: string; position_m: number[]; bc?: {P_Pa: number; T_K?: number} }
++export interface LiquidEdge { id: string; type: string; from: string; to: string; params: Bag; parameter_ref?: string }
++export interface LiquidEvent {time_s: number; target: string; field: string; value: number}
++export interface ObjectBinding {label: string; kind: string; node_ids: string[]; edge_ids: string[]; parent_uid?: string}
++export interface EquipmentPack {id: string; revision: string; source: string; profiles: Record<string, {type: string; params: Bag}>; [key: string]: unknown}
++export interface DynamicLiquidGraph extends Bag {
++  nodes: LiquidNode[]; edges: LiquidEdge[]; racks: Bag[];
++  time: {dt_s: number; N_t: number; bdf_order: number}; events: LiquidEvent[];
++  parameter_pack: EquipmentPack; object_bindings: Record<string,ObjectBinding>;
++}
++export interface DynamicLiquidOptions {
++  dt_s?: number; duration_s?: number; events?: LiquidEvent[]; parameterPack?: EquipmentPack;
++  referencePressurePa?: number;
++  profileRefs?: {pump?: string; heat_exchanger?: string; valve?: string};
++}
++
++function finitePositive(value: number, label: string): number {
++  if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} must be positive and finite`)
++  return value
++}
++
++export function compileDynamicLiquidGraph(project: CfdProject, options: DynamicLiquidOptions = {}): DynamicLiquidGraph {
++  const dt = finitePositive(options.dt_s ?? 1, 'dt_s')
++  const duration = finitePositive(options.duration_s ?? 120, 'duration_s')
++  const intervals = duration / dt
++  if (Math.abs(intervals - Math.round(intervals)) > 1e-8) throw new Error('duration must lie on the dt grid')
++  const pack = JSON.parse(JSON.stringify(options.parameterPack ?? mockPack)) as EquipmentPack
++  const profileRefs = {pump:'pump-demo', heat_exchanger:'hx-demo', valve:'valve-demo', ...options.profileRefs}
++  function profile(kind: keyof typeof profileRefs): string {
++    const id = profileRefs[kind]
++    if (!id || pack.profiles?.[id]?.type !== kind) throw new Error(`Missing ${kind} parameter profile: ${id}`)
++    return id
++  }
++  profile('pump'); profile('heat_exchanger'); profile('valve')
++
++  const snapshot = reviveKinds(JSON.parse(JSON.stringify(project)) as CfdProject)
++  const models = allModels(snapshot).map(item => item.model)
++  const bindings: Record<string,ObjectBinding> = {}
++  for (const model of models) {
++    if (!model.uid) throw new Error('Every physical object requires a stable uid')
++    bindings[model.uid] = {label:model.meta?.name || model.uid, kind:String(model.kind ?? ''), node_ids:[],edge_ids:[]}
++    model.meta = {...model.meta, name:model.uid}
++    const servers = (model as Bag).constructions?.servers ?? {}
++    for (const [key, server] of Object.entries(servers) as [string,Bag][]) {
++      const sid = String(server.uid || key)
++      bindings[`${model.uid}/${sid}`] = {label:server.meta?.name || sid,kind:'server',parent_uid:model.uid,node_ids:[],edge_ids:[]}
++      server.meta = {...server.meta, name:sid}
++      // Canonical V4 cold-plate objects, not stale duplicated legacy arrays.
++      const plates = server.constructions?.coldPlates
++      if (plates && Object.keys(plates).length) {
++        server.liquidCooling = {...server.liquidCooling, cpCuPairs:Object.entries(plates).map(([id,cp]) => ({...(cp as Bag),name:id}))}
++      }
++    }
++  }
++  const cfg = readLiquidConfig(snapshot)
++  const raw = compileLiquidGraph(snapshot, {
++    enabled:true, fluid:readFluid(snapshot),
++    solver:{...cfg.solver,dt_s:dt,N_t:Math.round(intervals)+1},
++  })
++  if (!raw) throw new Error('Liquid topology cannot be compiled; check CDU and rack connections')
++  const graph = raw as DynamicLiquidGraph
++  graph.source = 'react-dynamic'
++  graph.parameter_pack = pack
++  graph.object_bindings = bindings
++  const nodeIds = new Set(graph.nodes.map(n => n.id))
++  const edgeIds = new Set(graph.edges.map(e => e.id))
++  function appendNode(node: LiquidNode) {
++    if (nodeIds.has(node.id)) throw new Error(`Duplicate physical node ${node.id}`)
++    graph.nodes.push(node); nodeIds.add(node.id)
++  }
++  function appendEdge(edge: LiquidEdge) {
++    if (edgeIds.has(edge.id)) throw new Error(`Duplicate physical edge ${edge.id}`)
++    graph.edges.push(edge); edgeIds.add(edge.id)
++  }
++
++  for (const model of models.filter(m => m.kind === 'cdu' && m.meta.enabled !== false)) {
++    const uid = model.uid
++    const supply = graph.nodes.find(n => n.id === `${uid}_supply`)
++    const ret = graph.nodes.find(n => n.id === `${uid}_return`)
++    const pump = graph.edges.find(e => e.id === `${uid}_pump`)
++    if (!supply || !ret?.bc || !pump) throw new Error(`CDU ${uid} lacks a compiled supply/return/pump`)
++    supply.type = 'junction'; delete supply.bc
++    ret.bc = {P_Pa:finitePositive(options.referencePressurePa ?? 150000,'referencePressurePa')}
++    const mid = `${uid}_pump_discharge`
++    appendNode({id:mid,type:'junction',position_m:[...supply.position_m]})
++    pump.to = mid; pump.parameter_ref = profile('pump')
++    pump.params = {rpm_ratio:pump.params.rpm_ratio ?? 1}
++    const cooling = (model as Bag).cooling ?? {}
++    const params: Bag = {}
++    if (cooling.facilitySupplyTemperatureC !== undefined) {
++      const kelvin = Number(cooling.facilitySupplyTemperatureC)+273.15
++      if (!Number.isFinite(kelvin) || kelvin <= 0) throw new Error(`Invalid facility temperature on ${uid}`)
++      params.T_secondary_K = kelvin
++    }
++    appendEdge({id:`${uid}_hx`,type:'heat_exchanger',from:mid,to:supply.id,parameter_ref:profile('heat_exchanger'),params})
++  }
++
++  // A drawn flow-control fitting becomes an actual valve in series with its
++  // existing spoke pipe. Tee junctions remain ideal mixing connections.
++  for (const model of models.filter(m => m.kind === 'pipe_segment' && m.meta.enabled !== false)) {
++    const valves = ((model as Bag).cooling?.valves ?? []) as Bag[]
++    for (const valve of valves.filter(v => v.type === 'flow_control')) {
++      const spoke = graph.edges.find(e => e.id === `${model.uid}_spoke_${valve.id}`)
++      if (!spoke) throw new Error(`Control valve ${valve.id} is not connected to a rack`)
++      const inlet = graph.nodes.find(n => n.id === spoke.from)!
++      const node = `${model.uid}_control_${valve.id}_out`
++      const edge = `${model.uid}_control_${valve.id}`
++      appendNode({id:node,type:'junction',position_m:[...inlet.position_m]})
++      const opening = Number(valve.opening ?? 1)
++      if (!Number.isFinite(opening) || opening < 0 || opening > 1) throw new Error(`Invalid valve opening on ${valve.id}`)
++      appendEdge({id:edge,type:'valve',from:spoke.from,to:node,parameter_ref:profile('valve'),params:{opening}})
++      spoke.from = node
++      bindings[`${model.uid}/${valve.id}`] = {label:String(valve.name ?? valve.id),kind:'valve',parent_uid:model.uid,node_ids:[node],edge_ids:[edge]}
++    }
++  }
++  for (const [uid,binding] of Object.entries(bindings)) {
++    if (binding.kind === 'valve') continue
++    const prefix = uid.replace('/', '_') + '_'
++    binding.node_ids = graph.nodes.filter(n => n.id.startsWith(prefix)).map(n => n.id)
++    binding.edge_ids = graph.edges.filter(e => e.id.startsWith(prefix)).map(e => e.id)
++  }
++  const validTargets = new Set([...nodeIds,...edgeIds])
++  graph.events = (options.events ?? []).map(event => {
++    if (!validTargets.has(event.target)) throw new Error(`Unknown event target ${event.target}`)
++    if (!Number.isFinite(event.time_s) || event.time_s < 0 || event.time_s > duration || Math.abs(event.time_s/dt-Math.round(event.time_s/dt)) > 1e-8) throw new Error('Event time must lie on the simulation grid')
++    if (!Number.isFinite(event.value)) throw new Error('Event value must be finite')
++    return {...event}
++  })
++  return graph
++}
+diff --git a/src/frontend/react/test/dynamicLiquidGraph.test.ts b/src/frontend/react/test/dynamicLiquidGraph.test.ts
+new file mode 100644
+index 00000000..bd21cf4c
+--- /dev/null
++++ b/src/frontend/react/test/dynamicLiquidGraph.test.ts
+@@ -0,0 +1,75 @@
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++import { describe, expect, it } from 'vitest'
++import type { CfdProject } from '../src/schema/cfdproj'
++import { compileDynamicLiquidGraph } from '../src/liquid/dynamicLiquidGraph'
++
++function project(name = 'LiquidSingle'): CfdProject {
++  return JSON.parse(readFileSync(resolve(process.cwd(), `../../../case/${name}/${name}.cfdproj`), 'utf8'))
++}
++
++describe('dynamic physical graph from the actual editor project', () => {
++  it('gives the CDU one pressure reference, an active HX and the drawn control valves', () => {
++    const p = project()
++    const graph = compileDynamicLiquidGraph(p, { duration_s: 30, dt_s: 1 })
++    expect(graph.nodes.filter(n => n.type === 'pressure_bc')).toHaveLength(1)
++    expect(graph.edges.filter(e => e.type === 'heat_exchanger')).toHaveLength(1)
++    expect(graph.edges.filter(e => e.type === 'valve').length).toBeGreaterThan(0)
++    const supply = graph.nodes.find(n => n.id === 'm_1_supply')!
++    expect(supply.type).toBe('junction')
++    expect(supply.bc).toBeUndefined()
++    expect(graph.time.N_t).toBe(31)
++    expect(graph.parameter_pack.source).toBe('mock')
++  })
++
++  it('does not mutate or append compiler cache fields to the project', () => {
++    const p = project('Liquid')
++    const before = JSON.stringify(p)
++    compileDynamicLiquidGraph(p)
++    expect(JSON.stringify(p)).toBe(before)
++  })
++
++  it('preserves graph identity and physics when display names change', () => {
++    const p = project('Liquid')
++    const first = compileDynamicLiquidGraph(p)
++    const next = JSON.parse(JSON.stringify(p))
++    for (const bucket of Object.values(next.constructions) as any[]) {
++      if (!bucket || typeof bucket !== 'object') continue
++      for (const model of Object.values(bucket) as any[]) {
++        if (!model?.meta) continue
++        model.meta.name = `renamed-${model.uid}`
++        for (const server of Object.values(model.constructions?.servers ?? {}) as any[]) {
++          server.meta.name = `renamed-${server.uid}`
++        }
++      }
++    }
++    const second = compileDynamicLiquidGraph(next)
++    expect(second.nodes).toEqual(first.nodes)
++    expect(second.edges).toEqual(first.edges)
++    expect(second.racks).toEqual(first.racks)
++  })
++
++  it('retains 13 cold plates and their specified heat loads in the four-rack case', () => {
++    const graph = compileDynamicLiquidGraph(project('Liquid'))
++    const plates = graph.edges.filter(e => e.type === 'cold_plate')
++    expect(plates).toHaveLength(13)
++    expect(plates.reduce((s,e) => s + Number(e.params.Q_W), 0)).toBe(4550)
++    expect(graph.racks).toHaveLength(4)
++    expect(Object.keys(graph.object_bindings).length).toBeGreaterThan(4)
++  })
++
++  it('carries control events and rejects references to nonexistent objects', () => {
++    const graph = compileDynamicLiquidGraph(project(), {
++      events: [{ time_s: 3, target: 'm_1_pump', field: 'rpm_ratio', value: 0.6 }],
++    })
++    expect(graph.events[0]?.target).toBe('m_1_pump')
++    expect(() => compileDynamicLiquidGraph(project(), {
++      events: [{ time_s: 3, target: 'missing', field: 'opening', value: 0.6 }],
++    })).toThrow(/target/)
++  })
++
++  it('rejects off-grid horizons and invalid numerical settings', () => {
++    expect(() => compileDynamicLiquidGraph(project(), {dt_s:0})).toThrow(/dt/)
++    expect(() => compileDynamicLiquidGraph(project(), {duration_s:2.5,dt_s:1})).toThrow(/grid/)
++  })
++})
+
+commit eed0e4d6cf89f584071bc8f925ba87eec378d524
+Author:     Litianyu141 <1040808318@qq.com>
+AuthorDate: Tue Sep 22 05:18:15 2026 +0000
+Commit:     Litianyu141 <1040808318@qq.com>
+CommitDate: Tue Sep 22 05:18:15 2026 +0000
+
+    feat(react): add liquid runtime experiment controls and live charts
+---
+ .../LiquidSingle_Control.cfdproj                   | 1435 ++++++++++++++++++++
+ case/LiquidSingle_Control/README.md                |    7 +
+ docs/developer/react-liquid-runtime-workbench.md   |   13 +
+ src/frontend/react/src/App.tsx                     |    8 +-
+ .../react/src/components/LiquidExperimentPanel.tsx |   95 ++
+ .../react/src/components/LiquidRuntimeMonitor.tsx  |   34 +
+ src/frontend/react/src/liquid/liquidExperiment.ts  |   39 +
+ .../react/src/liquid/liquidRuntimeClient.ts        |  147 ++
+ src/frontend/react/src/styles.css                  |   18 +
+ src/frontend/react/test/liquidExperiment.test.ts   |   30 +
+ .../react/test/liquidRuntimeClient.test.ts         |   98 ++
+ src/frontend/react/vite.config.ts                  |    2 +-
+ 12 files changed, 1921 insertions(+), 5 deletions(-)
+
+diff --git a/case/LiquidSingle_Control/LiquidSingle_Control.cfdproj b/case/LiquidSingle_Control/LiquidSingle_Control.cfdproj
+new file mode 100644
+index 00000000..7352a3d2
+--- /dev/null
++++ b/case/LiquidSingle_Control/LiquidSingle_Control.cfdproj
+@@ -0,0 +1,1435 @@
++{
++  "schemaVersion": 4,
++  "uid": "proj_liquid_single_control_mock_v1",
++  "name": "",
++  "meta": {
++    "projectName": "LiquidSingle_Control",
++    "exportFileName": "LiquidSingle_Control",
++    "description": "Generic liquid-to-liquid control demonstration. All performance values are mock; not calibrated to NVIDIA PEK02 or CDU70.",
++    "inputUnit": "mm",
++    "casePath": "",
++    "liquidDemo": {
++      "version": 1,
++      "source": "mock",
++      "baseline_heat_W": 3500,
++      "suggested_step_time_s": 60,
++      "suggested_load_factor": 1.5,
++      "suggested_duration_s": 180,
++      "thermal_assumptions": "One equivalent cold plate; prescribed facility reservoir; no primary loop dynamics."
++    }
++  },
++  "geometry": {
++    "height": 3.6,
++    "plane": null,
++    "tileSize": 0.6,
++    "temperature": 22,
++    "bounds": {
++      "xMin": {
++        "enabled": false,
++        "value": 0
++      },
++      "xMax": {
++        "enabled": false,
++        "value": 1
++      },
++      "yMin": {
++        "enabled": false,
++        "value": 0
++      },
++      "yMax": {
++        "enabled": false,
++        "value": 1
++      },
++      "zMin": {
++        "enabled": false,
++        "value": 0
++      },
++      "zMax": {
++        "enabled": false,
++        "value": 1
++      }
++    }
++  },
++  "models": {
++    "curveModels": {},
++    "geometryModels": {
++      "boxes": {},
++      "racks": {},
++      "servers": {},
++      "acus": {},
++      "cdus": {},
++      "coldPlates": {},
++      "chips": {},
++      "pipes": {},
++      "surfaces": {}
++    },
++    "coolingModels": {
++      "servers": {},
++      "cdus": {},
++      "coldPlates": {
++        "cp_default": {
++          "name": "cp_default",
++          "coefA": 0.724,
++          "coefB": 0.991,
++          "coefC": -0.155
++        }
++      },
++      "heatExchangers": {},
++      "fans": {},
++      "pumps": {},
++      "pipes": {
++        "pipe_25mm": {
++          "name": "pipe_25mm",
++          "diameter": 0.025,
++          "roughness": 1e-05,
++          "length": 2
++        }
++      },
++      "valves": {}
++    },
++    "powerModels": {},
++    "controlModels": {},
++    "materialModels": {
++      "fluids": {
++        "water": {
++          "type": "water",
++          "rho": 997,
++          "mu": 0.00089,
++          "cp": 4182,
++          "k": 0.606
++        }
++      }
++    }
++  },
++  "constructions": {
++    "raisedFloor": null,
++    "falseCeiling": null,
++    "boxes": {},
++    "customMeshes": {},
++    "surfaces": {},
++    "walls": {},
++    "partitionWalls": {},
++    "baffles": {},
++    "floors": {},
++    "racks": {
++      "m_2": {
++        "uid": "m_2",
++        "geometry": {
++          "location": {
++            "x": 0,
++            "y": 0,
++            "z": 0
++          },
++          "size": {
++            "x": 0.6,
++            "y": 1.8669000000000002,
++            "z": 1.2
++          },
++          "quaternion": {
++            "x": 0,
++            "y": 1,
++            "z": 0,
++            "w": 0
++          },
++          "scale": {
++            "x": 1,
++            "y": 1,
++            "z": 1
++          },
++          "faces": [],
++          "cutouts": [],
++          "slot": 42,
++          "slotHeight": 0.04233333333333334,
++          "slotWidthRatio": 0.8
++        },
++        "cooling": {
++          "type": "liquid",
++          "liquidManifold": {
++            "layout": "split",
++            "supplyPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "returnPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "pipeSpacing": 0.015
++          },
++          "blankingPanelType": "typicalSmallGap",
++          "leakageEnabled": false,
++          "defaultLeakageSigma": 0.05
++        },
++        "meta": {
++          "name": "Default_Rack_1",
++          "enabled": true,
++          "description": "",
++          "tags": [],
++          "display": {
++            "opacity": 1,
++            "showAnchorMarker": true
++          }
++        },
++        "constructions": {
++          "servers": {
++            "e_2": {
++              "uid": "e_2",
++              "type": "liquidServer",
++              "geometry": {
++                "slotPosition": 27,
++                "slotOccupation": 5
++              },
++              "cooling": {},
++              "constructions": {
++                "chips": {},
++                "coldPlates": {
++                  "CP-CU_1": {
++                    "uid": "CP-CU_1",
++                    "name": "CP-CU_1",
++                    "preset": "custom",
++                    "Q_W": 3500,
++                    "R_th": 0.0033333333333333335,
++                    "dp_rated_kPa": 10,
++                    "Q_rated_LPM": 4,
++                    "C_solid": 8000,
++                    "V_fluid_mL": 200
++                  }
++                }
++              },
++              "meta": {
++                "name": "liquid-server_1",
++                "enabled": true
++              },
++              "liquidCooling": {
++                "cpCuPairs": [
++                  {
++                    "uid": "CP-CU_1",
++                    "name": "CP-CU_1",
++                    "preset": "custom",
++                    "Q_W": 3500,
++                    "R_th": 0.0033333333333333335,
++                    "dp_rated_kPa": 10,
++                    "Q_rated_LPM": 4,
++                    "C_solid": 8000,
++                    "V_fluid_mL": 200
++                  }
++                ]
++              },
++              "extraInletOffset": 0,
++              "extraOutletOffset": 0,
++              "faces": {
++                "inlet": {
++                  "patches": [],
++                  "color": "#4dcc7a"
++                },
++                "outlet": {
++                  "patches": [],
++                  "color": "#36994f"
++                },
++                "top": {
++                  "patches": []
++                },
++                "bottom": {
++                  "patches": []
++                },
++                "left": {
++                  "patches": []
++                },
++                "right": {
++                  "patches": []
++                }
++              }
++            }
++          },
++          "partitions": [
++            {
++              "index": 0,
++              "name": "partition_1",
++              "deleted": true
++            },
++            {
++              "index": 1,
++              "name": "partition_2",
++              "deleted": true
++            },
++            {
++              "index": 2,
++              "name": "partition_3",
++              "deleted": true
++            },
++            {
++              "index": 3,
++              "name": "partition_4",
++              "deleted": true
++            },
++            {
++              "index": 4,
++              "name": "partition_5",
++              "deleted": true
++            },
++            {
++              "index": 5,
++              "name": "partition_6",
++              "deleted": true
++            },
++            {
++              "index": 6,
++              "name": "partition_7",
++              "deleted": true
++            },
++            {
++              "index": 7,
++              "name": "partition_8",
++              "deleted": true
++            },
++            {
++              "index": 8,
++              "name": "partition_9",
++              "deleted": true
++            },
++            {
++              "index": 9,
++              "name": "partition_10",
++              "deleted": true
++            },
++            {
++              "index": 10,
++              "name": "partition_11",
++              "deleted": true
++            },
++            {
++              "index": 11,
++              "name": "partition_12",
++              "deleted": true
++            },
++            {
++              "index": 12,
++              "name": "partition_13",
++              "deleted": true
++            },
++            {
++              "index": 13,
++              "name": "partition_14",
++              "deleted": true
++            },
++            {
++              "index": 14,
++              "name": "partition_15",
++              "deleted": true
++            },
++            {
++              "index": 15,
++              "name": "partition_16",
++              "deleted": true
++            },
++            {
++              "index": 16,
++              "name": "partition_17",
++              "deleted": true
++            },
++            {
++              "index": 17,
++              "name": "partition_18",
++              "deleted": true
++            },
++            {
++              "index": 18,
++              "name": "partition_19",
++              "deleted": true
++            },
++            {
++              "index": 19,
++              "name": "partition_20",
++              "deleted": true
++            },
++            {
++              "index": 20,
++              "name": "partition_21",
++              "deleted": true
++            },
++            {
++              "index": 21,
++              "name": "partition_22",
++              "deleted": true
++            },
++            {
++              "index": 22,
++              "name": "partition_23",
++              "deleted": true
++            },
++            {
++              "index": 23,
++              "name": "partition_24",
++              "deleted": true
++            },
++            {
++              "index": 24,
++              "name": "partition_25",
++              "deleted": true
++            },
++            {
++              "index": 25,
++              "name": "partition_26",
++              "deleted": true
++            },
++            {
++              "index": 26,
++              "name": "partition_27",
++              "deleted": true
++            },
++            {
++              "index": 27,
++              "name": "partition_28",
++              "deleted": true
++            },
++            {
++              "index": 28,
++              "name": "partition_29",
++              "deleted": true
++            },
++            {
++              "index": 29,
++              "name": "partition_30",
++              "deleted": true
++            },
++            {
++              "index": 30,
++              "name": "partition_31",
++              "deleted": true
++            },
++            {
++              "index": 31,
++              "name": "partition_32",
++              "deleted": true
++            },
++            {
++              "index": 32,
++              "name": "partition_33",
++              "deleted": true
++            },
++            {
++              "index": 33,
++              "name": "partition_34",
++              "deleted": true
++            },
++            {
++              "index": 34,
++              "name": "partition_35",
++              "deleted": true
++            },
++            {
++              "index": 35,
++              "name": "partition_36",
++              "deleted": true
++            },
++            {
++              "index": 36,
++              "name": "partition_37",
++              "deleted": true
++            },
++            {
++              "index": 37,
++              "name": "partition_38",
++              "deleted": true
++            },
++            {
++              "index": 38,
++              "name": "partition_39",
++              "deleted": true
++            },
++            {
++              "index": 39,
++              "name": "partition_40",
++              "deleted": true
++            },
++            {
++              "index": 40,
++              "name": "partition_41",
++              "deleted": true
++            }
++          ],
++          "rdhx": null
++        },
++        "heightMode": "totalHeight",
++        "inletOffset": 0,
++        "outletOffset": 0,
++        "safeMarginTop": 0.04445,
++        "safeMarginBottom": 0.04445,
++        "defaultSpanUnits": 1,
++        "deletedFaces": {
++          "front": [
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false,
++            false
++          ],
++          "back": [
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            false,
++            false,
++            false,
++            false,
++            false,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true,
++            true
++          ]
++        },
++        "throughSlotSigma": {},
++        "moveTool": {
++          "enabled": false,
++          "axes": {
++            "x": true,
++            "y": true,
++            "z": true
++          }
++        },
++        "solidRegions": [],
++        "customSTLBase64": null,
++        "customOffset": {
++          "x": 0,
++          "y": 0,
++          "z": 0
++        },
++        "polygon": null,
++        "isRoomBoundary": false,
++        "rotateTool": {
++          "enabled": false,
++          "axes": {
++            "yaw": true,
++            "pitch": false,
++            "roll": false
++          }
++        },
++        "fromModel": null
++      }
++    },
++    "rows": {},
++    "servers": {},
++    "acus": {},
++    "cdus": {
++      "m_1": {
++        "uid": "m_1",
++        "geometry": {
++          "location": {
++            "x": 2.001392890500783,
++            "y": 0,
++            "z": -0.9050184090404052
++          },
++          "size": {
++            "x": 0.8,
++            "y": 1.8,
++            "z": 0.6
++          },
++          "quaternion": {
++            "x": 0,
++            "y": 0,
++            "z": 0,
++            "w": 1
++          },
++          "scale": {
++            "x": 1,
++            "y": 1,
++            "z": 1
++          },
++          "faces": {
++            "front": {
++              "id": "front",
++              "label": "Front",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Front",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "back": {
++              "id": "back",
++              "label": "Back",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Back",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [
++                "wall_1"
++              ],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "left": {
++              "id": "left",
++              "label": "Left",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Left",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "right": {
++              "id": "right",
++              "label": "Right",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Right",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "top": {
++              "id": "top",
++              "label": "Top",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Top",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [
++                "wall_1"
++              ],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "bottom": {
++              "id": "bottom",
++              "label": "Bottom",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Bottom",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            }
++          },
++          "cutouts": []
++        },
++        "cooling": {
++          "supplyTemperatureC": 35,
++          "supplyPressureKpa": 250,
++          "totalFlowRate": 60,
++          "advancedMode": false,
++          "facilitySupplyTemperatureC": 20
++        },
++        "meta": {
++          "name": "CDU_1",
++          "enabled": true,
++          "description": "",
++          "tags": [],
++          "display": {
++            "opacity": 1,
++            "showAnchorMarker": true
++          },
++          "racks": []
++        },
++        "constructions": {
++          "heatExchanger": {
++            "specName": "hx_default"
++          },
++          "pump": {
++            "specName": "pump_default",
++            "rpm": 3000
++          },
++          "valve": {
++            "specName": "valve_default",
++            "opening": 1
++          }
++        },
++        "moveTool": {
++          "enabled": false,
++          "axes": {
++            "x": true,
++            "y": false,
++            "z": true
++          }
++        },
++        "solidRegions": [],
++        "customSTLBase64": null,
++        "customOffset": {
++          "x": 0,
++          "y": 0,
++          "z": 0
++        },
++        "rack": {
++          "heightMode": "totalHeight",
++          "unitCount": 42,
++          "unitHeight": 0.04445,
++          "slotWidthRatio": 0.8,
++          "inletOffset": 0,
++          "outletOffset": 0,
++          "inletDoor": null,
++          "outletDoor": null,
++          "safeMarginTop": 0.04445,
++          "safeMarginBottom": 0.04445,
++          "defaultSpanUnits": 1,
++          "deletedFaces": {
++            "front": [],
++            "back": []
++          },
++          "throughSlotSigma": {},
++          "partitions": [],
++          "equipments": [],
++          "blankingPanelType": "typicalSmallGap",
++          "coolingType": "air",
++          "liquidManifold": {
++            "layout": "split",
++            "supplyPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "returnPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "pipeSpacing": 0.015
++          }
++        },
++        "polygon": null,
++        "isRoomBoundary": false,
++        "rotateTool": {
++          "enabled": false,
++          "axes": {
++            "yaw": true,
++            "pitch": false,
++            "roll": false
++          }
++        },
++        "fromModel": null
++      }
++    },
++    "pipeSegments": {
++      "m_3": {
++        "uid": "m_3",
++        "geometry": {
++          "location": {
++            "x": 0,
++            "y": 0,
++            "z": 0
++          },
++          "size": {
++            "x": 0,
++            "y": 0,
++            "z": 0
++          },
++          "quaternion": {
++            "x": 0,
++            "y": 0,
++            "z": 0,
++            "w": 1
++          },
++          "scale": {
++            "x": 1,
++            "y": 1,
++            "z": 1
++          },
++          "faces": {
++            "front": {
++              "id": "front",
++              "label": "Front",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Front",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "back": {
++              "id": "back",
++              "label": "Back",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Back",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "left": {
++              "id": "left",
++              "label": "Left",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Left",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "right": {
++              "id": "right",
++              "label": "Right",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Right",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "top": {
++              "id": "top",
++              "label": "Top",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Top",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "bottom": {
++              "id": "bottom",
++              "label": "Bottom",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Bottom",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            }
++          },
++          "cutouts": [],
++          "waypoints": [
++            {
++              "x": -0.7902337298666648,
++              "y": 2.825613594601141,
++              "z": 0.08660076227333047
++            },
++            {
++              "x": 1.339407716567286,
++              "y": 2.825613594601141,
++              "z": 0.08660076227333058
++            },
++            {
++              "x": 2.310229551799053,
++              "y": 2.825613594601141,
++              "z": 0.08660076227333069
++            },
++            {
++              "x": 2.310229551799053,
++              "y": 1.9868646657296196,
++              "z": 0.08660076227333069
++            },
++            {
++              "x": 2.310229551799053,
++              "y": 1.9868646657296196,
++              "z": -0.6061070708226176
++            },
++            {
++              "x": 2.310229551799053,
++              "y": 1.4607656542131635,
++              "z": -0.6061070708226176
++            }
++          ],
++          "diameterM": 0.1
++        },
++        "cooling": {
++          "spec": "pipe_100mm",
++          "loopRole": "return",
++          "valves": [
++            {
++              "id": "valve_1779191286514",
++              "type": "flow_control",
++              "side": "below",
++              "position": {
++                "x": -0.5856378578986017,
++                "y": 2.825613594601141,
++                "z": 0.08660076227333048
++              },
++              "connectedManifoldPortId": "m_2.manifold_return_top",
++              "connectedRackId": "m_2"
++            }
++          ],
++          "connection": {
++            "startPortId": "",
++            "endPortId": "m_1.return",
++            "blindEnds": {
++              "start": true,
++              "end": false
++            },
++            "junctions": []
++          }
++        },
++        "meta": {
++          "name": "Pipe_1",
++          "enabled": true,
++          "description": "",
++          "tags": [],
++          "display": {
++            "opacity": 1,
++            "showAnchorMarker": false
++          }
++        },
++        "moveTool": {
++          "enabled": false,
++          "axes": {
++            "x": true,
++            "y": true,
++            "z": true
++          }
++        },
++        "solidRegions": [],
++        "customSTLBase64": null,
++        "customOffset": {
++          "x": 0,
++          "y": 0,
++          "z": 0
++        },
++        "rack": {
++          "heightMode": "totalHeight",
++          "unitCount": 42,
++          "unitHeight": 0.04445,
++          "slotWidthRatio": 0.8,
++          "inletOffset": 0,
++          "outletOffset": 0,
++          "inletDoor": null,
++          "outletDoor": null,
++          "safeMarginTop": 0.04445,
++          "safeMarginBottom": 0.04445,
++          "defaultSpanUnits": 1,
++          "deletedFaces": {
++            "front": [],
++            "back": []
++          },
++          "throughSlotSigma": {},
++          "partitions": [],
++          "equipments": [],
++          "blankingPanelType": "typicalSmallGap",
++          "coolingType": "air",
++          "liquidManifold": {
++            "layout": "split",
++            "supplyPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "returnPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "pipeSpacing": 0.015
++          }
++        },
++        "polygon": null,
++        "isRoomBoundary": false,
++        "rotateTool": {
++          "enabled": false,
++          "axes": {
++            "yaw": true,
++            "pitch": false,
++            "roll": false
++          }
++        },
++        "fromModel": null
++      },
++      "m_4": {
++        "uid": "m_4",
++        "geometry": {
++          "location": {
++            "x": 0,
++            "y": 0,
++            "z": 0
++          },
++          "size": {
++            "x": 0,
++            "y": 0,
++            "z": 0
++          },
++          "quaternion": {
++            "x": 0,
++            "y": 0,
++            "z": 0,
++            "w": 1
++          },
++          "scale": {
++            "x": 1,
++            "y": 1,
++            "z": 1
++          },
++          "faces": {
++            "front": {
++              "id": "front",
++              "label": "Front",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Front",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "back": {
++              "id": "back",
++              "label": "Back",
++              "wType": "W",
++              "hType": "H",
++              "displayName": "Back",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "left": {
++              "id": "left",
++              "label": "Left",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Left",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "right": {
++              "id": "right",
++              "label": "Right",
++              "wType": "D",
++              "hType": "H",
++              "displayName": "Right",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "top": {
++              "id": "top",
++              "label": "Top",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Top",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            },
++            "bottom": {
++              "id": "bottom",
++              "label": "Bottom",
++              "wType": "W",
++              "hType": "D",
++              "displayName": "Bottom",
++              "prefixEnabled": true,
++              "opacity": 1,
++              "reverseSolidNormal": false,
++              "wallNames": [],
++              "wallOpacities": [
++                1
++              ],
++              "patches": []
++            }
++          },
++          "cutouts": [],
++          "waypoints": [
++            {
++              "x": -0.6366285596247045,
++              "y": 3.215474733307139,
++              "z": -0.1310936563654544
++            },
++            {
++              "x": 1.4930128868092463,
++              "y": 3.215474733307139,
++              "z": -0.1310936563654544
++            },
++            {
++              "x": 2.4638347220410135,
++              "y": 3.215474733307139,
++              "z": -0.1310936563654544
++            },
++            {
++              "x": 2.4638347220410135,
++              "y": 2.3767258044356177,
++              "z": -0.1310936563654544
++            },
++            {
++              "x": 2.4638347220410135,
++              "y": 2.3767258044356177,
++              "z": -0.648715314618256
++            },
++            {
++              "x": 2.4638347220410135,
++              "y": 1.5391857421028825,
++              "z": -0.648715314618256
++            }
++          ],
++          "diameterM": 0.1
++        },
++        "cooling": {
++          "spec": "pipe_100mm",
++          "loopRole": "supply",
++          "valves": [
++            {
++              "id": "tee_1779191317140",
++              "type": "tee_junction",
++              "side": "below",
++              "position": {
++                "x": -0.018787762057074997,
++                "y": 3.215474733307139,
++                "z": -0.1310936563654544
++              },
++              "connectedManifoldPortId": "m_2.manifold_supply_top",
++              "connectedRackId": "m_2"
++            }
++          ],
++          "connection": {
++            "startPortId": "",
++            "endPortId": "m_1.supply",
++            "blindEnds": {
++              "start": true,
++              "end": false
++            },
++            "junctions": []
++          }
++        },
++        "meta": {
++          "name": "Pipe_1_copy",
++          "enabled": true,
++          "description": "",
++          "tags": [],
++          "display": {
++            "opacity": 1,
++            "showAnchorMarker": false
++          }
++        },
++        "moveTool": {
++          "enabled": false,
++          "axes": {
++            "x": true,
++            "y": true,
++            "z": true
++          }
++        },
++        "solidRegions": [],
++        "customSTLBase64": null,
++        "customOffset": {
++          "x": 0,
++          "y": 0,
++          "z": 0
++        },
++        "rack": {
++          "heightMode": "totalHeight",
++          "unitCount": 42,
++          "unitHeight": 0.04445,
++          "slotWidthRatio": 0.8,
++          "inletOffset": 0,
++          "outletOffset": 0,
++          "inletDoor": null,
++          "outletDoor": null,
++          "safeMarginTop": 0.04445,
++          "safeMarginBottom": 0.04445,
++          "defaultSpanUnits": 1,
++          "deletedFaces": {
++            "front": [],
++            "back": []
++          },
++          "throughSlotSigma": {},
++          "partitions": [],
++          "equipments": [],
++          "blankingPanelType": "typicalSmallGap",
++          "coolingType": "air",
++          "liquidManifold": {
++            "layout": "split",
++            "supplyPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "returnPipe": {
++              "diameter": 0.025,
++              "offsetFromInlet": 0.1
++            },
++            "pipeSpacing": 0.015
++          }
++        },
++        "polygon": null,
++        "isRoomBoundary": false,
++        "rotateTool": {
++          "enabled": false,
++          "axes": {
++            "yaw": true,
++            "pitch": false,
++            "roll": false
++          }
++        },
++        "fromModel": null
++      }
++    },
++    "pipeJunctions": {},
++    "sensors": {},
++    "liquidFlowNetworks": {
++      "net_main": {
++        "uid": "net_main",
++        "geometry": {},
++        "meta": {
++          "name": "main",
++          "enabled": true
++        },
++        "autoGenerated": true,
++        "mainPipeSpec": "pipe_25mm",
++        "branchPipeSpec": null
++      }
++    },
++    "heatGains": {}
++  },
++  "instrumentation": {
++    "probes": {},
++    "measurements": {}
++  },
++  "runDefaults": {
++    "meshConfig": {
++      "locationInMesh": {
++        "x": 5,
++        "y": 4,
++        "z": 1.5
++      },
++      "locInMeshVisible": true,
++      "meshBaseSize": 0.34,
++      "meshDetectBaseSize": null,
++      "maxGlobalCells": 5000000,
++      "blockMeshBounds": null,
++      "blockMeshEditActive": false,
++      "blockMeshMoveMode": false,
++      "refinementLevel": [
++        1,
++        1
++      ],
++      "rackRegionLevel": 3,
++      "acuRefinementLevel": [
++        1,
++        1
++      ],
++      "boxRefinementLevel": [
++        1,
++        1
++      ],
++      "wallBafflesRefinementLevel": [
++        1,
++        1
++      ],
++      "floorRefinementLevel": [
++        1,
++        1
++      ],
++      "floorFeatureLevel": 2,
++      "defaultFeatureLevel": 2,
++      "acuFeatureLevel": 2,
++      "boxFeatureLevel": 2,
++      "baffleFeatureLevel": 2,
++      "parallelMesh": true,
++      "meshProcess": 16,
++      "refinementZones": []
++    },
++    "simulationConfig": {
++      "endTime": 500,
++      "writeInterval": 100,
++      "doublePrecisionWrite": false,
++      "writePrecision": "single",
++      "endTimeSeconds": 300,
++      "deltaT": 0.1,
++      "maxDeltaT": 1,
++      "maxCo": 1,
++      "writeIntervalSeconds": 10,
++      "adjustTimeStep": true,
++      "startFrom": "latestTime",
++      "nOuterCorrectors": 1,
++      "nCorrectors": 2,
++      "ddtScheme": "Euler",
++      "crankNicolsonCoeff": 0.9,
++      "solverType": "steady",
++      "gravityX": 0,
++      "gravityY": -9.81,
++      "gravityZ": 0,
++      "parallelSolve": false,
++      "solveProcess": 16,
++      "residualControl": {
++        "p_rgh": 0.0001,
++        "U": 1e-05,
++        "T": 1e-05,
++        "k_epsilon": 0.0001
++      },
++      "solverPreset": "balanced",
++      "nonOrthoCorrection": false,
++      "schemes": {
++        "divSchemeU": "bounded Gauss linearUpwind grad(U)",
++        "divSchemeT": "bounded Gauss linearUpwind grad(U)",
++        "divSchemeK": "bounded Gauss limitedLinear 1",
++        "divSchemeEpsilon": "bounded Gauss limitedLinear 1",
++        "gradSchemeDefault": "Gauss linear",
++        "gradSchemeU": "cellLimited Gauss linear 1",
++        "gradSchemeK": "",
++        "gradSchemeEpsilon": "",
++        "laplacianScheme": "Gauss linear limited 0.667",
++        "snGradScheme": "limited 0.667"
++      },
++      "relaxationFactors": {
++        "p_rgh": 0.3,
++        "U": 0.7,
++        "T": 0.7,
++        "k_epsilon": 0.3
++      },
++      "nNonOrthogonalCorrectors": 0,
++      "extraLocations": [],
++      "_nextExtraLocId": 1
++    },
++    "liquid": {
++      "enabled": true,
++      "solver": {
++        "dt_s": 1,
++        "N_t": 10,
++        "bdf_order": 1,
++        "lr": 0.1,
++        "max_epochs": 10000,
++        "convergence_tol": 1e-06,
++        "device": "cpu",
++        "weights": {
++          "mass": 1,
++          "momentum": 1e-06,
++          "energy": 1,
++          "bc": 100,
++          "ic": 10
++        }
++      },
++      "inheritResults": false
++    }
++  }
++}
+diff --git a/case/LiquidSingle_Control/README.md b/case/LiquidSingle_Control/README.md
+new file mode 100644
+index 00000000..c04b28c8
+--- /dev/null
++++ b/case/LiquidSingle_Control/README.md
+@@ -0,0 +1,7 @@
++# Single-rack liquid control demo
++
++Derived from the existing LiquidSingle geometry without changing the original. This is a generic mock liquid-to-liquid system, not the supplied liquid-to-air CDU70 or an NV-calibrated installation.
++
++Open LiquidSingle_Control.cfdproj in React and choose liquid mode → solver → dynamic experiment. The embedded case path is intentionally empty for portability: select this case directory on the server. Use a 180 s horizon, 1 s step, and optionally multiply all cold-plate heat inputs by 1.5 at 60 s. Compare fixed pump speed with cold-plate temperature PI after tuning its setpoint/gains. No saving/energy performance claim is implied.
++
++Mock cold plate: 3500 W baseline, UA 300 W/K, solid heat capacity 8000 J/K, coolant volume 200 mL, pressure drop 10 kPa at 4 L/min. The current thermal kernel resolves solid/pipe storage but not separate cold-plate fluid storage. Facility reservoir: 20 °C; fluid rho 997 kg/m³, cp 4182 J/(kg·K), viscosity 0.00089 Pa·s, conductivity 0.606 W/(m·K). Pump/HX/valve use versioned mock-demo-v1 profiles in the dynamic graph compiler. Replace these fields and the pack with measured equipment specifications before calibration.
+diff --git a/docs/developer/react-liquid-runtime-workbench.md b/docs/developer/react-liquid-runtime-workbench.md
+new file mode 100644
+index 00000000..1908b3b7
+--- /dev/null
++++ b/docs/developer/react-liquid-runtime-workbench.md
+@@ -0,0 +1,13 @@
++# React liquid experiment workbench
++
++React liquid mode → solver opens the dynamic experiment workbench. The legacy boundary-condition solve remains in its own expandable section and its monitor remains under the legacy-monitor tab. HTML air workflows are unchanged.
++
++The workbench compiles the current editor topology into stable UID-bound graph identities, adds an actively cooled CDU loop and physical flow-control valves, and creates a server-owned runtime session. It supports fixed speed, one cold-plate-temperature PI or pump-differential-pressure PI controller, an optional simultaneous multiplicative cold-plate heat-load step, physical timestep/horizon, pacing, start/pause/resume/single-step/cancel, result download and checkpoint download. This version downloads checkpoints; browser restore/replay is a later integration step. Current PI gains are explicit mock starting values, not tuned NV control settings. All outputs stay in simulation.
++
++Temperature setpoints entered in °C convert to Kelvin once. Pressure setpoints and gains entered per kPa convert to Pa. Temperature control uses direct action; pressure control uses reverse action. Pump output limits are 0.2–1.0 with a 0.05/s rate limit. Pressure measurement spans the selected pump, including its discharge node before the HX. The physics timestep and every event lie on one time grid.
++
++The right monitor uses the run's physical time and stable ordered cold-plate/edge IDs for temperature, signed mass flow and controller output. It reports numerical energy residual separately from model validation. Old frames retain their originating project revision; changing geometry shows a stale-snapshot warning. Automatic polling backfills all intermediate frames even when action acknowledgments jump ahead and prevents older polls from reverting newer lifecycle acknowledgments. Server-side execution continues after browser disconnection; the client retries failed polls.
++
++`case/LiquidSingle_Control` is a separately named generic mock variant of the original geometry. Its README records all changed physical assumptions. The original cases remain untouched. The current shared compiler starts solids at 340 K and coolant at 35 °C unless supplied through its fluid fields; the first run therefore includes startup cooling. The UI uses current cold-plate parameters rather than silently replacing them with pack defaults. Mock pump/HX/valve profiles come from one canonical backend JSON file; Vite permits only the required data directory in addition to its existing frontend directory.
++
++Current boundary: live charts and downloaded physical results work; UID-bound time scrubbing/3D thermal overlays, full checkpoint restore UI, multiloop controller authoring and optimization comparison remain part of the wider platform work. Equipment shape detail is implemented independently and never substitutes for thermal validation.
+diff --git a/src/frontend/react/src/App.tsx b/src/frontend/react/src/App.tsx
+index 51ecb4f8..b658c70c 100644
+--- a/src/frontend/react/src/App.tsx
++++ b/src/frontend/react/src/App.tsx
+@@ -15,21 +15,21 @@ import { RackDetailPanel } from './components/RackDetailPanel'
+ import { MeshPreviewPanel } from './components/MeshPreviewPanel'
+ import { MultiSelectPanel } from './components/MultiSelectPanel'
+ import type { TransformToolsApi } from './legacy/transformTools'
+ import { detailPanelShows, getRackDetail, subscribeRackDetail } from './geometry/rackDetail'
+ import { findConstruction } from './projectStore'
+ import { publishSelection } from './selectionBus'
+ import { inspectorTitle } from './ui/inspectorTitle'
+ import { applyClick, applyMany } from './interaction/selection'
+ import { setLiquidModeActive } from './legacy/liquidScene'
+ import { Inspector } from './components/Inspector'
+-import { LiquidMonitorPanel } from './components/LiquidMonitorPanel'
++import { LiquidRuntimeMonitor } from './components/LiquidRuntimeMonitor'
+ import { ProjectFileDialog } from './components/ProjectFileDialog'
+ import { Room2DEditor } from './components/Room2DEditor'
+ import {
+   isRoom2dPanelOpen,
+   setRoom2dPanelHost,
+   subscribeRoom2dPanel,
+ } from './room2d/room2dPanelSlot'
+ import { exitEditor as exitRoom2dEditor } from './room2d/room2dApi'
+ import { LogPanel } from './components/LogPanel'
+ import { MeshPanel } from './components/MeshPanel'
+@@ -38,21 +38,21 @@ import { LiquidResultsPanel } from './components/LiquidResultsPanel'
+ import { PostprocessPanel } from './components/PostprocessPanel'
+ import { PostprocessRightPanel } from './components/PostprocessRightPanel'
+ import { ExportDialog } from './components/ExportDialog'
+ import { SolverMonitorPanel } from './components/SolverMonitorPanel'
+ import { SensorPanel } from './components/SensorPanel'
+ import { PanelResizers } from './components/PanelResizers'
+ import { installMonitoringBridge } from './run/monitoring'
+ import type { SceneBuilder } from './interaction/sceneBuilder'
+ import type { TreeSelection } from './interaction/treeNodes'
+ import { firstPerson } from './legacy/firstPerson'
+-import { LiquidSolverPanel } from './components/LiquidSolverPanel'
++import { LiquidExperimentPanel } from './components/LiquidExperimentPanel'
+ import { SolverPanel } from './components/SolverPanel'
+ import { SystemPanel } from './components/SystemPanel'
+ import { TransientPanel } from './components/TransientPanel'
+ import { allModels, type CfdProject } from './schema/cfdproj'
+ import {
+   isLeftTabHidden,
+   leftTabGate,
+   leftTabLabelKey,
+   LEFT_TABS,
+   resolveLeftTab,
+@@ -116,21 +116,21 @@ function SolverRightColumn({
+   liquid,
+   subTab,
+   onSubTab,
+ }: {
+   project: CfdProject | null
+   liquid: boolean
+   subTab: 'monitor' | 'sensor'
+   onSubTab: (v: 'monitor' | 'sensor') => void
+ }) {
+   const { t } = useTranslation()
+-  if (liquid) return <LiquidMonitorPanel />
++  if (liquid) return <LiquidRuntimeMonitor />
+   return (
+     <>
+       <div id="solver-right-subtabs" className="subtab-bar">
+         <button
+           id="srs-monitor-tab"
+           className={`subtab${subTab === 'monitor' ? ' active' : ''}`}
+           onClick={() => onSubTab('monitor')}
+         >
+           {t('sm.tab_monitor')}
+         </button>
+@@ -714,21 +714,21 @@ export function App() {
+           />
+         )}
+         {leftTab === 'mesh' && <MeshPanel project={project} />}
+         {/* The solver tab shows the AIR or the LIQUID solver, never both:
+             `_applyDisplayMode` (STL_generate.html:14093-14100) hides
+             #air-solver-settings in liquid mode and #liquid-cooling-solver-group
+             in air mode. Two solvers configured side by side would let the user
+             set knobs for the run that is not about to happen. */}
+         {leftTab === 'solver' &&
+           (coolingMode === 'liquid' ? (
+-            <LiquidSolverPanel project={project} />
++            <LiquidExperimentPanel project={project} />
+           ) : (
+             <SolverPanel project={project} />
+           ))}
+         {leftTab === 'transient' && <TransientPanel project={project} />}
+         {leftTab === 'system' && <SystemPanel />}
+         {/* Post-processing is per-mode: the liquid results panel reads a
+             .liquidrun result, the air one reads an OpenFOAM time directory.
+             The air half is not migrated yet. */}
+         {leftTab === 'postprocess' &&
+           (coolingMode === 'liquid' ? (
+diff --git a/src/frontend/react/src/components/LiquidExperimentPanel.tsx b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+new file mode 100644
+index 00000000..1a16faf8
+--- /dev/null
++++ b/src/frontend/react/src/components/LiquidExperimentPanel.tsx
+@@ -0,0 +1,95 @@
++import { useMemo, useState, useSyncExternalStore } from 'react'
++import type { CfdProject } from '../schema/cfdproj'
++import * as store from '../projectStore'
++import { compileDynamicLiquidGraph } from '../liquid/dynamicLiquidGraph'
++import { buildExperiment, type ExperimentSettings } from '../liquid/liquidExperiment'
++import * as runtime from '../liquid/liquidRuntimeClient'
++import { LiquidSolverPanel } from './LiquidSolverPanel'
++
++const statusLabels:Record<runtime.RuntimeStatus,string>={ready:'已就绪',running:'运行中',paused:'已暂停',completed:'已完成',cancelled:'已取消',failed:'失败'}
++export function LiquidExperimentPanel({project}:{project:CfdProject|null}) {
++  const state=useSyncExternalStore(runtime.subscribeRuntime,runtime.runtimeState)
++  const revision=useSyncExternalStore(store.subscribe,store.revision)
++  const [duration,setDuration]=useState(180)
++  const [dt,setDt]=useState(1)
++  const [speed,setSpeed]=useState('10')
++  const [error,setError]=useState<string|null>(null)
++  const [settings,setSettings]=useState<ExperimentSettings>({mode:'manual',pumpId:'',measurementId:'',setpoint:45,kp:.03,ki:.002,bias:.8,loadStep:false,stepTime:60,loadFactor:1.5})
++  const [catalog,setCatalog]=useState<{pumps:string[];plates:string[]}>({pumps:[],plates:[]})
++  const change=<K extends keyof ExperimentSettings>(key:K,value:ExperimentSettings[K])=>setSettings(s=>({...s,[key]:value}))
++  const status=state.session?.status
++  const active=status==='running'||status==='paused'||status==='ready'
++  const stale=state.session&&state.projectRevision!==revision
++  const frame=state.session?.frame
++  const progress=useMemo(()=>state.session?(frame?.seq??0)/Math.max(1,state.session.metadata.total_sample_count-1):0,[state.session,frame])
++  async function create() {
++    if(!project)return
++    setError(null)
++    try {
++      const graph=compileDynamicLiquidGraph(project,{duration_s:duration,dt_s:dt})
++      const pumps=graph.edges.filter(e=>e.type==='pump').map(e=>e.id)
++      const plates=graph.edges.filter(e=>e.type==='cold_plate').map(e=>e.id)
++      setCatalog({pumps,plates})
++      const next={...settings,pumpId:pumps.includes(settings.pumpId)?settings.pumpId:pumps[0]??'',measurementId:plates.includes(settings.measurementId)?settings.measurementId:plates[0]??''}
++      setSettings(next)
++      const scenario=buildExperiment(graph,next)
++      await runtime.createRuntimeSession(scenario.liquidrun,scenario.controllers,revision)
++    }catch(e){setError(e instanceof Error?e.message:String(e))}
++  }
++  async function action(kind:'start'|'pause'|'resume'|'cancel'|'step') {
++    setError(null)
++    try {await runtime.runtimeAction(kind,speed==='fast'?null:Number(speed));await runtime.refreshRuntimeFrames()}
++    catch(e){setError(e instanceof Error?e.message:String(e))}
++  }
++  async function download(kind:'result'|'checkpoint') {
++    try {
++      const id=state.session?.run_id
++      const value=kind==='result'?await runtime.fetchRuntimeResult():await runtime.fetchRuntimeCheckpoint()
++      const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}))
++      const a=document.createElement('a');a.href=url;a.download=`liquid-${id}-${kind}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
++    }catch(e){setError(e instanceof Error?e.message:String(e))}
++  }
++  const number=(label:string,value:number,onChange:(value:number)=>void,step=1)=><label className="liquid-experiment-field"><span>{label}</span><input type="number" value={Number.isNaN(value)?'':value} step={step} onChange={e=>onChange(e.target.valueAsNumber)}/></label>
++  return <div className="content liquid-experiment" id="liquid-experiment-panel">
++    <h3>液冷动态实验</h3>
++    <p className="liquid-experiment-note">CDU—管网—冷板联动。泵、换热器与阀门使用可替换的 mock 参数；设备几何和冷板参数来自当前工程。</p>
++    <fieldset disabled={state.busy||!!active}>
++      <legend>时间与负载</legend>
++      {number('仿真时长 / s',duration,setDuration)}
++      {number('时间步长 / s',dt,setDt,.1)}
++      <label className="liquid-experiment-check"><input type="checkbox" checked={settings.loadStep} onChange={e=>change('loadStep',e.target.checked)}/>添加冷板负载阶跃</label>
++      {settings.loadStep&&<>{number('阶跃时刻 / s',settings.stepTime,v=>change('stepTime',v))}{number('负载倍率',settings.loadFactor,v=>change('loadFactor',v),.1)}<p className="liquid-experiment-note">所有冷板按各自基准热功率乘以此倍率；此值是液体侧热负载。</p></>}
++      <legend>泵控制</legend>
++      <label className="liquid-experiment-field"><span>控制方式</span><select value={settings.mode} onChange={e=>{
++        const mode=e.target.value as ExperimentSettings['mode'];setSettings(s=>({...s,mode,setpoint:mode==='pressure'?30:45,kp:mode==='pressure'?.01:.03,ki:mode==='pressure'?.001:.002}))
++      }}><option value="manual">固定转速</option><option value="temperature">冷板温度 PI</option><option value="pressure">泵压差 PI</option></select></label>
++      {settings.mode!=='manual'&&<>
++        <label className="liquid-experiment-field"><span>执行泵</span><select value={settings.pumpId} onChange={e=>change('pumpId',e.target.value)}><option value="">首个可用泵</option>{catalog.pumps.map(id=><option key={id}>{id}</option>)}</select></label>
++        {settings.mode==='temperature'&&<label className="liquid-experiment-field"><span>测温冷板</span><select value={settings.measurementId} onChange={e=>change('measurementId',e.target.value)}><option value="">首个可用冷板</option>{catalog.plates.map(id=><option key={id}>{id}</option>)}</select></label>}
++        {number(settings.mode==='temperature'?'设定温度 / °C':'泵压差 / kPa',settings.setpoint,v=>change('setpoint',v),.1)}
++        {number(settings.mode==='temperature'?'Kp / K⁻¹':'Kp / kPa⁻¹',settings.kp,v=>change('kp',v),.001)}
++        {number(settings.mode==='temperature'?'Ki / (K·s)⁻¹':'Ki / (kPa·s)⁻¹',settings.ki,v=>change('ki',v),.001)}
++        {number('初始输出比例',settings.bias,v=>change('bias',v),.05)}
++        <p className="liquid-experiment-note">输出 0.2–1.0，每秒最大变化 0.05。增益为演示初值，需按设备和工况整定。</p>
++      </>}
++    </fieldset>
++    <label className="liquid-experiment-field"><span>播放速度</span><select value={speed} disabled={status==='running'} onChange={e=>setSpeed(e.target.value)}><option value="1">1×</option><option value="10">10×</option><option value="fast">最快计算</option></select></label>
++    <div className="liquid-experiment-actions">
++      <button className="btn" onClick={()=>void create()} disabled={!project||state.busy||!!active}>{state.session?'新建实验':'准备实验'}</button>
++      {status==='ready'&&<button className="btn success" disabled={state.busy} onClick={()=>void action('start')}>开始</button>}
++      {status==='running'&&<button className="btn" disabled={state.busy} onClick={()=>void action('pause')}>暂停</button>}
++      {status==='paused'&&<button className="btn success" disabled={state.busy} onClick={()=>void action('resume')}>继续</button>}
++      {(status==='paused'||status==='ready')&&<button className="btn" disabled={state.busy} onClick={()=>void action('step')}>单步</button>}
++      {active&&<button className="btn" disabled={state.busy} onClick={()=>void action('cancel')}>结束实验</button>}
++    </div>
++    {state.session&&<div aria-live="polite" className="liquid-experiment-status">
++      <strong>{statusLabels[state.session.status]} · {frame?.time_s.toFixed(1)} s</strong>
++      <progress value={progress} max={1}/>
++      <small>运行 {state.session.run_id.slice(0,12)} · {state.session.config_hash.slice(0,10)}</small>
++      {stale&&<p className="liquid-experiment-warning">工程已修改。当前曲线属于创建实验时的快照；新几何需要新建实验。</p>}
++      <div className="liquid-experiment-actions"><button className="btn" onClick={()=>void download('result')}>导出结果</button><button className="btn" onClick={()=>void download('checkpoint')}>保存检查点</button></div>
++    </div>}
++    {(error||state.error||state.session?.error)&&<p role="alert" className="error">{error||state.error||state.session?.error}</p>}
++    <details className="liquid-experiment-legacy"><summary>旧版边界条件求解</summary><LiquidSolverPanel project={project}/></details>
++  </div>
++}
+diff --git a/src/frontend/react/src/components/LiquidRuntimeMonitor.tsx b/src/frontend/react/src/components/LiquidRuntimeMonitor.tsx
+new file mode 100644
+index 00000000..8d71db5d
+--- /dev/null
++++ b/src/frontend/react/src/components/LiquidRuntimeMonitor.tsx
+@@ -0,0 +1,34 @@
++import { useState, useSyncExternalStore } from 'react'
++import * as runtime from '../liquid/liquidRuntimeClient'
++import { TimeSeriesChart } from './TimeSeriesChart'
++import { LiquidMonitorPanel } from './LiquidMonitorPanel'
++export function LiquidRuntimeMonitor() {
++  const state=useSyncExternalStore(runtime.subscribeRuntime,runtime.runtimeState)
++  const [selected,setSelected]=useState('')
++  const [tab,setTab]=useState<'runtime'|'legacy'>('runtime')
++  const session=state.session
++  const frame=session?.frame
++  const metadata=session?.metadata
++  const cpIndex=Math.max(0,metadata?.cp_edge_ids.indexOf(selected)??0)
++  const cpId=metadata?.cp_edge_ids[cpIndex]
++  const edgeIndex=metadata?.edge_ids.indexOf(cpId??'')??-1
++  const time=state.frames.map(f=>f.time_s)
++  const label=cpId??'冷板'
++  const temperature=state.frames.map(f=>(f.chip_temp_K[cpIndex]??NaN)-273.15)
++  const flow=state.frames.map(f=>f.edge_flow_kg_s[edgeIndex]??NaN)
++  const controller=frame?Object.keys(frame.controls)[0]:undefined
++  const thermal=frame?.diagnostics.thermal as {energy_balance_W?:number}|undefined
++  return <div className="content liquid-experiment" id="liquid-runtime-monitor">
++    <div className="subtab-bar"><button className={`subtab${tab==='runtime'?' active':''}`} onClick={()=>setTab('runtime')}>动态实验</button><button className={`subtab${tab==='legacy'?' active':''}`} onClick={()=>setTab('legacy')}>旧版监视</button></div>
++    {tab==='legacy'?<LiquidMonitorPanel/>:!session?<p>在左侧准备实验，随后查看温度、流量和控制输出。</p>:<>
++      <h3>联动监视</h3>
++      <p aria-live="polite">仿真时间 <strong>{frame?.time_s.toFixed(1)} s</strong> · {state.frames.length} 帧{state.connection==='reconnecting'?' · 正在重连':''}</p>
++      <label className="liquid-experiment-field"><span>冷板</span><select value={cpId??''} onChange={e=>setSelected(e.target.value)}>{metadata?.cp_edge_ids.map(id=><option key={id}>{id}</option>)}</select></label>
++      <h4>冷板温度 / °C</h4><TimeSeriesChart time={time} series={[{label,color:'#e7a967',points:temperature}]} xLabel="时间 / s" yLabel="°C" height={175}/>
++      <h4>冷板质量流量 / kg/s</h4><TimeSeriesChart time={time} series={[{label,color:'#65b7df',points:flow}]} xLabel="时间 / s" yLabel="kg/s" height={150}/>
++      {controller&&<><h4>泵输出比例</h4><TimeSeriesChart time={time} series={[{label:'泵速',color:'#8fc8a5',points:state.frames.map(f=>f.controls[controller]?.output??NaN)}]} xLabel="时间 / s" yLabel="ratio" height={150}/><p>{frame?.controls[controller]?.saturated?'输出触及限幅':'输出在范围内'}{frame?.controls[controller]?.rate_limited?' · 变化率受限':''}</p></>}
++      {thermal?.energy_balance_W!==undefined&&<p className="liquid-experiment-note">热平衡残差 {thermal.energy_balance_W.toExponential(2)} W</p>}
++      <p className="liquid-experiment-note">图表使用同一运行的物理时间；温度由 K 换算为 °C。能量残差衡量数值守恒，不表示设备模型已由现场验证。</p>
++    </>}
++  </div>
++}
+diff --git a/src/frontend/react/src/liquid/liquidExperiment.ts b/src/frontend/react/src/liquid/liquidExperiment.ts
+new file mode 100644
+index 00000000..95dbb9b3
+--- /dev/null
++++ b/src/frontend/react/src/liquid/liquidExperiment.ts
+@@ -0,0 +1,39 @@
++/** Physical scenario construction shared by the React controls and browser automation. */
++import type { DynamicLiquidGraph } from './dynamicLiquidGraph'
++export interface ExperimentSettings {
++  mode:'manual'|'temperature'|'pressure';pumpId:string;measurementId:string;
++  setpoint:number;kp:number;ki:number;bias:number;
++  loadStep:boolean;stepTime:number;loadFactor:number;
++}
++export function buildExperiment(graph:DynamicLiquidGraph, settings:ExperimentSettings) {
++  const liquidrun=structuredClone(graph)
++  const {dt_s,N_t}=graph.time
++  if(settings.loadStep) {
++    const {stepTime,loadFactor}=settings
++    if(!Number.isFinite(stepTime)||stepTime<=0||stepTime>(N_t-1)*dt_s||Math.abs(stepTime/dt_s-Math.round(stepTime/dt_s))>1e-8)throw new Error('Load step must lie on the simulation time grid')
++    if(!Number.isFinite(loadFactor)||loadFactor<0)throw new Error('Load multiplier must be finite and nonnegative')
++    for(const edge of liquidrun.edges.filter(e=>e.type==='cold_plate')) {
++      const baseline=Number(edge.params.Q_W)
++      if(!Number.isFinite(baseline)||baseline<0)throw new Error(`Invalid baseline heat load on ${edge.id}`)
++      liquidrun.events.push({time_s:stepTime,target:edge.id,field:'Q_W',value:baseline*loadFactor})
++    }
++  }
++  const controllers=[]
++  if(settings.mode!=='manual') {
++    const pump=graph.edges.find(e=>e.id===settings.pumpId&&e.type==='pump')
++    if(!pump)throw new Error('Select a pump from this physical model')
++    if(![settings.setpoint,settings.kp,settings.ki,settings.bias].every(Number.isFinite)||settings.kp<0||settings.ki<0||settings.bias<.2||settings.bias>1)throw new Error('PID gains must be nonnegative and initial output must be 0.2–1.0')
++    const temperature=settings.mode==='temperature'
++    if(temperature&&!graph.edges.some(e=>e.id===settings.measurementId&&e.type==='cold_plate'))throw new Error('Select a cold plate from this physical model')
++    if(temperature&&settings.setpoint<=-273.15)throw new Error('Temperature setpoint must exceed absolute zero')
++    if(!temperature&&settings.setpoint<=0)throw new Error('Pressure setpoint must be positive')
++    controllers.push({id:'editor-pump-pid',measurement:temperature?
++      {kind:'solid_temperature',target_id:settings.measurementId}:
++      {kind:'pressure_difference',target_id:pump.to,reference_id:pump.from},
++      actuator:{edge_id:pump.id,field:'rpm_ratio'},
++      pid:{kp:settings.kp/(temperature?1:1000),ki:settings.ki/(temperature?1:1000),kd:0,
++        setpoint:temperature?settings.setpoint+273.15:settings.setpoint*1000,action:temperature?'direct':'reverse',
++        bias:settings.bias,output_min:.2,output_max:1,rate_limit_per_s:.05},sample_period_s:dt_s})
++  }
++  return {liquidrun,controllers}
++}
+diff --git a/src/frontend/react/src/liquid/liquidRuntimeClient.ts b/src/frontend/react/src/liquid/liquidRuntimeClient.ts
+new file mode 100644
+index 00000000..9f8d545d
+--- /dev/null
++++ b/src/frontend/react/src/liquid/liquidRuntimeClient.ts
+@@ -0,0 +1,147 @@
++/** Runtime transport; simulation ownership stays on the server across reconnects. */
++export type RuntimeStatus = 'ready'|'running'|'paused'|'completed'|'cancelled'|'failed'
++export interface RuntimeFrame {
++  kind:'frame'; run_id:string; seq:number; time_s:number;
++  node_pressure_Pa:number[]; node_temperature_K:number[]; edge_flow_kg_s:number[];
++  chip_temp_K:number[]; edge_outlet_temp_K:number[];
++  controls:Record<string,{measurement:number;setpoint:number;output:number;saturated:boolean;rate_limited:boolean}>;
++  diagnostics:Record<string,unknown>;
++}
++export interface RuntimeMetadata {
++  node_ids:string[]; edge_ids:string[]; cp_edge_ids:string[];
++  total_sample_count:number; dt_s:number; config_hash?:string;
++  object_bindings:Record<string,{label:string;kind:string;node_ids:string[];edge_ids:string[];parent_uid?:string}>;
++  parameter_provenance?:Record<string,unknown>;
++}
++export interface RuntimeSession {run_id:string;status:RuntimeStatus;config_hash:string;metadata:RuntimeMetadata;frame:RuntimeFrame;error?:string|null}
++export interface RuntimeClientState {
++  session:RuntimeSession|null; frames:RuntimeFrame[]; projectRevision:number|null;
++  busy:boolean; error:string|null; connection:'idle'|'connected'|'reconnecting';
++}
++const EMPTY:RuntimeClientState = {session:null,frames:[],projectRevision:null,busy:false,error:null,connection:'idle'}
++let state:RuntimeClientState = EMPTY
++let generation=0
++let frameCursor=-1
++let lifecycleRevision=0
++let timer:ReturnType<typeof setTimeout>|null=null
++let polling=false
++const listeners = new Set<()=>void>()
++export function subscribeRuntime(listener:()=>void) {listeners.add(listener);return ()=>{listeners.delete(listener)}}
++export function runtimeState() {return state}
++function update(patch:Partial<RuntimeClientState>) {state={...state,...patch};listeners.forEach(f=>f())}
++function errorText(error:unknown) {return error instanceof Error?error.message:String(error)}
++export function stopRuntimePolling() {polling=false;if(timer!==null)clearTimeout(timer);timer=null}
++export function resetRuntimeClient() {stopRuntimePolling();generation++;frameCursor=-1;state=EMPTY;listeners.forEach(f=>f())}
++
++async function request(path:string,body?:unknown) {
++  const response=await fetch(path,body===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
++  const value=await response.json()
++  if(!response.ok)throw new Error(value?.error||`Request failed (${response.status})`)
++  return value
++}
++function checkedFrame(value:RuntimeFrame, id:string, metadata:RuntimeMetadata):RuntimeFrame {
++  if(!value||value.kind!=='frame'||value.run_id!==id)throw new Error('Frame belongs to a different liquid run')
++  if(!Number.isSafeInteger(value.seq)||value.seq<0||!Number.isFinite(value.time_s)||value.time_s<0)throw new Error('Invalid simulation frame time')
++  for(const [values,size] of [
++    [value.node_pressure_Pa,metadata.node_ids.length], [value.node_temperature_K,metadata.node_ids.length],
++    [value.edge_flow_kg_s,metadata.edge_ids.length], [value.chip_temp_K,metadata.cp_edge_ids.length],
++    [value.edge_outlet_temp_K,metadata.edge_ids.length],
++  ] as [number[],number][]) {
++    if(!Array.isArray(values)||values.length!==size||values.some(v=>typeof v!=='number'||!Number.isFinite(v)))throw new Error('Simulation frame does not match its physical model')
++  }
++  return value
++}
++function mergeFrames(incoming:RuntimeFrame[], session:RuntimeSession) {
++  // Validate the complete response before changing any displayed state.
++  const valid=incoming.map(f=>checkedFrame(f,session.run_id,session.metadata))
++  const frames=new Map(state.frames.map(f=>[f.seq,f]))
++  valid.forEach(f=>frames.set(f.seq,f))
++  return [...frames.values()].sort((a,b)=>a.seq-b.seq)
++}
++
++export async function createRuntimeSession(liquidrun:unknown,controllers:unknown[],projectRevision:number):Promise<RuntimeSession|null> {
++  stopRuntimePolling()
++  const token=++generation
++  update({busy:true,error:null,connection:'idle'})
++  try {
++    const session=await request('/api/liquid/runs',{liquidrun,controllers,project_revision:projectRevision}) as RuntimeSession
++    if(token!==generation)return null
++    checkedFrame(session.frame,session.run_id,session.metadata)
++    frameCursor=session.frame.seq===0?0:-1
++    update({session,frames:[session.frame],projectRevision,busy:false,connection:'connected'})
++    return session
++  } catch(error) {
++    if(token!==generation)return null
++    update({busy:false,error:errorText(error)})
++    throw error
++  }
++}
++
++export async function refreshRuntimeFrames():Promise<void> {
++  const session=state.session
++  if(!session)return
++  const token=generation
++  const after=frameCursor
++  const lifecycle=lifecycleRevision
++  try {
++    const payload=await request(`/api/liquid/runs/${encodeURIComponent(session.run_id)}/frames?after=${after}`)
++    if(token!==generation||state.session?.run_id!==session.run_id)return
++    if(!Array.isArray(payload.frames))throw new Error('Runtime response has no frame sequence')
++    const frames=mergeFrames(payload.frames,session)
++    frameCursor=Math.max(frameCursor,...payload.frames.map((frame:RuntimeFrame)=>frame.seq))
++    const latest=frames.at(-1)??session.frame
++    const current=state.session!
++    const status=lifecycle===lifecycleRevision&&!state.busy?(payload.status??current.status):current.status
++    update({frames,session:{...current,status,frame:latest,error:payload.error??current.error},connection:'connected',error:null})
++  } catch(error) {
++    if(token===generation)update({connection:'reconnecting',error:errorText(error)})
++    throw error
++  }
++}
++
++export function startRuntimePolling(intervalMs=500) {
++  stopRuntimePolling();polling=true
++  const token=generation
++  let failures=0
++  const poll=async()=>{
++    if(!polling||token!==generation)return
++    try {await refreshRuntimeFrames();failures=0}catch{failures++}
++    if(!polling||token!==generation)return
++    const status=state.session?.status
++    if(status==='completed'||status==='cancelled'||status==='failed') {stopRuntimePolling();return}
++    timer=setTimeout(()=>{void poll()},Math.min(5000,intervalMs*Math.max(1,2**Math.min(failures,4))))
++  }
++  timer=setTimeout(()=>{void poll()},intervalMs)
++}
++
++export async function runtimeAction(action:'start'|'pause'|'resume'|'cancel'|'step',speed:number|null=null):Promise<void> {
++  const session=state.session
++  if(!session)throw new Error('No liquid simulation session')
++  lifecycleRevision++
++  const token=generation
++  update({busy:true,error:null})
++  try {
++    const next=await request(`/api/liquid/runs/${encodeURIComponent(session.run_id)}/${action}`,action==='start'||action==='resume'?{speed}:{}) as RuntimeSession
++    if(token!==generation||state.session?.run_id!==session.run_id)return
++    if(next.run_id!==session.run_id)throw new Error('Operation acknowledgment belongs to a different run')
++    const frames=mergeFrames(next.frame?[next.frame]:[],session)
++    lifecycleRevision++
++    update({session:{...session,...next,frame:frames.at(-1)??next.frame},frames,busy:false,connection:'connected'})
++    if(action==='start'||action==='resume')startRuntimePolling()
++    if(action==='cancel')stopRuntimePolling()
++  } catch(error) {
++    if(token===generation)update({busy:false,error:errorText(error)})
++    throw error
++  }
++}
++
++export async function fetchRuntimeResult():Promise<unknown> {
++  const id=state.session?.run_id
++  if(!id)throw new Error('No liquid simulation session')
++  return request(`/api/liquid/runs/${encodeURIComponent(id)}/result`)
++}
++export async function fetchRuntimeCheckpoint():Promise<unknown> {
++  const id=state.session?.run_id
++  if(!id)throw new Error('No liquid simulation session')
++  return request(`/api/liquid/runs/${encodeURIComponent(id)}/checkpoint`)
++}
+diff --git a/src/frontend/react/src/styles.css b/src/frontend/react/src/styles.css
+index 0e5f488d..33c578a1 100644
+--- a/src/frontend/react/src/styles.css
++++ b/src/frontend/react/src/styles.css
+@@ -2342,10 +2342,28 @@ body.resizing #center-view {
+ 
+ /* The percent readout beside a rack-detail slider. Monospace so the number
+    does not jitter the slider's width as it counts up. */
+ .mono-pct {
+   font-family: var(--font-mono, monospace);
+   font-size: 0.68rem;
+   color: var(--text-dim);
+   min-width: 30px;
+   text-align: right;
+ }
++
++/* Liquid runtime controls stay compact beside the modelling viewport. */
++.liquid-experiment h3 { margin: 8px 0 12px; font-size: 15px; }
++.liquid-experiment h4 { margin: 14px 0 4px; font-size: 12px; font-weight: 600; }
++.liquid-experiment fieldset { border: 0; margin: 12px 0; padding: 0; min-width: 0; }
++.liquid-experiment legend { font-weight: 600; padding: 10px 0 8px; }
++.liquid-experiment-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; font-size: 12px; }
++.liquid-experiment-field input, .liquid-experiment-field select { width: 48%; min-width: 0; padding: 5px; background: var(--input-bg, #252526); color: var(--text, #ddd); border: 1px solid var(--border, #555); border-radius: 3px; }
++.liquid-experiment-check { display: flex; align-items: center; gap: 7px; font-size: 12px; margin: 10px 0; }
++.liquid-experiment-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
++.liquid-experiment-actions .btn { flex: 1 1 auto; width: auto; min-width: 65px; }
++.liquid-experiment-note { font-size: 11px; line-height: 1.55; color: var(--text-dim, #aaa); }
++.liquid-experiment-status { padding: 10px 0; border-top: 1px solid var(--border, #555); font-size: 12px; }
++.liquid-experiment-status progress { display: block; width: 100%; margin: 9px 0; height: 5px; accent-color: #65b7df; }
++.liquid-experiment-status small { display: block; color: var(--text-dim, #aaa); }
++.liquid-experiment-warning { color: #e9b869; font-size: 11px; line-height: 1.5; }
++.liquid-experiment-legacy { margin-top: 20px; border-top: 1px solid var(--border, #555); padding-top: 12px; }
++.liquid-experiment-legacy summary { cursor: pointer; color: var(--text-dim, #aaa); font-size: 12px; }
+diff --git a/src/frontend/react/test/liquidExperiment.test.ts b/src/frontend/react/test/liquidExperiment.test.ts
+new file mode 100644
+index 00000000..93b1ed19
+--- /dev/null
++++ b/src/frontend/react/test/liquidExperiment.test.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it } from 'vitest'
++import { buildExperiment } from '../src/liquid/liquidExperiment'
++import type { DynamicLiquidGraph } from '../src/liquid/dynamicLiquidGraph'
++const graph = {time:{dt_s:1,N_t:11},nodes:[{id:'s'},{id:'r'}],edges:[
++ {id:'pump',type:'pump',from:'r',to:'s',params:{rpm_ratio:.8}},
++ {id:'cp',type:'cold_plate',params:{Q_W:3500}},
++],events:[]} as unknown as DynamicLiquidGraph
++const settings = {mode:'temperature' as const, pumpId:'pump',measurementId:'cp',setpoint:45,kp:.03,ki:.002,bias:.8,loadStep:true,stepTime:5,loadFactor:1.5}
++describe('editor experiment scenario',()=>{
++ it('converts Celsius once and uses direct cooling action',()=>{
++  const out=buildExperiment(graph,settings)
++  expect(out.controllers[0]?.pid).toMatchObject({setpoint:318.15,action:'direct',kp:.03,ki:.002})
++  expect(out.controllers[0]?.measurement).toEqual({kind:'solid_temperature',target_id:'cp'})
++  expect(out.liquidrun.events).toEqual([{time_s:5,target:'cp',field:'Q_W',value:5250}])
++  expect(graph.events).toEqual([])
++ })
++ it('uses reverse pressure action and converts kPa to Pa',()=>{
++  const out=buildExperiment(graph,{...settings,mode:'pressure',setpoint:30,kp:.1,ki:.02})
++  expect(out.controllers[0]?.pid).toMatchObject({setpoint:30000,action:'reverse',kp:.0001,ki:.00002})
++  expect(out.controllers[0]?.measurement).toEqual({kind:'pressure_difference',target_id:'s',reference_id:'r'})
++ })
++ it('rejects invalid event grids and unknown cold plates',()=>{
++  expect(()=>buildExperiment(graph,{...settings,stepTime:2.5})).toThrow(/grid/)
++  expect(()=>buildExperiment(graph,{...settings,measurementId:'other'})).toThrow(/cold plate/)
++ })
++ it('manual mode has no implicit controller and no disabled load step',()=>{
++  expect(buildExperiment(graph,{...settings,mode:'manual',loadStep:false}).controllers).toEqual([])
++  expect(buildExperiment(graph,{...settings,mode:'manual',loadStep:false}).liquidrun.events).toEqual([])
++ })
++})
+diff --git a/src/frontend/react/test/liquidRuntimeClient.test.ts b/src/frontend/react/test/liquidRuntimeClient.test.ts
+new file mode 100644
+index 00000000..1c4eac91
+--- /dev/null
++++ b/src/frontend/react/test/liquidRuntimeClient.test.ts
+@@ -0,0 +1,98 @@
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import { createRuntimeSession, runtimeState, resetRuntimeClient, runtimeAction, refreshRuntimeFrames } from '../src/liquid/liquidRuntimeClient'
++
++function frame(id:string,seq=0) {return {kind:'frame',run_id:id,seq,time_s:seq,node_pressure_Pa:[150000],node_temperature_K:[300],edge_flow_kg_s:[.1],chip_temp_K:[310],edge_outlet_temp_K:[305],controls:{},diagnostics:{}}}
++function session(id:string) {return {run_id:id,status:'ready',config_hash:`hash-${id}`,metadata:{node_ids:['n'],edge_ids:['e'],cp_edge_ids:['e'],total_sample_count:4,dt_s:1,object_bindings:{}},frame:frame(id)}}
++const response = (body:unknown) => new Response(JSON.stringify(body), {status:200, headers:{'Content-Type':'application/json'}})
++afterEach(() => {resetRuntimeClient();vi.restoreAllMocks()})
++
++describe('liquid runtime browser client', () => {
++  it('submits the actual graph and project revision', async () => {
++    const fetch = vi.spyOn(globalThis,'fetch').mockResolvedValue(response(session('a')))
++    await createRuntimeSession({nodes:[{id:'n'}]},[],7)
++    expect(JSON.parse(fetch.mock.calls[0]?.[1]?.body as string)).toEqual({liquidrun:{nodes:[{id:'n'}]},controllers:[],project_revision:7})
++    expect(runtimeState().session?.run_id).toBe('a')
++    expect(runtimeState().frames.map(f=>f.seq)).toEqual([0])
++  })
++
++  it('backfills frames exactly once and preserves physical time', async () => {
++    vi.spyOn(globalThis,'fetch')
++      .mockResolvedValueOnce(response(session('a')))
++      .mockImplementation(async()=>response({status:'paused',frames:[frame('a',1),frame('a',2),frame('a',2)]}))
++    await createRuntimeSession({},[],1)
++    await refreshRuntimeFrames()
++    await refreshRuntimeFrames()
++    expect(runtimeState().frames.map(f=>f.time_s)).toEqual([0,1,2])
++  })
++
++  it('never attaches a late creation response to a newer project', async () => {
++    let resolveOld!:(r:Response)=>void
++    const old = new Promise<Response>(r=>{resolveOld=r})
++    vi.spyOn(globalThis,'fetch').mockReturnValueOnce(old).mockResolvedValueOnce(response(session('new')))
++    const first = createRuntimeSession({},[],1)
++    await createRuntimeSession({},[],2)
++    resolveOld(response(session('old')))
++    await first
++    expect(runtimeState().session?.run_id).toBe('new')
++    expect(runtimeState().projectRevision).toBe(2)
++  })
++
++  it('uses server lifecycle acknowledgment and reports operation errors', async () => {
++    vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(response(session('a')))
++      .mockResolvedValueOnce(response({...session('a'),status:'paused'}))
++      .mockResolvedValueOnce(new Response(JSON.stringify({error:'run is cancelled'}),{status:409}))
++    await createRuntimeSession({},[],1)
++    await runtimeAction('pause')
++    expect(runtimeState().session?.status).toBe('paused')
++    await expect(runtimeAction('step')).rejects.toThrow('run is cancelled')
++    expect(runtimeState().error).toBe('run is cancelled')
++  })
++
++  it('rejects a frame belonging to another run', async () => {
++    vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(response(session('a')))
++      .mockResolvedValueOnce(response({status:'paused',frames:[frame('other',1)]}))
++    await createRuntimeSession({},[],1)
++    await expect(refreshRuntimeFrames()).rejects.toThrow(/run/)
++    expect(runtimeState().frames).toHaveLength(1)
++  })
++
++  it('backfills intermediate frames when an action acknowledgment jumps ahead', async () => {
++    const fetch=vi.spyOn(globalThis,'fetch')
++      .mockResolvedValueOnce(response(session('a')))
++      .mockResolvedValueOnce(response({...session('a'),status:'completed',frame:frame('a',3)}))
++      .mockResolvedValueOnce(response({status:'completed',frames:[frame('a',1),frame('a',2),frame('a',3)]}))
++    await createRuntimeSession({},[],1)
++    await runtimeAction('start')
++    await refreshRuntimeFrames()
++    expect(fetch.mock.calls[2]?.[0]).toContain('after=0')
++    expect(runtimeState().frames.map(f=>f.seq)).toEqual([0,1,2,3])
++  })
++
++  it('keeps old frames tied to their old revision while new creation is pending', async () => {
++    let complete!:(r:Response)=>void
++    vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(response(session('old')))
++      .mockReturnValueOnce(new Promise<Response>(r=>{complete=r}))
++    await createRuntimeSession({},[],1)
++    const pending=createRuntimeSession({},[],2)
++    expect(runtimeState().projectRevision).toBe(1)
++    complete(response(session('new')))
++    await pending
++    expect(runtimeState().projectRevision).toBe(2)
++  })
++})
++
++describe('runtime request ordering',()=>{
++ it('does not let an older poll overwrite a newer lifecycle acknowledgment',async()=>{
++  let completePoll!:(value:Response)=>void
++  vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(response(session('a')))
++   .mockReturnValueOnce(new Promise<Response>(r=>{completePoll=r}))
++   .mockResolvedValueOnce(response({...session('a'),status:'paused',frame:frame('a',2)}))
++  await createRuntimeSession({},[],1)
++  const poll=refreshRuntimeFrames()
++  await runtimeAction('pause')
++  completePoll(response({status:'running',frames:[frame('a',1)]}))
++  await poll
++  expect(runtimeState().session?.status).toBe('paused')
++  expect(runtimeState().session?.frame.seq).toBe(2)
++ })
++})
+diff --git a/src/frontend/react/vite.config.ts b/src/frontend/react/vite.config.ts
+index fc83e435..1f06a0ae 100644
+--- a/src/frontend/react/vite.config.ts
++++ b/src/frontend/react/vite.config.ts
+@@ -31,14 +31,14 @@ export default defineConfig({
+       // index.html, and Three builds a texture whose image is a web page — so
+       // the material has a map, the mesh renders flat WHITE, and it reads as
+       // "textures are broken" rather than "the image was never a JPEG".
+       '/textures': { target: API_TARGET, changeOrigin: true },
+     },
+     fs: {
+       // src/frontend/shared/js holds the .cfdproj format modules (schema, the
+       // v3->v4 migrator, the V4 state factory). Those are shared with the
+       // legacy app on purpose — see src/legacy/cfdprojModules.ts — so the dev
+       // server has to be allowed to serve from outside this package.
+-      allow: ['..'],
++      allow: ['..', '../../backend/liquidcooling/data'],
+     },
+   },
+ })

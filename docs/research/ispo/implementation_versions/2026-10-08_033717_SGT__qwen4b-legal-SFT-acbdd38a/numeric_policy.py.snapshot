@@ -1,0 +1,92 @@
+"""Stochastic bounded numerical head conditional on a discrete design action.
+
+The continuous value is emitted last and is never fed into later token choices.
+Log densities include the invertible sigmoid transform. Score-function sampling
+holds the sampled latent fixed; pathwise sampling retains the reparameterization.
+"""
+from __future__ import annotations
+from dataclasses import dataclass
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+@dataclass
+class DesignSamples:
+    actions: torch.Tensor
+    values: torch.Tensor
+    latent: torch.Tensor
+    mean: torch.Tensor
+    std: torch.Tensor
+    discrete_log_prob: torch.Tensor
+    continuous_log_prob: torch.Tensor
+
+    @property
+    def log_prob(self):
+        return self.discrete_log_prob + self.continuous_log_prob
+
+
+class NumericalDesignHead(nn.Module):
+    def __init__(self, hidden_size, bounds, *, action_count=2, initial_std=.45):
+        super().__init__()
+        bounds=torch.as_tensor(bounds,dtype=torch.float64)
+        if bounds.ndim!=2 or bounds.shape[1]!=2 or not torch.all(bounds[:,1]>bounds[:,0]):
+            raise ValueError("bounds must contain finite increasing [lower,upper] pairs")
+        if not torch.isfinite(bounds).all() or initial_std<=0:
+            raise ValueError("finite bounds and positive initial std required")
+        self.action_count=action_count
+        self.register_buffer("lower",bounds[:,0])
+        self.register_buffer("width",bounds[:,1]-bounds[:,0])
+        self.mean_layer=nn.Linear(hidden_size+action_count,len(bounds))
+        nn.init.normal_(self.mean_layer.weight,std=1e-4);nn.init.zeros_(self.mean_layer.bias)
+        self.log_std=nn.Parameter(torch.full((len(bounds),),float(torch.log(torch.tensor(initial_std)))))
+
+    def distribution(self, hidden, actions):
+        hidden=hidden.to(device=self.mean_layer.weight.device,dtype=self.mean_layer.weight.dtype)
+        actions=torch.as_tensor(actions,device=hidden.device,dtype=torch.long)
+        if hidden.ndim!=2 or actions.shape!=(len(hidden),) or (actions<0).any() or (actions>=self.action_count).any():
+            raise ValueError("hidden/action shape or discrete support invalid")
+        features=torch.cat([hidden,F.one_hot(actions,self.action_count).to(hidden.dtype)],-1)
+        mean=6*torch.tanh(self.mean_layer(features)/6)
+        std=self.log_std.clamp(-3.,0.).exp().expand_as(mean)
+        return torch.distributions.Normal(mean.to(torch.float64),std.to(torch.float64))
+
+    def transform(self,latent):
+        return self.lower+self.width*latent.sigmoid()
+
+    def log_density(self,hidden,actions,values):
+        dist=self.distribution(hidden,actions)
+        fraction=(values.to(dist.loc)-self.lower)/self.width
+        if not torch.isfinite(fraction).all() or (fraction<=0).any() or (fraction>=1).any():
+            raise ValueError("values must lie strictly inside continuous support")
+        latent=torch.logit(fraction.detach())
+        jacobian=self.width.log()+F.logsigmoid(latent)+F.logsigmoid(-latent)
+        return (dist.log_prob(latent)-jacobian).sum(-1)
+
+    def sample(self,hidden,action_logits,*,samples=1,generator=None):
+        if hidden.ndim!=2 or action_logits.shape!=(len(hidden),self.action_count) or samples<1:
+            raise ValueError("one hidden/logit row per prompt and positive sample count required")
+        probabilities=action_logits.softmax(-1)
+        choices=torch.multinomial(probabilities,samples,replacement=True,generator=generator)
+        actions=choices.reshape(-1)
+        expanded=hidden[:,None,:].expand(-1,samples,-1).reshape(-1,hidden.shape[-1])
+        logits=action_logits[:,None,:].expand(-1,samples,-1).reshape(-1,self.action_count)
+        dist=self.distribution(expanded,actions)
+        noise=torch.randn(dist.loc.shape,device=dist.loc.device,dtype=dist.loc.dtype,generator=generator)
+        latent=dist.loc+dist.scale*noise
+        values=self.transform(latent)
+        frozen=latent.detach()
+        jacobian=self.width.log()+F.logsigmoid(frozen)+F.logsigmoid(-frozen)
+        continuous=(dist.log_prob(frozen)-jacobian).sum(-1)
+        discrete=logits.log_softmax(-1).gather(1,actions[:,None]).squeeze(1)
+        return DesignSamples(actions,values,latent,dist.loc,dist.scale,discrete,continuous)
+
+    def normal_kl(self,hidden,actions,reference_head,reference_hidden):
+        current=self.distribution(hidden,actions)
+        with torch.no_grad():reference=reference_head.distribution(reference_hidden,actions)
+        return torch.distributions.kl_divergence(current,reference).sum(-1)
+
+
+def categorical_kl(logits,reference_logits):
+    reference=reference_logits.detach().log_softmax(-1)
+    current=logits.log_softmax(-1)
+    return (current.exp()*(current-reference)).sum(-1)

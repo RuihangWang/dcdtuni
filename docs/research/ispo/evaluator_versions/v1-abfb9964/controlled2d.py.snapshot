@@ -1,0 +1,594 @@
+"""Version-pinned finite-volume mixed-convection oracle for the ISPO pilot.
+
+Read-only dependency: the owner's LearnedPreConditionNewtonSolver. No source or
+output is written there. The actual Boussinesq momentum/continuity/energy system
+is solved; the velocity is not prescribed throughout the interior.
+"""
+from __future__ import annotations
+import copy
+import hashlib
+import json
+import math
+import os
+import re
+import resource
+import subprocess
+import sys
+import time
+import traceback
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+from . import artifacts
+
+ADAPTER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+KERNEL_COMMIT = "367f0f6ecdd1b19c38c1f040e4ea398dc60fed97"
+DEFAULT_KERNEL = Path("/home/litianyu/mycode/LearnedPreConditionNewtonSolver")
+PARAMETER_NAMES = ("lid_speed_m_s", "hot_center_y")
+PARAMETER_BOUNDS = ((0.06, 0.22), (0.25, 0.75))
+DELTA_T_K = 1.0
+HOT_WIDTH_M = 0.18
+REFERENCE_SPEED_M_S = 0.15
+CONTROL_WEIGHT = 0.02
+FAILURE_REWARD = -1.0e6
+GEOMETRY = (1.0, 1.0, 0.1)
+SOURCE_FILES = (
+    "src/FVsolver/applications/buoyantBoussinesqpicoext.py",
+    "src/FVsolver/applications/base_solver.py",
+    "src/Pipeline/CoupledNewton/collocated_newton.py",
+    "src/Pipeline/CoupledNewton/casestate.py",
+    "src/Pipeline/CoupledNewton/jacobian.py",
+    "src/Pipeline/CoupledNewton/newton.py",
+    "src/FVdomain/SetBC/onthefly/setU.py",
+    "src/FVdomain/SetBC/onthefly/setT.py",
+    "src/Parse_mesh/structured_hex.py",
+    "src/Parse_mesh/parse_openfoam_refactored.py",
+    "experiments/NaturalConvection/CoupledNewton/Ra1e3/h5/fvconfig.toml",
+)
+
+
+def _cpu_seconds() -> float:
+    child=resource.getrusage(resource.RUSAGE_CHILDREN)
+    return time.process_time()+child.ru_utime+child.ru_stime
+
+
+def configure_cpu_runtime(threads: int = 4) -> None:
+    """Call before importing the FV dependency; all writable runtime paths are owned."""
+    if threads not in range(1, 9):
+        raise ValueError("CPU thread budget must be 1..8")
+    scratch = artifacts.make_directory("_tmp/controlled2d-cache", exclusive=False)
+    for key, leaf in {
+        "TMPDIR": "tmp", "XDG_CACHE_HOME": "xdg", "TORCH_HOME": "torch",
+        "TORCHINDUCTOR_CACHE_DIR": "inductor", "TRITON_CACHE_DIR": "triton",
+        "MPLCONFIGDIR": "matplotlib", "HF_HOME": "huggingface",
+    }.items():
+        path = artifacts.make_directory(scratch / leaf, exclusive=False)
+        os.environ[key] = str(path)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+    os.environ["OMP_NUM_THREADS"] = str(threads)
+    os.environ["MKL_NUM_THREADS"] = str(threads)
+    os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
+    if hasattr(os, "sched_getaffinity"):
+        cpus = sorted(os.sched_getaffinity(0))[:threads]
+        os.sched_setaffinity(0, cpus)
+
+
+@dataclass(frozen=True)
+class Controlled2DDesign:
+    lid_speed_m_s: float = 0.15
+    hot_center_y: float = 0.50
+    lid_direction: int = 0
+
+    def validate(self) -> None:
+        if self.lid_direction not in (0, 1):
+            raise ValueError("lid_direction must be 0 (+x) or 1 (-x)")
+        for name, bounds in zip(PARAMETER_NAMES, PARAMETER_BOUNDS):
+            value = getattr(self, name)
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+            if not bounds[0] <= value <= bounds[1]:
+                raise ValueError(f"{name} outside {bounds}")
+
+    def vector(self) -> list[float]:
+        self.validate()
+        return [float(getattr(self, name)) for name in PARAMETER_NAMES]
+
+
+def dependency_identity(kernel_root: Path = DEFAULT_KERNEL) -> dict:
+    kernel_root = Path(kernel_root).resolve()
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                   cwd=kernel_root, text=True).strip()
+    if head != KERNEL_COMMIT:
+        raise RuntimeError(f"FV dependency changed: expected {KERNEL_COMMIT}, got {head}")
+    dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no",
+                                     "--", "src", "experiments/NaturalConvection/CoupledNewton/Ra1e3/h5"],
+                                    cwd=kernel_root, text=True).strip()
+    if dirty:
+        raise RuntimeError("FV dependency has modified tracked source/config")
+    return {"repository": str(kernel_root), "git_commit": head, "read_only": True,
+            "sha256": {name: hashlib.sha256((kernel_root / name).read_bytes()).hexdigest()
+                       for name in SOURCE_FILES}}
+
+
+def make_project(design: Controlled2DDesign, *, case_path: str | Path) -> dict:
+    """Deterministic export of a real thin cavity .cfdproj, with explicit BC mapping."""
+    design.validate()
+    case_path = artifacts.REPO_ROOT / artifacts.repo_relative(case_path)
+    source = artifacts.read_project("case/SingleRack/SingleRack.cfdproj")
+    script = "process.stdout.write(JSON.stringify(require(process.argv[1]).emptyDocument()))"
+    node = os.environ.get("DCDTUNI_NODE") or str(Path.home() / ".local/bin/node")
+    project = json.loads(subprocess.check_output(
+        [node, "-e", script, str(artifacts.REPO_ROOT / artifacts.SCHEMA_RELATIVE)],
+        cwd=artifacts.REPO_ROOT))
+    project.update(uid="controlled2d_cavity", name="Controlled 2D mixed-convection cavity")
+    project["meta"].update(projectName="controlled2d", exportFileName="project",
+                           description="Laminar Boussinesq thin cavity; controlled fixed-T boundaries.",
+                           inputUnit="m", casePath=str(case_path))
+    project["geometry"].update(height=1.0, plane=[[0,0],[1,0],[1,.1],[0,.1]],
+                               tileSize=.1, temperature=26.85)
+    seed = next(iter(source["constructions"]["walls"].values()))
+    s2 = math.sqrt(.5)
+    definitions = {
+        "hotWall": ((0,0,0), (.1,1,0), (0,-s2,0,s2)),
+        "coldWall": ((1,0,0), (.1,1,0), (0,-s2,0,s2)),
+        "lid": ((0,1,0), (1,.1,0), (s2,0,0,s2)),
+        "bottom": ((0,0,0), (1,.1,0), (s2,0,0,s2)),
+        "front": ((0,0,0), (1,1,0), (0,0,0,1)),
+        "back": ((0,0,.1), (1,1,0), (0,0,0,1)),
+    }
+    for uid, (position, size, rotation) in definitions.items():
+        wall = copy.deepcopy(seed)
+        wall["uid"] = uid
+        wall["meta"].update(name=uid, enabled=True)
+        wall["geometry"].update(location=dict(zip("xyz", position)), size=dict(zip("xyz", size)),
+                                quaternion=dict(zip("xyzw", rotation)))
+        wall["meta"]["controlled2d_patch"] = uid
+        project["constructions"]["walls"][uid] = wall
+    project["meta"]["controlled2d"] = {
+        "format": "controlled2d-boussinesq/v1", "design": asdict(design),
+        "domain_m": list(GEOMETRY), "delta_T_K": DELTA_T_K,
+        "hot_width_m": HOT_WIDTH_M, "hot_wall_mean_K_deviation": .5,
+        "cold_wall_K_deviation": -.5, "T_reference_K": 300.0,
+        "temperature_constraint": "fixed continuous mean wall temperature, not fixed heat input",
+        "coordinate_mapping": "project world (x,y,z) = FVM (x,y,thin empty z)",
+        "boundary_mapping": {"hotWall": "Gaussian fixed-T band; center=design.hot_center_y",
+                             "coldWall": "T=-0.5K; noSlip",
+                             "lid": "U=(sign*speed*16*x^2*(1-x)^2,0,0); T zeroGradient",
+                             "bottom": "noSlip; T zeroGradient",
+                             "front": "empty", "back": "empty"},
+        "objective": {"thermal_variance": "volume weighted Var(T)/delta_T_K^2",
+                      "control_proxy": "0.02*(lid_speed_m_s/0.15)^2",
+                      "reward": "-(thermal_variance+control_proxy)"},
+        "compiler": "agent.harness.controlled2d; platform schema plus explicit benchmark extension",
+    }
+    artifacts.platform_validator(project)
+    return project
+
+
+def design_from_project(project: dict) -> Controlled2DDesign:
+    artifacts.platform_validator(project)
+    spec = project.get("meta", {}).get("controlled2d")
+    if not spec or spec.get("format") != "controlled2d-boussinesq/v1":
+        raise ValueError("project has no controlled2d benchmark mapping")
+    if (tuple(spec["domain_m"]) != GEOMETRY or spec["delta_T_K"] != DELTA_T_K
+            or spec.get("hot_width_m") != HOT_WIDTH_M
+            or project["geometry"].get("height") != GEOMETRY[1]
+            or project["geometry"].get("plane") != [[0,0],[1,0],[1,.1],[0,.1]]):
+        raise ValueError("the pilot task geometry/material specification is fixed")
+    if set(project["constructions"]["walls"]) != {"hotWall","coldWall","lid","bottom","front","back"}:
+        raise ValueError("controlled2d project must contain its six real boundary surfaces")
+    design = Controlled2DDesign(**spec["design"])
+    design.validate()
+    return design
+
+
+def _json_telemetry(value):
+    """Preserve solver sentinel infinities as explicit strings, never as fake finite numbers."""
+    if isinstance(value,dict):
+        return {key:_json_telemetry(item) for key,item in value.items()}
+    if isinstance(value,(list,tuple)):
+        return [_json_telemetry(item) for item in value]
+    if isinstance(value,float) and not math.isfinite(value):
+        return str(value)
+    return value
+
+
+class _BoundaryValues:
+    """Fresh float64, parameter-carrying face values; no float32 cached BC detach."""
+    def __init__(self, values):
+        self.values = values
+    def eval(self, *, device, **kwargs):
+        return self.values.to(device=device)
+
+
+class _Grid:
+    def __init__(self, n: int, work_dir: Path, kernel_root: Path):
+        import torch
+        from Parse_mesh.structured_hex import write_field, write_polymesh
+        from FVdomain.load_case import load_case
+        from Pipeline.CoupledNewton.collocated_newton import CollocatedSolver, promote_case_to_double
+        from Utils import get_param
+        self.n, self.work_dir = n, work_dir
+        artifacts.make_directory(work_dir)
+        (work_dir / "system").mkdir()
+        (work_dir / "h5").mkdir()
+        patches = {"hotWall":["xlow"], "coldWall":["xhigh"], "lid":["yhigh"],
+                   "bottom":["ylow"], "frontAndBack":["zlow","zhigh"]}
+        write_polymesh(str(work_dir), (n,n,1), GEOMETRY, patches=patches)
+        boundary = work_dir / "constant/polyMesh/boundary"
+        text, count = re.subn(r"(frontAndBack\s*\{\s*type\s+)wall;(\s*inGroups\s+1\()wall\)",
+                              r"\1empty;\2empty)", boundary.read_text())
+        if count != 1:
+            raise RuntimeError("2D empty-axis mesh declaration was not applied")
+        boundary.write_text(text)
+        empty = {"frontAndBack":{"type":"empty"}}
+        no_slip = {name:{"type":"noSlip"} for name in patches if name != "frontAndBack"}
+        write_field(str(work_dir),"U",dimensions=[0,1,-1,0,0,0,0],internal=[0,0,0],
+                    boundary={**no_slip,"lid":{"type":"fixedValue","value":"uniform (0.15 0 0)"},**empty})
+        for field in ("p","p_rgh"):
+            kinds = {name: {"type":"zeroGradient"} if field=="p" else
+                     {"type":"fixedFluxPressure","value":"uniform 0"} for name in no_slip}
+            write_field(str(work_dir),field,dimensions=[0,2,-2,0,0,0,0],internal=0.0,
+                        boundary={**kinds,**empty})
+        write_field(str(work_dir),"T",dimensions=[0,0,0,1,0,0,0],internal=0.0,
+                    boundary={"hotWall":{"type":"fixedValue","value":"uniform 0.5"},
+                              "coldWall":{"type":"fixedValue","value":"uniform -0.5"},
+                              "lid":{"type":"zeroGradient"},"bottom":{"type":"zeroGradient"},**empty})
+        config = (kernel_root/"experiments/NaturalConvection/CoupledNewton/Ra1e3/h5/fvconfig.toml").read_text()
+        (work_dir/"h5/fvconfig.toml").write_text(config)
+        parsed = subprocess.run(
+            [sys.executable, "-B", str(kernel_root/"src/Parse_mesh/parse_openfoam_refactored.py"),
+             "--case",str(work_dir),"--valid-bc-files","U","p","p_rgh","T",
+             "--enable_visualization","False"],cwd=artifacts.REPO_ROOT,
+            env=dict(os.environ),capture_output=True,text=True,timeout=90)
+        (work_dir/"parser.stdout.log").write_text(parsed.stdout)
+        (work_dir/"parser.stderr.log").write_text(parsed.stderr)
+        if parsed.returncode:
+            raise RuntimeError("mesh parser failed: "+parsed.stderr[-3000:])
+        # The parser's output BC TOMLs are canonical and reference only this owned case.
+        argv=sys.argv
+        try:
+            sys.argv=[argv[0]]
+            params=get_param.params()
+        finally:
+            sys.argv=argv
+        params.on_gpu=-1
+        params.dataset_dir=str(work_dir/"h5")
+        params.dataset_size=1
+        params.batch_size=1
+        params.state_save_dir=str(work_dir/"state")
+        loaded=load_case(str(work_dir/"h5"),params,stage="solver",pool="legacy",
+                         device=torch.device("cpu"))
+        promote_case_to_double(loaded)
+        self.loaded=loaded
+        self.square=CollocatedSolver(loaded.integrator._solver,coefficient="implicit")
+        self.cs=self.square.solver
+        assert self.square.num_fields==5 and self.cs.dim==2 and self.square.mwi
+        self.positions=self.cs.cpd_cell_pos[self.square.interior,:2].double()
+        self.volume=self.cs.cell_volume.reshape(-1).double()
+        self.weights=self.volume/self.volume.sum()
+        self.bc={}
+        for group in self.cs.bcpatch_batch.first:
+            for bc in group:
+                if bc.patch_name in ("hotWall","coldWall","lid"):
+                    self.bc[(bc.patch_name,int(bc.varType))]=bc
+
+    def bind(self, parameters, direction: int):
+        import torch
+        speed,center=parameters[0],parameters[1]
+        sign=1.0 if direction==0 else -1.0
+        for (name,kind),bc in self.bc.items():
+            start=int(self.cs.fvpatch_batch.start_idx_cpd_cell[bc.patch_idx])
+            end=int(self.cs.fvpatch_batch.end_idx_cpd_cell[bc.patch_idx])
+            xy=self.cs.cpd_cell_pos[start:end,:2].double()
+            if kind==1 and name=="lid":
+                x=xy[:,0]
+                value=torch.stack((sign*speed*16*x*x*(1-x)*(1-x),
+                                   torch.zeros_like(x),torch.zeros_like(x)),dim=-1)
+                bc.value_tensor=_BoundaryValues(value)
+            elif kind==3 and name=="hotWall":
+                sigma=HOT_WIDTH_M
+                normal=(sigma*math.sqrt(math.pi/2) *
+                        (torch.erf((1-center)/(math.sqrt(2)*sigma))+
+                         torch.erf(center/(math.sqrt(2)*sigma))))
+                value=.5*torch.exp(-.5*((xy[:,1]-center)/sigma)**2)/normal
+                bc.value_tensor=_BoundaryValues(value[:,None])
+            elif kind==3 and name=="coldWall":
+                bc.value_tensor=_BoundaryValues(torch.full((end-start,1),-.5,dtype=torch.float64))
+        self.design_parameters=parameters
+        self.direction=direction
+
+    def losses(self,state,parameters):
+        temperature=state[4*self.square.n_cell:]
+        mean=(temperature*self.weights).sum()
+        variance=((temperature-mean).square()*self.weights).sum()/DELTA_T_K**2
+        proxy=CONTROL_WEIGHT*(parameters[0]/REFERENCE_SPEED_M_S).square()
+        return variance,proxy
+
+    def sparse_inverse(self,matrix,*,transpose:bool=False):
+        """Classical sparse LU with a pressure-gauge augmentation for small pilot grids."""
+        import numpy as np
+        import torch
+        import scipy.sparse as sparse
+        from scipy.sparse.linalg import splu
+        size=matrix.shape[0]
+        csr=sparse.csr_matrix((matrix.values().detach().numpy(),
+                              matrix.col_indices().numpy(),matrix.crow_indices().numpy()),
+                             shape=(size,size))
+        if transpose:
+            csr=csr.T.tocsr()
+        gauge=np.zeros(size)
+        n=self.square.n_cell
+        gauge[3*n:4*n]=1.0/math.sqrt(n)
+        column=sparse.csc_matrix(gauge[:,None])
+        augmented=sparse.bmat([[csr,column],[column.T,sparse.csc_matrix((1,1))]],format="csc")
+        factor=splu(augmented)
+        def inverse(rhs):
+            values=np.concatenate((rhs.detach().numpy(),[0.0]))
+            return torch.from_numpy(factor.solve(values)[:size].copy())
+        return inverse
+
+    def polish_exact_root(self,state,history,*,target:float,steps:int=3):
+        """Finish a stalled tiny-RHS Krylov Newton step using the exact AD Jacobian.
+
+        For <=14x14 verification grids only. A dense gauge-augmented LU is a
+        classical numerical instrument, never a learned/preconditioner result.
+        Its elapsed time is included in the physical oracle's measured cost.
+        """
+        import numpy as np
+        import torch
+        from scipy.linalg import solve
+        state=state.detach().clone()
+        size=state.numel()
+        n=self.square.n_cell
+        gauge=np.zeros(size)
+        gauge[3*n:4*n]=1.0/math.sqrt(n)
+        for index in range(steps):
+            residual=self.square.residual(state).detach()
+            before=float(residual.abs().max())
+            if before<=target:
+                break
+            product=self.square.linearise(state,coefficient="implicit")
+            eye=torch.eye(size,dtype=torch.float64)
+            rows=[]
+            for start in range(0,size,32):
+                rows.append(product.batched(eye[start:start+32]).detach())
+            exact=torch.cat(rows,dim=0).numpy().T
+            augmented=np.block([[exact,gauge[:,None]],[gauge[None,:],np.zeros((1,1))]])
+            direction=solve(augmented,np.concatenate((-residual.numpy(),[0.0])))[:-1]
+            candidate=state+torch.tensor(direction,dtype=torch.float64)
+            after=float(self.square.residual(candidate).detach().abs().max())
+            history.append({"phase":"exact_dense_AD_Newton_polish","step":index,
+                            "before_max_abs":before,"max_abs":after,
+                            "linear_residual_max_abs":float(np.max(np.abs(exact@direction+residual.numpy()))),
+                            "matrix_unknowns":size})
+            if not math.isfinite(after) or after>=before:
+                break
+            state=self.square.gauge(candidate.detach())
+        return state,history
+
+    def solve(self,design:Controlled2DDesign,*,with_gradient:bool=False,
+              tol:float=1e-11,maxit:int=45,x0=None) -> dict:
+        import torch
+        start, cpu=time.perf_counter(),_cpu_seconds()
+        parameters=torch.tensor(design.vector(),dtype=torch.float64)
+        self.bind(parameters,design.lid_direction)
+        state,history=self.square.solve_newton(x0=x0,tol=tol*0.01,maxit=maxit,rtol=1e-11,
+                                               restart=400,max_cycles=5,forcing=False,
+                                               matrix_free=True,matrix_free_coefficient="implicit",
+                                               reassemble_drift=0.0,
+                                               preconditioner_factory=lambda blocks,x:
+                                                   self.sparse_inverse(blocks["J"]))
+        if maxit>0 and state.numel()<=5*14*14 and torch.isfinite(state).all():
+            state,history=self.polish_exact_root(state,history,target=tol*0.01)
+        residual=self.square.residual(state).detach()
+        max_abs=float(residual.abs().max())
+        self.last_attempt=_json_telemetry({"forward_history":_json_telemetry(history),
+                           "state_field_blocked":state.detach().tolist(),
+                           "residual_max_abs":max_abs,
+                           "requested_Newton_tolerance":tol*0.01,
+                           "acceptance_residual_tolerance":tol})
+        if not torch.isfinite(state).all() or max_abs>tol:
+            raise RuntimeError(f"forward did not pass max|R|<={tol:g}; got {max_abs:g}")
+        variance,proxy=self.losses(state,parameters)
+        self.state=state.detach().clone()
+        result={"status":"success","I0":-float(variance+proxy),
+                "I1":{"thermal_variance":float(variance),"control_proxy":float(proxy)},
+                "I2":None,"I3":None,
+                "diagnostics":self.diagnostics(state,residual),
+                "state":{"field_blocked":state.detach().tolist(),
+                         "cell_xy":self.positions.tolist()},
+                "linearization":"exact matrix-free implicit MWI; assembled J only preconditions",
+                "forward_history":_json_telemetry(history),
+                "costs":{"wall_seconds":time.perf_counter()-start,
+                         "cpu_seconds":_cpu_seconds()-cpu,"adjoint_wall_seconds":0.0}}
+        if with_gradient:
+            adjoint_start=time.perf_counter()
+            leaf=parameters.clone().requires_grad_(True)
+            telemetry={}
+            attached=self.square.differentiable_solution(
+                state,leaf,bind=lambda p:self.bind(p,design.lid_direction),
+                rtol=1e-9,restart=400,max_cycles=8,matrix_free=True,
+                precondition=self.sparse_inverse(self.square.assemble(state,coefficient="implicit")["J"],
+                                                transpose=True),
+                report=telemetry.update)
+            thermal,mechanical=self.losses(attached,leaf)
+            (-(thermal+mechanical)).backward()
+            if leaf.grad is None or not torch.isfinite(leaf.grad).all():
+                raise RuntimeError("implicit adjoint did not produce finite parameter gradients")
+            result["I3"]=leaf.grad.detach().tolist()
+            result["adjoint"]=telemetry
+            result["costs"]["adjoint_wall_seconds"]=time.perf_counter()-adjoint_start
+            result["costs"]["wall_seconds"]=time.perf_counter()-start
+            result["costs"]["cpu_seconds"]=_cpu_seconds()-cpu
+            self.bind(parameters,design.lid_direction)
+        return result
+
+    def diagnostics(self,state,residual) -> dict:
+        import torch
+        n=self.square.n_cell
+        blocks=residual.reshape(5,n)
+        self.square.residual(state)
+        cs=self.cs
+        velocity=state[:3*n].reshape(3,n)
+        thermal=cs.bc_t_cpd_cell.detach().reshape(-1)
+        patch_indices={}
+        for name in ("first","mixed","empty"):
+            for group in getattr(cs.bcpatch_batch,name):
+                for bc in group:
+                    patch_indices[bc.patch_name]=bc.patch_idx
+        heat_flux={}
+        mass_flux={}
+        for name,index in patch_indices.items():
+            if name=="frontAndBack":
+                continue
+            first=int(cs.fvpatch_batch.start_idx_face[index])
+            last=int(cs.fvpatch_batch.end_idx_face[index])
+            owners=cs.neighbor_cpd_cell[0,first:last]
+            ghosts=cs.neighbor_cpd_cell[1,first:last]
+            normal_gradient=(thermal[ghosts]-thermal[owners])*cs.deltaCoeffs[first:last,0]
+            outward=-cs.alpha_coeff[first:last,0]*normal_gradient*cs.face_area[first:last,0]
+            heat_flux[name]=float(outward.sum())
+            mass_flux[name]=float((cs.face_volumetric_flux[first:last,0]*
+                                   cs.face_area[first:last,0]).sum())
+        beta=cs.beta
+        try:
+            cs.beta=torch.zeros_like(beta)
+            no_buoyancy=self.square.residual(state).detach()
+        finally:
+            cs.beta=beta
+            self.square.residual(state)
+        buoyancy_change=residual-no_buoyancy
+        return {
+            "boundary_thermal_diffusion_outward_per_depth":heat_flux,
+            "boundary_thermal_diffusion_sum_per_depth":sum(heat_flux.values()),
+            "boundary_thermal_diffusion_relative_balance":abs(sum(heat_flux.values()))/
+                max(sum(abs(q) for q in heat_flux.values()),1e-300),
+            "thermal_transport_units":"K m^2/s per unit depth; multiply rho*cp for energy rate",
+            "boundary_volumetric_flux_per_depth":mass_flux,
+            "buoyancy_momentum_residual_delta_l2":float(buoyancy_change[:2*n].norm()),
+            "buoyancy_continuity_residual_delta_l2":float(buoyancy_change[3*n:4*n].norm()),
+            "residual_max_abs":float(residual.abs().max()),
+            "residual_blocks_max_abs":dict(zip(("momentum_x","momentum_y","out_of_plane",
+                                                "continuity","energy"),
+                                               blocks.abs().max(dim=1).values.tolist())),
+            "mass_balance_sum":float(blocks[3].sum()),
+            "energy_balance_sum":float(blocks[4].sum()),
+            "temperature_min_K_deviation":float(state[4*n:].min()),
+            "temperature_max_K_deviation":float(state[4*n:].max()),
+            "velocity_rms_m_s":float((velocity[:2].square()*self.weights).sum().sqrt()),
+            "pressure_gauge_mean":float(state[3*n:4*n].mean()),
+            "out_of_plane_max_abs":float(velocity[2].abs().max()),
+            "buoyancy_enabled":bool(float(cs.beta.abs().max())>0),
+            "beta_1_K":float(cs.beta.flatten()[0]),
+            "gravity_m_s2":9.81,
+            "kinematic_viscosity_m2_s":float(cs.nu_coeff.flatten()[0]),
+            "thermal_diffusivity_m2_s":float(cs.alpha_coeff.flatten()[0]),
+        }
+
+
+class Controlled2DEvaluator:
+    """Reusable LF/HF operators; each fresh evaluator owns an exclusive work directory."""
+    def __init__(self,work_dir:str|Path,*,grids:dict|None=None,
+                 kernel_root:Path=DEFAULT_KERNEL,threads:int=4):
+        configure_cpu_runtime(threads)
+        self.identity=dependency_identity(kernel_root)
+        self.kernel_root=Path(kernel_root).resolve()
+        sys.path.insert(0,str(self.kernel_root/"src"))
+        import torch
+        torch.set_num_threads(threads)
+        self.work_dir=artifacts.REPO_ROOT/artifacts.repo_relative(work_dir)
+        artifacts.make_directory(self.work_dir)
+        self.grid_sizes=grids or {"LF":6,"HF":10}
+        if set(self.grid_sizes)!={"LF","HF"}:
+            raise ValueError("grids must declare LF and HF")
+        self.operators={}
+        self.preprocessing_costs={}
+        self._tol=1e-11
+
+    def _grid(self,fidelity:str):
+        if fidelity not in self.grid_sizes:
+            raise ValueError("fidelity must be LF or HF")
+        if fidelity not in self.operators:
+            start,cpu=time.perf_counter(),_cpu_seconds()
+            self.operators[fidelity]=_Grid(int(self.grid_sizes[fidelity]),
+                                          self.work_dir/f"{fidelity}-grid",
+                                          self.kernel_root)
+            self.preprocessing_costs[fidelity]={
+                "wall_seconds":time.perf_counter()-start,"cpu_seconds":_cpu_seconds()-cpu}
+        return self.operators[fidelity]
+
+    def evaluate_design(self,design:Controlled2DDesign,*,fidelity:str="LF",
+                        with_gradient:bool=False,with_residual:bool=False,
+                        maxit:int=45) -> dict:
+        design.validate()
+        start,cpu=time.perf_counter(),_cpu_seconds()
+        try:
+            grid=self._grid(fidelity)
+            result=grid.solve(design,with_gradient=with_gradient,tol=self._tol,maxit=maxit)
+            if with_residual:
+                if fidelity!="LF":
+                    raise ValueError("I2 is defined on an LF field under the HF operator")
+                result["I2"]=self.hf_residual_on_lf(result,design)
+        except Exception as exc:
+            result={"status":"failed","I0":FAILURE_REWARD,
+                    "attempt":getattr(locals().get("grid"),"last_attempt",None),
+                    "I1":{"forward_or_gradient_failure":1.0},"I2":None,"I3":None,
+                    "failure":{"type":type(exc).__name__,"message":str(exc),"traceback":traceback.format_exc()},
+                    "costs":{"wall_seconds":time.perf_counter()-start,
+                             "cpu_seconds":_cpu_seconds()-cpu}}
+        if result["status"]=="success":
+            result["costs"]["solver_wall_seconds"]=result["costs"]["wall_seconds"]
+            result["costs"]["solver_cpu_seconds"]=result["costs"]["cpu_seconds"]
+            result["costs"]["wall_seconds"]=time.perf_counter()-start
+            result["costs"]["cpu_seconds"]=_cpu_seconds()-cpu
+        result.update(design=asdict(design),fidelity=fidelity,
+                      evaluator_identity=self.identity,
+                      adapter_sha256=ADAPTER_SHA256,
+                      grid_n=int(self.grid_sizes[fidelity]),
+                      preprocessing_costs=self.preprocessing_costs,
+                      objective_units="dimensionless; Var(T)/DeltaT^2 plus dimensionless actuator proxy")
+        return result
+
+    def hf_residual_on_lf(self,lf_result:dict,design:Controlled2DDesign) -> dict:
+        import numpy as np
+        import torch
+        from scipy.interpolate import RegularGridInterpolator
+        if lf_result["status"]!="success":
+            raise ValueError("LF failure has no field; preserve failure reward instead of inventing I2")
+        start,cpu=time.perf_counter(),_cpu_seconds()
+        high=self._grid("HF")
+        high.bind(torch.tensor(design.vector(),dtype=torch.float64),design.lid_direction)
+        xy=np.asarray(lf_result["state"]["cell_xy"])
+        fields=np.asarray(lf_result["state"]["field_blocked"]).reshape(5,-1)
+        xs,ys=np.unique(xy[:,0]),np.unique(xy[:,1])
+        order=np.lexsort((xy[:,1],xy[:,0]))
+        highxy=high.positions.numpy()
+        interpolated=[]
+        for field in fields:
+            values=field[order].reshape(len(xs),len(ys))
+            interpolated.append(RegularGridInterpolator((xs,ys),values,
+                                bounds_error=False,fill_value=None)(highxy))
+        state=torch.tensor(np.asarray(interpolated).reshape(-1),dtype=torch.float64)
+        n=high.square.n_cell
+        state[2*n:3*n]=0
+        state[3*n:4*n]-=state[3*n:4*n].mean()
+        residual=high.square.residual(state).detach()
+        raw=residual.reshape(5,n)
+        per_volume=raw/high.volume
+        scales=torch.tensor([REFERENCE_SPEED_M_S**2,REFERENCE_SPEED_M_S**2,1.,
+                             REFERENCE_SPEED_M_S,REFERENCE_SPEED_M_S*DELTA_T_K],
+                            dtype=torch.float64)[:,None]
+        normalized=per_volume/scales
+        physical=torch.cat((normalized[:2].reshape(-1),normalized[3:].reshape(-1)))
+        return {"operator":"actual HF Boussinesq finite-volume residual; no HF solve",
+                "interpolation":"bilinear LF cell field; linear extrapolation at HF boundary-adjacent centers",
+                "raw_field_blocked":residual.tolist(),
+                "block_max_abs":dict(zip(("momentum_x","momentum_y","out_of_plane","continuity","energy"),
+                                        raw.abs().max(dim=1).values.tolist())),
+                "nondimensional_rms":float(physical.square().mean().sqrt()),
+                "nondimensional_max_abs":float(physical.abs().max()),
+                "normalization":"volume-integrated rows / cell volume / fixed physical reference scales",
+                "costs":{"wall_seconds":time.perf_counter()-start,
+                         "cpu_seconds":_cpu_seconds()-cpu}}

@@ -1,0 +1,218 @@
+FFFFFFF                                                                  [100%]
+=================================== FAILURES ===================================
+_________ test_deadline_or_known_fatal_cleans_owned_descendants[False] _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_deadline_or_known_fatal_c0')
+fatal = False
+
+    @pytest.mark.parametrize("fatal",[False,True])
+    def test_deadline_or_known_fatal_cleans_owned_descendants(tmp_path,fatal):
+        code,pid_file=descendants_code(tmp_path,fatal)
+        runtime,process,output=launch(tmp_path,code,timeout=.4)
+>       descendant=int(wait_file(pid_file,process))
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_deadline_or_known_fatal_c0/descendant.pid')
+process = <Popen: returncode: 2 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+>               raise AssertionError(f"exited before {path.name}: {process.returncode}")
+E               AssertionError: exited before descendant.pid: 2
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:20: AssertionError
+_________ test_deadline_or_known_fatal_cleans_owned_descendants[True] __________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_deadline_or_known_fatal_c1')
+fatal = True
+
+    @pytest.mark.parametrize("fatal",[False,True])
+    def test_deadline_or_known_fatal_cleans_owned_descendants(tmp_path,fatal):
+        code,pid_file=descendants_code(tmp_path,fatal)
+        runtime,process,output=launch(tmp_path,code,timeout=.4)
+>       descendant=int(wait_file(pid_file,process))
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_deadline_or_known_fatal_c1/descendant.pid')
+process = <Popen: returncode: 2 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+>               raise AssertionError(f"exited before {path.name}: {process.returncode}")
+E               AssertionError: exited before descendant.pid: 2
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:20: AssertionError
+______ test_only_owned_kit_listener_is_ready_and_stop_closes_its_session _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_only_owned_kit_listener_i0')
+
+    def test_only_owned_kit_listener_is_ready_and_stop_closes_its_session(tmp_path):
+        port=free_port()
+        code,pid_file=descendants_code(tmp_path)
+        code=code.rsplit("time.sleep(60)\n",1)[0]+(
+            f"import socket\ns=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
+        runtime,process,output=launch(tmp_path,code,port=port,timeout=2)
+>       descendant=int(wait_file(pid_file,process));kit=int(wait_file(runtime/"kit.pid",process))
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_only_owned_kit_listener_i0/descendant.pid')
+process = <Popen: returncode: 2 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+>               raise AssertionError(f"exited before {path.name}: {process.returncode}")
+E               AssertionError: exited before descendant.pid: 2
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:20: AssertionError
+________ test_foreign_listener_never_counts_as_ready_or_gets_signalled _________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_foreign_listener_never_co0')
+
+    def test_foreign_listener_never_counts_as_ready_or_gets_signalled(tmp_path):
+        with socket.socket() as foreign:
+            foreign.bind(("127.0.0.1",0));foreign.listen()
+            port=foreign.getsockname()[1]
+            runtime,process,output=launch(tmp_path,"import time;time.sleep(60)",port=port)
+            try:
+                assert process.wait(timeout=5)!=0
+>               assert "belongs to another process" in wait_file(runtime/"kit.failure")
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_foreign_listener_never_co0/runtime/kit.failure')
+process = None, timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+                raise AssertionError(f"exited before {path.name}: {process.returncode}")
+            time.sleep(.02)
+>       raise AssertionError(f"missing receipt {path.name}")
+E       AssertionError: missing receipt kit.failure
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:22: AssertionError
+____________ test_preflight_is_bounded_and_owned_before_probe_runs _____________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_preflight_is_bounded_and_0')
+
+    def test_preflight_is_bounded_and_owned_before_probe_runs(tmp_path):
+        env=fake_gpu(tmp_path,hang_probe=True)
+        runtime,process,output=launch(tmp_path,"raise AssertionError('must not launch Kit')",env=env,
+            extra=("--gpu","0","--preflight-timeout",".2"))
+>       descendant=int(wait_file(tmp_path/"probe-descendant.pid",process))
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_preflight_is_bounded_and_0/probe-descendant.pid')
+process = <Popen: returncode: 2 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+>               raise AssertionError(f"exited before {path.name}: {process.returncode}")
+E               AssertionError: exited before probe-descendant.pid: 2
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:20: AssertionError
+__________ test_parent_death_during_preflight_cleans_probe_descendant __________
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_parent_death_during_prefl0')
+
+    def test_parent_death_during_preflight_cleans_probe_descendant(tmp_path):
+        env=fake_gpu(tmp_path,hang_probe=True);runtime=tmp_path/"runtime"
+        parent_script=tmp_path/"parent.py"
+        command=[sys.executable,str(SUPERVISOR),"--runtime",str(runtime),"--managed",
+            "--signal-port",str(free_port()),"--startup-timeout","5","--preflight-timeout","5",
+            "--cleanup-grace",".1","--gpu","0"]
+        parent_script.write_text("import os,subprocess,sys,time\n"
+            f"cmd={command!r}\n"
+            "cmd+=['--parent-pid',str(os.getpid()),'--',sys.executable,'-c','import time;time.sleep(60)']\n"
+            "subprocess.Popen(cmd)\ntime.sleep(60)\n")
+        with (tmp_path/"parent.log").open("wb") as output:
+            parent=subprocess.Popen([sys.executable,str(parent_script)],env=env,
+                stdout=output,stderr=subprocess.STDOUT)
+            try:
+>               descendant=int(wait_file(tmp_path/"probe-descendant.pid",parent))
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:159: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_parent_death_during_prefl0/probe-descendant.pid')
+process = <Popen: returncode: -15 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtun...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+                raise AssertionError(f"exited before {path.name}: {process.returncode}")
+            time.sleep(.02)
+>       raise AssertionError(f"missing receipt {path.name}")
+E       AssertionError: missing receipt probe-descendant.pid
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:22: AssertionError
+_______ test_successful_fake_preflight_preserves_single_uuid_and_one_icd _______
+
+tmp_path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_successful_fake_preflight0')
+
+    def test_successful_fake_preflight_preserves_single_uuid_and_one_icd(tmp_path):
+        env=fake_gpu(tmp_path);env["EXEC"]="invalid-bypass"
+        port=free_port();observed=tmp_path/"observed.json"
+        code=("import json,os,pathlib,socket,time\n"
+            f"pathlib.Path({str(observed)!r}).write_text(json.dumps(dict(os.environ)))\n"
+            f"s=socket.socket();s.bind(('127.0.0.1',{port}));s.listen();time.sleep(60)\n")
+        runtime,process,output=launch(tmp_path,code,port=port,timeout=2,env=env,
+            extra=("--gpu","0","--preflight-timeout",".5"))
+        try:
+>           wait_file(runtime/"kit.ready",process);data=json.loads(observed.read_text())
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/mnt/lv/home/litianyu/mycode/dcdtuni/.codex-tmp/goal-20261005/integration/.codex-tmp/ov-startup-lifecycle-fix/pytest-before/test_successful_fake_preflight0/runtime/kit.ready')
+process = <Popen: returncode: 2 args: ['/mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/...>
+timeout = 5
+
+    def wait_file(path, process=None, timeout=5):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if path.is_file(): return path.read_text().strip()
+            if process is not None and process.poll() is not None:
+>               raise AssertionError(f"exited before {path.name}: {process.returncode}")
+E               AssertionError: exited before kit.ready: 2
+
+src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_deadline_or_known_fatal_cleans_owned_descendants[False]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_deadline_or_known_fatal_cleans_owned_descendants[True]
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_only_owned_kit_listener_is_ready_and_stop_closes_its_session
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_foreign_listener_never_counts_as_ready_or_gets_signalled
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_preflight_is_bounded_and_owned_before_probe_runs
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_parent_death_during_preflight_cleans_probe_descendant
+FAILED src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py::test_successful_fake_preflight_preserves_single_uuid_and_one_icd
+7 failed in 10.89s

@@ -1,0 +1,52 @@
+{
+  "head": "416ad47102b317948a256b2e707a957f95bf985c",
+  "baselineHead": "76d350679349981842cea9252c4ae5adcac8c3f7",
+  "host": "NTU-litianyu-40901",
+  "utc": "2026-10-05T05:01:57.434002+00:00",
+  "scope": "CPU/fake subprocess and local socket tests only; no actual Kit/GPU probe, browser, API, service or index mutation",
+  "result": "41 passed in 12.72s",
+  "baseline": "7 new startup regressions failed on original helper",
+  "originalCombinedFixtureFailures": "18 passed, 2 failed: disappearing /proc status; build cancelled before Kit creation",
+  "intermediate": "29 passed, 2 fixture errors: nonsecret JSON f-string escaping and Python missing os.pidfd_open",
+  "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= taskset -c 36-39 /mnt/lv/home/litianyu/miniconda3/envs/dcdtuni/bin/python -m pytest -q src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py --basetemp=.codex-tmp/ov-startup-lifecycle-fix/pytest-final-41",
+  "syntaxAndDiffChecksPassed": true,
+  "sourcePaths": [
+    "src/start_server.sh",
+    "src/frontend/omniverse/cfd_demo/scripts/start_demo.sh",
+    "src/frontend/omniverse/cfd_demo/scripts/supervise_kit.py",
+    "src/frontend/omniverse/cfd_demo/scripts/resolve_vulkan_gpu.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_launcher_lifecycle.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_vulkan_gpu_selection.py",
+    "src/frontend/omniverse/cfd_demo/tests/test_ov_startup_lifecycle.py"
+  ],
+  "startup": {
+    "totalDeadlineSeconds": 300,
+    "perGpuProbeSeconds": 20,
+    "listenerOwnership": "exact Kit PID socket inode on requested port",
+    "readinessRequiresVideoOrBrowser": false,
+    "fatalSignature": "[omni.gpu_foundation_factory.plugin] Failed to create any GPU devices",
+    "failureReceipt": "kit.failure",
+    "readyReceipt": "kit.ready"
+  },
+  "cleanup": {
+    "privateSessionAndUid": true,
+    "pidReuseProtection": "pidfd + UID/SID/start-time validation; x86-64 Linux syscall fallback when Python API absent",
+    "parentDeath": "managed supervisor SIGTERM follows owned cleanup; direct child SIGKILL backup",
+    "descendants": "same private session, including separate process groups; TERM then bounded KILL/reap",
+    "foreignProcessesNeverSignalled": true
+  },
+  "acceptance": "physical GPU0 UUID, decoded video and scene ACK remain pending root actual launch after orphan authorization",
+  "originalFailurePreserved": true,
+  "finalLog": "final-41-regression.log",
+  "original32LogPreserved": "final-regression.log",
+  "cleanupFollowupBefore": "3 failed / 1 passed before fix; all four passed after",
+  "displayDeadlineBefore": "1 failed / 1 passed before fix",
+  "displayCancellationBefore": "1 failed before explicit Cancelled propagation",
+  "cleanupSemantics": "tries all saved sessions; preserves original failure; cleanup.failure plus nonzero kit.exit; receipt write errors do not skip other terminal receipt attempts",
+  "primaryReviewPending": "final seven source/test files frozen; no index mutation; physical GPU0/decoded video/ACK remains pending gated actual launch",
+  "intermediate39Log": "final-39-regression.log",
+  "normalTwoSessionRegression": "TERM control shutdown safely kills/reaps fake Kit descendant and fake display in distinct owned sessions within5s",
+  "cleanupFallbackSeconds": 20,
+  "intermediate40Log": "final-40-regression.log",
+  "displaySpawnBoundaryBefore": "1 failed before explicit boundary check; final full suite passes"
+}
